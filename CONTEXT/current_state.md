@@ -12,7 +12,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 0** | Planning & Documentation Setup | **[x] COMPLETED** | `project_data.md`, `database_schema.md`, `local_setup.md` |
 | **Phase 1** | Local DB & Docker Infrastructure | **[x] COMPLETED** | `docker-compose.yml`, local container setup |
 | **Phase 2** | Next.js Scaffolding & Prisma Setup | **[x] COMPLETED** | `prisma/schema.prisma`, Next.js app scaffold |
-| **Phase 3** | Authentication & Dual-Hash Migration | **[ ] PENDING** | NextAuth config, SHA-256 to bcrypt upgrades |
+| **Phase 3** | Authentication & Dual-Hash Migration | **[x] COMPLETED** | NextAuth config, SHA-256 to bcrypt upgrades |
 | **Phase 4** | Authorization & Page Guard System | **[ ] PENDING** | Permission check services, route guards |
 | **Phase 5** | Agent Management (CRUD) | **[ ] PENDING** | Agents view, agent permissions, profiles |
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[ ] PENDING** | Customers listing, card viewer (permission-guarded) |
@@ -66,7 +66,7 @@ Initialize Next.js using `npx -y create-next-app@latest ./` in the workspace fol
   - [x] **Run — confirm RED.**
 
 - [x] **GREEN — Backend (Schema → Initialization):**
-  - [x] [Schema] Initialize Prisma: `npx prisma init`. Copy `schema.prisma` from [database_schema.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/database_schema.md). Ensure `relationMode = "foreignKeys"` (real InnoDB FK constraints — we are creating a brand new database).
+  - [x] [Schema] Initialize Prisma: `npx prisma init`. Copy `schema.prisma` from [database_schema.md](./CONTEXT/database_schema.md). Ensure `relationMode = "foreignKeys"` (real InnoDB FK constraints — we are creating a brand new database).
   - [x] [Migration] Run `npx prisma migrate dev --name init_jd_crm_schema`. Verify all 14 tables are created with InnoDB engine and FK constraints via `SHOW CREATE TABLE crm_orders;`.
   - [x] [Client] In `src/lib/db.ts`, implement a global singleton Prisma client to avoid connection pool exhaustion during hot reload.
   - [x] Run integration test — **confirm GREEN**.
@@ -97,29 +97,29 @@ Implement NextAuth credentials provider. Upon authentication check:
 
 ---
 
-- [ ] **RED — Integration (`auth_flow.test.ts`):**
-  - [ ] Test: `POST /api/auth/callback/credentials` with username `'admin'` and password `'admin123'`. Assert cookie session is set and response is `200 OK`.
-  - [ ] Test: Query database for `'admin'` after successful login and assert that `password` field starts with `"$2b$"` (indicating it was automatically upgraded from the legacy SHA-256 hash to a bcrypt hash).
-  - [ ] **Run — confirm RED (authentication route handler does not exist).**
+- [x] **RED — Integration (`auth_flow.test.ts`):**
+  - [x] Test: `POST /api/auth/callback/credentials` with username `'admin'` and password `'admin123'`. Assert cookie session is set and response is `200 OK`.
+  - [x] Test: Query database for `'admin'` after successful login and assert that `password` field starts with `"$2b$"` (indicating it was automatically upgraded from the legacy SHA-256 hash to a bcrypt hash).
+  - [x] **Run — confirm RED (authentication route handler does not exist).**
 
-- [ ] **GREEN — Backend (Repository → Service → NextAuth Route):**
-  - [ ] [Repository] In `src/repository/user.repository.ts`, implement `findByCredential(identifier: string)`.
-  - [ ] [Service] In `src/service/auth.service.ts`, implement `verifyAndMigratePassword(passwordRaw: string, passwordHashDb: string, userId: number)` returning boolean and triggering update.
-  - [ ] [Controller] Create NextAuth Route Handler `src/app/api/auth/[...nextauth]/route.ts` configuring credentials provider to call `authService`.
-  - [ ] Run integration test — **confirm GREEN**.
+- [x] **GREEN — Backend (Repository → Service → NextAuth Route):**
+  - [x] [Repository] In `src/repository/user.repository.ts`, implement `findByCredential(identifier: string)`.
+  - [x] [Service] In `src/service/auth.service.ts`, implement `verifyAndMigratePassword(passwordRaw: string, passwordHashDb: string, userId: number)` returning boolean and triggering update.
+  - [x] [Controller] Create NextAuth Route Handler `src/app/api/auth/[...nextauth]/route.ts` configuring credentials provider to call `authService`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`LoginForm.test.tsx`):**
-  - [ ] Test: Clicking login button triggers NextAuth's `signIn` with credentials.
-  - [ ] Test: Invalid credentials display an alert "Invalid username or password".
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`LoginForm.test.tsx`):**
+  - [x] Test: Clicking login button triggers NextAuth's `signIn` with credentials.
+  - [x] Test: Invalid credentials display an alert "Invalid username or password".
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Types] Create login session types and form models in `src/types/auth.ts`.
-  - [ ] [Component] Build page `src/app/login/page.tsx` with a stylized modern login card using CSS grids and layout, handling submission state and redirection.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Create login session types and form models in `src/types/auth.ts`.
+  - [x] [Component] Build page `src/app/login/page.tsx` with a stylized modern login card using CSS grids and layout, handling submission state and redirection.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] User navigates to `/login` → submits legacy credentials (SHA-256) → dashboard loads → DB record is updated to bcrypt → User logs out and logs back in successfully → ✅ Done.
+- [x] **Verification chain:**
+  - [x] User navigates to `/login` → submits legacy credentials (SHA-256) → dashboard loads → DB record is updated to bcrypt → User logs out and logs back in successfully → ✅ Done.
 
 ---
 
@@ -227,4 +227,11 @@ Create authorization helpers `hasPermission(user, permissionId)`. Implement serv
     *   Updated `seed.sql` to create three default teams (`IT Park`, `DB Park`, `Alex`) and assign the default admin to `IT Park`.
     *   Applied new migration `add_teams_relation` to database.
 *   **Integration Verification:** Wrote [db_connection.test.ts](src/tests/db_connection.test.ts) to verify query functionality, including retrieving seeded designations, teams, and the admin user with team info. Verified that the test is fully passing.
+
+### Session 2 — June 23, 2026
+
+*   **TypeScript NextAuth Extension:** Created type definitions in [next-auth.d.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/types/next-auth.d.ts) to augment NextAuth's `Session`, `User`, and `JWT` interfaces, enabling type-safe access without `any` casts.
+*   **ESLint Warnings Fixed:** Cleared all warnings and errors in [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/auth/%5B...nextauth%5D/route.ts), [LoginForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LoginForm.tsx), and [LoginForm.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/LoginForm.test.tsx).
+*   **Robust Test Assertion:** Refactored [db_connection.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/db_connection.test.ts) to assert that default teams exist in the database without failing if the seed script runs multiple times.
+*   **Validation:** Verified that `npm run lint`, `npm run typecheck`, and `npm run test` are fully passing and clean.
 

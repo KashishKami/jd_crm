@@ -7,7 +7,7 @@ This repository contains the migrated **JD CRM** system, transitioned from a leg
 ## 1. Local Environment Setup
 
 To get your database, environment variables, migrations, and seeds set up locally, please refer to the detailed:
-👉 **[Local Environment Setup Guide](local_setup.md)**
+👉 **[Local Environment Setup Guide](./CONTEXT/local_setup.md)**
 
 ---
 
