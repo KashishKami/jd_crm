@@ -11,15 +11,18 @@ files in this exact order:
 3. CONTEXT/local_setup.md  
    → Docker Compose config and how to initialize the fresh database locally.
 
-4. CONTEXT/current_state.md  
+4. CONTEXT/decision_log.md  
+   → Log of architectural design decisions and deviations from the legacy system.
+
+5. CONTEXT/current_state.md  
    → Migration phase tracker and TDD checklists. This is your source of truth 
      for what's done and what's next.
 
-5. CONTEXT/TDD_INSTRUCTION_GUIDE.md  
+6. CONTEXT/TDD_INSTRUCTION_GUIDE.md  
    → The checklist format all implementation work must follow.
 
-After reading all five files:
-- Confirm you understand the stack (Next.js 14 App Router, TypeScript, 
+After reading all six files:
+- Confirm you understand the stack (Next.js 16 App Router, TypeScript, 
   Prisma, MySQL, NextAuth.js).
 - Check CONTEXT/current_state.md to identify the first PENDING phase.
 - Begin executing that phase's checklist exactly as described, following 

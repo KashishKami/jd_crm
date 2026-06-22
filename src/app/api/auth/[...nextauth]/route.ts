@@ -1,9 +1,9 @@
-import NextAuth from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { findByCredential } from '@/repository/user.repository';
-import { verifyAndMigratePassword } from '@/service/auth.service';
+import { findByCredential } from '../../../../repository/user.repository';
+import { verifyAndMigratePassword } from '../../../../service/auth.service';
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -31,12 +31,17 @@ const handler = NextAuth({
           return null;
         }
 
+        const permissionNames = (user as { role?: { permissions?: { permission?: { permissionName?: string } }[] } }).role?.permissions
+          ?.map((rp: { permission?: { permissionName?: string } }) => rp.permission?.permissionName)
+          .filter(Boolean)
+          .join(',') || '';
+
         return {
           id: String(user.uid),
           name: user.name,
           email: user.email,
           nickname: user.nickname,
-          userPermissions: user.userPermissions,
+          userPermissions: permissionNames,
           teamId: user.teamId,
         };
       },
@@ -69,6 +74,8 @@ const handler = NextAuth({
     strategy: 'jwt',
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

@@ -22,6 +22,9 @@ This document describes the canonical database schema for the **new** JD CRM Typ
 | `crm_customer_cards` | **InnoDB** | `card_id` | Yes | Saved payment card records (sensitive details). |
 | `crm_designations` | **InnoDB** | `designation_id` | Yes | Designation/role title dictionary lookup. |
 | `crm_gateway` | **InnoDB** | `gateway_id` | Yes | Payment gateways used for billing. |
+| `crm_roles` | **InnoDB** | `role_id` | Yes | Modern Roles database (e.g. Super Admin, Agent). |
+| `crm_permissions` | **InnoDB** | `permission_id` | Yes | Fine-grained descriptive permissions library. |
+| `crm_role_permissions` | **InnoDB** | Composite | No | Junction table linking Roles to Permissions (Many-to-Many). |
 | `crm_teams` | **InnoDB** | `team_id` | Yes | Teams database (e.g. IT Park, DB Park, Alex). |
 | `crm_orders` | **InnoDB** | `crm_order_id` | Yes | Core table housing sales details, status, and pricing. |
 | `crm_vendors` | **InnoDB** | `vendor_id` | Yes | Third-party vendor directory. |
@@ -146,6 +149,44 @@ This document describes the canonical database schema for the **new** JD CRM Typ
 | `team_name` | `varchar(155)` | NO | *None* | Team Name (e.g. IT Park, DB Park, Alex) |
 | `team_created` | `datetime` | NO | `current_timestamp()` | Created datetime |
 | `team_updated` | `datetime` | YES | `NULL` | Last modified datetime |
+
+### crm_roles
+*   **Engine:** InnoDB
+*   **Collation:** `utf8mb4_unicode_ci`
+
+| Column | Type | Null | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `role_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
+| `role_name` | `varchar(100)` | NO | *None* | Unique Role Name (e.g. Super Administrator) |
+| `role_created` | `datetime` | NO | `current_timestamp()` | Created datetime |
+| `role_updated` | `datetime` | YES | `NULL` | Last modified datetime |
+
+### crm_permissions
+*   **Engine:** InnoDB
+*   **Collation:** `utf8mb4_unicode_ci`
+
+| Column | Type | Null | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `permission_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
+| `permission_name` | `varchar(100)` | NO | *None* | Unique descriptive action name (e.g. `vendors:view`) |
+| `permission_description` | `varchar(255)` | YES | `NULL` | Explanatory description of permission scope |
+
+#### Predefined System Permissions
+The following standard permissions are seeded in the system:
+- `super-admin`: Administrative superuser bypass.
+- `vendors:view`: View vendors directory and search vendors.
+- `agents:view`: View and manage agents/staff list.
+- `gateways:view`: View and manage payment gateways.
+- `orders:view`: View orders, transactions, and status boards.
+
+### crm_role_permissions
+*   **Engine:** InnoDB
+*   **Collation:** `utf8mb4_unicode_ci`
+
+| Column | Type | Null | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `role_id` (PK, FK) | `int(11)` | NO | *None* | Foreign Key referencing `crm_roles.role_id` |
+| `permission_id` (PK, FK) | `int(11)` | NO | *None* | Foreign Key referencing `crm_permissions.permission_id` |
 
 ### crm_orders
 *   **Engine:** MyISAM
@@ -299,7 +340,7 @@ This document describes the canonical database schema for the **new** JD CRM Typ
 | `date_of_joining` | `date` | YES | `NULL` | Join Date |
 | `agent_id` | `varchar(25)` | YES | `NULL` | Identifier string (e.g. AG101) |
 | `profile_image` | `varchar(255)` | YES | `NULL` | File path to photo profile |
-| `user_permissions` | `varchar(555)` | YES | `NULL` | Comma-separated list of numeric permission tags |
+| `role_id` | `int(11)` | NO | *None* | Relational foreign key to `crm_roles.role_id` (RBAC) |
 | `agent_target` | `varchar(11)` | YES | `NULL` | Target quota value |
 | `agent_salary` | `varchar(11)` | YES | `NULL` | Current monthly base pay |
 | `created` | `timestamp` | YES | `current_timestamp()` | Creation datetime |
@@ -408,20 +449,55 @@ model Users {
   dateOfJoining   DateTime?     @map("date_of_joining") @db.Date
   agentId         String?       @map("agent_id") @db.VarChar(25)
   profileImage    String?       @map("profile_image") @db.VarChar(255)
-  userPermissions String?       @map("user_permissions") @db.VarChar(555)
   agentTarget     String?       @map("agent_target") @db.VarChar(11)
   agentSalary     String?       @map("agent_salary") @db.VarChar(11)
   created         DateTime?     @default(now()) @db.Timestamp(0)
+  teamId          Int           @map("team_id")
+  roleId          Int           @map("role_id")
 
-  // Logical Relations (Prisma only)
+  // Relationships
+  team            CrmTeams      @relation(fields: [teamId], references: [teamId], onDelete: Restrict)
+  role            CrmRoles      @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
   profile         UsersProfile?
   attendance      CrmAttendance[]
   salesOrders     CrmOrders[]          @relation("SalesAgent")
   verifiedOrders  CrmOrders[]          @relation("Verifier")
   academicRecord  UsersProfileAcademic[]
   professionalRecord UsersProfileProfessional[]
+  comments        CrmComments[]
+  userchecks      Usercheck[]
 
   @@map("users")
+}
+
+model CrmRoles {
+  roleId      Int                 @id @default(autoincrement()) @map("role_id")
+  roleName    String              @unique @map("role_name") @db.VarChar(100)
+  roleCreated DateTime            @default(now()) @map("role_created") @db.DateTime(0)
+  roleUpdated DateTime?           @map("role_updated") @db.DateTime(0)
+  users       Users[]
+  permissions CrmRolePermissions[]
+
+  @@map("crm_roles")
+}
+
+model CrmPermissions {
+  permissionId          Int                 @id @default(autoincrement()) @map("permission_id")
+  permissionName        String              @unique @map("permission_name") @db.VarChar(100)
+  permissionDescription String?             @map("permission_description") @db.VarChar(255)
+  roles                 CrmRolePermissions[]
+
+  @@map("crm_permissions")
+}
+
+model CrmRolePermissions {
+  roleId       Int            @map("role_id")
+  permissionId Int            @map("permission_id")
+  role         CrmRoles       @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+  permission   CrmPermissions @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("crm_role_permissions")
 }
 
 model UsersProfile {

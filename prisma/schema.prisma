@@ -30,12 +30,15 @@ model Users {
   dateOfJoining   DateTime?     @map("date_of_joining") @db.Date
   agentId         String?       @map("agent_id") @db.VarChar(25)
   profileImage    String?       @map("profile_image") @db.VarChar(255)
-  userPermissions String?       @map("user_permissions") @db.VarChar(555)
   agentTarget     String?       @map("agent_target") @db.VarChar(11)
   agentSalary     String?       @map("agent_salary") @db.VarChar(11)
   created         DateTime?     @default(now()) @db.Timestamp(0)
+  teamId          Int                  @map("team_id")
+  roleId          Int                  @map("role_id")
 
   // Logical Relations (Prisma only)
+  team            CrmTeams             @relation(fields: [teamId], references: [teamId], onDelete: Restrict)
+  role            CrmRoles             @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
   profile         UsersProfile?
   attendance      CrmAttendance[]
   salesOrders     CrmOrders[]          @relation("SalesAgent")
@@ -44,8 +47,6 @@ model Users {
   professionalRecord UsersProfileProfessional[]
   comments        CrmComments[]
   userchecks      Usercheck[]
-  teamId          Int                  @map("team_id")
-  team            CrmTeams             @relation(fields: [teamId], references: [teamId], onDelete: Restrict)
 
   @@map("users")
 }
@@ -313,5 +314,35 @@ model CrmTeams {
   users       Users[]
 
   @@map("crm_teams")
+}
+
+model CrmRoles {
+  roleId      Int                  @id @default(autoincrement()) @map("role_id")
+  roleName    String               @unique @map("role_name") @db.VarChar(100)
+  roleCreated DateTime             @default(now()) @map("role_created") @db.DateTime(0)
+  roleUpdated DateTime?            @map("role_updated") @db.DateTime(0)
+  users       Users[]
+  permissions CrmRolePermissions[]
+
+  @@map("crm_roles")
+}
+
+model CrmPermissions {
+  permissionId          Int                  @id @default(autoincrement()) @map("permission_id")
+  permissionName        String               @unique @map("permission_name") @db.VarChar(100)
+  permissionDescription String?              @map("permission_description") @db.VarChar(255)
+  roles                 CrmRolePermissions[]
+
+  @@map("crm_permissions")
+}
+
+model CrmRolePermissions {
+  roleId       Int            @map("role_id")
+  permissionId Int            @map("permission_id")
+  role         CrmRoles       @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+  permission   CrmPermissions @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("crm_role_permissions")
 }
 

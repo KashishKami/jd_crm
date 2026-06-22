@@ -13,7 +13,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 1** | Local DB & Docker Infrastructure | **[x] COMPLETED** | `docker-compose.yml`, local container setup |
 | **Phase 2** | Next.js Scaffolding & Prisma Setup | **[x] COMPLETED** | `prisma/schema.prisma`, Next.js app scaffold |
 | **Phase 3** | Authentication & Dual-Hash Migration | **[x] COMPLETED** | NextAuth config, SHA-256 to bcrypt upgrades |
-| **Phase 4** | Authorization & Page Guard System | **[ ] PENDING** | Permission check services, route guards |
+| **Phase 4** | Authorization & Page Guard System | **[x] COMPLETED** | Permission check services, route guards |
 | **Phase 5** | Agent Management (CRUD) | **[ ] PENDING** | Agents view, agent permissions, profiles |
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[ ] PENDING** | Customers listing, card viewer (permission-guarded) |
 | **Phase 7** | Vendor Management | **[ ] PENDING** | Vendor listing, blacklist toggle, orders mapping |
@@ -135,28 +135,28 @@ Create authorization helpers `hasPermission(user, permissionId)`. Implement serv
 
 ---
 
-- [ ] **RED — Integration (`authorization.test.ts`):**
-  - [ ] Test: GET `/api/vendors` with a session for a user *without* permission code `160`. Assert response is `403 Forbidden`.
-  - [ ] Test: GET `/api/vendors` with a session for a user *with* permission code `160` or `99999`. Assert response is `200 OK`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`authorization.test.ts`):**
+  - [x] Test: GET `/api/vendors` with a session for a user *without* permission code `160`. Assert response is `403 Forbidden`.
+  - [x] Test: GET `/api/vendors` with a session for a user *with* permission code `160` or `99999`. Assert response is `200 OK`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Service → Middleware Guard):**
-  - [ ] [Service] Implement `src/service/permission.service.ts` containing permission evaluations (checking if user permissions list contains key or super-admin `99999`).
-  - [ ] [Controller] Guard backend API endpoints and Server Actions by resolving the session and calling the checking service.
-  - [ ] Run integration test — **confirm GREEN**.
+- [x] **GREEN — Backend (Service → Middleware Guard):**
+  - [x] [Service] Implement `src/service/permission.service.ts` containing permission evaluations (checking if user permissions list contains key or super-admin `99999`).
+  - [x] [Controller] Guard backend API endpoints and Server Actions by resolving the session and calling the checking service.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit / Component (`SideNavigation.test.tsx`):**
-  - [ ] Test: Render Sidebar. If user session permissions exclude `160`, assert that the "All Vendors" link is NOT rendered in the navigation menu.
-  - [ ] Test: If user session permissions include `160`, assert "All Vendors" link is rendered.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit / Component (`Sidebar.test.tsx`):**
+  - [x] Test: Render Sidebar. If user session permissions exclude `160`, assert that the "All Vendors" link is NOT rendered in the navigation menu.
+  - [x] Test: If user session permissions include `160`, assert "All Vendors" link is rendered.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Hook → Component):**
-  - [ ] [Hook] Implement `usePermission` hook mapping user context.
-  - [ ] [Component] In `Sidebar.tsx`, wrap the list items with conditional logic checking permissions.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Layout & Components):**
+  - [x] [Providers] Expose NextAuth SessionContext via client wrapper.
+  - [x] [Component] In `Sidebar.tsx`, wrap the list items with conditional logic checking permissions via `hasPermission` and `useSession()`.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent logs in without Vendor View permissions (`160`) → Side navigation excludes vendor items → Agent manually browses to `/vendors` → Page renders "Access Denied" page template → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent logs in without Vendor View permissions (`160`) → Side navigation excludes vendor items → Agent manually browses to `/vendors` → Page renders "Access Denied" page template → ✅ Done.
 
 ---
 
@@ -234,4 +234,14 @@ Create authorization helpers `hasPermission(user, permissionId)`. Implement serv
 *   **ESLint Warnings Fixed:** Cleared all warnings and errors in [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/auth/%5B...nextauth%5D/route.ts), [LoginForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LoginForm.tsx), and [LoginForm.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/LoginForm.test.tsx).
 *   **Robust Test Assertion:** Refactored [db_connection.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/db_connection.test.ts) to assert that default teams exist in the database without failing if the seed script runs multiple times.
 *   **Validation:** Verified that `npm run lint`, `npm run typecheck`, and `npm run test` are fully passing and clean.
+
+### Session 3 — June 23, 2026
+
+*   **Authorization Service:** Implemented [permission.service.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/service/permission.service.ts) to parse database comma-separated strings and check permissions, automatically allowing the super-admin (`99999`) bypass.
+*   **Protected Route & API:** Created a mock API route [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/vendors/route.ts) that checks session permissions and blocks unauthorized requests with 403 Forbidden.
+*   **NextAuth Middleware Route Guards:** Created [middleware.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/middleware.ts) using NextAuth `withAuth` to intercept pages (such as `/vendors`, `/agents`, `/gateways`, `/orders`), redirecting unauthenticated users to `/login`, and unauthorized users to `/access-denied`.
+*   **Root Layout Shell:** Implemented [LayoutShell.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LayoutShell.tsx) and [layout.css](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/layout.css) to wrap children in the sidebar grid when logged in, display a loading screen while resolving the session, and serve full-screen standalone pages (such as `/login`) for unlogged-in states.
+*   **Dynamic Sidebar:** Built [Sidebar.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/Sidebar.tsx) to render navigation links dynamically based on user session permissions (Vendors: `160`, Agents: `162`, Gateways: `168`, Orders: `172`).
+*   **Access Denied View:** Added [page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/access-denied/page.tsx) to show a warning page when a user attempts to browse to restricted pages.
+*   **TDD Checklists:** Wrote [authorization.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/authorization.test.ts) (integration test for API guards) and [Sidebar.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/Sidebar.test.tsx) (unit test for sidebar rendering), confirmed all 16 tests in the project are 100% green and type checks / lint checks are clean.
 

@@ -8,5 +8,16 @@ export async function findByCredential(identifier: string) {
         { email: identifier },
       ],
     },
+    include: {
+      role: {
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+        },
+      },
+    },
   });
 }
