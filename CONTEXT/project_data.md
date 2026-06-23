@@ -85,8 +85,8 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `orders:create` | `171` | Access Add New Order page and POST endpoint |
 | `orders:edit` | `205` | Perform edit/delete actions on an existing order |
 | `orders:view-completed` | `173` | Access Completed Orders filtered view |
-| `orders:view-pending` | `174` | Access Pending Orders queue |
-| `orders:view-pending-tracking` | `175` | Access Pending Tracking queue |
+| `orders:view-pending-booking` | `174` | Access Pending Booking queue |
+| `orders:view-pending-shipment` | `175` | Access Pending Shipment queue |
 | `orders:view-pending-delivery` | `176` | Access Pending Delivery queue |
 | `orders:view-pending-feedback` | `177` | Access Pending Feedback queue |
 | `orders:view-pending-resolutions` | `178` | Access Pending Resolutions queue |
@@ -134,11 +134,12 @@ Mapped in `dashboard.php` and `orders.php` to define the order status logic:
 
 ### Order Workflow Status (`order_current_status`)
 Determines which queue the order sits in (from `class/orderClass.php` pending reports):
-*   `Pending Tracking`: Missing tracking information.
-*   `Pending Delievery` (sic, stored as `Pending Delievery` in legacy database): Out for delivery but not confirmed.
+*   `Pending Booking`: Order intake complete, awaiting vendor/supplier assignment (default state on creation).
+*   `Pending Shipment`: Vendor assigned, awaiting tracking number details (replaces legacy `Pending Tracking`).
+*   `Pending Delivery`: Out for delivery but not confirmed (corrects legacy misspelling `Pending Delievery`).
 *   `Pending Feedback`: Delivered, awaiting customer/vendor review.
 *   `Pending Resolutions`: Under dispute or issue tracking.
-*   `Everything Completed`: Final successful workflow state.
+*   `Completed Orders`: Final successful workflow state.
 
 ### Attendance Status (`attendance_status_id` / `attendance_status_name`)
 Mapped during daily marking (`mark-attendance.php`):

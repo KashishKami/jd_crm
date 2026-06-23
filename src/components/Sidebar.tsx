@@ -6,8 +6,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-const Sidebar = forwardRef<HTMLElement, {}>(function Sidebar(props, ref) {
+interface SidebarProps {
+  onToggle?: () => void;
+}
+
+const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggle }, ref) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
@@ -26,9 +29,23 @@ const Sidebar = forwardRef<HTMLElement, {}>(function Sidebar(props, ref) {
   return (
     <aside ref={ref} className="sidebar">
       <div className="sidebar-header">
-        <div className="logo-area">
-          <span className="logo-icon">JD</span>
-          <span className="logo-text">CRM Monolith</span>
+        <div className="logo-area" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="logo-icon">JD</span>
+            <span className="logo-text">CRM Monolith</span>
+          </div>
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className="sidebar-close-btn"
+              title="Close Menu"
+              aria-label="Close Menu"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
         </div>
         <div className="user-profile">
           <div className="user-avatar">{username[0]?.toUpperCase()}</div>

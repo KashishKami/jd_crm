@@ -25,8 +25,7 @@ export async function getAllVendors(status?: number): Promise<VendorWithMetrics[
     
     const positiveOrders = totalOrders - negativeOrders;
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { orders, ...vendorData } = vendor;
+    const { orders: _orders, ...vendorData } = vendor;
 
     return {
       ...vendorData,

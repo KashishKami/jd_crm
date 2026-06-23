@@ -1,0 +1,192 @@
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/db';
+import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
+
+export async function createWithCustomerAndCard(data: OrderCreateInput) {
+  // Resolve sales agent name if present
+  let salesAgentName: string | null = null;
+  if (data.orderSalesAgentId) {
+    const agent = await prisma.users.findUnique({
+      where: { uid: data.orderSalesAgentId },
+    });
+    if (agent) {
+      salesAgentName = agent.nickname || agent.name;
+    }
+  }
+
+  // Resolve verifier name if present
+  let verifierName: string | null = null;
+  if (data.orderVerifierId) {
+    const verifier = await prisma.users.findUnique({
+      where: { uid: data.orderVerifierId },
+    });
+    if (verifier) {
+      verifierName = verifier.nickname || verifier.name;
+    }
+  }
+
+  // Resolve vendor name if present
+  let vendorName: string | null = null;
+  if (data.orderVendorId) {
+    const vendor = await prisma.crmVendors.findUnique({
+      where: { vendorId: data.orderVendorId },
+    });
+    if (vendor) {
+      vendorName = vendor.vendorName;
+    }
+  }
+
+  // Calculate markup: Total Pitched - Vendor Price
+  const totalPitched = parseFloat(data.orderTotalPitched || '0');
+  const vendorPrice = parseFloat(data.orderVendorPrice || '0');
+  const markup = (totalPitched - vendorPrice).toString();
+
+  // Perform database inserts in an atomic transaction
+  return await prisma.$transaction(async (tx) => {
+    // 1. Create customer
+    const customer = await tx.crmCustomers.create({
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        customerPhone: data.customerPhone || null,
+        customerEmail: data.customerEmail,
+        customerBillingAddress: data.customerBillingAddress || null,
+        customerShippingAddress: data.customerShippingAddress || null,
+        dateCreated: new Date(),
+        dateUpdated: new Date(),
+      },
+    });
+
+    // 2. Create customer card
+    const card = await tx.crmCustomerCards.create({
+      data: {
+        cardCustomerId: customer.customerId,
+        customerNameOncard: data.customerNameOncard,
+        customerCardNumber: data.customerCardNumber,
+        customerCardExpDate: data.customerCardExpDate,
+        customerCardCvv: data.customerCardCvv || null,
+        customerCardCopyStatus: data.customerCardCopyStatus || 'No',
+        customerCardPhotoStatus: data.customerCardPhotoStatus || 'No',
+        customerCardCreatedAt: new Date(),
+        customerCardUpdated: new Date(),
+      },
+    });
+
+    // 3. Create order
+    const order = await tx.crmOrders.create({
+      data: {
+        orderCustomerId: customer.customerId,
+        orderYear: data.orderYear || null,
+        orderMakeModel: data.orderMakeModel || null,
+        orderPart: data.orderPart || null,
+        orderPartSize: data.orderPartSize || null,
+        orderQuotedMiles: data.orderQuotedMiles || null,
+        orderGivenMiles: data.orderGivenMiles || null,
+        orderVin: data.orderVin || null,
+        orderTotalPitched: data.orderTotalPitched || null,
+        orderVendorPrice: data.orderVendorPrice || null,
+        orderVendorId: data.orderVendorId || null,
+        orderVendorName: vendorName,
+        orderShippingType: data.orderShippingType || null,
+        orderMarkup: markup,
+        orderPaymentGatewayId: data.orderPaymentGatewayId || null,
+        orderSalesAgentId: data.orderSalesAgentId || null,
+        orderSalesAgentName: salesAgentName,
+        orderVerifierId: data.orderVerifierId || null,
+        orderVerifierName: verifierName,
+        saleStatus: data.saleStatus || '1', // Default to Sold
+        orderCurrentStatus: data.orderVendorId ? 'Pending Shipment' : 'Pending Booking', // Initial state
+        orderCurrentStatusUpdateDate: new Date(),
+        orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
+        orderVendorFeedback: 'Positive',
+        orderClientFeedback: 'Positive',
+        orderResolution: 'Resolved',
+        orderCreatedDate: new Date(),
+        orderUpdatedDate: new Date(),
+      },
+    });
+
+    return {
+      orderId: order.crmOrderId,
+      customerId: customer.customerId,
+      cardId: card.cardId,
+    };
+  });
+}
+
+export async function findAll(filters: OrderFilters) {
+  const where: Prisma.CrmOrdersWhereInput = {};
+
+  if (filters.status) {
+    if (filters.status === 'Completed Orders') {
+      where.orderCurrentStatus = 'Completed Orders';
+      where.saleStatus = '1';
+    } else {
+      where.orderCurrentStatus = filters.status;
+    }
+  }
+  if (filters.saleStatus) {
+    where.saleStatus = filters.saleStatus;
+  }
+  if (filters.agentId) {
+    where.orderSalesAgentId = filters.agentId;
+  }
+  if (filters.dateFrom || filters.dateTo) {
+    const dateFilter: Prisma.DateTimeNullableFilter = {};
+    if (filters.dateFrom) {
+      dateFilter.gte = new Date(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      dateFilter.lte = new Date(filters.dateTo);
+    }
+    where.orderDate = dateFilter;
+  }
+
+  return await prisma.crmOrders.findMany({
+    where,
+    include: {
+      customer: true,
+      vendor: true,
+      gateway: true,
+      salesAgent: true,
+      verifier: true,
+    },
+    orderBy: {
+      orderCreatedDate: 'desc',
+    },
+  });
+}
+
+export async function findById(crmOrderId: number) {
+  return await prisma.crmOrders.findUnique({
+    where: { crmOrderId },
+    include: {
+      customer: {
+        include: {
+          cards: true,
+        },
+      },
+      vendor: true,
+      gateway: true,
+      salesAgent: true,
+      verifier: true,
+      comments: true,
+    },
+  });
+}
+
+export async function update(crmOrderId: number, data: OrderUpdateInput) {
+  return await prisma.crmOrders.update({
+    where: { crmOrderId },
+    data: {
+      ...data,
+      orderUpdatedDate: new Date(),
+    },
+  });
+}
+
+export async function remove(crmOrderId: number) {
+  return await prisma.crmOrders.delete({
+    where: { crmOrderId },
+  });
+}

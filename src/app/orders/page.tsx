@@ -1,8 +1,11 @@
+import React from 'react';
+import OrderListContainer from '../../components/OrderListContainer';
+
+export const metadata = {
+  title: 'Orders Pipeline - JD CRM',
+  description: 'Manage sales intake, bookings, margins, and status queues',
+};
+
 export default function OrdersPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Orders Ledger</h1>
-      <p className="text-muted">Phase 9 Order Intake & Sales Pipeline (Pending)</p>
-    </div>
-  );
+  return <OrderListContainer />;
 }

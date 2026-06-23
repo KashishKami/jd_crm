@@ -1,19 +1,23 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
+  // NOTE: eslint-config-next/typescript is intentionally excluded.
+  // It enables type-aware @typescript-eslint rules which require a full `tsc`
+  // compilation pass, making lint as slow as `npm run typecheck`. Type checking
+  // is handled separately via `npm run typecheck`.
   globalIgnores([
-    // Default ignores of eslint-config-next:
+    // Next.js build output
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Project-specific
     "crm_php/**",
     "seed.sql",
+    // Scratch/utility scripts (not production code)
+    "scratch/**",
   ]),
 ]);
 

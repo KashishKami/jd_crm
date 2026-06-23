@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import GatewayReport from '../components/GatewayReport';
@@ -40,7 +40,7 @@ describe('GatewayReport Component Unit Tests', () => {
     // June 2026 row
     expect(screen.queryByText('Jun 2026')).not.toBeNull();
     expect(screen.queryByText('5')).not.toBeNull(); // completedCount
-    expect(screen.queryByText('1')).not.toBeNull(); // refundCount
+    expect(screen.queryAllByText('1').length).toBeGreaterThan(0); // refundCount
 
     // May 2026 row
     expect(screen.queryByText('May 2026')).not.toBeNull();
@@ -69,7 +69,6 @@ describe('GatewayReport Component Unit Tests', () => {
 
     // The element should have a red color style
     const netCell = netCells[0];
-    const style = window.getComputedStyle(netCell);
     // Check via class or inline style — the component uses inline red color for negatives
     expect(netCell.className).toMatch(/negative|red/i);
   });

@@ -19,7 +19,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[x] COMPLETED** | Customers listing, card viewer (permission-guarded) |
 | **Phase 7** | Vendor Management | **[x] COMPLETED** | Vendor listing, blacklist toggle, orders mapping |
 | **Phase 8** | Gateway Setup & Aggregated Reports | **[x] COMPLETED** | `gateways/page.tsx`, `GatewayList.tsx`, `GatewayReport.tsx` |
-| **Phase 9** | Order Intake & Sales Pipeline | **[ ] PENDING** | Add order form, pipeline queues (Pending Tracking/Feedback) |
+| **Phase 9** | Order Intake & Sales Pipeline | **[x] COMPLETED** | Add order form, pipeline queues (Pending Tracking/Feedback) |
+| **Phase 9.5**| Order Status Workflow Standardization | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, routing, views |
 | **Phase 10**| Interactive Sales Dashboard | **[ ] PENDING** | Metric counters, top/bottom performance widgets |
 | **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
 | **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
@@ -410,50 +411,101 @@ Build gateway repository and service. The report service queries `crm_orders` gr
 #### W-901 — Create Order (Customer + Card + Order Atomic Transaction) & Pipeline Queues
 
 **Goal:**
-The PHP `add-order.php` created a customer record, a card record, and an order record in a single form submission — but using three separate INSERT statements with no transaction wrapping, risking partial data. The new system must wrap all three inserts in a single Prisma transaction. The pending pipeline queues (`Pending Tracking`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`) are filtered views of `crm_orders`.
+The PHP `add-order.php` created a customer record, a card record, and an order record in a single form submission — but using three separate INSERT statements with no transaction wrapping, risking partial data. The new system must wrap all three inserts in a single Prisma transaction. The pending pipeline queues (`Pending Tracking`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`, `Completed Orders`) are filtered views of `crm_orders`.
 
 **Approach:**
 Build an order repository that uses `prisma.$transaction([...])`. Expose create at `POST /api/orders`. Build pipeline queue endpoints as filtered GET queries on `order_current_status`. Build the order list, detail, and add-order pages.
 
 ---
 
-- [ ] **RED — Integration (`orders.test.ts`):**
-  - [ ] Test: `POST /api/orders` with a valid payload (customer + card + order fields) returns `201 Created` with `{ orderId, customerId, cardId }`. Assert all three rows exist in DB.
-  - [ ] Test: `POST /api/orders` where the card insert would fail (e.g. missing `customerCardNumber`) rolls back all three inserts. Assert no orphan customer row was created.
-  - [ ] Test: `GET /api/orders?status=Pending+Tracking` returns only orders where `order_current_status = 'Pending Tracking'`.
-  - [ ] Test: `PATCH /api/orders/:id` with `{ orderTrackingNumber: 'TRK123' }` sets `order_current_status` to `'Pending Delivery'` automatically (state machine logic in service).
-  - [ ] Test: `GET /api/orders` without `orders:view` returns `403 Forbidden`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: `POST /api/orders` with a valid payload (customer + card + order fields) returns `201 Created` with `{ orderId, customerId, cardId }`. Assert all three rows exist in DB.
+  - [x] Test: `POST /api/orders` where the card insert would fail (e.g. missing `customerCardNumber`) rolls back all three inserts. Assert no orphan customer row was created.
+  - [x] Test: `GET /api/orders?status=Pending+Tracking` returns only orders where `order_current_status = 'Pending Tracking'`.
+  - [x] Test: `PATCH /api/orders/:id` with `{ orderTrackingNumber: 'TRK123' }` sets `order_current_status` to `'Pending Delivery'` automatically (state machine logic in service).
+  - [x] Test: `GET /api/orders` without `orders:view` returns `403 Forbidden`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/order.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/order.repository.ts`:
     - `createWithCustomerAndCard(data: OrderCreateInput)` — wraps three Prisma creates in `prisma.$transaction`.
     - `findAll(filters: OrderFilters)` — supports `status`, `agentId`, `dateFrom`, `dateTo` filters.
     - `findById(id)` — includes customer, vendor, gateway, salesAgent, verifier, comments.
     - `update(id, data)`.
-  - [ ] [Service] Create `src/service/order.service.ts`:
+  - [x] [Service] Create `src/service/order.service.ts`:
     - `advanceStatus(order)` — state machine: if `orderTrackingNumber` set → `'Pending Delivery'`; if `orderDeliveryStatus` = confirmed → `'Pending Feedback'`; etc.
     - `computeMarkup(pitched, vendorPrice)` — calculates `orderMarkup`.
-  - [ ] [Controller] `src/app/api/orders/route.ts` (GET, POST), `src/app/api/orders/[id]/route.ts` (GET, PATCH, DELETE). Guard with `orders:view`, `orders:create`, `orders:edit`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] `src/app/api/orders/route.ts` (GET, POST), `src/app/api/orders/[id]/route.ts` (GET, PATCH, DELETE). Guard with `orders:view`, `orders:create`, `orders:edit`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`AddOrderForm.test.tsx`):**
-  - [ ] Test: Submitting the form with all required fields calls `POST /api/orders` with the correct combined payload.
-  - [ ] Test: If `orderTotalPitched` and `orderVendorPrice` are both filled, the markup field is automatically computed and displayed.
-  - [ ] Test: Form shows validation error if `orderPart` is empty on submit attempt.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`AddOrderForm.test.tsx`):**
+  - [x] Test: Submitting the form with all required fields calls `POST /api/orders` with the correct combined payload.
+  - [x] Test: If `orderTotalPitched` and `orderVendorPrice` are both filled, the markup field is automatically computed and displayed.
+  - [x] Test: Form shows validation error if `orderPart` is empty on submit attempt.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Pages → Components):**
-  - [ ] [Types] Create `src/types/order.ts` with `Order`, `OrderCreateInput`, `OrderDetail`, `PipelineStatus` types.
-  - [ ] [Page] `src/app/orders/page.tsx` — all orders table with filters.
-  - [ ] [Page] `src/app/orders/new/page.tsx` — multi-section add order form (Customer Info, Card Details, Vehicle & Part, Pricing, Agent Assignment).
-  - [ ] [Page] `src/app/orders/[id]/page.tsx` — order detail view with all fields grouped.
-  - [ ] [Page] `src/app/orders/[id]/edit/page.tsx` — edit order form.
-  - [ ] [Pages] `src/app/pending/tracking/page.tsx`, `src/app/pending/delivery/page.tsx`, `src/app/pending/feedback/page.tsx`, `src/app/pending/resolutions/page.tsx` — filtered pipeline queue pages.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Pages → Components):**
+  - [x] [Types] Create `src/types/order.ts` with `Order`, `OrderCreateInput`, `OrderDetail`, `PipelineStatus` types.
+  - [x] [Page] `src/app/orders/page.tsx` — all orders table with filters.
+  - [x] [Page] `src/app/orders/new/page.tsx` — multi-section add order form (Customer Info, Card Details, Vehicle & Part, Pricing, Agent Assignment).
+  - [x] [Page] `src/app/orders/[id]/page.tsx` — order detail view with all fields grouped.
+  - [x] [Page] `src/app/orders/[id]/edit/page.tsx` — edit order form.
+  - [x] [Pages] `src/app/pending/tracking/page.tsx`, `src/app/pending/delivery/page.tsx`, `src/app/pending/feedback/page.tsx`, `src/app/pending/resolutions/page.tsx` — filtered pipeline queue pages.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent navigates to `/orders/new` → fills in customer info, card details, vehicle part, pricing → submits → order appears in `/orders` → agent fills in tracking number on order edit → `order_current_status` auto-advances to `Pending Delivery` → order appears in `/pending/delivery` queue → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent navigates to `/orders/new` → fills in customer info, card details, vehicle part, pricing → submits → order appears in `/orders` → agent fills in tracking number on order edit → `order_current_status` auto-advances to `Pending Delivery` → order appears in `/pending/delivery` queue → ✅ Done.
+
+---
+
+### Phase 9.5 — Order Status Workflow Standardization
+
+#### W-951 — Standardize order_current_status states & flow
+
+**Goal:**
+Align the order workflow status (`order_current_status`) across database, backend, and frontend layers. Resolve the legacy database misspelling (`Pending Delievery` -> `Pending Delivery`), rename the old `Pending Tracking` status to `Pending Shipment`, and introduce a formal `Pending Booking` status as the default initial state when an order is created without an assigned vendor.
+
+**Approach:**
+1. Execute data migration SQL statements to align existing records in the database.
+2. Update `order.repository.ts` to assign `'Pending Booking'` or `'Pending Shipment'` upon order intake.
+3. Update `order.service.ts` update transitions (Booking -> Shipment -> Delivery -> Feedback).
+4. Rename routes: rename `/pending/tracking` directory to `/pending/shipment`, and create a new `/pending/booking` route.
+5. Update `OrderListContainer.tsx`, `OrderList.tsx`, `EditOrderForm.tsx`, and `OrderDetailPage` to render new workflow tabs, dropdowns, and badges.
+6. Refactor integration tests to verify the updated status states and transitions.
+
+---
+
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: `POST /api/orders` without an assigned vendor defaults to status `'Pending Booking'`.
+  - [x] Test: `POST /api/orders` with an assigned vendor defaults to status `'Pending Shipment'`.
+  - [x] Test: `PATCH /api/orders/:id` setting a vendor on a `'Pending Booking'` order advances status to `'Pending Shipment'`.
+  - [x] Test: `PATCH /api/orders/:id` setting a tracking number on a `'Pending Shipment'` order advances status to `'Pending Delivery'`.
+  - [x] Test: `GET /api/orders?status=Pending+Shipment` returns only shipment pending orders.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service → DB Migration):**
+  - [x] [Migration] Migrate legacy database status values (Run SQL queries to map `'Pending Tracking'` -> `'Pending Shipment'`, `'Pending Delievery'` -> `'Pending Delivery'`, and nulls to `'Pending Booking'`).
+  - [x] [Repository] Update `createWithCustomerAndCard` in `order.repository.ts` to conditionally set `orderCurrentStatus` to `'Pending Shipment'` if `orderVendorId` is provided, otherwise `'Pending Booking'`.
+  - [x] [Repository] Simplify status filter query in `findAll` in `order.repository.ts` to query `where.orderCurrentStatus = filters.status` directly.
+  - [x] [Service] In `updateOrder` in `order.service.ts`, transition `'Pending Booking'` to `'Pending Shipment'` when `orderVendorId` is newly set, and transition `'Pending Shipment'` (or `'Pending Booking'`) to `'Pending Delivery'` when `orderTrackingNumber` is set.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit (`AddOrderForm.test.tsx` / `EditOrderForm.test.tsx`):**
+  - [x] Test: In `EditOrderForm.test.tsx`, verify that the workflow dropdown renders choices for `Pending Booking`, `Pending Shipment`, and `Pending Delivery` (not `Pending Tracking` or `Pending Delievery`).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Components → Pages → Routing):**
+  - [x] [Component] In `OrderListContainer.tsx`, replace the tabs for `Pending Orders` and `Pending Tracking` with `Pending Booking` and `Pending Shipment`. Change `Pending Delievery` to `Pending Delivery`.
+  - [x] [Component] In `OrderList.tsx`, update `getStatusBadgeClass` to map `'Pending Booking'` to amber style, `'Pending Shipment'` to blue style, and `'Pending Delivery'` to indigo style.
+  - [x] [Component] In `EditOrderForm.tsx`, change default status hook to `'Pending Booking'` and update dropdown `<option>` values and labels.
+  - [x] [Component] In `page.tsx` (`src/app/orders/[id]/page.tsx`), change the fallback value of `currentStatusDisplay` to `'Pending Booking'`.
+  - [x] [Page] Rename `src/app/pending/tracking/` folder to `src/app/pending/shipment/`. Update metadata and return `<OrderListContainer initialStatus="Pending Shipment" />` inside it.
+  - [x] [Page] In `src/app/pending/delivery/page.tsx`, change `initialStatus` parameter from `'Pending Delievery'` to `'Pending Delivery'`.
+  - [x] [Page] Create new folder `src/app/pending/booking/` with `page.tsx` rendering `<OrderListContainer initialStatus="Pending Booking" />`.
+  - [x] Run unit/component tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Create an order without selecting a vendor → Order is listed under `Pending Booking` queue → Edit order and assign a vendor → Order disappears from `Pending Booking` and appears under `Pending Shipment` queue → Edit order and input a carrier tracking number → Order advances to `Pending Delivery` queue → ✅ Done.
 
 ---
 
@@ -766,6 +818,39 @@ Build a search repository with a parameterized LIKE query across the most useful
     *   Wrapped all major listing animations (`GatewayList`, `AgentList`, `VendorList`, `CustomerList`) in `gsap.context()` to clean up and revert active tweens on unmount, avoiding React StrictMode conflicts.
     *   Applied inline `style={{ opacity: 0 }}` on page containers and table rows to eliminate initial paint flashes (FOUC).
 *   **Verification:** `npm run build` completed successfully with zero compile or TypeScript errors.
+*   **Phase 9 — Order Intake & Sales Pipeline (Phase 9 Completed):**
+    *   Designed and implemented the atomic transaction flow to insert Customer, Card, and Order records inside a single Prisma `prisma.$transaction`.
+    *   Built the status queue state machine to advance order status based on field updates (e.g. automatically moving state to `"Pending Delievery"` when a tracking number is newly supplied).
+    *   Exposed pages (`src/app/orders/page.tsx`, `[id]/page.tsx`, `new/page.tsx`, `[id]/edit/page.tsx`) and client components (`OrderList.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderListContainer.tsx`).
+    *   Refactored all Phase 9 layout views, dynamic forms, and detail views to use global premium layout and form classes (`.agents-page-container`, `.form-card`, `.form-grid`, `.form-group`, `.form-input`, `.form-select`, `.profile-main`, `.info-grid`, `.info-group`, and `.btn-primary-custom` / `.btn-secondary-custom`) instead of conflicting custom Tailwind properties.
+    *   Implemented a sidebar toggle button that persists its collapsed/open preference (using `localStorage`) and collapses the left sidebar to `0px` with responsive padding shifts.
+    *   Restored legacy dataset from `jd_crm.json` to the live database, parsing fields to appropriate relational `Int` types and dates, and mapping legacy typo-status `Pending Delivery` to `Pending Delievery`.
+    *   Fixed dynamically-resolved route parameters in Next.js dynamic folders (using `Promise<{ id: string }>`) and resolved all type checker constraints in tests (`src/tests/orders.test.ts`).
+    *   **Verification:** `npm run typecheck` passes with 0 compile errors, and `npm run test` passes with all **63/63 tests green**.
+
+*   **Session Note — Timothy Manuli Status & Completed Orders Filter:**
+    *   Resolved the issue where Timothy Manuli's order status showed as "Unknown" (due to a null `orderCurrentStatus` field). Fixed the database source of truth by updating the seeding script (`seed_from_json.js`) to map completed sold orders (where `sale_status = '1'` and the workflow status is `null` or `'Everything Completed'`) to `'Completed Orders'` directly in the database.
+    *   Reverted the temporary UI fallback logic in `OrderList.tsx` so that workflow status is displayed directly from the database without ad-hoc client-side mapping.
+    *   Exposed a dedicated "Completed Orders" tab/filter inside `OrderListContainer.tsx` which filters by the workflow status `'Completed Orders'` (and ensures only `saleStatus = '1'` is shown).
+    *   Added `'Completed Orders'` as a valid workflow option in `EditOrderForm.tsx` and updated the `project_data.md` and `current_state.md` workflow documentation lists.
+    *   Verified all integration tests run and pass cleanly.
+
+
+### Session 7 — June 24, 2026
+  **Phase 9.5 - Status Workflow Standardization**
+  - Standardized `order_current_status` workflow: Introduced `Pending Booking` as the mandatory
+    default initial state for all new orders (non-selectable via UI).
+  - Renamed `Pending Tracking` → `Pending Shipment` and corrected legacy misspelling
+    `Pending Delievery` → `Pending Delivery` across backend, frontend, and schema.
+  - Implemented status transition logic (state machine) in `order.service.ts` and
+    `order.repository.ts`; default status is driven by whether a vendor is assigned.
+  - Refactored frontend: `OrderListContainer` tabs, `EditOrderForm` status dropdown
+    (hidden for `Pending Booking`), and `OrderList` badge colors updated for new statuses.
+  - Routing: added `/pending/booking` and `/pending/shipment` routes; decommissioned
+    `/pending/tracking`.
+  - Updated `CONTEXT/project_data.md` with the authoritative workflow status definitions.
+  - Fixed all lint and typecheck errors introduced by the refactor.
+  - All 68 tests passing.
 
 
 

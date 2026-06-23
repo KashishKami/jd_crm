@@ -23,3 +23,30 @@ The legacy PHP CRM managed user authorizations using a comma-separated string of
 #### Description:
 The database integration tests using the `@prisma/adapter-mariadb` driver adapter (based on the `mariadb` npm package) timed out and hung when executed under Vitest's default thread-pool execution strategy (`worker_threads`). This occurs because the asynchronous connection sockets inside the native-JS `mariadb` driver and WASM bridge cannot be reliably processed inside Node.js worker threads under Vitest. We resolved this by changing the Vitest execution pool to child processes using the `--pool=forks` option, ensuring clean isolated test environments that support the driver adapter's network sockets.
 
+---
+
+### Decision 4: Standardized Order Workflow Status State Machine
+
+**Date:** 2026-06-23
+**Status:** Accepted
+
+#### Context
+The legacy system had an ambiguous initial order state (`Pending Tracking`) that conflated
+"order received" with "tracking information required." There was also a misspelled status
+(`Pending Delievery`) stored in the DB and a missing intake state before vendor assignment.
+
+#### Decision
+Introduce a formal six-stage state machine for `order_current_status`:
+
+  Pending Booking → Pending Shipment → Pending Delivery →
+  Pending Feedback → Pending Resolutions → Completed Orders
+
+`Pending Booking` is the **immutable default** for all new orders. It is set
+programmatically in `order.repository.ts` and is not selectable from the UI dropdown in
+`EditOrderForm`. Status transitions are enforced in `order.service.ts`.
+
+#### Consequences
+- Clean separation between "intake" (no vendor) and "in-progress" (vendor assigned).
+- Corrects the legacy misspelling in all new records; legacy data may retain old spelling.
+- Frontend queues and routing now map 1:1 to each status stage.
+- `Pending Tracking` route and references fully decommissioned.

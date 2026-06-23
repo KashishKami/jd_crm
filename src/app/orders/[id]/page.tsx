@@ -1,139 +1,307 @@
 import React from 'react';
-import { notFound } from 'next/navigation';
-import { prisma } from '../../../lib/db';
+import { notFound, redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
 import Link from 'next/link';
+import { authOptions } from '../../api/auth/[...nextauth]/route';
+import { hasPermission } from '../../../service/permission.service';
+import { prisma } from '../../../lib/db';
 
-interface PageProps {
-  params: Promise<{ id: string }> | { id: string };
+export const metadata = {
+  title: 'Order Details - JD CRM',
+  description: 'View order specifications, customer ledger, and allocations',
+};
+
+// Mask helpers
+function maskCardNumber(num: string | null | undefined): string {
+  if (!num) return '—';
+  const clean = num.replace(/\s+/g, '');
+  if (clean.length < 4) return '****';
+  return `**** **** **** ${clean.slice(-4)}`;
 }
 
-export default async function OrderDetailPage({ params }: PageProps) {
-  const resolvedParams = await params;
-  const idValue = Number(resolvedParams.id);
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return '—';
+  if (phone.length < 4) return '***';
+  return `***-***-${phone.slice(-4)}`;
+}
 
-  if (isNaN(idValue)) {
-    return notFound();
+function maskEmail(email: string | null | undefined): string {
+  if (!email) return '—';
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***@***.***';
+  const name = parts[0];
+  const domain = parts[1];
+  if (name.length <= 2) return `${name[0]}***@${domain}`;
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
+export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user) {
+    redirect('/login');
   }
 
-  // Find order by crmOrderId or orderCustomerId
-  const order = await prisma.crmOrders.findFirst({
-    where: {
-      OR: [
-        { crmOrderId: idValue },
-        { orderCustomerId: idValue }
-      ]
-    },
+  const permissions = session.user.userPermissions || '';
+  if (!hasPermission(permissions, 'orders:view')) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center bg-red-50 text-red-700 border border-red-200 rounded-2xl">
+        <h2 className="text-xl font-bold">Access Denied</h2>
+        <p className="text-sm mt-2">You do not have the required permissions to view order details.</p>
+      </div>
+    );
+  }
+
+  const { id } = await params;
+  const crmOrderId = Number(id);
+  if (isNaN(crmOrderId)) {
+    notFound();
+  }
+
+  const order = await prisma.crmOrders.findUnique({
+    where: { crmOrderId },
     include: {
-      customer: true,
+      customer: {
+        include: {
+          cards: true,
+        },
+      },
       vendor: true,
+      gateway: true,
       salesAgent: true,
+      verifier: true,
     },
   });
 
   if (!order) {
-    return notFound();
+    notFound();
   }
 
-  const isVendorBlacklisted = order.vendor && order.vendor.vendorStatus === 0;
+  // Check detail-level permissions
+  const canViewPhone = hasPermission(permissions, 'customers:view-phone');
+  const canViewEmail = hasPermission(permissions, 'customers:view-email');
+  const canViewCards = hasPermission(permissions, 'customers:view-cards');
+  const canEdit = hasPermission(permissions, 'orders:edit');
+
+  const customerPhoneDisplay = canViewPhone ? order.customer.customerPhone : maskPhone(order.customer.customerPhone);
+  const customerEmailDisplay = canViewEmail ? order.customer.customerEmail : maskEmail(order.customer.customerEmail);
+
+  // Status labels
+  const saleStatuses: Record<string, string> = {
+    '1': 'Sold',
+    '2': 'Prospect',
+    '3': 'Call Back',
+    '4': 'Not Interested',
+    '5': 'Out Of Scope',
+    '6': 'Enquiry',
+    '7': 'Refunded',
+    '8': 'Chargebacked',
+  };
+
+  const currentStatusDisplay = order.orderCurrentStatus || 'Pending Booking';
 
   return (
-    <div className="agents-page-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
-      <div className="page-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '24px' }}>
+    <div className="agents-page-container">
+      {/* Header */}
+      <div className="page-header">
         <div>
-          <h1 className="page-title">Order #JD{order.crmOrderId}</h1>
-          <p className="page-subtitle">Customer: {order.customer?.firstName} {order.customer?.lastName}</p>
+          <div className="flex items-center gap-3">
+            <span className="username-code">
+              ORDER #{order.crmOrderId}
+            </span>
+            <span className={`status-dot-badge ${
+              currentStatusDisplay.includes('Completed') ? 'status-active' : 'status-inactive'
+            }`} style={{ marginTop: 0 }}>
+              {currentStatusDisplay}
+            </span>
+          </div>
+          <h1 className="page-title mt-2">
+            {order.customer.firstName} {order.customer.lastName}
+          </h1>
+          <p className="page-subtitle">
+            Registered on {order.orderCreatedDate?.toLocaleDateString('en-US', { dateStyle: 'long' })}
+          </p>
         </div>
-        <Link href="/vendors" className="btn-secondary-custom">
-          Back to Directory
-        </Link>
+
+        <div className="action-buttons">
+          <Link href="/orders" className="btn-secondary-custom">
+            Back to Pipeline
+          </Link>
+          {canEdit && (
+            <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom">
+              Edit Order
+            </Link>
+          )}
+        </div>
       </div>
 
-      {isVendorBlacklisted && (
-        <div className="error-box" style={{ margin: '0 0 24px 0', padding: '16px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <svg style={{ width: '28px', height: '28px', flexShrink: 0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <strong style={{ display: 'block', fontSize: '1rem' }}>Warning: The vendor for this order is blacklisted!</strong>
-            <span style={{ fontSize: '0.85rem' }}>This order is linked to a supplier that has been blacklisted. Please review details immediately.</span>
-          </div>
-        </div>
-      )}
-
-      <div className="form-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div className="form-section">
-          <h3 className="form-section-title">Order Information</h3>
-          <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Vehicle Year / Make / Model</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.orderYear || '—'} {order.orderMakeModel || '—'}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Columns */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* Section 1: Customer Contact info */}
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+              Customer Details
+            </h3>
+            <div className="info-grid">
+              <div className="info-group">
+                <span className="info-label">First Name</span>
+                <span className="info-value">{order.customer.firstName}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Part Requested</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.orderPart || '—'} {order.orderPartSize ? `(${order.orderPartSize})` : ''}
+              <div className="info-group">
+                <span className="info-label">Last Name</span>
+                <span className="info-value">{order.customer.lastName}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Pitched Selling Price</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                ${order.orderTotalPitched || '0'}
+              <div className="info-group">
+                <span className="info-label">Email Address</span>
+                <span className="info-value font-mono">{customerEmailDisplay}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Buying Vendor Cost</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                ${order.orderVendorPrice || '0'}
+              <div className="info-group">
+                <span className="info-label">Phone Number</span>
+                <span className="info-value font-mono">{customerPhoneDisplay}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Markup Margin</span>
-              <div style={{ fontWeight: '600', color: '#15803d', marginTop: '4px' }}>
-                ${order.orderMarkup || '0'}
+              <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                <span className="info-label">Billing Address</span>
+                <span className="info-value">{order.customer.customerBillingAddress || '—'}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Sales Agent</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.orderSalesAgentName || '—'}
+              <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                <span className="info-label">Shipping Address</span>
+                <span className="info-value">{order.customer.customerShippingAddress || '—'}</span>
               </div>
             </div>
           </div>
+
+          {/* Section 2: Vehicle / Part Specifications */}
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+              Vehicle & Part Specifications
+            </h3>
+            <div className="info-grid">
+              <div className="info-group">
+                <span className="info-label">Year</span>
+                <span className="info-value font-mono">{order.orderYear || '—'}</span>
+              </div>
+              <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                <span className="info-label">Make & Model</span>
+                <span className="info-value">{order.orderMakeModel || '—'}</span>
+              </div>
+              <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                <span className="info-label">Part Requested</span>
+                <span className="info-value font-bold text-slate-900">{order.orderPart || '—'}</span>
+              </div>
+              <div className="info-group">
+                <span className="info-label">Dimensions / Specs</span>
+                <span className="info-value">{order.orderPartSize || '—'}</span>
+              </div>
+              <div className="info-group">
+                <span className="info-label">Quoted Mileage</span>
+                <span className="info-value font-mono">{order.orderQuotedMiles || '—'}</span>
+              </div>
+              <div className="info-group">
+                <span className="info-label">Vendor Mileage</span>
+                <span className="info-value font-mono">{order.orderGivenMiles || '—'}</span>
+              </div>
+              <div className="info-group">
+                <span className="info-label">VIN Number</span>
+                <span className="info-value font-mono uppercase">{order.orderVin || '—'}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="form-section" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-          <h3 className="form-section-title">Supplier Information</h3>
-          <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Vendor Name</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.vendor?.vendorName || order.orderVendorName || '—'}
-              </div>
+        {/* Sidebar Info */}
+        <div className="flex flex-col gap-6">
+          {/* Card Billing details */}
+          <div className="profile-main" style={{ padding: '24px', backgroundColor: 'var(--bg-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 className="form-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>
+                Ledger Billing
+              </h3>
+              <span className={`status-dot-badge ${
+                canViewCards ? 'status-active' : 'status-inactive'
+              }`}>
+                {canViewCards ? 'Decrypted' : 'Encrypted'}
+              </span>
             </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Contact Person</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.vendor?.vendorContactPerson || '—'}
-              </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Vendor Phone</span>
-              <div style={{ fontWeight: '600', color: 'var(--text-main)', marginTop: '4px' }}>
-                {order.vendor?.vendorPhone || '—'}
-              </div>
-            </div>
-            <div className="form-group">
-              <span className="form-label" style={{ fontSize: '0.75rem' }}>Vendor Status</span>
-              <div style={{ marginTop: '4px' }}>
-                {order.vendor ? (
-                  <span className={`status-dot-badge ${order.vendor.vendorStatus === 1 ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 8px' }}>
-                    {order.vendor.vendorStatus === 1 ? 'Active' : 'Blacklisted'}
+
+            {order.customer.cards.length === 0 ? (
+              <p className="text-xs text-slate-400">No payment card recorded for this customer.</p>
+            ) : (
+              <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '16px' }}>
+                <div className="info-group">
+                  <span className="info-label">Cardholder</span>
+                  <span className="info-value font-mono">{order.customer.cards[0].customerNameOncard}</span>
+                </div>
+                <div className="info-group">
+                  <span className="info-label">Card Number</span>
+                  <span className="info-value font-mono">
+                    {canViewCards ? order.customer.cards[0].customerCardNumber : maskCardNumber(order.customer.cards[0].customerCardNumber)}
                   </span>
-                ) : (
-                  '—'
-                )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="info-group">
+                    <span className="info-label">Expiry</span>
+                    <span className="info-value font-mono">{order.customer.cards[0].customerCardExpDate}</span>
+                  </div>
+                  <div className="info-group">
+                    <span className="info-label">CVV</span>
+                    <span className="info-value font-mono">
+                      {canViewCards ? order.customer.cards[0].customerCardCvv || '—' : '***'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Pricing Summary */}
+          <div className="profile-main" style={{ padding: '24px', backgroundColor: 'var(--bg-sidebar)', color: 'white', borderColor: 'rgba(255,255,255,0.1)' }}>
+            <h3 className="form-section-title" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.1)', marginBottom: '20px' }}>
+              Financial Breakdown
+            </h3>
+            <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '16px' }}>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Selling Price</span>
+                <span className="info-value font-mono" style={{ color: 'white' }}>${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Buying Price</span>
+                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Markup Margin</span>
+                <span className="info-value font-mono" style={{ fontWeight: 'bold', color: parseFloat(order.orderMarkup || '0') >= 0 ? '#10b981' : '#ef4444' }}>
+                  ${parseFloat(order.orderMarkup || '0').toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Allocations info */}
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+              Staff Allocations
+            </h3>
+            <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '14px' }}>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Sales Representative</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderSalesAgentName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Quality Verifier</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderVerifierName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Billing Gateway</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.gateway?.gatewayName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Parts Supplier</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderVendorName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="info-label">Intake Classification</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{saleStatuses[order.saleStatus || '1']}</span>
               </div>
             </div>
           </div>
