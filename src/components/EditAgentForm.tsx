@@ -848,11 +848,12 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
 
         <div className="form-actions" style={{ padding: '24px 32px' }}>
           {activeTab === 'basic' ? (
-            <Link href={`/agents/${agent.uid}`} className="btn-secondary-custom">
+            <Link key="cancel-edit" href={`/agents/${agent.uid}`} className="btn-secondary-custom">
               Cancel
             </Link>
           ) : (
             <button
+              key="back-edit"
               type="button"
               onClick={handleBackTab}
               className="btn-secondary-custom"
@@ -863,6 +864,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
 
           {activeTab !== 'professional' && (
             <button
+              key="save-intermediate"
               type="submit"
               disabled={submitting}
               className="btn-secondary-custom"
@@ -873,6 +875,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
 
           {activeTab === 'professional' ? (
             <button
+              key="save-final"
               type="submit"
               disabled={submitting}
               className="btn-primary-custom"
@@ -881,6 +884,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
             </button>
           ) : (
             <button
+              key="next-edit"
               type="button"
               onClick={handleNextTab}
               className="btn-primary-custom"

@@ -836,11 +836,12 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
 
         <div className="form-actions" style={{ padding: '24px 32px' }}>
           {activeTab === 'basic' ? (
-            <Link href="/agents" className="btn-secondary-custom">
+            <Link key="cancel-new" href="/agents" className="btn-secondary-custom">
               Cancel
             </Link>
           ) : (
             <button
+              key="back-new"
               type="button"
               onClick={handleBackTab}
               className="btn-secondary-custom"
@@ -851,6 +852,7 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
 
           {activeTab !== 'professional' && (
             <button
+              key="save-intermediate-new"
               type="submit"
               disabled={submitting}
               className="btn-secondary-custom"
@@ -861,6 +863,7 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
 
           {activeTab === 'professional' ? (
             <button
+              key="save-final-new"
               type="submit"
               disabled={submitting}
               className="btn-primary-custom"
@@ -869,6 +872,7 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
             </button>
           ) : (
             <button
+              key="next-new"
               type="button"
               onClick={handleNextTab}
               className="btn-primary-custom"

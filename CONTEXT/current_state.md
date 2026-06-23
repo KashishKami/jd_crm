@@ -16,7 +16,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 4** | Authorization &amp; Page Guard System | **[x] COMPLETED** | Permission check services, route guards |
 | **Phase 4.5** | Animation &amp; Scroll Foundation | **[x] COMPLETED** | Lenis smooth scroll, GSAP animation utilities |
 | **Phase 5** | Agent Management (CRUD) | **[x] COMPLETED** | agents view, agent permissions, profiles |
-| **Phase 6** | Customer & Sensitive Cards Ledger | **[ ] PENDING** | Customers listing, card viewer (permission-guarded) |
+| **Phase 6** | Customer & Sensitive Cards Ledger | **[x] COMPLETED** | Customers listing, card viewer (permission-guarded) |
 | **Phase 7** | Vendor Management | **[ ] PENDING** | Vendor listing, blacklist toggle, orders mapping |
 | **Phase 8** | Gateway Setup & Aggregated Reports | **[ ] PENDING** | Gateways dashboard, monthly gateway performance charts |
 | **Phase 9** | Order Intake & Sales Pipeline | **[ ] PENDING** | Add order form, pipeline queues (Pending Tracking/Feedback) |
@@ -277,37 +277,37 @@ Build a customer repository and service. The service's `getCustomerCards` method
 
 ---
 
-- [ ] **RED — Integration (`customers.test.ts`):**
-  - [ ] Test: `GET /api/customers` with `customers:view` permission returns `200 OK` with customer list.
-  - [ ] Test: `GET /api/customers/:id/cards` **without** `customers:view-cards` permission returns cards where `customer_card_number` is masked (matches `/^\*{4} \*{4} \*{4} \d{4}$/`).
-  - [ ] Test: `GET /api/customers/:id/cards` **with** `customers:view-cards` permission returns cards with full raw `customer_card_number`.
-  - [ ] Test: `POST /api/customers` creates a customer. Assert the returned object has a valid `customer_id`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`customers.test.ts`):**
+  - [x] Test: `GET /api/customers` with `customers:view` permission returns `200 OK` with customer list.
+  - [x] Test: `GET /api/customers/:id/cards` **without** `customers:view-cards` permission returns cards where `customer_card_number` is masked (matches `/^\*{4} \*{4} \*{4} \d{4}$/`).
+  - [x] Test: `GET /api/customers/:id/cards` **with** `customers:view-cards` permission returns cards with full raw `customer_card_number`.
+  - [x] Test: `POST /api/customers` creates a customer. Assert the returned object has a valid `customer_id`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/customer.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/customer.repository.ts`:
     - `findAll()`, `findById(id)`, `create(data)`, `update(id, data)`.
     - `findCardsByCustomerId(customerId: number)` — returns all cards for a customer.
-  - [ ] [Service] Create `src/service/customer.service.ts`:
+  - [x] [Service] Create `src/service/customer.service.ts`:
     - `getCards(customerId, maskSensitive: boolean)` — if `maskSensitive = true`, replaces `customerCardNumber` with masked string and sets `customerCardCvv` to `'***'`.
-  - [ ] [Controller] `src/app/api/customers/[id]/cards/route.ts`:
+  - [x] [Controller] `src/app/api/customers/[id]/cards/route.ts`:
     - Resolve session. Check if user has `customers:view-cards`.
     - Pass `maskSensitive = !hasPermission(session, 'customers:view-cards')` to service.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`CustomerCards.test.tsx`):**
-  - [ ] Test: When session lacks `customers:view-cards`, card number displays as `**** **** **** 1234`.
-  - [ ] Test: When session has `customers:view-cards`, card number displays in full.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`CustomerCards.test.tsx`):**
+  - [x] Test: When session lacks `customers:view-cards`, card number displays as `**** **** **** 1234`.
+  - [x] Test: When session has `customers:view-cards`, card number displays in full.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Types] Create `src/types/customer.ts` with `Customer`, `CustomerCard`, `MaskedCustomerCard` types.
-  - [ ] [Page] `src/app/customers/page.tsx` — customer list table.
-  - [ ] [Component] `src/components/CustomerCards.tsx` — renders card list; receives data already masked/unmasked from server.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Create `src/types/customer.ts` with `Customer`, `CustomerCard`, `MaskedCustomerCard` types.
+  - [x] [Page] `src/app/customers/page.tsx` — customer list table.
+  - [x] [Component] `src/components/CustomerCards.tsx` — renders card list; receives data already masked/unmasked from server.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent without `customers:view-cards` opens a customer detail page → cards section shows masked numbers → Admin with `customers:view-cards` opens same page → full card numbers visible → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent without `customers:view-cards` opens a customer detail page → cards section shows masked numbers → Admin with `customers:view-cards` opens same page → full card numbers visible → ✅ Done.
 
 ---
 
