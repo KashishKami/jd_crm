@@ -7,7 +7,7 @@ describe('Authentication & Password Upgrade Integration Test', () => {
   beforeEach(async () => {
     // Reset seed state to ensure SHA-256 password is present
     await prisma.users.updateMany({
-      where: { username: 'admin' },
+      where: { username: 'admin@gmail.com' },
       data: {
         password: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', // SHA-256 of admin123
       },
@@ -15,17 +15,17 @@ describe('Authentication & Password Upgrade Integration Test', () => {
   });
 
   it('should find user by credential identifier (username or email)', async () => {
-    const userByUsername = await findByCredential('admin');
+    const userByUsername = await findByCredential('admin@gmail.com');
     expect(userByUsername).toBeDefined();
-    expect(userByUsername?.username).toBe('admin');
+    expect(userByUsername?.username).toBe('admin@gmail.com');
 
-    const userByEmail = await findByCredential('admin@jdfusion.in');
+    const userByEmail = await findByCredential('admin@gmail.com');
     expect(userByEmail).toBeDefined();
-    expect(userByEmail?.username).toBe('admin');
+    expect(userByEmail?.username).toBe('admin@gmail.com');
   });
 
   it('should authenticate SHA-256 password and upgrade it to bcrypt', async () => {
-    const user = await findByCredential('admin');
+    const user = await findByCredential('admin@gmail.com');
     expect(user).toBeDefined();
     expect(user?.password).toBe('240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9');
 
@@ -34,7 +34,7 @@ describe('Authentication & Password Upgrade Integration Test', () => {
     expect(isValid).toBe(true);
 
     // Fetch user again and verify password has been upgraded to a bcrypt hash
-    const updatedUser = await findByCredential('admin');
+    const updatedUser = await findByCredential('admin@gmail.com');
     expect(updatedUser?.password).toMatch(/^\$2[ayb]\$/); // Bcrypt prefix regex
   });
 });

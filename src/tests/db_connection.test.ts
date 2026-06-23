@@ -5,7 +5,7 @@ describe('Database Connection Integration Test', () => {
   it('should connect to database and retrieve the seeded admin user with team info', async () => {
     const adminUser = await prisma.users.findFirst({
       where: {
-        username: 'admin',
+        username: 'admin@gmail.com',
       },
       include: {
         team: true,
@@ -13,7 +13,7 @@ describe('Database Connection Integration Test', () => {
     });
 
     expect(adminUser).toBeDefined();
-    expect(adminUser?.name).toBe('Super Admin');
+    expect(adminUser?.name).toBe('Admin');
     expect(adminUser?.team).toBeDefined();
     expect(adminUser?.team.teamName).toBe('IT Park');
   });
