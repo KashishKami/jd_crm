@@ -637,18 +637,24 @@ Build a search repository with a parameterized LIKE query across the most useful
 
 ### Session 2 — June 23, 2026
 
-*   **TypeScript NextAuth Extension:** Created type definitions in [next-auth.d.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/types/next-auth.d.ts) to augment NextAuth's `Session`, `User`, and `JWT` interfaces, enabling type-safe access without `any` casts.
-*   **ESLint Warnings Fixed:** Cleared all warnings and errors in [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/auth/%5B...nextauth%5D/route.ts), [LoginForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LoginForm.tsx), and [LoginForm.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/LoginForm.test.tsx).
-*   **Robust Test Assertion:** Refactored [db_connection.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/db_connection.test.ts) to assert that default teams exist in the database without failing if the seed script runs multiple times.
+*   **TypeScript NextAuth Extension:** Created type definitions in [next-auth.d.ts](src/types/next-auth.d.ts) to augment NextAuth's `Session`, `User`, and `JWT` interfaces, enabling type-safe access without `any` casts.
+*   **ESLint Warnings Fixed:** Cleared all warnings and errors in [route.ts](src/app/api/auth/[...nextauth]/route.ts), [LoginForm.tsx](src/components/LoginForm.tsx), and [LoginForm.test.tsx](src/tests/LoginForm.test.tsx).
+*   **Robust Test Assertion:** Refactored [db_connection.test.ts](src/tests/db_connection.test.ts) to assert that default teams exist in the database without failing if the seed script runs multiple times.
 *   **Validation:** Verified that `npm run lint`, `npm run typecheck`, and `npm run test` are fully passing and clean.
 
 ### Session 3 — June 23, 2026
 
-*   **Authorization Service:** Implemented [permission.service.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/service/permission.service.ts) to parse database comma-separated strings and check permissions, automatically allowing the super-admin (`99999`) bypass.
-*   **Protected Route & API:** Created a mock API route [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/vendors/route.ts) that checks session permissions and blocks unauthorized requests with 403 Forbidden.
-*   **NextAuth Middleware Route Guards:** Created [middleware.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/middleware.ts) using NextAuth `withAuth` to intercept pages (such as `/vendors`, `/agents`, `/gateways`, `/orders`), redirecting unauthenticated users to `/login`, and unauthorized users to `/access-denied`.
-*   **Root Layout Shell:** Implemented [LayoutShell.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LayoutShell.tsx) and [layout.css](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/layout.css) to wrap children in the sidebar grid when logged in, display a loading screen while resolving the session, and serve full-screen standalone pages (such as `/login`) for unlogged-in states.
-*   **Dynamic Sidebar:** Built [Sidebar.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/Sidebar.tsx) to render navigation links dynamically based on user session permissions (Vendors: `160`, Agents: `162`, Gateways: `168`, Orders: `172`).
-*   **Access Denied View:** Added [page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/access-denied/page.tsx) to show a warning page when a user attempts to browse to restricted pages.
-*   **TDD Checklists:** Wrote [authorization.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/authorization.test.ts) (integration test for API guards) and [Sidebar.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/Sidebar.test.tsx) (unit test for sidebar rendering), confirmed all 16 tests in the project are 100% green and type checks / lint checks are clean.
+*   **Authorization Service:** Implemented [permission.service.ts](src/service/permission.service.ts) to parse database comma-separated strings and check permissions, automatically allowing the super-admin (`99999`) bypass.
+*   **Protected Route & API:** Created a mock API route [route.ts](src/app/api/vendors/route.ts) that checks session permissions and blocks unauthorized requests with 403 Forbidden.
+*   **NextAuth Middleware Route Guards:** Created [middleware.ts](src/middleware.ts) using NextAuth `withAuth` to intercept pages (such as `/vendors`, `/agents`, `/gateways`, `/orders`), redirecting unauthenticated users to `/login`, and unauthorized users to `/access-denied`.
+*   **Root Layout Shell:** Implemented [LayoutShell.tsx](src/components/LayoutShell.tsx) and [layout.css](src/app/layout.css) to wrap children in the sidebar grid when logged in, display a loading screen while resolving the session, and serve full-screen standalone pages (such as `/login`) for unlogged-in states.
+*   **Dynamic Sidebar:** Built [Sidebar.tsx](src/components/Sidebar.tsx) to render navigation links dynamically based on user session permissions (Vendors: `160`, Agents: `162`, Gateways: `168`, Orders: `172`).
+*   **Access Denied View:** Added [page.tsx](src/app/access-denied/page.tsx) to show a warning page when a user attempts to browse to restricted pages.
+*   **TDD Checklists:** Wrote [authorization.test.ts](src/tests/authorization.test.ts) (integration test for API guards) and [Sidebar.test.tsx](src/tests/Sidebar.test.tsx) (unit test for sidebar rendering), confirmed all 16 tests in the project are 100% green and type checks / lint checks are clean.
+
+### Session 4 — June 23, 2026
+
+*   **Vitest Execution Environment Configured:** Solved a critical issue where integration tests using the Prisma MariaDB adapter (`@prisma/adapter-mariadb`) timed out and hung when executed under Vitest's default Node.js `worker_threads` pool. Changed the test runner execution pool strategy to child processes via the `--pool=forks` flag.
+*   **Cascading Test Failures Solved:** Resolved the cascading `401 Unauthorized` / `403 Forbidden` assertion mismatch in API authorization guard tests caused by mock queue pollution from previous hung tests. Updated [package.json](package.json) to permanently run Vitest with `--pool=forks`.
+
 
