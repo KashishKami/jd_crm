@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 const Sidebar = forwardRef<HTMLElement, {}>(function Sidebar(props, ref) {
   const { data: session, status } = useSession();
   const pathname = usePathname();

@@ -15,7 +15,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 3** | Authentication &amp; Dual-Hash Migration | **[x] COMPLETED** | NextAuth config, SHA-256 to bcrypt upgrades |
 | **Phase 4** | Authorization &amp; Page Guard System | **[x] COMPLETED** | Permission check services, route guards |
 | **Phase 4.5** | Animation &amp; Scroll Foundation | **[x] COMPLETED** | Lenis smooth scroll, GSAP animation utilities |
-| **Phase 5** | Agent Management (CRUD) | **[ ] PENDING** | Agents view, agent permissions, profiles |
+| **Phase 5** | Agent Management (CRUD) | **[x] COMPLETED** | agents view, agent permissions, profiles |
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[ ] PENDING** | Customers listing, card viewer (permission-guarded) |
 | **Phase 7** | Vendor Management | **[ ] PENDING** | Vendor listing, blacklist toggle, orders mapping |
 | **Phase 8** | Gateway Setup & Aggregated Reports | **[ ] PENDING** | Gateways dashboard, monthly gateway performance charts |
@@ -223,45 +223,45 @@ Build the agents repository (`findAll`, `findById`, `create`, `update`, `toggleS
 
 ---
 
-- [ ] **RED — Integration (`agents.test.ts`):**
-  - [ ] Test: `GET /api/agents` with a session lacking `agents:view` permission returns `403 Forbidden`.
-  - [ ] Test: `GET /api/agents` with a session having `agents:view` returns `200 OK` and a JSON array of agents.
-  - [ ] Test: `GET /api/agents?status=0` returns only inactive agents.
-  - [ ] Test: `POST /api/agents` with valid payload creates a new agent. Assert `SELECT uid FROM users WHERE username = 'test_agent'` returns exactly 1 row.
-  - [ ] Test: `POST /api/agents` without `agents:create` permission returns `403 Forbidden`.
-  - [ ] Test: `PATCH /api/agents/:id/status` with `{ status: 0 }` sets the agent inactive. Assert DB confirms `status = 0`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`agents.test.ts`):**
+  - [x] Test: `GET /api/agents` with a session lacking `agents:view` permission returns `403 Forbidden`.
+  - [x] Test: `GET /api/agents` with a session having `agents:view` returns `200 OK` and a JSON array of agents.
+  - [x] Test: `GET /api/agents?status=0` returns only inactive agents.
+  - [x] Test: `POST /api/agents` with valid payload creates a new agent. Assert `SELECT uid FROM users WHERE username = 'test_agent'` returns exactly 1 row.
+  - [x] Test: `POST /api/agents` without `agents:create` permission returns `403 Forbidden`.
+  - [x] Test: `PATCH /api/agents/:id/status` with `{ status: 0 }` sets the agent inactive. Assert DB confirms `status = 0`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/agent.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/agent.repository.ts`:
     - `findAll(status?: 0 | 1)` — Prisma query on `users` with optional `where: { status }`.
     - `findById(uid: number)` — includes `profile`, `academicRecord`, `professionalRecord`, `team`.
     - `create(data: AgentCreateInput)` — hashes password with bcrypt before insert.
     - `update(uid: number, data: AgentUpdateInput)`.
     - `toggleStatus(uid: number, status: 0 | 1)`.
-  - [ ] [Service] Create `src/service/agent.service.ts`:
+  - [x] [Service] Create `src/service/agent.service.ts`:
     - Validate that `username` is unique before create.
     - Validate that `teamId` references a valid `crm_teams` row.
     - Strip sensitive fields (password hash) from the returned object.
-  - [ ] [Controller] Create `src/app/api/agents/route.ts` (GET, POST) and `src/app/api/agents/[id]/route.ts` (GET, PATCH, DELETE). Guard each with `requirePermission(session, 'agents:view' | 'agents:create' | 'agents:edit')`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] Create `src/app/api/agents/route.ts` (GET, POST) and `src/app/api/agents/[id]/route.ts` (GET, PATCH, DELETE). Guard each with `requirePermission(session, 'agents:view' | 'agents:create' | 'agents:edit')`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`AgentList.test.tsx`):**
-  - [ ] Test: Renders a table of agents from mocked API response.
-  - [ ] Test: "Add Agent" button is visible when session has `agents:create` permission; hidden when not.
-  - [ ] Test: Clicking "Deactivate" calls `PATCH /api/agents/:id/status` with `{ status: 0 }`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`AgentList.test.tsx`):**
+  - [x] Test: Renders a table of agents from mocked API response.
+  - [x] Test: "Add Agent" button is visible when session has `agents:create` permission; hidden when not.
+  - [x] Test: Clicking "Deactivate" calls `PATCH /api/agents/:id/status` with `{ status: 0 }`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Pages → Components):**
-  - [ ] [Types] Create `src/types/agent.ts` with `Agent`, `AgentCreateInput`, `AgentDetail` types.
-  - [ ] [Page] `src/app/agents/page.tsx` — server component fetching agents list; passes to `AgentTable` client component.
-  - [ ] [Page] `src/app/agents/new/page.tsx` — add agent form with all fields including team selector and designation selector.
-  - [ ] [Page] `src/app/agents/[id]/page.tsx` — agent detail with profile tabs (Basic Info, Academic, Professional, Bank & Emergency).
-  - [ ] [Page] `src/app/agents/[id]/edit/page.tsx` — edit agent form.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Pages → Components):**
+  - [x] [Types] Create `src/types/agent.ts` with `Agent`, `AgentCreateInput`, `AgentDetail` types.
+  - [x] [Page] `src/app/agents/page.tsx` — server component fetching agents list; passes to `AgentTable` client component.
+  - [x] [Page] `src/app/agents/new/page.tsx` — add agent form with all fields including team selector and designation selector.
+  - [x] [Page] `src/app/agents/[id]/page.tsx` — agent detail with profile tabs (Basic Info, Academic, Professional, Bank & Emergency).
+  - [x] [Page] `src/app/agents/[id]/edit/page.tsx` — edit agent form.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin navigates to `/agents` → list of active agents renders → clicks "Add Agent" → fills form with team and designation → saves → new agent appears in list → admin clicks agent name → detail page shows all profile tabs → admin clicks "Deactivate" → agent disappears from active list and appears under `/agents?status=0` → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin navigates to `/agents` → list of active agents renders → clicks "Add Agent" → fills form with team and designation → saves → new agent appears in list → admin clicks agent name → detail page shows all profile tabs → admin clicks "Deactivate" → agent disappears from active list and appears under `/agents?status=0` → ✅ Done.
 
 ---
 

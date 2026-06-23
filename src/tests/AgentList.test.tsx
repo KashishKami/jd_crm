@@ -1,0 +1,154 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import React from 'react';
+import { useSession } from 'next-auth/react';
+import AgentList from '../components/AgentList';
+
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('AgentList Component Unit Tests', () => {
+  const mockAgents = [
+    {
+      uid: 10,
+      name: 'Agent Ten',
+      nickname: 'Ten',
+      username: 'agent_ten',
+      email: 'ten@crm.com',
+      status: 1,
+      role: { roleName: 'Sales Agent' },
+      team: { teamName: 'IT Park' },
+    },
+    {
+      uid: 11,
+      name: 'Agent Eleven',
+      nickname: 'Eleven',
+      username: 'agent_eleven',
+      email: 'eleven@crm.com',
+      status: 1,
+      role: { roleName: 'Sales Manager' },
+      team: { teamName: 'DB Park' },
+    },
+  ];
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Mock window.confirm
+    window.confirm = vi.fn().mockReturnValue(true);
+    // Mock global fetch
+    global.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockAgents),
+      } as Response)
+    );
+  });
+
+  it('should render a table of agents from mocked API response', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+
+    // Wait for the table data to be loaded and rendered
+    await waitFor(() => {
+      expect(screen.queryByText('Agent Ten')).not.toBeNull();
+      expect(screen.queryByText('Agent Eleven')).not.toBeNull();
+      expect(screen.queryByText('agent_ten')).not.toBeNull();
+      expect(screen.queryByText('agent_eleven')).not.toBeNull();
+      expect(screen.queryByText('Sales Agent')).not.toBeNull();
+      expect(screen.queryByText('Sales Manager')).not.toBeNull();
+      expect(screen.queryByText('IT Park')).not.toBeNull();
+      expect(screen.queryByText('DB Park')).not.toBeNull();
+    });
+  });
+
+  it('should show "Add Agent" button if user session has agents:create permission and hide it if not', async () => {
+    // 1. With agents:create permission
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:create',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: /add agent/i })).not.toBeNull();
+    });
+
+    cleanup();
+
+    // 2. Without agents:create permission
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Manager User',
+          userPermissions: 'agents:view', // lacking agents:create
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: /add agent/i })).toBeNull();
+    });
+  });
+
+  it('should call fetch to deactivate agent status when clicking Deactivate button', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:edit',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    render(<AgentList />);
+
+    // Find and click deactivate button for Agent Ten (uid: 10)
+    let deactivateBtns: HTMLElement[] = [];
+    await waitFor(() => {
+      deactivateBtns = screen.queryAllByRole('button', { name: /deactivate/i });
+      expect(deactivateBtns.length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(deactivateBtns[0]);
+
+    await waitFor(() => {
+      // Should hit the status route with status: 0
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/agents/10/status'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ status: 0 }),
+        })
+      );
+    });
+  });
+});

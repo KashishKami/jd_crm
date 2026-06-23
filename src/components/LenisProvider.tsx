@@ -26,6 +26,7 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
     });
 
     lenisRef.current = lenis;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLenisInstance(lenis);
 
     const tick = (time: number) => {

@@ -1,8 +1,12 @@
+import React from 'react';
+import AgentList from '../../components/AgentList';
+import './agents.css';
+
+export const metadata = {
+  title: 'Agent Directory - JD CRM',
+  description: 'Manage employees, staff permissions, teams and profiles',
+};
+
 export default function AgentsPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Agent Directory</h1>
-      <p className="text-muted">Phase 5 Agent Management (Pending)</p>
-    </div>
-  );
+  return <AgentList />;
 }
