@@ -6,7 +6,6 @@ import { hasPermission } from '../../../../service/permission.service';
 import { prisma } from '../../../../lib/db';
 import * as agentService from '../../../../service/agent.service';
 import EditAgentForm from '../../../../components/EditAgentForm';
-import '../../agents.css';
 
 export const metadata = {
   title: 'Edit Agent Profile - JD CRM',

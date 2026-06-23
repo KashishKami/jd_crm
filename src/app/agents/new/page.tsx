@@ -5,7 +5,6 @@ import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../service/permission.service';
 import { prisma } from '../../../lib/db';
 import NewAgentForm from '../../../components/NewAgentForm';
-import '../agents.css';
 
 export const metadata = {
   title: 'Register New Agent - JD CRM',

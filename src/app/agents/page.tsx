@@ -1,6 +1,5 @@
 import React from 'react';
 import AgentList from '../../components/AgentList';
-import './agents.css';
 
 export const metadata = {
   title: 'Agent Directory - JD CRM',

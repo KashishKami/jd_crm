@@ -44,3 +44,6 @@ next-env.d.ts
 /src/generated/prisma
 
 crm_php/
+JD_Connect/
+jd_crm.json
+seed.sql

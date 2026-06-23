@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
 import { Customer, CustomerCard } from '../types/customer';
 import { fadeInPage, staggerEntrance } from '../lib/animations';
+import { gsap } from 'gsap';
 import CustomerCards from './CustomerCards';
 
 export default function CustomerList() {
@@ -64,16 +65,21 @@ export default function CustomerList() {
 
   // Page entrance animation
   useEffect(() => {
-    if (containerRef.current) {
-      fadeInPage(containerRef.current);
-    }
+    if (!containerRef.current) return;
+    const ctx = gsap.context(() => {
+      fadeInPage(containerRef.current!);
+    });
+    return () => ctx.revert();
   }, []);
 
   // Stagger table rows when customer data loads
   useEffect(() => {
     if (tableRowsRef.current && customers.length > 0) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      staggerEntrance(rows);
+      const ctx = gsap.context(() => {
+        staggerEntrance(rows);
+      });
+      return () => ctx.revert();
     }
   }, [customers]);
 
@@ -118,7 +124,10 @@ export default function CustomerList() {
   // Animate cards panel when loaded
   useEffect(() => {
     if (cardsPanelRef.current && cards.length > 0) {
-      fadeInPage(cardsPanelRef.current);
+      const ctx = gsap.context(() => {
+        fadeInPage(cardsPanelRef.current!);
+      });
+      return () => ctx.revert();
     }
   }, [cards]);
 
@@ -137,7 +146,7 @@ export default function CustomerList() {
   }
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-6 w-full max-w-7xl mx-auto p-4 md:p-8">
+    <div ref={containerRef} className="flex flex-col gap-6 w-full max-w-7xl mx-auto p-4 md:p-8" style={{ opacity: 0 }}>
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-5">
         <div>
@@ -179,6 +188,7 @@ export default function CustomerList() {
                     {customers.map((customer) => (
                       <tr 
                         key={customer.customerId}
+                        style={{ opacity: 0 }}
                         className={`border-b last:border-0 border-slate-100/80 hover:bg-slate-50/50 transition-colors cursor-pointer ${
                           selectedCustomerId === customer.customerId ? 'bg-blue-50/20' : ''
                         }`}
@@ -242,7 +252,7 @@ export default function CustomerList() {
                 <p className="text-[11px] text-slate-400 mt-1">Select a customer from the directory to review card details.</p>
               </div>
             ) : (
-              <div ref={cardsPanelRef} className="flex flex-col gap-4">
+              <div ref={cardsPanelRef} className="flex flex-col gap-4" style={{ opacity: 0 }}>
                 <div className="border-b border-slate-200/80 pb-3 flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{selectedCustomerName}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${

@@ -18,6 +18,19 @@ export function staggerEntrance(elements: Element[] | NodeList | HTMLCollection,
   );
 }
 
+/**
+ * Smooth opacity-only fade-in for table rows or list items.
+ * Avoids the jitter caused by y-offset translation on already-laid-out DOM elements.
+ */
+export function fadeInStagger(elements: Element[] | NodeList | HTMLCollection, stagger: number = 0.04) {
+  if (typeof window === 'undefined' || !elements || elements.length === 0) return;
+  gsap.fromTo(
+    elements,
+    { opacity: 0 },
+    { opacity: 1, duration: 0.35, stagger, ease: 'power1.out' }
+  );
+}
+
 export function countUp(element: Element, endValue: number, duration: number = 1) {
   if (typeof window === 'undefined' || !element) return;
   const obj = { val: 0 };

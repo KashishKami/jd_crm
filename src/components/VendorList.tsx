@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { hasPermission } from '../service/permission.service';
 import { VendorWithMetrics } from '../types/vendor';
 import { staggerEntrance, fadeInPage } from '../lib/animations';
+import { gsap } from 'gsap';
 import VendorStatusBadge from './VendorStatusBadge';
 
 export default function VendorList() {
@@ -58,16 +59,21 @@ export default function VendorList() {
 
   // Page entrance animation
   useEffect(() => {
-    if (containerRef.current) {
-      fadeInPage(containerRef.current);
-    }
+    if (!containerRef.current) return;
+    const ctx = gsap.context(() => {
+      fadeInPage(containerRef.current!);
+    });
+    return () => ctx.revert();
   }, []);
 
   // Stagger animation on table rows
   useEffect(() => {
     if (tableRowsRef.current && vendors.length > 0) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      staggerEntrance(rows);
+      const ctx = gsap.context(() => {
+        staggerEntrance(rows);
+      });
+      return () => ctx.revert();
     }
   }, [vendors]);
 
@@ -99,7 +105,7 @@ export default function VendorList() {
   };
 
   return (
-    <div ref={containerRef} className="agents-page-container">
+    <div ref={containerRef} className="agents-page-container" style={{ opacity: 0 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Vendor Directory</h1>
@@ -168,7 +174,7 @@ export default function VendorList() {
             </thead>
             <tbody ref={tableRowsRef}>
               {vendors.map((vendor) => (
-                <tr key={vendor.vendorId}>
+                <tr key={vendor.vendorId} style={{ opacity: 0 }}>
                   <td>
                     <Link href={`/vendors/${vendor.vendorId}`} className="font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                       {vendor.vendorName}

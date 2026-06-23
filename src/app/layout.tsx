@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./layout.css";
+import "./components.css";
 import Providers from "../components/Providers";
 import LayoutShell from "../components/LayoutShell";
 import LenisProvider from "../components/LenisProvider";

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { hasPermission } from '../service/permission.service';
 import { Agent } from '../types/agent';
 import { staggerEntrance, fadeInPage } from '../lib/animations';
+import { gsap } from 'gsap';
 
 export default function AgentList() {
   const { data: session } = useSession();
@@ -57,16 +58,21 @@ export default function AgentList() {
 
   // Page fade-in effect on initial load
   useEffect(() => {
-    if (containerRef.current) {
-      fadeInPage(containerRef.current);
-    }
+    if (!containerRef.current) return;
+    const ctx = gsap.context(() => {
+      fadeInPage(containerRef.current!);
+    });
+    return () => ctx.revert();
   }, []);
 
   // Stagger entrance on table rows whenever the agents data changes
   useEffect(() => {
     if (tableRowsRef.current && agents.length > 0) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      staggerEntrance(rows);
+      const ctx = gsap.context(() => {
+        staggerEntrance(rows);
+      });
+      return () => ctx.revert();
     }
   }, [agents]);
 
@@ -97,7 +103,7 @@ export default function AgentList() {
   };
 
   return (
-    <div ref={containerRef} className="agents-page-container">
+    <div ref={containerRef} className="agents-page-container" style={{ opacity: 0 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Agent Directory</h1>
@@ -165,7 +171,7 @@ export default function AgentList() {
             </thead>
             <tbody ref={tableRowsRef}>
               {agents.map((agent) => (
-                <tr key={agent.uid}>
+                <tr key={agent.uid} style={{ opacity: 0 }}>
                   <td>
                     <div className="name-cell">
                       <div className="avatar-circle">{agent.name[0]?.toUpperCase()}</div>

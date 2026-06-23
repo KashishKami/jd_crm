@@ -5,7 +5,6 @@ import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../service/permission.service';
 import * as agentService from '../../../service/agent.service';
 import AgentProfileView from '../../../components/AgentProfileView';
-import '../agents.css';
 
 export const metadata = {
   title: 'Agent Profile - JD CRM',

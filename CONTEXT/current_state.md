@@ -17,8 +17,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 4.5** | Animation &amp; Scroll Foundation | **[x] COMPLETED** | Lenis smooth scroll, GSAP animation utilities |
 | **Phase 5** | Agent Management (CRUD) | **[x] COMPLETED** | agents view, agent permissions, profiles |
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[x] COMPLETED** | Customers listing, card viewer (permission-guarded) |
-| **Phase 7** | Vendor Management | **[ ] PENDING** | Vendor listing, blacklist toggle, orders mapping |
-| **Phase 8** | Gateway Setup & Aggregated Reports | **[ ] PENDING** | Gateways dashboard, monthly gateway performance charts |
+| **Phase 7** | Vendor Management | **[x] COMPLETED** | Vendor listing, blacklist toggle, orders mapping |
+| **Phase 8** | Gateway Setup & Aggregated Reports | **[x] COMPLETED** | `gateways/page.tsx`, `GatewayList.tsx`, `GatewayReport.tsx` |
 | **Phase 9** | Order Intake & Sales Pipeline | **[ ] PENDING** | Add order form, pipeline queues (Pending Tracking/Feedback) |
 | **Phase 10**| Interactive Sales Dashboard | **[ ] PENDING** | Metric counters, top/bottom performance widgets |
 | **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
@@ -323,38 +323,41 @@ Build vendor repository and service. The blacklist toggle is a PATCH endpoint. T
 
 ---
 
-- [ ] **RED — Integration (`vendors.test.ts`):**
-  - [ ] Test: `GET /api/vendors` with `vendors:view` returns `200 OK` with array including `vendor_status` field.
-  - [ ] Test: `PATCH /api/vendors/:id/status` with `{ status: 0 }` sets `vendor_status = 0` in DB. Assert with `SELECT vendor_status FROM crm_vendors WHERE vendor_id = ?`.
-  - [ ] Test: `PATCH /api/vendors/:id/status` without `vendors:edit` permission returns `403 Forbidden`.
-  - [ ] Test: `GET /api/vendors/:id/orders` returns all orders where `order_vendor_id = :id`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`vendors.test.ts`):**
+  - [x] Test: `GET /api/vendors` with `vendors:view` returns `200 OK` with array including `vendor_status` field.
+  - [x] Test: `PATCH /api/vendors/:id/status` with `{ status: 0 }` sets `vendor_status = 0` in DB. Assert with `SELECT vendor_status FROM crm_vendors WHERE vendor_id = ?`.
+  - [x] Test: `PATCH /api/vendors/:id/status` without `vendors:edit` permission returns `403 Forbidden`.
+  - [x] Test: `GET /api/vendors/:id/orders` returns all orders where `order_vendor_id = :id`.
+  - [x] **Run — confirmed GREEN (3 suites, all pass).**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/vendor.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/vendor.repository.ts`:
     - `findAll(status?: 0 | 1)`, `findById(id)`, `create(data)`, `update(id, data)`, `toggleStatus(id, status)`.
     - `findOrdersByVendorId(vendorId: number)` — queries `crm_orders` where `orderVendorId = vendorId`.
-  - [ ] [Service] Create `src/service/vendor.service.ts`:
+  - [x] [Service] Create `src/service/vendor.service.ts`:
     - Validate phone number format on create/update.
     - `getVendorWithOrders(id)` — joins vendor + orders.
-  - [ ] [Controller] Create `src/app/api/vendors/route.ts` (GET, POST) and `src/app/api/vendors/[id]/route.ts` (GET, PATCH). `src/app/api/vendors/[id]/orders/route.ts` (GET). Guard with `vendors:view` and `vendors:edit`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] Created `src/app/api/vendors/route.ts` (GET, POST), `src/app/api/vendors/[id]/route.ts` (GET, PATCH), `src/app/api/vendors/[id]/status/route.ts` (PATCH), `src/app/api/vendors/[id]/orders/route.ts` (GET). Guarded with `vendors:view`, `vendors:create`, and `vendors:edit`.
+  - [x] Run integration test — **confirmed GREEN**.
 
-- [ ] **RED — Unit (`VendorList.test.tsx`):**
-  - [ ] Test: Blacklisted vendors render with a red "Blacklisted" badge.
-  - [ ] Test: "Blacklist" button calls `PATCH /api/vendors/:id/status` with `{ status: 0 }`.
-  - [ ] Test: "Restore" button on a blacklisted vendor calls `PATCH` with `{ status: 1 }`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`VendorList.test.tsx`):**
+  - [x] Test: Blacklisted vendors render with a red "Blacklisted" badge.
+  - [x] Test: "Blacklist" button calls `PATCH /api/vendors/:id/status` with `{ status: 0 }`.
+  - [x] Test: "Restore" button on a blacklisted vendor calls `PATCH` with `{ status: 1 }`.
+  - [x] **Run — confirmed GREEN (4 unit tests pass).**
 
-- [ ] **GREEN — Frontend (Types → Pages → Components):**
-  - [ ] [Types] Create `src/types/vendor.ts`.
-  - [ ] [Page] `src/app/vendors/page.tsx` — vendor list with status badges.
-  - [ ] [Page] `src/app/vendors/[id]/page.tsx` — vendor detail with linked orders table.
-  - [ ] [Component] `src/components/VendorStatusBadge.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Pages → Components):**
+  - [x] [Types] Created `src/types/vendor.ts` with `Vendor`, `VendorWithMetrics`, `VendorCreateInput`, `VendorUpdateInput`.
+  - [x] [Page] `src/app/vendors/page.tsx` — vendor list with status badges.
+  - [x] [Page] `src/app/vendors/[id]/page.tsx` — vendor detail with linked orders table, performance metrics, and blacklist warning banner.
+  - [x] [Page] `src/app/vendors/new/page.tsx` — add vendor form.
+  - [x] [Page] `src/app/vendors/[id]/edit/page.tsx` — edit vendor form.
+  - [x] [Component] `src/components/VendorList.tsx` — vendor list with badges and action buttons.
+  - [x] [Component] `src/components/VendorStatusBadge.tsx` — active/blacklisted status badge.
+  - [x] Run unit test — **confirmed GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin views vendor list → clicks "Blacklist" on a vendor → badge turns red → vendor detail shows all linked orders → admin navigates to one of those orders → a warning banner shows "Vendor is blacklisted" → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin views vendor list → clicks "Blacklist" on a vendor → badge turns red → vendor detail shows all linked orders with performance metrics → blacklisted vendor shows warning banner on detail page → admin can restore with "Restore Supplier" button → ✅ Done.
 
 ---
 
@@ -370,35 +373,35 @@ Build gateway repository and service. The report service queries `crm_orders` gr
 
 ---
 
-- [ ] **RED — Integration (`gateways.test.ts`):**
-  - [ ] Test: `GET /api/gateways` with `gateways:view` returns list of gateways.
-  - [ ] Test: `GET /api/gateways/:id/report` returns an object with `monthly` array where each entry has `{ month, year, completedCount, completedAmount, refundCount, refundAmount, chargebackCount, chargebackAmount }`.
-  - [ ] Test: Seed 3 orders for gateway ID 1 in the same month (1 Sold, 1 Refunded, 1 Chargebacked). Assert the report for that gateway/month shows `completedCount: 1`, `refundCount: 1`, `chargebackCount: 1`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`gateways.test.ts`):**
+  - [x] Test: `GET /api/gateways` with `gateways:view` returns list of gateways.
+  - [x] Test: `GET /api/gateways/:id/report` returns an object with `monthly` array where each entry has `{ month, year, completedCount, completedAmount, refundCount, refundAmount, chargebackCount, chargebackAmount }`.
+  - [x] Test: Seed 3 orders for gateway ID 1 in the same month (1 Sold, 1 Refunded, 1 Chargebacked). Assert the report for that gateway/month shows `completedCount: 1`, `refundCount: 1`, `chargebackCount: 1`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/gateway.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/gateway.repository.ts`:
     - `findAll(status?: 0 | 1)`, `findById(id)`, `create(data)`, `update(id, data)`.
     - `getMonthlyReport(gatewayId: number)` — raw Prisma `$queryRaw` grouping orders by month, filtering `sale_status IN ('1', '7', '8')`.
-  - [ ] [Service] Create `src/service/gateway.service.ts`:
+  - [x] [Service] Create `src/service/gateway.service.ts`:
     - `computeReport(gatewayId)` — calls repository and formats the flat rows into a structured month-by-month array with computed `netAmount = completedAmount - refundAmount - chargebackAmount`.
-  - [ ] [Controller] `src/app/api/gateways/route.ts` (GET, POST), `src/app/api/gateways/[id]/report/route.ts` (GET). Guard with `gateways:view`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] `src/app/api/gateways/route.ts` (GET, POST), `src/app/api/gateways/[id]/report/route.ts` (GET). Guard with `gateways:view`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`GatewayReport.test.tsx`):**
-  - [ ] Test: Given mocked monthly data, `GatewayReport` component renders a row per month with correct counts and amounts.
-  - [ ] Test: Net amount column is highlighted red when negative (chargebacks > sales).
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`GatewayReport.test.tsx`):**
+  - [x] Test: Given mocked monthly data, `GatewayReport` component renders a row per month with correct counts and amounts.
+  - [x] Test: Net amount column is highlighted red when negative (chargebacks > sales).
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Pages → Components):**
-  - [ ] [Types] Create `src/types/gateway.ts` with `Gateway` and `GatewayMonthlyReport` types.
-  - [ ] [Page] `src/app/gateways/page.tsx` — gateway list with active/inactive badges.
-  - [ ] [Page] `src/app/gateways/[id]/page.tsx` — gateway detail with monthly report table.
-  - [ ] [Component] `src/components/GatewayReport.tsx` — renders the monthly breakdown table.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Pages → Components):**
+  - [x] [Types] Create `src/types/gateway.ts` with `Gateway` and `GatewayMonthlyReport` types.
+  - [x] [Page] `src/app/gateways/page.tsx` — gateway list with active/inactive badges.
+  - [x] [Page] `src/app/gateways/[id]/page.tsx` — gateway detail with monthly report table.
+  - [x] [Component] `src/components/GatewayReport.tsx` — renders the monthly breakdown table.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin navigates to `/gateways` → clicks a gateway → detail page shows monthly breakdown table with counts and amounts for Completed / Refunded / Chargebacked → Net column shows correct computed value → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin navigates to `/gateways` → clicks a gateway → detail page shows monthly breakdown table with counts and amounts for Completed / Refunded / Chargebacked → Net column shows correct computed value → ✅ Done.
 
 ---
 
@@ -716,5 +719,53 @@ Build a search repository with a parameterized LIKE query across the most useful
 *   **Zero-Flicker Layout Refactor:** Redesigned `LayoutShell.tsx` loading state to display the `Sidebar` immediately on the page while showing the loader container exclusively inside the `<main>` content container. This guarantees the sidebar remains 100% visible, static, and stable during full-page reloads and 404 navigation routes.
 *   **SPA Placeholder Pages Creation:** Created basic placeholder pages for `/orders`, `/vendors`, `/agents`, and `/gateways` to make these routes available in the Next.js router. This forces client-side SPA navigation during layout testing, preventing full browser page reloads and screen white-flashes on sidebar clicks.
 *   **Verification:** Created `animations.test.tsx` ensuring proper rendering and behavior of scroll provider and animations. Type checks and all 19 tests are 100% green.
+
+### Session 6 — June 23–24, 2026
+
+*   **Phase 5 — Agent Form UX Overhaul (Tab Navigation & Scroll Fixes):**
+    *   Removed `overflow-y: auto` from `.main-content` in `layout.css` so the full window viewport scrolls naturally. Previously the inner scroll container conflicted with Lenis, causing scrolling to stop halfway on tall form tabs (Personal, Bank & Emergency).
+    *   Integrated the `useLenis` hook into `NewAgentForm.tsx` and `EditAgentForm.tsx` to call `lenis.resize()` on every tab switch and whenever dynamic academic/professional record arrays grow or shrink, ensuring Lenis always recalculates the correct scroll height.
+    *   Replaced the single static "Register Agent / Save" button footer with a full wizard-style step navigation system:
+        *   **Tab 1 (Account & Core Info):** Shows `Cancel` (back to directory), `Save` (partial save), and `Next Page` (advances tab).
+        *   **Tabs 2 & 3 (Personal/Bank & Academic):** Shows `Back`, `Save`, and `Next Page`.
+        *   **Tab 4 (Work History) only:** Shows `Back` and the final primary submit (`Register Agent` / `Save Profile Changes`). The register button is now exclusively on the last tab.
+
+*   **Full ESLint & TypeScript Resolution (0 errors, 0 warnings):**
+    *   **Repository type-safety:** Defined `CreateAgentInput` and `UpdateAgentInput` interfaces in `agent.repository.ts`. Applied explicit Prisma cast types (`Prisma.UsersUncheckedCreateInput` / `Prisma.UsersUncheckedUpdateInput`) to resolve union type conflicts on direct row mutations.
+    *   **Nullable status alignment:** Changed `status: number` to `status?: number | null` in `src/types/agent.ts` to match the Prisma-generated schema. Added a `?? 0` fallback at all invocation sites (e.g. `AgentList.tsx`).
+    *   **Generic sanitizer:** Refactored `sanitizeUser` in `agent.service.ts` from `any` to a TypeScript generic `<T extends { password?: string | null }>`, removing all `any` types while preserving the return model.
+    *   **Form record arrays:** Replaced `any[]` state in `NewAgentForm.tsx` and `EditAgentForm.tsx` with `FormAcademicRecord[]` and `FormProfessionalRecord[]` from `src/types/agent.ts`.
+    *   **React forwardRef fix:** Restored `{}` props type on `Sidebar.tsx` `forwardRef` with a targeted `eslint-disable-next-line` comment, resolving the `Record<string, never>` index signature incompatibility with React's ref forwarding.
+    *   **Lenis state effect:** Added `// eslint-disable-next-line react-hooks/set-state-in-effect` in `LenisProvider.tsx` to acknowledge the intentional synchronous state set on mount.
+    *   **Test cleanup:** Removed unused `cleanup` import in `animations.test.tsx` and unused `rerender` destructure in `AgentList.test.tsx`. Replaced all `as any` session mock casts with `as unknown as ReturnType<typeof useSession>`.
+    *   **Integration test types:** Replaced `(agent: any)` callbacks in `agents.test.ts` with concrete inline types (`{ status: number }`, `{ username: string }`).
+    *   **Verification:** `npm run lint` — 0 errors/warnings. `npm run typecheck` — 0 errors. `npm run test` — **28/28 tests passed** across all 8 test suites.
+
+*   **Phase 6 & 7 — Customers & Vendors (Completed by user in same session):**
+    *   Customer Ledger module implemented with masked card numbers for unpermissioned users (`customers:view-cards`).
+    *   Vendor Management module implemented with full blacklist toggle, linked orders view, performance metrics, and warning banner on detail page.
+    *   Both phases marked `[x] COMPLETED` in the phase tracker.
+
+### Session 7 — June 24, 2026
+
+*   **Phase 8 — Payment Gateway Setup & Aggregated Reports (Phase 8 Completed):**
+    *   Designed and implemented `gateway.repository.ts`, `gateway.service.ts`, list/detail routes, and the monthly gateway performance aggregated report endpoint (`/api/gateways/:id/report`).
+    *   Exposed pages (`src/app/gateways/page.tsx`, `[id]/page.tsx`, `new/page.tsx`, `[id]/edit/page.tsx`) and client components (`GatewayList.tsx`, `GatewayReport.tsx`).
+    *   Added full TDD test coverage for Gateway CRUD and Monthly Performance Reports (`gateways.test.ts` and `GatewayReport.test.tsx`), with all tests fully green.
+*   **Git Commit History Clean:**
+    *   Soft-reset and amended the vendors page commit (`add: vendors page.`) to completely exclude `jd_crm.json` and `seed.sql`.
+    *   Reverted `seed.sql` on disk and in the index to its original state matching `origin/main`.
+    *   Kept `jd_crm.json` on disk as an ignored, untracked file via `.gitignore`.
+*   **Global CSS Consolidation & FOUC / Reload Styling Fixes:**
+    *   Moved generic CRM layout and component styles from `src/app/agents/agents.css` into a global `src/app/components.css` stylesheet.
+    *   Imported `components.css` in `src/app/layout.tsx` to ensure pages (such as gateways) do not render unstyled on direct reload.
+    *   Deleted the obsolete `agents.css` file and cleaned up local page references.
+*   **Jitter-Free & Unified GSAP Entrance Transitions:**
+    *   Fixed table layout reflow jitter on the gateways page by setting the table to `table-layout: fixed` and configuring explicit column widths (`80px` for `#`, `140px` for `Status`, `280px` for `Actions`).
+    *   Eliminated "double animation with lag" by shifting the GSAP triggers to run concurrently in a single context when page loading finishes (`[loading]` dependency).
+    *   Wrapped all major listing animations (`GatewayList`, `AgentList`, `VendorList`, `CustomerList`) in `gsap.context()` to clean up and revert active tweens on unmount, avoiding React StrictMode conflicts.
+    *   Applied inline `style={{ opacity: 0 }}` on page containers and table rows to eliminate initial paint flashes (FOUC).
+*   **Verification:** `npm run build` completed successfully with zero compile or TypeScript errors.
+
 
 
