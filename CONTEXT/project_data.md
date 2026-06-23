@@ -30,69 +30,89 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 
 ---
 
-## 3. Permission Codes Reference
+## 3. RBAC Permission Keys Reference
 
-Permissions are stored in the database as a comma-separated string in `users.user_permissions` (e.g., `"101,102,112"`). Below is the dictionary of these codes as defined in the original `agent-permission.php` file.
+> [!IMPORTANT]
+> **Decision 2 (see `CONTEXT/decision_log.md`):** The legacy PHP app stored permissions as a comma-separated string of numeric codes in `users.user_permissions` (e.g. `"160,162"`). This has been replaced with a normalized **Role-Based Access Control (RBAC)** system: `crm_roles`, `crm_permissions`, and `crm_role_permissions` junction tables. Users now have a `roleId` FK. Permissions are checked using readable string keys.
 
-### Dashboard Widget Permissions
-*   **`101`**: Dashboard - Total Sales Widget
-*   **`112`**: Dashboard - Total Sales Widget "View Details"
-*   **`102`**: Dashboard - Total Sales This Month Widget
-*   **`113`**: Dashboard - Total Sales This Month "View Details"
-*   **`103`**: Dashboard - Today's Sale Widget
-*   **`114`**: Dashboard - Today's Sale "View Details"
-*   **`104`**: Dashboard - Chargeback This Month Widget
-*   **`115`**: Dashboard - Chargeback This Month "View Details"
-*   **`105`**: Dashboard - Refund This Month Widget
-*   **`116`**: Dashboard - Refund This Month "View Details"
-*   **`106`**: Dashboard - Net Sales Widget
-*   **`110`**: Dashboard - Top Performer Widget
-*   **`111`**: Dashboard - Bottom Performer Widget
-*   **`120`**: Dashboard - Pending Orders Count
-*   **`121`**: Dashboard - Pending Tracking Count
-*   **`122`**: Dashboard - Pending Delivery Count
-*   **`123`**: Dashboard - Pending Feedback Count
-*   **`124`**: Dashboard - Pending Resolutions Count
-*   **`131`**: Dashboard - Top Vendors Widget
-*   **`132`**: Dashboard - Blacklisted Vendors Widget
-*   **`140`**: Dashboard - Recent Orders Table
-*   **`151`**: Dashboard - Attendance: Total Present
-*   **`152`**: Dashboard - Attendance: Total Absent
-*   **`153`**: Dashboard - Attendance: Total ULWP (Unapproved Leave Without Pay)
-*   **`154`**: Dashboard - Attendance: Total LWP (Leave Without Pay)
-*   **`155`**: Dashboard - Attendance: Total PL (Paid Leave)
-*   **`156`**: Dashboard - Attendance: Total NCNS (No Call No Show)
+### Resource: `dashboard`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `dashboard:total-sales` | `101` + `112` | View Total Sales widget and its detail drill-down |
+| `dashboard:monthly-sales` | `102` + `113` | View Total Sales This Month widget and detail |
+| `dashboard:today-sales` | `103` + `114` | View Today's Sale widget and detail |
+| `dashboard:chargeback` | `104` + `115` | View Chargeback This Month widget and detail |
+| `dashboard:refund` | `105` + `116` | View Refund This Month widget and detail |
+| `dashboard:net-sales` | `106` | View Net Sales widget |
+| `dashboard:top-performer` | `110` | View Top Performer widget |
+| `dashboard:bottom-performer` | `111` | View Bottom Performer widget |
+| `dashboard:pending-counts` | `120`–`124` | View all pending pipeline count tiles |
+| `dashboard:top-vendors` | `131` | View Top Vendors widget |
+| `dashboard:blacklisted-vendors` | `132` | View Blacklisted Vendors widget |
+| `dashboard:recent-orders` | `140` | View Recent Orders table |
+| `dashboard:attendance-summary` | `151`–`156` | View Attendance summary row (Present / Absent / LWOP / etc.) |
+| `dashboard:team-monthly-scores` | — | View monthly team-wise aggregate scores widget (new — teams are a new concept) |
+| `dashboard:team-top-performer` | — | View top performer per team for the current month (new) |
+| `dashboard:team-bottom-performer` | — | View bottom performer per team for the current month (new) |
 
-### Side Menu & Navigation Permissions
-*   **`160`**: Side Menu - All Vendors Page
-*   **`161`**: Side Menu - Add Vendor Page
-*   **`162`**: Side Menu - Active Users (Agents) Page
-*   **`163`**: Side Menu - Inactive Users Page
-*   **`164`**: Side Menu - Today's Attendance Page
-*   **`165`**: Side Menu - Previous Attendance Page
-*   **`166`**: Side Menu - View Attendance (Detailed) Page
-*   **`167`**: Side Menu - Previous Attendance Log
-*   **`168`**: Side Menu - All Gateways Page
-*   **`169`**: Side Menu - Add Gateway Page
-*   **`170`**: Side Menu - Gateway Report Page
-*   **`171`**: Side Menu - Add New Order Page
-*   **`172`**: Side Menu - All Orders Page
-*   **`173`**: Side Menu - Completed Orders Page
-*   **`174`**: Side Menu - Pending Orders Page
-*   **`175`**: Side Menu - Pending Tracking Page
-*   **`176`**: Side Menu - Pending Delivery Page
-*   **`177`**: Side Menu - Pending Feedbacks Page
-*   **`178`**: Side Menu - Pending Resolutions Page
+### Resource: `vendors`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `vendors:view` | `160` | Access All Vendors page and list endpoint |
+| `vendors:create` | `161` | Access Add Vendor page and POST endpoint |
+| `vendors:edit` | — | Edit or blacklist/restore a vendor (new — was implicit) |
 
-### Customer Information & Order Detail View Permissions
-*   **`201`**: Order Details - View Customer Phone Number
-*   **`202`**: Order Details - View Customer Email
-*   **`203`**: Order Details - View Vendor Details
-*   **`204`**: Order Details - View Payment Card Details (Sensitive)
-*   **`205`**: Order Details - Perform Order Actions (Edit/Delete)
+### Resource: `agents`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `agents:view` | `162` | Access Active Agents list page |
+| `agents:view-inactive` | `163` | Access Inactive Agents page |
+| `agents:create` | — | Create a new agent (new — was implicit) |
+| `agents:edit` | — | Edit agent details or deactivate (new — was implicit) |
 
-### Global/Super Admin Permission
-*   **`99999`**: Bypass all permissions check (Super Administrator).
+### Resource: `gateways`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `gateways:view` | `168` | Access All Gateways page |
+| `gateways:create` | `169` | Access Add Gateway page and POST endpoint |
+| `gateways:report` | `170` | Access Gateway Report page and report endpoint |
+| `gateways:edit` | — | Edit or deactivate a gateway (new — was implicit) |
+
+### Resource: `orders`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `orders:view` | `172` | Access All Orders page |
+| `orders:create` | `171` | Access Add New Order page and POST endpoint |
+| `orders:edit` | `205` | Perform edit/delete actions on an existing order |
+| `orders:view-completed` | `173` | Access Completed Orders filtered view |
+| `orders:view-pending` | `174` | Access Pending Orders queue |
+| `orders:view-pending-tracking` | `175` | Access Pending Tracking queue |
+| `orders:view-pending-delivery` | `176` | Access Pending Delivery queue |
+| `orders:view-pending-feedback` | `177` | Access Pending Feedback queue |
+| `orders:view-pending-resolutions` | `178` | Access Pending Resolutions queue |
+
+### Resource: `customers`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `customers:view` | — | Access customer list and detail pages (new) |
+| `customers:create` | — | Create a new customer (new — was embedded in order create) |
+| `customers:edit` | — | Edit customer details (new) |
+| `customers:view-phone` | `201` | View customer phone number in order detail |
+| `customers:view-email` | `202` | View customer email in order detail |
+| `customers:view-vendor-details` | `203` | View linked vendor details in order detail |
+| `customers:view-cards` | `204` | View full (unmasked) payment card details |
+
+### Resource: `attendance`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `attendance:view` | `164` + `166` | Access Today's and Previous Attendance pages |
+| `attendance:view-history` | `165` + `167` | Access historical attendance log |
+| `attendance:mark` | — | Submit daily attendance marking (new — was admin-only implicit) |
+
+### Super Admin
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `super-admin` | `99999` | Bypasses all permission checks. Grants access to everything. |
 
 ---
 
@@ -136,6 +156,11 @@ Mapped during daily marking (`mark-attendance.php`):
 
 *   **Hash Compatibility:** The PHP application hashed passwords using raw SHA-256 (`hash('sha256', $password)`).
 *   **Migration Authentication Strategy:**
-    *   To allow existing credentials to work, NextAuth's `CredentialsProvider` will calculate the SHA-256 of the input password.
+    *   To allow existing credentials to work, NextAuth's `CredentialsProvider` calculates the SHA-256 of the input password.
     *   If it matches the stored hash in `users.password`, authenticate successfully.
-    *   **Recommendation:** Upon successful SHA-256 login, migrate the user's password on-the-fly to a modern `bcrypt` hash (or `argon2`) and flag the account as upgraded to avoid long-term SHA-256 vulnerabilities.
+    *   Upon successful SHA-256 login, the user's password is automatically migrated on-the-fly to a modern `bcrypt` hash, preventing long-term SHA-256 vulnerabilities.
+
+*   **Authorization (RBAC):** Users now have a `roleId` foreign key referencing `crm_roles`. Permissions are resolved at login time by joining `crm_role_permissions` → `crm_permissions` and stored in the NextAuth JWT as a `string[]` of permission keys (e.g. `['vendors:view', 'orders:create']`). The `super-admin` key in that array bypasses all checks. The `hasPermission(session, key)` helper checks either the specific key or `super-admin`.
+
+> [!NOTE]
+> **Legacy data migration note:** The old `users.user_permissions` VARCHAR column stored numeric codes like `"160,162,99999"`. When seeding or migrating existing user data, use the legacy mapping table in Section 3 to translate old numeric codes to their corresponding RBAC role assignments.

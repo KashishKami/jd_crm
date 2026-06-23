@@ -161,54 +161,461 @@ Create authorization helpers `hasPermission(user, permissionId)`. Implement serv
 ---
 
 ### Phase 5 — Agent Management (CRUD)
-*   **Goal:** Allow admins (with permission `162`/`163`) to create, update permissions, toggle active status, and view details of agents.
-*   **TDD Test Coverage:**
-    *   `POST /api/agents` payload updates database structure.
-    *   `GET /api/agents?status=0` filters by inactive agents.
-    *   Validates permissions check before writing new records.
+
+#### W-501 — Agent List, Create, Edit, Deactivate & Profile
+
+**Goal:**
+The PHP app had `agents.php`, `add-agents.php`, `edit-agent.php`, and `inactive-agents.php` as separate pages with inline SQL. We need a single, type-safe agents module with proper repository/service layers, guarded by RBAC permissions (`agents:view`, `agents:create`, `agents:edit`).
+
+**Approach:**
+Build the agents repository (`findAll`, `findById`, `create`, `update`, `toggleStatus`). Build the service layer for business validation. Expose API routes at `/api/agents`. Build the list page at `/agents`, the add/edit forms, and the agent detail view. Profile sub-pages (academic, professional, bank details) are sub-routes of the agent detail.
+
+---
+
+- [ ] **RED — Integration (`agents.test.ts`):**
+  - [ ] Test: `GET /api/agents` with a session lacking `agents:view` permission returns `403 Forbidden`.
+  - [ ] Test: `GET /api/agents` with a session having `agents:view` returns `200 OK` and a JSON array of agents.
+  - [ ] Test: `GET /api/agents?status=0` returns only inactive agents.
+  - [ ] Test: `POST /api/agents` with valid payload creates a new agent. Assert `SELECT uid FROM users WHERE username = 'test_agent'` returns exactly 1 row.
+  - [ ] Test: `POST /api/agents` without `agents:create` permission returns `403 Forbidden`.
+  - [ ] Test: `PATCH /api/agents/:id/status` with `{ status: 0 }` sets the agent inactive. Assert DB confirms `status = 0`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/agent.repository.ts`:
+    - `findAll(status?: 0 | 1)` — Prisma query on `users` with optional `where: { status }`.
+    - `findById(uid: number)` — includes `profile`, `academicRecord`, `professionalRecord`, `team`.
+    - `create(data: AgentCreateInput)` — hashes password with bcrypt before insert.
+    - `update(uid: number, data: AgentUpdateInput)`.
+    - `toggleStatus(uid: number, status: 0 | 1)`.
+  - [ ] [Service] Create `src/service/agent.service.ts`:
+    - Validate that `username` is unique before create.
+    - Validate that `teamId` references a valid `crm_teams` row.
+    - Strip sensitive fields (password hash) from the returned object.
+  - [ ] [Controller] Create `src/app/api/agents/route.ts` (GET, POST) and `src/app/api/agents/[id]/route.ts` (GET, PATCH, DELETE). Guard each with `requirePermission(session, 'agents:view' | 'agents:create' | 'agents:edit')`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`AgentList.test.tsx`):**
+  - [ ] Test: Renders a table of agents from mocked API response.
+  - [ ] Test: "Add Agent" button is visible when session has `agents:create` permission; hidden when not.
+  - [ ] Test: Clicking "Deactivate" calls `PATCH /api/agents/:id/status` with `{ status: 0 }`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Pages → Components):**
+  - [ ] [Types] Create `src/types/agent.ts` with `Agent`, `AgentCreateInput`, `AgentDetail` types.
+  - [ ] [Page] `src/app/agents/page.tsx` — server component fetching agents list; passes to `AgentTable` client component.
+  - [ ] [Page] `src/app/agents/new/page.tsx` — add agent form with all fields including team selector and designation selector.
+  - [ ] [Page] `src/app/agents/[id]/page.tsx` — agent detail with profile tabs (Basic Info, Academic, Professional, Bank & Emergency).
+  - [ ] [Page] `src/app/agents/[id]/edit/page.tsx` — edit agent form.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin navigates to `/agents` → list of active agents renders → clicks "Add Agent" → fills form with team and designation → saves → new agent appears in list → admin clicks agent name → detail page shows all profile tabs → admin clicks "Deactivate" → agent disappears from active list and appears under `/agents?status=0` → ✅ Done.
+
+---
 
 ### Phase 6 — Customer & Sensitive Cards Ledger
-*   **Goal:** CRUD for `crm_customers` and `crm_customer_cards`. Sensitive details (card number, cvv) are protected behind permission `204`.
-*   **TDD Test Coverage:**
-    *   Assert non-permitted sessions fetch customers list successfully, but card numbers return masked (e.g. `**** **** **** 1234`).
-    *   Assert permitted sessions (with code `204`) receive raw details.
+
+#### W-601 — Customer CRUD & Permission-Gated Card Details
+
+**Goal:**
+Customers are linked to orders. The card details (number, CVV) are sensitive and must only be shown to users with the `customers:view-cards` permission. The PHP `order-details.php` showed or hid these fields with raw `in_array()` checks — we need a clean service-layer masking pattern instead.
+
+**Approach:**
+Build a customer repository and service. The service's `getCustomerCards` method always masks the card number to `**** **** **** XXXX` by default; a separate `getCustomerCardsFull` method requires the permission check at the controller level before calling it.
+
+---
+
+- [ ] **RED — Integration (`customers.test.ts`):**
+  - [ ] Test: `GET /api/customers` with `customers:view` permission returns `200 OK` with customer list.
+  - [ ] Test: `GET /api/customers/:id/cards` **without** `customers:view-cards` permission returns cards where `customer_card_number` is masked (matches `/^\*{4} \*{4} \*{4} \d{4}$/`).
+  - [ ] Test: `GET /api/customers/:id/cards` **with** `customers:view-cards` permission returns cards with full raw `customer_card_number`.
+  - [ ] Test: `POST /api/customers` creates a customer. Assert the returned object has a valid `customer_id`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/customer.repository.ts`:
+    - `findAll()`, `findById(id)`, `create(data)`, `update(id, data)`.
+    - `findCardsByCustomerId(customerId: number)` — returns all cards for a customer.
+  - [ ] [Service] Create `src/service/customer.service.ts`:
+    - `getCards(customerId, maskSensitive: boolean)` — if `maskSensitive = true`, replaces `customerCardNumber` with masked string and sets `customerCardCvv` to `'***'`.
+  - [ ] [Controller] `src/app/api/customers/[id]/cards/route.ts`:
+    - Resolve session. Check if user has `customers:view-cards`.
+    - Pass `maskSensitive = !hasPermission(session, 'customers:view-cards')` to service.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`CustomerCards.test.tsx`):**
+  - [ ] Test: When session lacks `customers:view-cards`, card number displays as `**** **** **** 1234`.
+  - [ ] Test: When session has `customers:view-cards`, card number displays in full.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Types] Create `src/types/customer.ts` with `Customer`, `CustomerCard`, `MaskedCustomerCard` types.
+  - [ ] [Page] `src/app/customers/page.tsx` — customer list table.
+  - [ ] [Component] `src/components/CustomerCards.tsx` — renders card list; receives data already masked/unmasked from server.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent without `customers:view-cards` opens a customer detail page → cards section shows masked numbers → Admin with `customers:view-cards` opens same page → full card numbers visible → ✅ Done.
+
+---
 
 ### Phase 7 — Vendor Management
-*   **Goal:** Manage company contacts in `crm_vendors` and handle active/blacklist toggle.
-*   **TDD Test Coverage:**
-    *   Toggle endpoint changes `vendor_status` from `1` to `0` and asserts in DB.
-    *   Vendors reports returns list of active orders linked.
+
+#### W-701 — Vendor Directory, Blacklist Toggle & Linked Orders
+
+**Goal:**
+The PHP `vendors.php` managed a directory of auto parts suppliers. Admins can blacklist a vendor (`vendor_status = 0`), which should cascade a warning on all linked open orders. We replicate this in a clean module.
+
+**Approach:**
+Build vendor repository and service. The blacklist toggle is a PATCH endpoint. The vendor detail page shows all linked orders.
+
+---
+
+- [ ] **RED — Integration (`vendors.test.ts`):**
+  - [ ] Test: `GET /api/vendors` with `vendors:view` returns `200 OK` with array including `vendor_status` field.
+  - [ ] Test: `PATCH /api/vendors/:id/status` with `{ status: 0 }` sets `vendor_status = 0` in DB. Assert with `SELECT vendor_status FROM crm_vendors WHERE vendor_id = ?`.
+  - [ ] Test: `PATCH /api/vendors/:id/status` without `vendors:edit` permission returns `403 Forbidden`.
+  - [ ] Test: `GET /api/vendors/:id/orders` returns all orders where `order_vendor_id = :id`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/vendor.repository.ts`:
+    - `findAll(status?: 0 | 1)`, `findById(id)`, `create(data)`, `update(id, data)`, `toggleStatus(id, status)`.
+    - `findOrdersByVendorId(vendorId: number)` — queries `crm_orders` where `orderVendorId = vendorId`.
+  - [ ] [Service] Create `src/service/vendor.service.ts`:
+    - Validate phone number format on create/update.
+    - `getVendorWithOrders(id)` — joins vendor + orders.
+  - [ ] [Controller] Create `src/app/api/vendors/route.ts` (GET, POST) and `src/app/api/vendors/[id]/route.ts` (GET, PATCH). `src/app/api/vendors/[id]/orders/route.ts` (GET). Guard with `vendors:view` and `vendors:edit`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`VendorList.test.tsx`):**
+  - [ ] Test: Blacklisted vendors render with a red "Blacklisted" badge.
+  - [ ] Test: "Blacklist" button calls `PATCH /api/vendors/:id/status` with `{ status: 0 }`.
+  - [ ] Test: "Restore" button on a blacklisted vendor calls `PATCH` with `{ status: 1 }`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Pages → Components):**
+  - [ ] [Types] Create `src/types/vendor.ts`.
+  - [ ] [Page] `src/app/vendors/page.tsx` — vendor list with status badges.
+  - [ ] [Page] `src/app/vendors/[id]/page.tsx` — vendor detail with linked orders table.
+  - [ ] [Component] `src/components/VendorStatusBadge.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin views vendor list → clicks "Blacklist" on a vendor → badge turns red → vendor detail shows all linked orders → admin navigates to one of those orders → a warning banner shows "Vendor is blacklisted" → ✅ Done.
+
+---
 
 ### Phase 8 — Gateway Setup & Aggregated Reports
-*   **Goal:** Manage gate records in `crm_gateway` and display aggregate charts of gateway transaction totals (monthly totals, refund ratios).
-*   **TDD Test Coverage:**
-    *   Calculation logic: verify sums of amount charged per gateway matches test db totals.
+
+#### W-801 — Payment Gateway CRUD & Monthly Performance Reports
+
+**Goal:**
+The PHP `gateway.php` / `gateway-details.php` showed per-gateway aggregate counts and amounts for Completed, Refunded, and Chargebacked orders, broken down by month. The `gatewayClass.php` had complex SQL GROUP BY queries. We replicate these as computed service methods.
+
+**Approach:**
+Build gateway repository and service. The report service queries `crm_orders` grouping by `order_payment_gateway_id`, `sale_status`, and month of `order_date`. Expose the report as a single `/api/gateways/:id/report` endpoint.
+
+---
+
+- [ ] **RED — Integration (`gateways.test.ts`):**
+  - [ ] Test: `GET /api/gateways` with `gateways:view` returns list of gateways.
+  - [ ] Test: `GET /api/gateways/:id/report` returns an object with `monthly` array where each entry has `{ month, year, completedCount, completedAmount, refundCount, refundAmount, chargebackCount, chargebackAmount }`.
+  - [ ] Test: Seed 3 orders for gateway ID 1 in the same month (1 Sold, 1 Refunded, 1 Chargebacked). Assert the report for that gateway/month shows `completedCount: 1`, `refundCount: 1`, `chargebackCount: 1`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/gateway.repository.ts`:
+    - `findAll(status?: 0 | 1)`, `findById(id)`, `create(data)`, `update(id, data)`.
+    - `getMonthlyReport(gatewayId: number)` — raw Prisma `$queryRaw` grouping orders by month, filtering `sale_status IN ('1', '7', '8')`.
+  - [ ] [Service] Create `src/service/gateway.service.ts`:
+    - `computeReport(gatewayId)` — calls repository and formats the flat rows into a structured month-by-month array with computed `netAmount = completedAmount - refundAmount - chargebackAmount`.
+  - [ ] [Controller] `src/app/api/gateways/route.ts` (GET, POST), `src/app/api/gateways/[id]/report/route.ts` (GET). Guard with `gateways:view`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`GatewayReport.test.tsx`):**
+  - [ ] Test: Given mocked monthly data, `GatewayReport` component renders a row per month with correct counts and amounts.
+  - [ ] Test: Net amount column is highlighted red when negative (chargebacks > sales).
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Pages → Components):**
+  - [ ] [Types] Create `src/types/gateway.ts` with `Gateway` and `GatewayMonthlyReport` types.
+  - [ ] [Page] `src/app/gateways/page.tsx` — gateway list with active/inactive badges.
+  - [ ] [Page] `src/app/gateways/[id]/page.tsx` — gateway detail with monthly report table.
+  - [ ] [Component] `src/components/GatewayReport.tsx` — renders the monthly breakdown table.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin navigates to `/gateways` → clicks a gateway → detail page shows monthly breakdown table with counts and amounts for Completed / Refunded / Chargebacked → Net column shows correct computed value → ✅ Done.
+
+---
 
 ### Phase 9 — Order Intake & Sales Pipeline
-*   **Goal:** Implement the order submission page (linking customer creation, card capture, and order creation in a single transaction). Manage the workflow status queues (Pending Tracking, Pending Delivery).
-*   **TDD Test Coverage:**
-    *   Validation test: empty or missing VIN or quotation fields return validation error.
-    *   State transition: updating tracking number automatically transitions `order_current_status` to "Pending Delivery".
+
+#### W-901 — Create Order (Customer + Card + Order Atomic Transaction) & Pipeline Queues
+
+**Goal:**
+The PHP `add-order.php` created a customer record, a card record, and an order record in a single form submission — but using three separate INSERT statements with no transaction wrapping, risking partial data. The new system must wrap all three inserts in a single Prisma transaction. The pending pipeline queues (`Pending Tracking`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`) are filtered views of `crm_orders`.
+
+**Approach:**
+Build an order repository that uses `prisma.$transaction([...])`. Expose create at `POST /api/orders`. Build pipeline queue endpoints as filtered GET queries on `order_current_status`. Build the order list, detail, and add-order pages.
+
+---
+
+- [ ] **RED — Integration (`orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with a valid payload (customer + card + order fields) returns `201 Created` with `{ orderId, customerId, cardId }`. Assert all three rows exist in DB.
+  - [ ] Test: `POST /api/orders` where the card insert would fail (e.g. missing `customerCardNumber`) rolls back all three inserts. Assert no orphan customer row was created.
+  - [ ] Test: `GET /api/orders?status=Pending+Tracking` returns only orders where `order_current_status = 'Pending Tracking'`.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ orderTrackingNumber: 'TRK123' }` sets `order_current_status` to `'Pending Delivery'` automatically (state machine logic in service).
+  - [ ] Test: `GET /api/orders` without `orders:view` returns `403 Forbidden`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/order.repository.ts`:
+    - `createWithCustomerAndCard(data: OrderCreateInput)` — wraps three Prisma creates in `prisma.$transaction`.
+    - `findAll(filters: OrderFilters)` — supports `status`, `agentId`, `dateFrom`, `dateTo` filters.
+    - `findById(id)` — includes customer, vendor, gateway, salesAgent, verifier, comments.
+    - `update(id, data)`.
+  - [ ] [Service] Create `src/service/order.service.ts`:
+    - `advanceStatus(order)` — state machine: if `orderTrackingNumber` set → `'Pending Delivery'`; if `orderDeliveryStatus` = confirmed → `'Pending Feedback'`; etc.
+    - `computeMarkup(pitched, vendorPrice)` — calculates `orderMarkup`.
+  - [ ] [Controller] `src/app/api/orders/route.ts` (GET, POST), `src/app/api/orders/[id]/route.ts` (GET, PATCH, DELETE). Guard with `orders:view`, `orders:create`, `orders:edit`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`AddOrderForm.test.tsx`):**
+  - [ ] Test: Submitting the form with all required fields calls `POST /api/orders` with the correct combined payload.
+  - [ ] Test: If `orderTotalPitched` and `orderVendorPrice` are both filled, the markup field is automatically computed and displayed.
+  - [ ] Test: Form shows validation error if `orderPart` is empty on submit attempt.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Pages → Components):**
+  - [ ] [Types] Create `src/types/order.ts` with `Order`, `OrderCreateInput`, `OrderDetail`, `PipelineStatus` types.
+  - [ ] [Page] `src/app/orders/page.tsx` — all orders table with filters.
+  - [ ] [Page] `src/app/orders/new/page.tsx` — multi-section add order form (Customer Info, Card Details, Vehicle & Part, Pricing, Agent Assignment).
+  - [ ] [Page] `src/app/orders/[id]/page.tsx` — order detail view with all fields grouped.
+  - [ ] [Page] `src/app/orders/[id]/edit/page.tsx` — edit order form.
+  - [ ] [Pages] `src/app/pending/tracking/page.tsx`, `src/app/pending/delivery/page.tsx`, `src/app/pending/feedback/page.tsx`, `src/app/pending/resolutions/page.tsx` — filtered pipeline queue pages.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent navigates to `/orders/new` → fills in customer info, card details, vehicle part, pricing → submits → order appears in `/orders` → agent fills in tracking number on order edit → `order_current_status` auto-advances to `Pending Delivery` → order appears in `/pending/delivery` queue → ✅ Done.
+
+---
 
 ### Phase 10 — Interactive Sales Dashboard
-*   **Goal:** Aggregate dashboard data (Total Sales, Monthly Sales, Net Sales) for widgets with detail grids, guarded by permission IDs.
-*   **TDD Test Coverage:**
-    *   Verify dashboard counts include/exclude refunds and chargebacks appropriately based on SQL calculations logic.
+
+#### W-1001 — Dashboard Metric Widgets & Performance Tables
+
+**Goal:**
+The PHP `dashboard.php` (59KB) was a single file that inlined dozens of SQL queries for metric widgets. Each widget (Total Sales, Net Sales, Chargeback This Month, Top/Bottom Performers, Recent Orders, Attendance Summary) was gated by numeric permission codes. In the new system, all metrics are computed by a dashboard service and served from `/api/dashboard/metrics`. Widget visibility is controlled by RBAC permissions.
+
+This phase also introduces **monthly team-wise scoring** (a new feature with no PHP equivalent): aggregate sales performance per team for a given month, and the top/bottom performer within each team for that month.
+
+**Approach:**
+Build a `DashboardService` that runs all aggregate queries. Expose a single `/api/dashboard/metrics` endpoint returning all widgets the current user has permission to see. The frontend dashboard page calls this once and renders conditionally.
+
+For the team monthly widgets, expose a separate `/api/dashboard/teams/monthly?month=M&year=YYYY` endpoint so the caller can navigate between months. This keeps the main metrics endpoint fast and avoids reloading all widgets on month change.
+
+---
+
+- [ ] **RED — Integration (`dashboard.test.ts`):**
+  - [ ] Test: `GET /api/dashboard/metrics` for a super-admin returns an object containing all keys: `totalSales`, `totalSalesThisMonth`, `todaySales`, `chargebackThisMonth`, `refundThisMonth`, `netSales`, `topPerformers`, `bottomPerformers`, `recentOrders`, `attendanceSummary`, `pendingCounts`.
+  - [ ] Test: `GET /api/dashboard/metrics` for a user with only `dashboard:total-sales` returns an object that contains `totalSales` but does NOT contain `topPerformers`.
+  - [ ] Test: Net sales calculation: seed 5 Sold orders (markup `100` each), 1 Refunded, 1 Chargebacked → assert `netSales = 300` (5×100 − 100 refund − 100 chargeback).
+  - [ ] Test: `GET /api/dashboard/teams/monthly?month=6&year=2026` with `dashboard:team-monthly-scores` returns an array of team objects each containing `{ teamId, teamName, soldCount, netAmount, month, year }`.
+  - [ ] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-monthly-scores` returns `403 Forbidden`.
+  - [ ] Test: Seed 3 teams. Seed 2 agents in Team A (with 3 sold orders markup 200 each) and 1 agent in Team B (with 1 sold order markup 100). Assert Team A `netAmount = 600`, Team B `netAmount = 100` for that month.
+  - [ ] Test: `GET /api/dashboard/teams/monthly` with `dashboard:team-top-performer` includes a `topPerformer: { agentName, amount }` key in each team object.
+  - [ ] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-top-performer` returns team objects where `topPerformer` key is absent.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/dashboard.repository.ts`:
+    - `getTotalSales()`, `getTotalSalesThisMonth()`, `getTodaySales()` — count where `sale_status = '1'`.
+    - `getChargebackThisMonth()`, `getRefundThisMonth()` — count where `sale_status = '8'` / `'7'` and current month.
+    - `getNetSales()` — `SUM(orderMarkup)` for Sold orders minus refunds and chargebacks.
+    - `getTopPerformers(limit = 5)`, `getBottomPerformers(limit = 5)` — group by `orderSalesAgentId`, order by SUM of markup.
+    - `getRecentOrders(limit = 10)`.
+    - `getAttendanceSummary(date: Date)` — counts per `attendanceStatusId` for given date.
+    - `getPendingCounts()` — counts per `orderCurrentStatus` value.
+    - `getTeamMonthlyScores(month: number, year: number)` — `$queryRaw` joining `crm_orders` → `users` → `crm_teams`, GROUP BY `team_id` and filtered to the given month/year. Returns `{ teamId, teamName, soldCount, refundCount, chargebackCount, netAmount }[]`.
+    - `getTeamMonthlyTopPerformer(teamId: number, month: number, year: number)` — within that team's agents, finds the agent with the highest `SUM(orderMarkup)` for Sold orders in that month.
+    - `getTeamMonthlyBottomPerformer(teamId: number, month: number, year: number)` — same but lowest SUM.
+  - [ ] [Service] Create `src/service/dashboard.service.ts`:
+    - `getMetricsForUser(session)` — calls only the repository methods the user's permissions allow, assembles and returns a single object.
+    - `getTeamMonthlyReport(session, month, year)` — calls `getTeamMonthlyScores`, then conditionally enriches each team object with `topPerformer` / `bottomPerformer` based on whether the session has `dashboard:team-top-performer` / `dashboard:team-bottom-performer`. Returns `TeamMonthlyReport[]`.
+  - [ ] [Controller] `src/app/api/dashboard/metrics/route.ts` — single GET, calls service with session.
+  - [ ] [Controller] `src/app/api/dashboard/teams/monthly/route.ts` — GET with `?month` and `?year` query params (defaults to current month). Guards with `dashboard:team-monthly-scores`. Calls `dashboard.service.getTeamMonthlyReport(session, month, year)`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`Dashboard.test.tsx`):**
+  - [ ] Test: Renders `TotalSalesWidget` when `dashboard:total-sales` permission present; does not render when absent.
+  - [ ] Test: `TopPerformersTable` renders agent rows in correct rank order from mocked data.
+  - [ ] Test: `PendingCountsRow` shows correct count labels for each pipeline bucket.
+  - [ ] Test: `TeamMonthlyScoresWidget` renders one card per team with correct `soldCount` and `netAmount` from mocked data.
+  - [ ] Test: Each team card shows `topPerformer` name when session has `dashboard:team-top-performer`; the field is absent (not rendered) when permission is missing.
+  - [ ] Test: Each team card shows `bottomPerformer` name when session has `dashboard:team-bottom-performer`; the field is absent when permission is missing.
+  - [ ] Test: Month navigator (prev/next arrows) calls `/api/dashboard/teams/monthly?month=M&year=YYYY` with the correct month on click.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Components → Page):**
+  - [ ] [Types] Create `src/types/dashboard.ts` with `DashboardMetrics`, `PerformerRow`, `PendingCounts`, `TeamMonthlyReport`, `TeamPerformerRow` types.
+  - [ ] [Components] `src/components/dashboard/TotalSalesWidget.tsx`, `NetSalesWidget.tsx`, `TopPerformersTable.tsx`, `BottomPerformersTable.tsx`, `RecentOrdersTable.tsx`, `AttendanceSummaryRow.tsx`, `PendingCountsRow.tsx`.
+  - [ ] [Component] `src/components/dashboard/TeamMonthlyScoresWidget.tsx`:
+    - Renders a grid of team cards (one per team).
+    - Each card shows: team name, sold count, refund count, chargeback count, net amount.
+    - Conditionally shows `topPerformer` row if `dashboard:team-top-performer` permission is present.
+    - Conditionally shows `bottomPerformer` row if `dashboard:team-bottom-performer` permission is present.
+    - Has a month navigator (← prev / → next) that re-fetches `/api/dashboard/teams/monthly?month=M&year=YYYY` client-side without reloading the full page.
+  - [ ] [Page] `src/app/dashboard/page.tsx` — server component fetching metrics, passing to client widgets.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin logs in → navigates to `/dashboard` → all widgets render with live database counts → agent with restricted permissions logs in → only their permitted widgets are visible → Net Sales widget correctly subtracts refunds and chargebacks → Team Monthly Scores section shows one card per team for the current month → each card shows sold count and net amount → clicking `←` navigates to previous month and cards update without page reload → top/bottom performer rows appear per card for users with those permissions → ✅ Done.
+
+---
 
 ### Phase 11 — Comments & Audits System
-*   **Goal:** Append logs and screenshots to order details.
-*   **TDD Test Coverage:**
-    *   Comment creation appends record to database and links files upload correctly.
+
+#### W-1101 — Order Comment Timeline & Image Upload
+
+**Goal:**
+The PHP `ajaxupload.php` handled comment creation with an optional image upload (stored to `uploads/`). The new system needs a structured comment timeline on the order detail page and a proper server-side file upload handler that stores images in a managed directory.
+
+**Approach:**
+Build a comment repository and service. Expose `POST /api/orders/:id/comments` accepting `multipart/form-data` for text + optional image. Store uploaded images to `public/uploads/comments/`. Render comments as a chronological timeline on the order detail page.
+
+---
+
+- [ ] **RED — Integration (`comments.test.ts`):**
+  - [ ] Test: `POST /api/orders/:id/comments` with `{ comment: 'Test note' }` creates a row in `crm_comments` and returns `201 Created` with the new comment object.
+  - [ ] Test: `POST /api/orders/:id/comments` with `multipart/form-data` including an image file saves the file path into `comment_image` column. Assert the returned `commentImage` field is a non-null string path.
+  - [ ] Test: `GET /api/orders/:id/comments` returns all comments for that order in `commentCreatedDate` ascending order.
+  - [ ] Test: `POST /api/orders/:id/comments` without an active session returns `401 Unauthorized`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/comment.repository.ts`:
+    - `findByOrderId(orderId: number)` — ordered by `commentCreatedDate ASC`.
+    - `create(data: CommentCreateInput)`.
+  - [ ] [Service] Create `src/service/comment.service.ts`:
+    - `handleUpload(file: File)` — validates file type (image only), generates a unique filename, writes to `public/uploads/comments/`, returns the stored path.
+  - [ ] [Controller] `src/app/api/orders/[id]/comments/route.ts` (GET, POST). Parse `FormData` in POST handler. Call upload service if file is present.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`CommentTimeline.test.tsx`):**
+  - [ ] Test: Renders a list of comment cards in chronological order from mocked data.
+  - [ ] Test: Comment with a `commentImage` renders an `<img>` tag with the correct `src`.
+  - [ ] Test: Comment without an image renders only the text with no `<img>` element.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Types] Create `src/types/comment.ts` with `Comment` type.
+  - [ ] [Component] `src/components/CommentTimeline.tsx` — renders the list of comments.
+  - [ ] [Component] `src/components/AddCommentForm.tsx` — text area + file input, submits via `FormData`.
+  - [ ] [Integration] Add `CommentTimeline` and `AddCommentForm` to the order detail page `src/app/orders/[id]/page.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens an order detail page → comment timeline is empty → agent types a note and attaches an image → submits → comment appears immediately in timeline with image thumbnail → second agent opens same order and sees the comment → ✅ Done.
+
+---
 
 ### Phase 12 — Attendance Logging System
-*   **Goal:** Daily dashboard sheet to mark agent attendance.
-*   **TDD Test Coverage:**
-    *   Marking attendance registers status and locks record on date.
 
-### Phase 13 — Unified Search
-*   **Goal:** Full text query engine filtering through orders and customer records.
-*   **TDD Test Coverage:**
-    *   Assert search results return partial matches on client name, model, vin, and agent name.
+#### W-1201 — Daily Attendance Marking & Historical View
+
+**Goal:**
+The PHP `mark-attendance.php` listed all active agents and allowed marking each one with a status (Present, Absent, Half Day, etc.) for today. The new system must prevent double-marking (one record per agent per date) and show a historical view filterable by agent and month.
+
+**Approach:**
+Build attendance repository with a `upsert` pattern (update if exists for that agent+date, insert if not). Expose `POST /api/attendance` for bulk marking. Expose `GET /api/attendance` with date/agent filters for the historical view.
+
+---
+
+- [ ] **RED — Integration (`attendance.test.ts`):**
+  - [ ] Test: `POST /api/attendance` with `[{ agentId: 1, statusId: 1, date: '2026-06-23' }]` creates one attendance record. Assert `SELECT COUNT(*) FROM crm_attendance WHERE agent_id = 1 AND attendance_date = '2026-06-23'` returns `1`.
+  - [ ] Test: Calling `POST /api/attendance` a second time for the same agent and date **updates** the existing record (does not create a duplicate). Assert count is still `1` after second call.
+  - [ ] Test: `GET /api/attendance?date=2026-06-23` returns all attendance records for that date.
+  - [ ] Test: `GET /api/attendance?agentId=1&month=6&year=2026` returns all records for that agent in that month.
+  - [ ] Test: `POST /api/attendance` without `attendance:mark` permission returns `403 Forbidden`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/attendance.repository.ts`:
+    - `upsert(agentId, date, statusId, markedByName)` — uses Prisma `upsert` where `attendanceDate + agentId` is the unique selector.
+    - `findByDate(date: Date)` — includes agent name.
+    - `findByAgentAndMonth(agentId, month, year)`.
+    - `getMonthlySummary(month, year)` — counts per `attendanceStatusId` for dashboard widget.
+  - [ ] [Service] Create `src/service/attendance.service.ts`:
+    - `markBulk(entries[], markedByName)` — calls `upsert` for each entry in a `prisma.$transaction`.
+  - [ ] [Controller] `src/app/api/attendance/route.ts` (GET, POST). Guard POST with `attendance:mark`, GET with `attendance:view`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`AttendanceSheet.test.tsx`):**
+  - [ ] Test: Renders a row per active agent fetched from mocked data.
+  - [ ] Test: Each row has a status dropdown defaulting to "Present".
+  - [ ] Test: Clicking "Submit All" calls `POST /api/attendance` with the correct array payload.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Pages → Components):**
+  - [ ] [Types] Create `src/types/attendance.ts` with `AttendanceRecord`, `AttendanceStatus` enum types.
+  - [ ] [Page] `src/app/attendance/mark/page.tsx` — the daily marking sheet listing all agents.
+  - [ ] [Page] `src/app/attendance/history/page.tsx` — historical view with date and agent filters.
+  - [ ] [Component] `src/components/AttendanceSheet.tsx` — the interactive marking grid.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin opens `/attendance/mark` → list of active agents shows → selects status for each → clicks Submit → all records saved → navigating to `/attendance/history` and filtering by today's date shows all marked records → re-opening mark page shows pre-filled statuses (upsert prevents duplication) → ✅ Done.
+
+---
+
+### Phase 13 — Unified Full-Text Search
+
+#### W-1301 — Global Order & Customer Search
+
+**Goal:**
+The PHP `order-search.php` and `search.php` performed simple `LIKE` queries across `crm_orders` and `crm_customers`. We need a unified search endpoint that searches across multiple fields and returns ranked, combined results.
+
+**Approach:**
+Build a search repository with a parameterized LIKE query across the most useful searchable fields. The search bar is a global component in the sidebar that navigates to `/search?q=...`. Results are grouped by entity type (Orders, Customers).
+
+---
+
+- [ ] **RED — Integration (`search.test.ts`):**
+  - [ ] Test: `GET /api/search?q=Toyota` returns results where at least one order's `orderMakeModel` contains `Toyota`.
+  - [ ] Test: `GET /api/search?q=john@example.com` returns at least one customer result where `customerEmail` matches.
+  - [ ] Test: `GET /api/search?q=VIN123` returns orders where `orderVin` contains `VIN123`.
+  - [ ] Test: `GET /api/search?q=` (empty query) returns `400 Bad Request`.
+  - [ ] Test: `GET /api/search?q=test` without a session returns `401 Unauthorized`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/search.repository.ts`:
+    - `searchOrders(query: string)` — `$queryRaw` with `LIKE '%{query}%'` across `order_make_model`, `order_vin`, `order_part`, `order_sales_agent_name`, `order_tracking_number`.
+    - `searchCustomers(query: string)` — `LIKE` across `first_name`, `last_name`, `customer_email`, `customer_phone`.
+  - [ ] [Service] Create `src/service/search.service.ts`:
+    - `search(query)` — calls both repository methods in parallel with `Promise.all`, merges and deduplicates results, returns `{ orders: [...], customers: [...] }`.
+  - [ ] [Controller] `src/app/api/search/route.ts` (GET). Validate `q` is non-empty. Guard with active session.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`SearchResults.test.tsx`):**
+  - [ ] Test: Given mocked results with 2 orders and 1 customer, renders two sections with correct item counts.
+  - [ ] Test: Clicking an order result navigates to `/orders/:id`.
+  - [ ] Test: Clicking a customer result navigates to `/customers/:id`.
+  - [ ] Test: Empty results state renders a "No results found" message.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Components → Page):**
+  - [ ] [Types] Create `src/types/search.ts` with `SearchResults`, `OrderSearchResult`, `CustomerSearchResult` types.
+  - [ ] [Component] `src/components/GlobalSearchBar.tsx` — input that navigates to `/search?q=...` on submit. Added to `Sidebar.tsx`.
+  - [ ] [Page] `src/app/search/page.tsx` — server component that reads `?q` param, calls `/api/search`, and renders `SearchResults`.
+  - [ ] [Component] `src/components/SearchResults.tsx` — renders grouped results sections.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent types "Toyota Camry" into the global search bar in the sidebar → presses Enter → navigates to `/search?q=Toyota+Camry` → results page shows matching orders grouped by entity type → agent clicks an order row → navigates to `/orders/:id` → order detail renders → ✅ Done.
 
 ---
 
