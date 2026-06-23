@@ -12,8 +12,9 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 0** | Planning & Documentation Setup | **[x] COMPLETED** | `project_data.md`, `database_schema.md`, `local_setup.md` |
 | **Phase 1** | Local DB & Docker Infrastructure | **[x] COMPLETED** | `docker-compose.yml`, local container setup |
 | **Phase 2** | Next.js Scaffolding & Prisma Setup | **[x] COMPLETED** | `prisma/schema.prisma`, Next.js app scaffold |
-| **Phase 3** | Authentication & Dual-Hash Migration | **[x] COMPLETED** | NextAuth config, SHA-256 to bcrypt upgrades |
-| **Phase 4** | Authorization & Page Guard System | **[x] COMPLETED** | Permission check services, route guards |
+| **Phase 3** | Authentication &amp; Dual-Hash Migration | **[x] COMPLETED** | NextAuth config, SHA-256 to bcrypt upgrades |
+| **Phase 4** | Authorization &amp; Page Guard System | **[x] COMPLETED** | Permission check services, route guards |
+| **Phase 4.5** | Animation &amp; Scroll Foundation | **[x] COMPLETED** | Lenis smooth scroll, GSAP animation utilities |
 | **Phase 5** | Agent Management (CRUD) | **[ ] PENDING** | Agents view, agent permissions, profiles |
 | **Phase 6** | Customer & Sensitive Cards Ledger | **[ ] PENDING** | Customers listing, card viewer (permission-guarded) |
 | **Phase 7** | Vendor Management | **[ ] PENDING** | Vendor listing, blacklist toggle, orders mapping |
@@ -157,6 +158,56 @@ Create authorization helpers `hasPermission(user, permissionId)`. Implement serv
 
 - [x] **Verification chain:**
   - [x] Agent logs in without Vendor View permissions (`160`) → Side navigation excludes vendor items → Agent manually browses to `/vendors` → Page renders "Access Denied" page template → ✅ Done.
+
+---
+
+### Phase 4.5 — Animation & Scroll Foundation
+
+#### W-450 — Lenis Smooth Scroll & GSAP Animation Setup
+
+**Goal:**
+Before building any feature pages, establish the global animation and scroll foundation so that every subsequent phase (5–13) can use consistent, polished animations and smooth scrolling out of the box. This is a pure frontend setup phase — no new API routes, no database changes.
+
+**Approach:**
+Install `lenis` and `gsap`. Wrap the app root in a `LenisProvider` client component that initializes and ticks Lenis on every animation frame. Create a `src/lib/animations.ts` utility file that exports reusable GSAP animation presets (page fade-in, list stagger entrance, counter count-up). Document the standard patterns so all future components use them consistently.
+
+> [!NOTE]
+> Lenis handles **smooth scrolling** (replaces native browser scroll with a lerp-interpolated scroll). GSAP handles **all animations** (entrance transitions, hover micro-interactions, dashboard counter count-up). They pair together via Lenis's `ScrollTrigger` RAF integration.
+
+---
+
+- [x] **RED — Integration (N/A):**
+  - [x] `N/A` — No API routes or database interactions in this phase.
+
+- [x] **GREEN — Backend (N/A):**
+  - [x] `N/A` — Pure frontend setup.
+
+- [x] **RED — Unit (`animations.test.ts`):**
+  - [x] Test: Import `animations.ts` and assert that `fadeInPage`, `staggerEntrance`, and `countUp` are exported functions.
+  - [x] Test: `LenisProvider` renders its `children` without crashing (smoke test).
+  - [x] Test: After `LenisProvider` mounts, `document.documentElement` has the `data-lenis-prevent` attribute absent (i.e. Lenis is controlling the root scroll, not a sub-element).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Install → Provider → Utilities → Integration):**
+  - [x] [Install] `npm install lenis gsap`. Add both to `src/types/` stubs if needed for TypeScript.
+  - [x] [Provider] Create `src/components/LenisProvider.tsx`:
+    - `'use client'` component.
+    - Initializes `new Lenis({ autoRaf: false })` on mount.
+    - Runs the Lenis RAF loop inside a `gsap.ticker.add((time) => lenis.raf(time * 1000))` call so GSAP and Lenis share a single animation frame tick.
+    - Cleans up on unmount (`lenis.destroy()`, `gsap.ticker.remove(...)`).
+    - Exposes a `useLenis()` context hook for child components that need to call `lenis.scrollTo()`.
+  - [x] [Layout] Add `<LenisProvider>` inside `src/app/layout.tsx`, wrapping the `<LayoutShell>` children.
+  - [x] [Utilities] Create `src/lib/animations.ts` with the following standard presets:
+    - `fadeInPage(element: Element, delay?: number)` — fades in and slides up the page container on route change. Uses `gsap.fromTo` with `{ opacity: 0, y: 20 }` → `{ opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }`.
+    - `staggerEntrance(elements: Element[] | NodeList, stagger?: number)` — staggers fade-in + slide-up for list rows, cards, or table rows. Default stagger `0.05s`.
+    - `countUp(element: Element, endValue: number, duration?: number)` — animates a number from `0` to `endValue`. Used by dashboard metric widgets.
+    - `slideInSidebar(element: Element)` — slides the sidebar in from the left on initial load.
+  - [x] [Integration] In `src/components/LayoutShell.tsx`, call `slideInSidebar` on the sidebar ref after mount.
+  - [x] [Integration] In `src/app/layout.tsx` (or a route-change listener), call `fadeInPage` on each navigation.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Navigate to `/login` → page fades in smoothly → log in → dashboard loads with sidebar sliding in from the left → scroll down any long page → scroll is silky smooth (Lenis lerp visible) → navigate to another route → page fades out and new page fades in → open browser DevTools Performance tab and confirm no jank (60 fps) → ✅ Done.
 
 ---
 
@@ -656,5 +707,14 @@ Build a search repository with a parameterized LIKE query across the most useful
 
 *   **Vitest Execution Environment Configured:** Solved a critical issue where integration tests using the Prisma MariaDB adapter (`@prisma/adapter-mariadb`) timed out and hung when executed under Vitest's default Node.js `worker_threads` pool. Changed the test runner execution pool strategy to child processes via the `--pool=forks` flag.
 *   **Cascading Test Failures Solved:** Resolved the cascading `401 Unauthorized` / `403 Forbidden` assertion mismatch in API authorization guard tests caused by mock queue pollution from previous hung tests. Updated [package.json](package.json) to permanently run Vitest with `--pool=forks`.
+
+### Session 5 — June 23, 2026
+
+*   **Animation & Scroll Foundation (Phase 4.5):** Installed `lenis` and `gsap`. Implemented `LenisProvider` smooth scrolling synced with GSAP. Added entrance transitions, page fade-in, metric counter count-up, and sidebar entry presets to `src/lib/animations.ts`.
+*   **Performance and UX Tuning:** Updated `LayoutShell.tsx` to immediately render public views like `/login` and `/access-denied` without showing the loading spinner, boosting perceived load times. Added allowed dev origins config to `next.config.ts` to allow HMR connection over `127.0.0.1`.
+*   **Static Sidebar Animation Fix:** Prevented the sidebar from animating/sliding in repeatedly during full page reloads by checking a `sessionStorage` flag.
+*   **Zero-Flicker Layout Refactor:** Redesigned `LayoutShell.tsx` loading state to display the `Sidebar` immediately on the page while showing the loader container exclusively inside the `<main>` content container. This guarantees the sidebar remains 100% visible, static, and stable during full-page reloads and 404 navigation routes.
+*   **SPA Placeholder Pages Creation:** Created basic placeholder pages for `/orders`, `/vendors`, `/agents`, and `/gateways` to make these routes available in the Next.js router. This forces client-side SPA navigation during layout testing, preventing full browser page reloads and screen white-flashes on sidebar clicks.
+*   **Verification:** Created `animations.test.tsx` ensuring proper rendering and behavior of scroll provider and animations. Type checks and all 19 tests are 100% green.
 
 

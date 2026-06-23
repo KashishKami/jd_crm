@@ -4,6 +4,7 @@ import "./globals.css";
 import "./layout.css";
 import Providers from "../components/Providers";
 import LayoutShell from "../components/LayoutShell";
+import LenisProvider from "../components/LenisProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <LayoutShell>{children}</LayoutShell>
+          <LenisProvider>
+            <LayoutShell>{children}</LayoutShell>
+          </LenisProvider>
         </Providers>
       </body>
     </html>

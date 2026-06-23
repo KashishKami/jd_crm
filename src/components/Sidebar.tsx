@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 
-export default function Sidebar() {
+const Sidebar = forwardRef<HTMLElement, {}>(function Sidebar(props, ref) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
@@ -23,7 +23,7 @@ export default function Sidebar() {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <aside className="sidebar">
+    <aside ref={ref} className="sidebar">
       <div className="sidebar-header">
         <div className="logo-area">
           <span className="logo-icon">JD</span>
@@ -133,4 +133,6 @@ export default function Sidebar() {
       </div>
     </aside>
   );
-}
+});
+
+export default Sidebar;
