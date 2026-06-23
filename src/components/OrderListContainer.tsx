@@ -21,6 +21,8 @@ export default function OrderListContainer({ initialStatus }: OrderListContainer
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus || '');
   const [agentFilter, setAgentFilter] = useState<string>('');
+  const [teams, setTeams] = useState<any[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
@@ -46,6 +48,23 @@ export default function OrderListContainer({ initialStatus }: OrderListContainer
     fetchAgents();
   }, [status]);
 
+  // Fetch teams for dropdown
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const fetchTeams = async () => {
+      try {
+        const res = await fetch('/api/teams');
+        if (res.ok) {
+          const data = await res.json();
+          setTeams(data);
+        }
+      } catch (err) {
+        console.error('Error fetching teams:', err);
+      }
+    };
+    fetchTeams();
+  }, [status]);
+
   // Fetch orders when filters change
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -58,6 +77,7 @@ export default function OrderListContainer({ initialStatus }: OrderListContainer
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       if (agentFilter) params.append('agentId', agentFilter);
+      if (teamFilter) params.append('teamId', teamFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
 
@@ -87,7 +107,7 @@ export default function OrderListContainer({ initialStatus }: OrderListContainer
     return () => {
       active = false;
     };
-  }, [status, statusFilter, agentFilter, dateFrom, dateTo]);
+  }, [status, statusFilter, agentFilter, teamFilter, dateFrom, dateTo]);
 
   // Page entrance animation
   useEffect(() => {
@@ -183,8 +203,21 @@ export default function OrderListContainer({ initialStatus }: OrderListContainer
           </button>
         </div>
 
-        {/* Date & Agent Filters */}
+        {/* Date, Agent & Team Filters */}
         <div className="flex-wrap-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '176px' }}>
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className="form-select"
+              style={{ width: '100%', padding: '8px 12px' }}
+            >
+              <option value="">-- All Teams --</option>
+              {teams.map((t) => (
+                <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ width: '176px' }}>
             <select
               value={agentFilter}

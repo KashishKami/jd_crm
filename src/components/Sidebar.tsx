@@ -14,8 +14,12 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
-  if (status !== 'authenticated' || !session?.user) {
+  if (status === 'unauthenticated') {
     return null;
+  }
+
+  if (status === 'loading' || !session?.user) {
+    return <aside ref={ref} className="sidebar" aria-label="Loading Navigation" />;
   }
 
   const permissions = session.user.userPermissions;

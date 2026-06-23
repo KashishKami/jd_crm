@@ -21,7 +21,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 8** | Gateway Setup & Aggregated Reports | **[x] COMPLETED** | `gateways/page.tsx`, `GatewayList.tsx`, `GatewayReport.tsx` |
 | **Phase 9** | Order Intake & Sales Pipeline | **[x] COMPLETED** | Add order form, pipeline queues (Pending Tracking/Feedback) |
 | **Phase 9.5**| Order Status Workflow Standardization | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, routing, views |
-| **Phase 10**| Interactive Sales Dashboard | **[ ] PENDING** | Metric counters, top/bottom performance widgets |
+| **Phase 10**| Interactive Sales Dashboard | **[x] COMPLETED** | Metric counters, top/bottom performance widgets |
 | **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
 | **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[ ] PENDING** | Unified global search bar, order filters |
@@ -525,19 +525,19 @@ For the team monthly widgets, expose a separate `/api/dashboard/teams/monthly?mo
 
 ---
 
-- [ ] **RED — Integration (`dashboard.test.ts`):**
-  - [ ] Test: `GET /api/dashboard/metrics` for a super-admin returns an object containing all keys: `totalSales`, `totalSalesThisMonth`, `todaySales`, `chargebackThisMonth`, `refundThisMonth`, `netSales`, `topPerformers`, `bottomPerformers`, `recentOrders`, `attendanceSummary`, `pendingCounts`.
-  - [ ] Test: `GET /api/dashboard/metrics` for a user with only `dashboard:total-sales` returns an object that contains `totalSales` but does NOT contain `topPerformers`.
-  - [ ] Test: Net sales calculation: seed 5 Sold orders (markup `100` each), 1 Refunded, 1 Chargebacked → assert `netSales = 300` (5×100 − 100 refund − 100 chargeback).
-  - [ ] Test: `GET /api/dashboard/teams/monthly?month=6&year=2026` with `dashboard:team-monthly-scores` returns an array of team objects each containing `{ teamId, teamName, soldCount, netAmount, month, year }`.
-  - [ ] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-monthly-scores` returns `403 Forbidden`.
-  - [ ] Test: Seed 3 teams. Seed 2 agents in Team A (with 3 sold orders markup 200 each) and 1 agent in Team B (with 1 sold order markup 100). Assert Team A `netAmount = 600`, Team B `netAmount = 100` for that month.
-  - [ ] Test: `GET /api/dashboard/teams/monthly` with `dashboard:team-top-performer` includes a `topPerformer: { agentName, amount }` key in each team object.
-  - [ ] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-top-performer` returns team objects where `topPerformer` key is absent.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`dashboard.test.ts`):**
+  - [x] Test: `GET /api/dashboard/metrics` for a super-admin returns an object containing all keys: `totalSales`, `totalSalesThisMonth`, `todaySales`, `chargebackThisMonth`, `refundThisMonth`, `netSales`, `topPerformers`, `bottomPerformers`, `recentOrders`, `attendanceSummary`, `pendingCounts`.
+  - [x] Test: `GET /api/dashboard/metrics` for a user with only `dashboard:total-sales` returns an object that contains `totalSales` but does NOT contain `topPerformers`.
+  - [x] Test: Net sales calculation: seed 5 Sold orders (markup `100` each), 1 Refunded, 1 Chargebacked → assert `netSales = 300` (5×100 − 100 refund − 100 chargeback).
+  - [x] Test: `GET /api/dashboard/teams/monthly?month=6&year=2026` with `dashboard:team-monthly-scores` returns an array of team objects each containing `{ teamId, teamName, soldCount, netAmount, month, year }`.
+  - [x] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-monthly-scores` returns `403 Forbidden`.
+  - [x] Test: Seed 3 teams. Seed 2 agents in Team A (with 3 sold orders markup 200 each) and 1 agent in Team B (with 1 sold order markup 100). Assert Team A `netAmount = 600`, Team B `netAmount = 100` for that month.
+  - [x] Test: `GET /api/dashboard/teams/monthly` with `dashboard:team-top-performer` includes a `topPerformer: { agentName, amount }` key in each team object.
+  - [x] Test: `GET /api/dashboard/teams/monthly` **without** `dashboard:team-top-performer` returns team objects where `topPerformer` key is absent.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/dashboard.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/dashboard.repository.ts`:
     - `getTotalSales()`, `getTotalSalesThisMonth()`, `getTodaySales()` — count where `sale_status = '1'`.
     - `getChargebackThisMonth()`, `getRefundThisMonth()` — count where `sale_status = '8'` / `'7'` and current month.
     - `getNetSales()` — `SUM(orderMarkup)` for Sold orders minus refunds and chargebacks.
@@ -548,37 +548,37 @@ For the team monthly widgets, expose a separate `/api/dashboard/teams/monthly?mo
     - `getTeamMonthlyScores(month: number, year: number)` — `$queryRaw` joining `crm_orders` → `users` → `crm_teams`, GROUP BY `team_id` and filtered to the given month/year. Returns `{ teamId, teamName, soldCount, refundCount, chargebackCount, netAmount }[]`.
     - `getTeamMonthlyTopPerformer(teamId: number, month: number, year: number)` — within that team's agents, finds the agent with the highest `SUM(orderMarkup)` for Sold orders in that month.
     - `getTeamMonthlyBottomPerformer(teamId: number, month: number, year: number)` — same but lowest SUM.
-  - [ ] [Service] Create `src/service/dashboard.service.ts`:
+  - [x] [Service] Create `src/service/dashboard.service.ts`:
     - `getMetricsForUser(session)` — calls only the repository methods the user's permissions allow, assembles and returns a single object.
     - `getTeamMonthlyReport(session, month, year)` — calls `getTeamMonthlyScores`, then conditionally enriches each team object with `topPerformer` / `bottomPerformer` based on whether the session has `dashboard:team-top-performer` / `dashboard:team-bottom-performer`. Returns `TeamMonthlyReport[]`.
-  - [ ] [Controller] `src/app/api/dashboard/metrics/route.ts` — single GET, calls service with session.
-  - [ ] [Controller] `src/app/api/dashboard/teams/monthly/route.ts` — GET with `?month` and `?year` query params (defaults to current month). Guards with `dashboard:team-monthly-scores`. Calls `dashboard.service.getTeamMonthlyReport(session, month, year)`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] `src/app/api/dashboard/metrics/route.ts` — single GET, calls service with session.
+  - [x] [Controller] `src/app/api/dashboard/teams/monthly/route.ts` — GET with `?month` and `?year` query params (defaults to current month). Guards with `dashboard:team-monthly-scores`. Calls `dashboard.service.getTeamMonthlyReport(session, month, year)`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`Dashboard.test.tsx`):**
-  - [ ] Test: Renders `TotalSalesWidget` when `dashboard:total-sales` permission present; does not render when absent.
-  - [ ] Test: `TopPerformersTable` renders agent rows in correct rank order from mocked data.
-  - [ ] Test: `PendingCountsRow` shows correct count labels for each pipeline bucket.
-  - [ ] Test: `TeamMonthlyScoresWidget` renders one card per team with correct `soldCount` and `netAmount` from mocked data.
-  - [ ] Test: Each team card shows `topPerformer` name when session has `dashboard:team-top-performer`; the field is absent (not rendered) when permission is missing.
-  - [ ] Test: Each team card shows `bottomPerformer` name when session has `dashboard:team-bottom-performer`; the field is absent when permission is missing.
-  - [ ] Test: Month navigator (prev/next arrows) calls `/api/dashboard/teams/monthly?month=M&year=YYYY` with the correct month on click.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`Dashboard.test.tsx`):**
+  - [x] Test: Renders `TotalSalesWidget` when `dashboard:total-sales` permission present; does not render when absent.
+  - [x] Test: `TopPerformersTable` renders agent rows in correct rank order from mocked data.
+  - [x] Test: `PendingCountsRow` shows correct count labels for each pipeline bucket.
+  - [x] Test: `TeamMonthlyScoresWidget` renders one card per team with correct `soldCount` and `netAmount` from mocked data.
+  - [x] Test: Each team card shows `topPerformer` name when session has `dashboard:team-top-performer`; the field is absent (not rendered) when permission is missing.
+  - [x] Test: Each team card shows `bottomPerformer` name when session has `dashboard:team-bottom-performer`; the field is absent when permission is missing.
+  - [x] Test: Month navigator (prev/next arrows) calls `/api/dashboard/teams/monthly?month=M&year=YYYY` with the correct month on click.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Components → Page):**
-  - [ ] [Types] Create `src/types/dashboard.ts` with `DashboardMetrics`, `PerformerRow`, `PendingCounts`, `TeamMonthlyReport`, `TeamPerformerRow` types.
-  - [ ] [Components] `src/components/dashboard/TotalSalesWidget.tsx`, `NetSalesWidget.tsx`, `TopPerformersTable.tsx`, `BottomPerformersTable.tsx`, `RecentOrdersTable.tsx`, `AttendanceSummaryRow.tsx`, `PendingCountsRow.tsx`.
-  - [ ] [Component] `src/components/dashboard/TeamMonthlyScoresWidget.tsx`:
+- [x] **GREEN — Frontend (Types → Components → Page):**
+  - [x] [Types] Create `src/types/dashboard.ts` with `DashboardMetrics`, `PerformerRow`, `PendingCounts`, `TeamMonthlyReport`, `TeamPerformerRow` types.
+  - [x] [Components] `src/components/dashboard/TotalSalesWidget.tsx`, `NetSalesWidget.tsx`, `TopPerformersTable.tsx`, `BottomPerformersTable.tsx`, `RecentOrdersTable.tsx`, `AttendanceSummaryRow.tsx`, `PendingCountsRow.tsx`. (Merged into shared components for clean typography).
+  - [x] [Component] `src/components/dashboard/TeamMonthlyScoresWidget.tsx`:
     - Renders a grid of team cards (one per team).
     - Each card shows: team name, sold count, refund count, chargeback count, net amount.
     - Conditionally shows `topPerformer` row if `dashboard:team-top-performer` permission is present.
     - Conditionally shows `bottomPerformer` row if `dashboard:team-bottom-performer` permission is present.
     - Has a month navigator (← prev / → next) that re-fetches `/api/dashboard/teams/monthly?month=M&year=YYYY` client-side without reloading the full page.
-  - [ ] [Page] `src/app/dashboard/page.tsx` — server component fetching metrics, passing to client widgets.
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Page] `src/app/dashboard/page.tsx` — server component fetching metrics, passing to client widgets. (Implemented at root home route `src/app/page.tsx` for optimal UX redirection).
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin logs in → navigates to `/dashboard` → all widgets render with live database counts → agent with restricted permissions logs in → only their permitted widgets are visible → Net Sales widget correctly subtracts refunds and chargebacks → Team Monthly Scores section shows one card per team for the current month → each card shows sold count and net amount → clicking `←` navigates to previous month and cards update without page reload → top/bottom performer rows appear per card for users with those permissions → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin logs in → navigates to `/dashboard` → all widgets render with live database counts → agent with restricted permissions logs in → only their permitted widgets are visible → Net Sales widget correctly subtracts refunds and chargebacks → Team Monthly Scores section shows one card per team for the current month → each card shows sold count and net amount → clicking `←` navigates to previous month and cards update without page reload → top/bottom performer rows appear per card for users with those permissions → ✅ Done.
 
 ---
 
@@ -837,7 +837,7 @@ Build a search repository with a parameterized LIKE query across the most useful
 
 
 ### Session 7 — June 24, 2026
-  **Phase 9.5 - Status Workflow Standardization**
+  **Phase 9.5 - Order Status Workflow Standardization**
   - Standardized `order_current_status` workflow: Introduced `Pending Booking` as the mandatory
     default initial state for all new orders (non-selectable via UI).
   - Renamed `Pending Tracking` → `Pending Shipment` and corrected legacy misspelling
@@ -853,4 +853,30 @@ Build a search repository with a parameterized LIKE query across the most useful
   - All 68 tests passing.
 
 
+### Session 8 — June 24, 2026
+  **Phase 10 - Interactive Sales Dashboard**
+  - Developed full-stack dashboard features under test-driven development (TDD).
+  - Implemented `dashboard.repository.ts` with custom database aggregates (totals, net margins, top/bottom performing agents, pipeline queue sizes, and monthly team aggregates).
+  - Implemented permission-aware `dashboard.service.ts` layer mapping data keys dynamically to session authorization keys.
+  - Exposed routes `/api/dashboard/metrics` and `/api/dashboard/teams/monthly` for modular retrieval.
+  - Constructed sleek client-side dashboard panels, including glassmorphism widgets with GSAP count-up numbers, tables, pipeline flows, and attendance bar lines.
+  - Integrated `lastFetchedRef` cache within the team monthly scores widget to deduplicate browser REST API triggers.
+  - Replaced index starter route `src/app/page.tsx` with dynamic dashboard layout feeding initial metrics server-side.
+  - Confirmed 100% test passing (13 tests) alongside clean ESLint and type check approvals.
 
+  **Session Note — Dashboard Render Loop Resolution:**
+  - Resolved the infinite fetch/reload loop where the dashboard would go blank/white and saturate the database pool with requests.
+  - Diagnosis: `LayoutShell.tsx` was conditionally unmounting `children` to display a "Loading..." screen when NextAuth's `useSession()` status was `loading`. Because `useSession` starts as `loading` during hydration, this caused hydration mismatches, unmounted the server-rendered dashboard, and reset the `lastFetchedRef` in `TeamMonthlyScoresWidget.tsx`. Subsequent API requests triggered session updates, oscillating the hook status and looping the mount cycle.
+  - Fix: Passed `userPermissions` and `userName` props directly from the server component (`page.tsx`) to `DashboardPage` and `TeamMonthlyScoresWidget.tsx`, completely bypassing client-side `useSession` status checks for rendering decisions.
+  - Optimization: Simplified `LayoutShell.tsx` to render the shell structure and children immediately on protected routes, matching the server-rendered DOM and eliminating hydration mismatches and unmount cycles.
+  - Verification: All tests passing cleanly (81/81 tests green) and build succeeded.
+### Session 9 — June 24, 2026
+  **Phase 10.5 - Team Score Distribution & Orders Pipeline Filtering**
+  - Distributed legacy orders data among multiple sales agents and teams to allow verification of team scores on the dashboard.
+  - Implemented `/api/teams` endpoint to retrieve available teams ordered by name.
+  - Added support for backend team filtering on the `GET /api/orders` endpoint via `teamId` search parameter.
+  - Modified `OrderListContainer.tsx` to fetch available teams and render a Team select dropdown in the filter bar next to the Agents filter dropdown.
+  - Modified `OrderList.tsx` to add a new "Team" column with styled team badges.
+  - Modified `order.repository.ts` to include the nested `team` relation when fetching `salesAgent`.
+  - Added a backend integration test in `src/tests/orders.test.ts` to verify `teamId` query parameter filtering.
+  - Verification: All tests passed cleanly (82/82 tests green), type checks and ESLint checks passed successfully.

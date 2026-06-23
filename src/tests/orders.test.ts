@@ -224,6 +224,25 @@ describe('Order Management Integration Tests', () => {
       expect(data.length).toBeGreaterThan(0);
       expect(data.every((o: { orderCurrentStatus: string | null; saleStatus: string | null }) => o.orderCurrentStatus === 'Completed Orders' && o.saleStatus === '1')).toBe(true);
     });
+
+    it('should return filtered orders when teamId query param is provided', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request(`http://localhost/api/orders?teamId=${testTeam.teamId}`);
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.length).toBeGreaterThan(0);
+      expect(data.every((o: any) => o.salesAgent?.teamId === testTeam.teamId)).toBe(true);
+    });
   });
 
   describe('POST /api/orders', () => {

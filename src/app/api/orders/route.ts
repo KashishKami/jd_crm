@@ -24,6 +24,8 @@ export async function GET(request: Request) {
   const saleStatus = searchParams.get('saleStatus') || undefined;
   const agentIdStr = searchParams.get('agentId');
   const agentId = agentIdStr ? Number(agentIdStr) : undefined;
+  const teamIdStr = searchParams.get('teamId');
+  const teamId = teamIdStr ? Number(teamIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
 
@@ -32,6 +34,7 @@ export async function GET(request: Request) {
       status,
       saleStatus,
       agentId,
+      teamId,
       dateFrom,
       dateTo,
     });

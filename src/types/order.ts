@@ -70,6 +70,7 @@ export interface OrderFilters {
   status?: string;
   saleStatus?: string;
   agentId?: number;
+  teamId?: number;
   dateFrom?: string;
   dateTo?: string;
 }

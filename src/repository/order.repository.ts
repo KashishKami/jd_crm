@@ -131,6 +131,11 @@ export async function findAll(filters: OrderFilters) {
   if (filters.agentId) {
     where.orderSalesAgentId = filters.agentId;
   }
+  if (filters.teamId) {
+    where.salesAgent = {
+      teamId: filters.teamId,
+    };
+  }
   if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
     if (filters.dateFrom) {
@@ -148,7 +153,11 @@ export async function findAll(filters: OrderFilters) {
       customer: true,
       vendor: true,
       gateway: true,
-      salesAgent: true,
+      salesAgent: {
+        include: {
+          team: true,
+        },
+      },
       verifier: true,
     },
     orderBy: {
@@ -168,7 +177,11 @@ export async function findById(crmOrderId: number) {
       },
       vendor: true,
       gateway: true,
-      salesAgent: true,
+      salesAgent: {
+        include: {
+          team: true,
+        },
+      },
       verifier: true,
       comments: true,
     },

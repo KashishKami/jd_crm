@@ -1,0 +1,103 @@
+'use client';
+
+import React from 'react';
+import Link from 'next/link';
+import { RecentOrderRow } from '../../types/dashboard';
+
+interface RecentOrdersTableProps {
+  orders: RecentOrderRow[];
+}
+
+export function getStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string; bg?: string; color?: string }> = {
+    '1': { label: 'Sold', className: 'status-active' },
+    '2': { label: 'Prospect', className: '', bg: '#f1f5f9', color: '#475569' },
+    '3': { label: 'Call Back', className: '', bg: '#fef3c7', color: '#d97706' },
+    '4': { label: 'Not Interested', className: 'status-inactive' },
+    '5': { label: 'Out Of Scope', className: 'status-inactive' },
+    '6': { label: 'Enquiry', className: '', bg: '#e0f2fe', color: '#0284c7' },
+    '7': { label: 'Refunded', className: 'status-inactive', bg: '#fee2e2', color: '#ef4444' },
+    '8': { label: 'Chargebacked', className: 'status-inactive', bg: '#fca5a5', color: '#991b1b' },
+  };
+
+  const current = map[status] || { label: status, className: '', bg: '#f1f5f9', color: '#475569' };
+  return (
+    <span
+      className={`status-dot-badge ${current.className}`}
+      style={
+        current.bg
+          ? { backgroundColor: current.bg, color: current.color, border: 'none' }
+          : undefined
+      }
+    >
+      {current.label}
+    </span>
+  );
+}
+
+export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
+  return (
+    <div className="table-wrapper" style={{ width: '100%' }}>
+      <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-main)' }}>Recent Orders</h3>
+        <Link href="/orders" className="action-link-btn view">
+          View All Orders &rarr;
+        </Link>
+      </div>
+      {orders.length === 0 ? (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          No recent orders found.
+        </div>
+      ) : (
+        <table className="custom-table" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Sales Agent</th>
+              <th style={{ textAlign: 'right' }}>Markup</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
+              <th style={{ textAlign: 'right' }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.crmOrderId}>
+                <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
+                <td>{order.orderDate}</td>
+                <td>{order.customerName}</td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      className="avatar-circle"
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        fontSize: '0.7rem',
+                      }}
+                    >
+                      {order.salesAgentName[0]?.toUpperCase()}
+                    </div>
+                    <span>{order.salesAgentName}</span>
+                  </div>
+                </td>
+                <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  ${parseFloat(order.orderMarkup || '0').toLocaleString()}
+                </td>
+                <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
+                <td style={{ textAlign: 'right' }} className="actions-cell">
+                  <div className="action-buttons">
+                    <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view">
+                      Details
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}

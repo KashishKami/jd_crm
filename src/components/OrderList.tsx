@@ -24,6 +24,10 @@ interface OrderListProps {
     salesAgent?: {
       name: string;
       nickname?: string | null;
+      team?: {
+        teamId: number;
+        teamName: string;
+      } | null;
     } | null;
   }>;
 }
@@ -90,6 +94,7 @@ export default function OrderList({ orders }: OrderListProps) {
             <th>Customer</th>
             <th>Vehicle & Part</th>
             <th>Agent</th>
+            <th>Team</th>
             <th>Pricing</th>
             <th>Workflow Status</th>
             <th>Order Date</th>
@@ -130,6 +135,11 @@ export default function OrderList({ orders }: OrderListProps) {
                 <td>
                   <span className="badge-team bg-slate-100 text-slate-700 font-medium">
                     {order.salesAgent?.nickname || order.salesAgent?.name || 'Unassigned'}
+                  </span>
+                </td>
+                <td>
+                  <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8' }}>
+                    {order.salesAgent?.team?.teamName || '—'}
                   </span>
                 </td>
                 <td>
