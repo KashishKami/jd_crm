@@ -19,6 +19,7 @@ export default function AttendanceSummaryRow({ summary }: AttendanceSummaryRowPr
 
   return (
     <div
+      className="card-with-accent"
       style={{
         background: 'white',
         border: '1px solid var(--border-color)',
@@ -31,10 +32,7 @@ export default function AttendanceSummaryRow({ summary }: AttendanceSummaryRowPr
         width: '100%',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
-          Today&apos;s Attendance Summary
-        </h3>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
           Total Agents Tracked: <strong>{total}</strong>
         </span>

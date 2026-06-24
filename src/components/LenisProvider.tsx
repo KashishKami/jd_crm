@@ -35,8 +35,18 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
 
     gsap.ticker.add(tick);
 
+    // Watch for size changes of the entire document body
+    const resizeObserver = new ResizeObserver(() => {
+      lenis.resize();
+    });
+    
+    if (document.body) {
+      resizeObserver.observe(document.body);
+    }
+
     return () => {
       gsap.ticker.remove(tick);
+      resizeObserver.disconnect();
       lenis.destroy();
     };
   }, []);

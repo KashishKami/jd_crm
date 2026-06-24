@@ -126,7 +126,11 @@ export async function findAll(filters: OrderFilters) {
     }
   }
   if (filters.saleStatus) {
-    where.saleStatus = filters.saleStatus;
+    if (filters.saleStatus.includes(',')) {
+      where.saleStatus = { in: filters.saleStatus.split(',') };
+    } else {
+      where.saleStatus = filters.saleStatus;
+    }
   }
   if (filters.agentId) {
     where.orderSalesAgentId = filters.agentId;

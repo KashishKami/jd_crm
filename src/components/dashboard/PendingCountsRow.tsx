@@ -10,112 +10,138 @@ interface PendingCountsRowProps {
 
 export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProps) {
   const steps = [
-    { label: 'Pending Booking', count: pendingCounts['Pending Booking'] || 0, route: '/pending/booking', color: '#f59e0b', bg: '#fef3c7' },
-    { label: 'Pending Shipment', count: pendingCounts['Pending Shipment'] || 0, route: '/pending/shipment', color: '#3b82f6', bg: '#dbeafe' },
-    { label: 'Pending Delivery', count: pendingCounts['Pending Delivery'] || 0, route: '/pending/delivery', color: '#6366f1', bg: '#e0e7ff' },
-    { label: 'Pending Feedback', count: pendingCounts['Pending Feedback'] || 0, route: '/pending/feedback', color: '#10b981', bg: '#d1fae5' },
-    { label: 'Pending Resolutions', count: pendingCounts['Pending Resolutions'] || 0, route: '/pending/resolutions', color: '#ef4444', bg: '#fee2e2' },
+    {
+      label: 'Pending Booking',
+      amount: pendingCounts['Pending Booking']?.amount || 0,
+      count: pendingCounts['Pending Booking']?.count || 0,
+      route: '/pending/booking',
+      color: '#d97706',
+      bg: '#fef3c7',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Pending Shipment',
+      amount: pendingCounts['Pending Shipment']?.amount || 0,
+      count: pendingCounts['Pending Shipment']?.count || 0,
+      route: '/pending/shipment',
+      color: '#2563eb',
+      bg: '#dbeafe',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Pending Delivery',
+      amount: pendingCounts['Pending Delivery']?.amount || 0,
+      count: pendingCounts['Pending Delivery']?.count || 0,
+      route: '/pending/delivery',
+      color: '#4f46e5',
+      bg: '#e0e7ff',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124l-.321-5.128a2.25 2.25 0 00-2.23-2.114H18.75V5.25A2.25 2.25 0 0016.5 3H6.622a2.25 2.25 0 00-2.25 2.25v9m15 0H3.375m15 0V14.25m-12-9.75h-.008v.008H6V4.5z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Pending Feedback',
+      amount: pendingCounts['Pending Feedback']?.amount || 0,
+      count: pendingCounts['Pending Feedback']?.count || 0,
+      route: '/pending/feedback',
+      color: '#059669',
+      bg: '#d1fae5',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Pending Resolutions',
+      amount: pendingCounts['Pending Resolutions']?.amount || 0,
+      count: pendingCounts['Pending Resolutions']?.count || 0,
+      route: '/pending/resolutions',
+      color: '#dc2626',
+      bg: '#fee2e2',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286zm0 13.036h.008v.008H12v-.008z" />
+        </svg>
+      )
+    },
   ];
 
   return (
-    <div
-      style={{
-        background: 'white',
-        border: '1px solid var(--border-color)',
-        borderRadius: '12px',
-        padding: '24px',
-        boxShadow: 'var(--shadow-sm)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        width: '100%',
-      }}
-    >
-      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
-        Sales Pipeline Stages
-      </h3>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
-          gap: '16px',
-        }}
-        className="pipeline-grid"
-      >
-        {steps.map((step, idx) => (
+    <div className="kpi-cards-grid">
+      {steps.map((step, idx) => (
           <Link
             key={idx}
             href={step.route}
             style={{
               textDecoration: 'none',
-              backgroundColor: '#f8fafc',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              minHeight: '100px',
-              transition: 'all 0.2s ease',
-              position: 'relative',
+              color: 'inherit',
+              display: 'block',
             }}
-            className="pipeline-card"
           >
-            <div>
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  color: step.color,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.02em',
-                }}
-              >
-                {step.label}
-              </span>
-              <div
-                style={{
-                  fontSize: '1.75rem',
-                  fontWeight: 700,
-                  color: 'var(--text-main)',
-                  marginTop: '8px',
-                }}
-              >
-                {step.count}
+            <div
+              className="metric-card"
+              style={{
+                cursor: 'pointer',
+                transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 15px 30px -5px rgba(0, 0, 0, 0.12), 0 8px 12px -6px rgba(0, 0, 0, 0.08)';
+                e.currentTarget.style.borderColor = '#94a3b8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <span className="metric-card-title">
+                    {step.label}
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                    <div className="metric-card-value-container">
+                      <span className="metric-card-prefix">$</span>
+                      <span className="metric-card-value">
+                        {step.amount}
+                      </span>
+                    </div>
+                    <div className="metric-card-count">
+                      ({step.count} Sales)
+                    </div>
+                  </div>
+                </div>
+                {step.icon && (
+                  <div
+                    className="metric-card-icon-container"
+                    style={{
+                      background: step.bg,
+                      color: step.color,
+                      borderRadius: '10px',
+                    }}
+                  >
+                    {step.icon}
+                  </div>
+                )}
+              </div>
+              <div className="metric-card-footer">
+                View Details &rarr;
               </div>
             </div>
-
-            {idx < 4 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: '-12px',
-                  top: 'calc(50% - 8px)',
-                  zIndex: 10,
-                  color: 'var(--text-muted)',
-                  fontSize: '1.2rem',
-                  fontWeight: 'bold',
-                }}
-                className="pipeline-arrow"
-              >
-                &rarr;
-              </div>
-            )}
           </Link>
         ))}
       </div>
-
-      <style jsx global>{`
-        @media (max-width: 900px) {
-          .pipeline-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .pipeline-arrow {
-            display: none !important;
-          }
-        }
-      `}</style>
-    </div>
   );
 }

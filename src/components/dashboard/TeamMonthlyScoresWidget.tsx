@@ -87,6 +87,7 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
 
   return (
     <div
+      className="card-with-accent"
       style={{
         background: 'white',
         border: '1px solid var(--border-color)',

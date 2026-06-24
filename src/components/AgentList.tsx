@@ -13,7 +13,14 @@ export default function AgentList() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<number>(1); // 1 = Active, 0 = Inactive
+  
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [designationFilter, setDesignationFilter] = useState('all');
+  const [teamFilter, setTeamFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('1'); // Default to "1" (Active)
+
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,7 +36,8 @@ export default function AgentList() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/agents?status=${statusFilter}`);
+        // Fetch all agents (omitting status parameter lets backend return all records)
+        const res = await fetch(`/api/agents`);
         if (!res.ok) {
           throw new Error(`Failed to fetch agents: ${res.statusText}`);
         }
@@ -54,7 +62,7 @@ export default function AgentList() {
     return () => {
       active = false;
     };
-  }, [statusFilter, refetchTrigger]);
+  }, [refetchTrigger]);
 
   // Page fade-in effect on initial load
   useEffect(() => {
@@ -65,16 +73,57 @@ export default function AgentList() {
     return () => ctx.revert();
   }, []);
 
-  // Stagger entrance on table rows whenever the agents data changes
+  // Dynamic filter options derived from agent list
+  const designations = Array.from(new Set(agents.map(a => a.designation).filter(Boolean))).sort() as string[];
+  const teams = Array.from(new Set(agents.map(a => a.team?.teamName).filter(Boolean))).sort() as string[];
+  const roles = Array.from(new Set(agents.map(a => a.role?.roleName).filter(Boolean))).sort() as string[];
+
+  // Client-side filtering logic
+  const filteredAgents = agents.filter(agent => {
+    // 1. Text Search query: Matches Name or Nickname (case-insensitive)
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      const nameMatch = agent.name.toLowerCase().includes(lowerSearch);
+      const nicknameMatch = agent.nickname ? agent.nickname.toLowerCase().includes(lowerSearch) : false;
+      if (!nameMatch && !nicknameMatch) return false;
+    }
+
+    // 2. Designation Filter
+    if (designationFilter !== 'all' && agent.designation !== designationFilter) {
+      return false;
+    }
+
+    // 3. Team Filter
+    if (teamFilter !== 'all' && agent.team?.teamName !== teamFilter) {
+      return false;
+    }
+
+    // 4. Role Filter
+    if (roleFilter !== 'all' && agent.role?.roleName !== roleFilter) {
+      return false;
+    }
+
+    // 5. Status Filter
+    if (statusFilter !== 'all') {
+      const targetStatus = Number(statusFilter);
+      if (agent.status !== targetStatus) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Stagger entrance on table rows whenever the filtered agents list changes
   useEffect(() => {
-    if (tableRowsRef.current && agents.length > 0) {
+    if (tableRowsRef.current && filteredAgents.length > 0) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
       const ctx = gsap.context(() => {
         staggerEntrance(rows);
       });
       return () => ctx.revert();
     }
-  }, [agents]);
+  }, [filteredAgents]);
 
   const handleToggleStatus = async (uid: number, currentStatus: number) => {
     if (!confirm(`Are you sure you want to ${currentStatus === 1 ? 'deactivate' : 'activate'} this agent?`)) {
@@ -119,20 +168,87 @@ export default function AgentList() {
         )}
       </div>
 
-      <div className="filter-bar">
-        <div className="tab-group">
-          <button
-            onClick={() => setStatusFilter(1)}
-            className={`tab-btn ${statusFilter === 1 ? 'active' : ''}`}
-          >
-            Active Agents
-          </button>
-          <button
-            onClick={() => setStatusFilter(0)}
-            className={`tab-btn ${statusFilter === 0 ? 'active' : ''}`}
-          >
-            Inactive Staff
-          </button>
+      {/* Advanced Filters Block */}
+      <div className="filters-container">
+        <div className="filters-row">
+          
+          {/* Search Term text input */}
+          <div className="search-input-wrapper">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search name or alias..."
+              className="filter-search-input"
+            />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '11px', color: '#64748b' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.603 10.603z" />
+            </svg>
+          </div>
+
+          {/* Designation Dropdown Select */}
+          <div className="filter-select-wrapper">
+            <select
+              data-testid="designation-select"
+              aria-label="Designation"
+              value={designationFilter}
+              onChange={(e) => setDesignationFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="all">All Designations</option>
+              {designations.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Team Dropdown Select */}
+          <div className="filter-select-wrapper">
+            <select
+              data-testid="team-select"
+              aria-label="Team"
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="all">All Teams</option>
+              {teams.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Role Dropdown Select */}
+          <div className="filter-select-wrapper">
+            <select
+              data-testid="role-select"
+              aria-label="Role"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="all">All Roles</option>
+              {roles.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Dropdown Select */}
+          <div className="filter-select-wrapper">
+            <select
+              data-testid="status-select"
+              aria-label="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="all">All Statuses</option>
+              <option value="1">Active</option>
+              <option value="0">Inactive</option>
+            </select>
+          </div>
+
         </div>
       </div>
 
@@ -150,7 +266,7 @@ export default function AgentList() {
           </svg>
           <p>{error}</p>
         </div>
-      ) : agents.length === 0 ? (
+      ) : filteredAgents.length === 0 ? (
         <div className="empty-box">
           <p>No agents found matching this criteria.</p>
         </div>
@@ -170,14 +286,20 @@ export default function AgentList() {
               </tr>
             </thead>
             <tbody ref={tableRowsRef}>
-              {agents.map((agent) => (
+              {filteredAgents.map((agent) => (
                 <tr key={agent.uid} style={{ opacity: 0 }}>
                   <td>
                     <div className="name-cell">
                       <div className="avatar-circle">{agent.name[0]?.toUpperCase()}</div>
                       <div>
-                        <div className="font-medium text-slate-800">{agent.name}</div>
-                        {agent.nickname && <div className="nickname text-slate-400">&quot;{agent.nickname}&quot;</div>}
+                        {agent.nickname ? (
+                          <>
+                            <div className="font-medium text-slate-800">&quot;{agent.nickname}&quot;</div>
+                            <div className="nickname text-slate-400 text-xs">{agent.name}</div>
+                          </>
+                        ) : (
+                          <div className="font-medium text-slate-800">{agent.name}</div>
+                        )}
                       </div>
                     </div>
                   </td>

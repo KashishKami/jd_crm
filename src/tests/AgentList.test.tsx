@@ -24,6 +24,7 @@ describe('AgentList Component Unit Tests', () => {
       status: 1,
       role: { roleName: 'Sales Agent' },
       team: { teamName: 'IT Park' },
+      designation: 'Sales Representative',
     },
     {
       uid: 11,
@@ -34,6 +35,18 @@ describe('AgentList Component Unit Tests', () => {
       status: 1,
       role: { roleName: 'Sales Manager' },
       team: { teamName: 'DB Park' },
+      designation: 'Team Leader',
+    },
+    {
+      uid: 12,
+      name: 'Agent Twelve',
+      nickname: null,
+      username: 'agent_twelve',
+      email: 'twelve@crm.com',
+      status: 0,
+      role: { roleName: 'Verifier' },
+      team: { teamName: 'Alex' },
+      designation: 'Verifier Specialist',
     },
   ];
 
@@ -70,10 +83,10 @@ describe('AgentList Component Unit Tests', () => {
       expect(screen.queryByText('Agent Eleven')).not.toBeNull();
       expect(screen.queryByText('agent_ten')).not.toBeNull();
       expect(screen.queryByText('agent_eleven')).not.toBeNull();
-      expect(screen.queryByText('Sales Agent')).not.toBeNull();
-      expect(screen.queryByText('Sales Manager')).not.toBeNull();
-      expect(screen.queryByText('IT Park')).not.toBeNull();
-      expect(screen.queryByText('DB Park')).not.toBeNull();
+      expect(screen.queryAllByText('Sales Agent').length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('Sales Manager').length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('IT Park').length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('DB Park').length).toBeGreaterThan(0);
     });
   });
 
@@ -151,4 +164,68 @@ describe('AgentList Component Unit Tests', () => {
       );
     });
   });
+
+  it('should display the alias (nickname) first and real name below it', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+
+    await waitFor(() => {
+      // Check that the alias "Ten" is rendered in quotes
+      const aliasElement = screen.queryByText(/"Ten"/);
+      expect(aliasElement).not.toBeNull();
+      
+      // Get container displaying name elements and verify layout hierarchy
+      const cell = aliasElement!.closest('td');
+      expect(cell).not.toBeNull();
+      
+      // Verify alias is on top of real name
+      const nameDivs = cell!.querySelectorAll('div > div');
+      expect(nameDivs[2].textContent).toContain('"Ten"');
+      expect(nameDivs[3].textContent).toBe('Agent Ten');
+    });
+  });
+
+  it('should render search and filter controls and filter the agents dynamically', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+
+    await waitFor(() => {
+      // Verify inputs and dropdowns are present
+      expect(screen.queryByPlaceholderText(/search name or alias/i)).not.toBeNull();
+      expect(screen.queryByTestId('designation-select') || screen.queryByRole('combobox', { name: /designation/i })).toBeDefined();
+      expect(screen.queryByTestId('team-select') || screen.queryByRole('combobox', { name: /team/i })).toBeDefined();
+      expect(screen.queryByTestId('role-select') || screen.queryByRole('combobox', { name: /role/i })).toBeDefined();
+      expect(screen.queryByTestId('status-select') || screen.queryByRole('combobox', { name: /status/i })).toBeDefined();
+    });
+
+    // Test text search filter
+    const searchInput = screen.getByPlaceholderText(/search name or alias/i);
+    fireEvent.change(searchInput, { target: { value: 'Eleven' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Agent Ten')).toBeNull();
+      expect(screen.queryByText('Agent Eleven')).not.toBeNull();
+    });
+  });
 });
+

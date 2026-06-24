@@ -37,67 +37,61 @@ export function getStatusBadge(status: string) {
 
 export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
   return (
-    <div className="table-wrapper" style={{ width: '100%' }}>
-      <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-main)' }}>Recent Orders</h3>
-        <Link href="/orders" className="action-link-btn view">
-          View All Orders &rarr;
-        </Link>
-      </div>
+    <div className="table-wrapper card-with-accent" style={{ width: '100%' }}>
       {orders.length === 0 ? (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
           No recent orders found.
         </div>
       ) : (
-        <table className="custom-table" style={{ width: '100%' }}>
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Sales Agent</th>
-              <th style={{ textAlign: 'right' }}>Markup</th>
-              <th style={{ textAlign: 'center' }}>Status</th>
-              <th style={{ textAlign: 'right' }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.crmOrderId}>
-                <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
-                <td>{order.orderDate}</td>
-                <td>{order.customerName}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div
-                      className="avatar-circle"
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      {order.salesAgentName[0]?.toUpperCase()}
-                    </div>
-                    <span>{order.salesAgentName}</span>
-                  </div>
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                  ${parseFloat(order.orderMarkup || '0').toLocaleString()}
-                </td>
-                <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
-                <td style={{ textAlign: 'right' }} className="actions-cell">
-                  <div className="action-buttons">
-                    <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view">
-                      Details
-                    </Link>
-                  </div>
-                </td>
+        <div className="card-table-container">
+          <table className="custom-table table-responsive" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Sales Agent</th>
+                <th style={{ textAlign: 'right' }}>Markup</th>
+                <th style={{ textAlign: 'center' }}>Status</th>
+                <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.crmOrderId}>
+                  <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
+                  <td>{order.orderDate}</td>
+                  <td>{order.customerName}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="avatar-circle">
+                        {order.salesAgentName[0]?.toUpperCase()}
+                      </div>
+                      <span>{order.salesAgentName}</span>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    ${parseFloat(order.orderMarkup || '0').toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
+                  <td style={{ textAlign: 'right' }} className="actions-cell">
+                    <div className="action-buttons">
+                      <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view">
+                        Details
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+      <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+        <Link href="/orders" className="action-link-btn view" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+          View All Orders &rarr;
+        </Link>
+      </div>
     </div>
   );
 }

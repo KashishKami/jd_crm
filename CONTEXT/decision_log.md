@@ -50,3 +50,28 @@ programmatically in `order.repository.ts` and is not selectable from the UI drop
 - Corrects the legacy misspelling in all new records; legacy data may retain old spelling.
 - Frontend queues and routing now map 1:1 to each status stage.
 - `Pending Tracking` route and references fully decommissioned.
+
+---
+
+### Decision 5: Responsive Dashboard Layout and Advanced Agent Directory Filters
+
+**Date:** 2026-06-25
+**Status:** Accepted
+
+#### Context
+To adapt the modernized JD CRM Next.js application for a wide variety of viewport dimensions without losing the premium design aesthetics:
+1. The dashboard needed thematic section indicators, a structured layout for KPI metrics, and a less intrusive placement for daily attendance summaries.
+2. The Agent Directory needed dynamically generated filter dropdowns (designation, team, role, status) and a real-time search input, along with visual restructuring to display agent nicknames/aliases first in quotes and real names below them.
+3. The layout's 15% clear margin padding on the left and right (content occupying the center 70%) on larger screens restricted horizontal space, causing select dropdowns, tables, and pipeline cards to wrap awkwardly, overflow, or clip.
+
+#### Decision
+1. **Dashboard UI Refinement:** Created thematic left-bordered section header strips. Organized Key Performance Metrics into a 3-column grid layout, and moved the Daily Attendance Overview card to the bottom of the dashboard page. Modified section headings to custom thematic labels: "The Scoreboard", "Champions League", "Orders Journey", "Fresh Orders", and "Who’s In Today?".
+2. **Polished Card Visuals & Padding:** Integrated top-accent colored border stripes (`card-with-accent`) and custom status pill badges (`status-badge`, `status-leaders`, `status-needs-review`) adapted from the polished mockup styling. Wrapped leaderboard tables in `card-table-container` to add responsive internal padding, reduced the Rank column header width, and minimized avatar dimensions.
+3. **Dynamic Client-Side Filter Layout:** Implemented client-side filtering (omitting status parameters from the initial API fetch to load the dataset once) to support text search and dynamic filters. Converted all inline styling to CSS classes (`filters-container`, `filters-row`, `search-input-wrapper`, `filter-select-wrapper`, `filter-select-custom`, `filter-search-input`).
+4. **Responsive Stepped Queries & Table Scrolling:** Programmed viewport-stepped scaling overrides in CSS to adapt font sizes, card paddings, table cell padding, avatar dimensions, and flex margins smoothly across desktop, laptop, tablet, and mobile dimensions. Configured all dashboard cards (both KPI and pipeline stages) to hide their icons and display exactly two cards per row on mobile screens. Enabled flex wrapping for dropdown inputs, scrolling overflow for pipeline tabs, and enabled horizontal scrolling on `.card-table-container` with a minimum width of `750px` for multi-column tables on mobile to prevent content clipping and ensure touch-swipe scrollability while keeping card headers fixed. Enabled flex wrapping for dropdown inputs and scrolling overflow for pipeline tabs to prevent content clipping and ensure alignment.
+
+#### Consequences
+- Avoids repetitive backend query roundtrips for agent filtering.
+- Ensures all tables, metrics, and filter buttons fit cleanly inside any viewport without clipping or stretching layout limits.
+- Improves scannability by prioritizing high-importance metrics (sales, pipeline counts) at the top of the viewport.
+- Ensures dashboard mockup designs and live implementation elements are in complete visual alignment.

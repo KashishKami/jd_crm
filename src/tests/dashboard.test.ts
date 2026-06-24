@@ -173,7 +173,7 @@ describe('Dashboard Integration Tests', () => {
       // We expect Net Sales to filter specifically for these seeded test items if possible, but
       // here we assert it contains a numeric netSales value. We will check details in unit tests,
       // or we can test net sales calculation logic via Repository/Service directly.
-      expect(typeof data.netSales).toBe('number');
+      expect(typeof data.netSales.amount).toBe('number');
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderSalesAgentId: testAgent.uid } });

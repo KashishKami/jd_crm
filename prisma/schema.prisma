@@ -1,10 +1,10 @@
-datasource db {
-  provider     = "mysql"
-  relationMode = "foreignKeys" // Real FOREIGN KEY constraints enforced at DB level (InnoDB)
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  relationMode = "foreignKeys"
 }
 
 model Admin {
@@ -16,44 +16,43 @@ model Admin {
 }
 
 model Users {
-  uid             Int           @id @default(autoincrement())
-  name            String        @db.VarChar(256)
-  nickname        String?       @db.VarChar(111)
-  username        String        @db.VarChar(55)
-  email           String?       @db.VarChar(50)
-  mobile          String?       @db.VarChar(15)
-  gender          String        @default("0") @db.VarChar(1) // Mapped from ENUM('0', '1') for compatibility
-  password        String?       @db.VarChar(255)
-  status          Int?          @default(1)
-  age             Int?
-  designation     String?       @db.VarChar(255)
-  dateOfJoining   DateTime?     @map("date_of_joining") @db.Date
-  agentId         String?       @map("agent_id") @db.VarChar(25)
-  profileImage    String?       @map("profile_image") @db.VarChar(255)
-  agentTarget     String?       @map("agent_target") @db.VarChar(11)
-  agentSalary     String?       @map("agent_salary") @db.VarChar(11)
-  created         DateTime?     @default(now()) @db.Timestamp(0)
-  teamId          Int                  @map("team_id")
-  roleId          Int                  @map("role_id")
-
-  // Logical Relations (Prisma only)
-  team            CrmTeams             @relation(fields: [teamId], references: [teamId], onDelete: Restrict)
-  role            CrmRoles             @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
-  profile         UsersProfile?
-  attendance      CrmAttendance[]
-  salesOrders     CrmOrders[]          @relation("SalesAgent")
-  verifiedOrders  CrmOrders[]          @relation("Verifier")
-  academicRecord  UsersProfileAcademic[]
+  uid                Int                        @id @default(autoincrement())
+  name               String                     @db.VarChar(256)
+  nickname           String?                    @db.VarChar(111)
+  username           String                     @db.VarChar(55)
+  email              String?                    @db.VarChar(50)
+  mobile             String?                    @db.VarChar(15)
+  gender             String                     @default("0") @db.VarChar(1)
+  password           String?                    @db.VarChar(255)
+  status             Int?                       @default(1)
+  age                Int?
+  designation        String?                    @db.VarChar(255)
+  dateOfJoining      DateTime?                  @map("date_of_joining") @db.Date
+  agentId            String?                    @map("agent_id") @db.VarChar(25)
+  profileImage       String?                    @map("profile_image") @db.VarChar(255)
+  agentTarget        String?                    @map("agent_target") @db.VarChar(11)
+  agentSalary        String?                    @map("agent_salary") @db.VarChar(11)
+  created            DateTime?                  @default(now()) @db.Timestamp(0)
+  teamId             Int                        @map("team_id")
+  roleId             Int                        @map("role_id")
+  attendance         CrmAttendance[]
+  comments           CrmComments[]
+  salesOrders        CrmOrders[]                @relation("SalesAgent")
+  verifiedOrders     CrmOrders[]                @relation("Verifier")
+  userchecks         Usercheck[]
+  role               CrmRoles                   @relation(fields: [roleId], references: [roleId])
+  team               CrmTeams                   @relation(fields: [teamId], references: [teamId])
+  profile            UsersProfile?
+  academicRecord     UsersProfileAcademic[]
   professionalRecord UsersProfileProfessional[]
-  comments        CrmComments[]
-  userchecks      Usercheck[]
 
+  @@index([roleId], map: "users_role_id_fkey")
+  @@index([teamId], map: "users_team_id_fkey")
   @@map("users")
 }
 
 model UsersProfile {
   profileId                       Int       @id @default(autoincrement()) @map("profile_id")
-  // FK is now a proper Int — no more varchar(25) mismatch
   profileUserId                   Int       @unique @map("profile_user_id")
   profileLocalAddress             String?   @map("profile_local_address") @db.VarChar(255)
   profilePermanentAddress         String?   @map("profile_permanent_address") @db.VarChar(255)
@@ -73,7 +72,6 @@ model UsersProfile {
   profileEmergencyContactNumber2  String?   @map("profile_emergency_contact_number2") @db.VarChar(20)
   profileCreatedAt                DateTime? @map("profile_created_at") @db.DateTime(0)
   profileUpdatedAt                DateTime  @default(now()) @updatedAt @map("profile_updated_at") @db.Timestamp(0)
-
   user                            Users     @relation(fields: [profileUserId], references: [uid], onDelete: Cascade)
 
   @@map("users_profile")
@@ -81,7 +79,6 @@ model UsersProfile {
 
 model UsersProfileAcademic {
   academicId             Int       @id @default(autoincrement()) @map("academic_id")
-  // FK is now a proper Int — no more varchar(25) mismatch
   academicUserId         Int       @map("academic_user_id")
   academicStandard       String?   @map("academic_standard") @db.VarChar(15)
   academicYearFrom       String?   @map("academic_year_from") @db.VarChar(15)
@@ -89,7 +86,6 @@ model UsersProfileAcademic {
   academicSpecialization String?   @map("academic_specialization") @db.VarChar(255)
   academicInstitute      String?   @map("academic_institute") @db.VarChar(255)
   academicCreated        DateTime? @map("academic_created") @db.Date
-
   user                   Users     @relation(fields: [academicUserId], references: [uid], onDelete: Cascade)
 
   @@index([academicUserId])
@@ -97,18 +93,16 @@ model UsersProfileAcademic {
 }
 
 model UsersProfileProfessional {
-  professionalId           Int       @id @default(autoincrement()) @map("professional_id")
-  // FK is now a proper Int — no more varchar(25) mismatch
-  professionalUserId       Int       @map("professional_user_id")
-  professionalOrganization String?   @map("professional_organization") @db.VarChar(155)
-  professionalYearFrom     String?   @map("professional_year_from") @db.VarChar(15)
-  professionalYearTo       String?   @map("professional_year_to") @db.VarChar(15)
-  professionalDesignation  String?   @map("professional_designation") @db.VarChar(155)
-  professionalSalary       String?   @map("professional_salary") @db.VarChar(20)
-  professionalExperiance   String?   @map("professional_experiance") @db.VarChar(155)
-  professionalCreatedAt    DateTime  @default(now()) @map("professional_created_at") @db.DateTime(0)
-
-  user                     Users     @relation(fields: [professionalUserId], references: [uid], onDelete: Cascade)
+  professionalId           Int      @id @default(autoincrement()) @map("professional_id")
+  professionalUserId       Int      @map("professional_user_id")
+  professionalOrganization String?  @map("professional_organization") @db.VarChar(155)
+  professionalYearFrom     String?  @map("professional_year_from") @db.VarChar(15)
+  professionalYearTo       String?  @map("professional_year_to") @db.VarChar(15)
+  professionalDesignation  String?  @map("professional_designation") @db.VarChar(155)
+  professionalSalary       String?  @map("professional_salary") @db.VarChar(20)
+  professionalExperiance   String?  @map("professional_experiance") @db.VarChar(155)
+  professionalCreatedAt    DateTime @default(now()) @map("professional_created_at") @db.DateTime(0)
+  user                     Users    @relation(fields: [professionalUserId], references: [uid], onDelete: Cascade)
 
   @@index([professionalUserId])
   @@map("users_profile_professional")
@@ -125,17 +119,15 @@ model CrmDesignations {
 
 model CrmAttendance {
   attId                Int       @id @default(autoincrement()) @map("att_id")
-  // FK is now a proper Int — no more varchar(25) mismatch
   agentId              Int       @map("agent_id")
   agentName            String    @map("agent_name") @db.VarChar(55)
-  attendanceStatusId   Int       @map("attendance_status_id") // 1=Present, 2=Absent, 3=ULWOP, 4=LWOP, 5=PL, 6=NCNS, 7=HalfDay
+  attendanceStatusId   Int       @map("attendance_status_id")
   attendanceStatusName String?   @map("attendance_status_name") @db.VarChar(55)
   attendanceDate       DateTime  @map("attendance_date") @db.Date
   attendanceMarkedName String    @map("attendance_marked_name") @db.VarChar(55)
   createdAt            DateTime  @default(now()) @map("created_at") @db.DateTime(0)
   updatedAt            DateTime? @map("updated_at") @db.DateTime(0)
-
-  agent                Users     @relation(fields: [agentId], references: [uid], onDelete: Restrict)
+  agent                Users     @relation(fields: [agentId], references: [uid])
 
   @@index([agentId])
   @@index([attendanceDate])
@@ -170,26 +162,24 @@ model CrmVendors {
 }
 
 model CrmCustomers {
-  customerId               Int                 @id @default(autoincrement()) @map("customer_id")
-  firstName                String              @map("first_name") @db.VarChar(255)
-  lastName                 String              @map("last_name") @db.VarChar(255)
-  customerPhone            String?             @map("customer_phone") @db.VarChar(25)
-  customerEmail            String              @map("customer_email") @db.VarChar(255)
-  customerBillingAddress   String?             @map("customer_billing_address") @db.VarChar(255)
-  customerShippingAddress  String?             @map("customer_shipping_address") @db.VarChar(255)
-  dateCreated              DateTime?           @map("date_created") @db.DateTime(0)
-  dateUpdated              DateTime?           @map("date_updated") @db.DateTime(0)
-  
-  cards                    CrmCustomerCards[]
-  orders                   CrmOrders[]
-  comments                 CrmComments[]
+  customerId              Int                @id @default(autoincrement()) @map("customer_id")
+  firstName               String             @map("first_name") @db.VarChar(255)
+  lastName                String             @map("last_name") @db.VarChar(255)
+  customerPhone           String?            @map("customer_phone") @db.VarChar(25)
+  customerEmail           String             @map("customer_email") @db.VarChar(255)
+  customerBillingAddress  String?            @map("customer_billing_address") @db.VarChar(255)
+  customerShippingAddress String?            @map("customer_shipping_address") @db.VarChar(255)
+  dateCreated             DateTime?          @map("date_created") @db.DateTime(0)
+  dateUpdated             DateTime?          @map("date_updated") @db.DateTime(0)
+  comments                CrmComments[]
+  cards                   CrmCustomerCards[]
+  orders                  CrmOrders[]
 
   @@map("crm_customers")
 }
 
 model CrmCustomerCards {
   cardId                  Int          @id @default(autoincrement()) @map("card_id")
-  // FK is now a proper Int — no more varchar(15) mismatch
   cardCustomerId          Int          @map("card_customer_id")
   customerNameOncard      String       @map("customer_name_oncard") @db.VarChar(155)
   customerCardNumber      String       @map("customer_card_number") @db.VarChar(25)
@@ -199,7 +189,6 @@ model CrmCustomerCards {
   customerCardPhotoStatus String?      @map("customer_card_photo_status") @db.VarChar(20)
   customerCardCreatedAt   DateTime?    @map("customer_card_created_at") @db.DateTime(0)
   customerCardUpdated     DateTime?    @map("customer_card_updated") @db.DateTime(0)
-
   customer                CrmCustomers @relation(fields: [cardCustomerId], references: [customerId], onDelete: Cascade)
 
   @@index([cardCustomerId])
@@ -207,67 +196,63 @@ model CrmCustomerCards {
 }
 
 model CrmOrders {
-  crmOrderId                    Int          @id @default(autoincrement()) @map("crm_order_id")
-  // FK is now a proper Int — no more varchar(55) mismatch
-  orderCustomerId               Int          @map("order_customer_id")
-  orderYear                     String?      @map("order_year") @db.VarChar(255)
-  orderMakeModel                String?      @map("order_make_model") @db.VarChar(255)
-  orderPart                     String?      @map("order_part") @db.VarChar(255)
-  orderPartSize                 String?      @map("order_part_size") @db.VarChar(255)
-  orderQuotedMiles              String?      @map("order_quoted_miles") @db.VarChar(255)
-  orderGivenMiles               String?      @map("order_given_miles") @db.VarChar(255)
-  orderVin                      String?      @map("order_vin") @db.VarChar(255)
-  orderTotalPitched             String?      @map("order_total_pitched") @db.VarChar(25)
-  orderVendorPrice              String?      @map("order_vendor_price") @db.VarChar(25)
-  // FK is now a proper Int — no more varchar(111) mismatch
-  orderVendorId                 Int?         @map("order_vendor_id")
-  orderVendorName               String?      @map("order_vendor_name") @db.VarChar(255)
-  orderShippingType             String?      @map("order_shipping_type") @db.VarChar(255)
-  orderMarkup                   String?      @map("order_markup") @db.VarChar(255)
-  // FK is now a proper Int — no more varchar(55) mismatch
-  orderPaymentGatewayId         Int?         @map("order_payment_gateway")
-  orderSalesAgentId             Int?         @map("order_sales_agent_id")
-  orderSalesAgentName           String?      @map("order_sales_agent_name") @db.VarChar(55)
-  orderVerifierId               Int?         @map("order_verifier_id")
-  orderVerifierName             String?      @map("order_verifier_name") @db.VarChar(55)
-  orderDocumentation            String?      @map("order_documentation") @db.VarChar(255)
-  orderBooked                   String?      @map("order_booked") @db.VarChar(255)
-  orderAmountCharged            String?      @map("order_amount_charged") @db.VarChar(25)
-  orderTrackingNumber           String?      @map("order_tracking_number") @db.VarChar(55)
-  orderDeliveryStatus           String?      @map("order_delivery_status") @db.VarChar(55)
-  orderQualifiedIncentiveStatus String?      @map("order_qualified_incentive_status") @db.VarChar(55)
-  orderQualifiedIncentiveAmount String?      @map("order_qualified_incentive_amount") @db.VarChar(55)
-  orderStatus                   String?      @map("order_status") @db.VarChar(55)
-  saleStatus                    String?      @map("sale_status") @db.VarChar(55)
-  orderCurrentStatus            String?      @map("order_current_status") @db.VarChar(55)
-  orderCurrentStatusUpdateDate  DateTime?    @map("order_current_status_update_date") @db.DateTime(0)
-  orderDate                     DateTime?    @map("order_date") @db.Date // Changed from varchar to proper Date type
-  orderVendorFeedback           String       @default("Positive") @map("order_vendor_feedback") @db.VarChar(25)
-  orderClientFeedback           String       @default("Positive") @map("order_client_feedback") @db.VarChar(25)
-  orderResolution               String       @default("Resolved") @map("order_resolution") @db.VarChar(25)
-  orderCreatedDate              DateTime     @default(now()) @map("order_created_date") @db.DateTime(0)
-  orderUpdatedDate              DateTime     @updatedAt @map("order_updated_date") @db.DateTime(0)
-
-  // Real FK relationships — enforced at DB level
-  customer                      CrmCustomers @relation(fields: [orderCustomerId], references: [customerId], onDelete: Restrict)
-  vendor                        CrmVendors?  @relation(fields: [orderVendorId], references: [vendorId], onDelete: SetNull)
-  gateway                       CrmGateway?  @relation(fields: [orderPaymentGatewayId], references: [gatewayId], onDelete: SetNull)
-  salesAgent                    Users?       @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid], onDelete: SetNull)
-  verifier                      Users?       @relation("Verifier", fields: [orderVerifierId], references: [uid], onDelete: SetNull)
+  crmOrderId                    Int           @id @default(autoincrement()) @map("crm_order_id")
+  orderCustomerId               Int           @map("order_customer_id")
+  orderYear                     String?       @map("order_year") @db.VarChar(255)
+  orderMakeModel                String?       @map("order_make_model") @db.VarChar(255)
+  orderPart                     String?       @map("order_part") @db.VarChar(255)
+  orderPartSize                 String?       @map("order_part_size") @db.VarChar(255)
+  orderQuotedMiles              String?       @map("order_quoted_miles") @db.VarChar(255)
+  orderGivenMiles               String?       @map("order_given_miles") @db.VarChar(255)
+  orderVin                      String?       @map("order_vin") @db.VarChar(255)
+  orderTotalPitched             String?       @map("order_total_pitched") @db.VarChar(25)
+  orderVendorPrice              String?       @map("order_vendor_price") @db.VarChar(25)
+  orderVendorId                 Int?          @map("order_vendor_id")
+  orderVendorName               String?       @map("order_vendor_name") @db.VarChar(255)
+  orderShippingType             String?       @map("order_shipping_type") @db.VarChar(255)
+  orderMarkup                   String?       @map("order_markup") @db.VarChar(255)
+  orderPaymentGatewayId         Int?          @map("order_payment_gateway")
+  orderSalesAgentId             Int?          @map("order_sales_agent_id")
+  orderSalesAgentName           String?       @map("order_sales_agent_name") @db.VarChar(55)
+  orderVerifierId               Int?          @map("order_verifier_id")
+  orderVerifierName             String?       @map("order_verifier_name") @db.VarChar(55)
+  orderDocumentation            String?       @map("order_documentation") @db.VarChar(255)
+  orderBooked                   String?       @map("order_booked") @db.VarChar(255)
+  orderAmountCharged            String?       @map("order_amount_charged") @db.VarChar(25)
+  orderTrackingNumber           String?       @map("order_tracking_number") @db.VarChar(55)
+  orderDeliveryStatus           String?       @map("order_delivery_status") @db.VarChar(55)
+  orderQualifiedIncentiveStatus String?       @map("order_qualified_incentive_status") @db.VarChar(55)
+  orderQualifiedIncentiveAmount String?       @map("order_qualified_incentive_amount") @db.VarChar(55)
+  orderStatus                   String?       @map("order_status") @db.VarChar(55)
+  saleStatus                    String?       @map("sale_status") @db.VarChar(55)
+  orderCurrentStatus            String?       @map("order_current_status") @db.VarChar(55)
+  orderCurrentStatusUpdateDate  DateTime?     @map("order_current_status_update_date") @db.DateTime(0)
+  orderDate                     DateTime?     @map("order_date") @db.Date
+  orderVendorFeedback           String        @default("Positive") @map("order_vendor_feedback") @db.VarChar(25)
+  orderClientFeedback           String        @default("Positive") @map("order_client_feedback") @db.VarChar(25)
+  orderResolution               String        @default("Resolved") @map("order_resolution") @db.VarChar(25)
+  orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
+  orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
   comments                      CrmComments[]
+  customer                      CrmCustomers  @relation(fields: [orderCustomerId], references: [customerId])
+  gateway                       CrmGateway?   @relation(fields: [orderPaymentGatewayId], references: [gatewayId])
+  salesAgent                    Users?        @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid])
+  vendor                        CrmVendors?   @relation(fields: [orderVendorId], references: [vendorId])
+  verifier                      Users?        @relation("Verifier", fields: [orderVerifierId], references: [uid])
 
   @@index([orderCustomerId])
   @@index([orderSalesAgentId])
   @@index([orderCurrentStatus])
   @@index([saleStatus])
+  @@index([orderPaymentGatewayId], map: "crm_orders_order_payment_gateway_fkey")
+  @@index([orderVendorId], map: "crm_orders_order_vendor_id_fkey")
+  @@index([orderVerifierId], map: "crm_orders_order_verifier_id_fkey")
   @@map("crm_orders")
 }
 
 model CrmComments {
   commentId          Int          @id @default(autoincrement()) @map("comment_id")
   customerId         Int          @map("customer_id")
-  // BUG FIX: In the old PHP schema, this column was joined on order_customer_id (not the order PK).
-  // In the new schema it correctly references crm_orders.crm_order_id.
   orderId            Int          @map("order_id")
   comment            String       @db.Text
   commentImage       String?      @map("comment_image") @db.VarChar(255)
@@ -275,31 +260,29 @@ model CrmComments {
   commentAgentName   String       @map("comment_agent_name") @db.VarChar(55)
   commentCreatedDate DateTime     @default(now()) @map("comment_created_date") @db.DateTime(0)
   commentUpdatedDate DateTime?    @map("comment_updated_date") @db.DateTime(0)
-
-  // Real FK relationships — enforced at DB level
+  agent              Users        @relation(fields: [commentAgentId], references: [uid])
   customer           CrmCustomers @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
   order              CrmOrders    @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
-  agent              Users        @relation(fields: [commentAgentId], references: [uid], onDelete: Restrict)
 
   @@index([orderId])
   @@index([customerId])
+  @@index([commentAgentId], map: "crm_comments_comment_agent_id_fkey")
   @@map("crm_comments")
 }
 
 model Usercheck {
-  id          Int       @id @default(autoincrement())
-  logindate   String    @default("") @db.VarChar(255)
-  logintime   String    @default("") @db.VarChar(255)
-  userId      Int?      @map("user_id")
-  username    String?   @db.VarChar(255)
-  email       String    @default("") @db.VarChar(255)
-  ip          Bytes?    @db.VarBinary(16)
-  mac         Bytes?    @db.VarBinary(16)
-  city        String?   @db.VarChar(255)
-  country     String?   @db.VarChar(255)
-  loggedAt    DateTime  @default(now()) @map("logged_at") @db.Timestamp(0)
-
-  user        Users?    @relation(fields: [userId], references: [uid], onDelete: SetNull)
+  id        Int      @id @default(autoincrement())
+  logindate String   @default("") @db.VarChar(255)
+  logintime String   @default("") @db.VarChar(255)
+  userId    Int?     @map("user_id")
+  username  String?  @db.VarChar(255)
+  email     String   @default("") @db.VarChar(255)
+  ip        Bytes?   @db.VarBinary(16)
+  mac       Bytes?   @db.VarBinary(16)
+  city      String?  @db.VarChar(255)
+  country   String?  @db.VarChar(255)
+  loggedAt  DateTime @default(now()) @map("logged_at") @db.Timestamp(0)
+  user      Users?   @relation(fields: [userId], references: [uid])
 
   @@index([userId])
   @@map("usercheck")
@@ -310,7 +293,6 @@ model CrmTeams {
   teamName    String    @map("team_name") @db.VarChar(155)
   teamCreated DateTime  @default(now()) @map("team_created") @db.DateTime(0)
   teamUpdated DateTime? @map("team_updated") @db.DateTime(0)
-
   users       Users[]
 
   @@map("crm_teams")
@@ -321,8 +303,8 @@ model CrmRoles {
   roleName    String               @unique @map("role_name") @db.VarChar(100)
   roleCreated DateTime             @default(now()) @map("role_created") @db.DateTime(0)
   roleUpdated DateTime?            @map("role_updated") @db.DateTime(0)
-  users       Users[]
   permissions CrmRolePermissions[]
+  users       Users[]
 
   @@map("crm_roles")
 }
@@ -339,10 +321,10 @@ model CrmPermissions {
 model CrmRolePermissions {
   roleId       Int            @map("role_id")
   permissionId Int            @map("permission_id")
-  role         CrmRoles       @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
   permission   CrmPermissions @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade)
+  role         CrmRoles       @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([permissionId], map: "crm_role_permissions_permission_id_fkey")
   @@map("crm_role_permissions")
 }
-

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import { slideInSidebar, fadeInPage } from '../lib/animations';
+import { useLenis } from './LenisProvider';
 
 interface LayoutShellProps {
   children: React.ReactNode;
@@ -13,6 +14,7 @@ interface LayoutShellProps {
 export default function LayoutShell({ children }: LayoutShellProps) {
   const { status } = useSession();
   const pathname = usePathname();
+  const { lenis } = useLenis();
   const sidebarRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -42,12 +44,16 @@ export default function LayoutShell({ children }: LayoutShellProps) {
     }
   }, [status]);
 
-  // Animate page fade-in on path changes
+  // Animate page fade-in and reset scroll on path changes
   useEffect(() => {
     if (mainRef.current) {
       fadeInPage(mainRef.current);
     }
-  }, [pathname]);
+    if (lenis) {
+      lenis.scrollTo(0, { immediate: true });
+      lenis.resize();
+    }
+  }, [pathname, lenis]);
 
   const isPublicRoute = pathname === '/login' || pathname === '/access-denied';
 

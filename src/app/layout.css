@@ -14,6 +14,7 @@
   --border-color: #e2e8f0;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --card-accent: linear-gradient(90deg, #3b82f6, #06b6d4);
   --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -24,7 +25,7 @@
 }
 
 body {
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: Georgia, serif;
   background-color: var(--bg-primary);
   color: var(--text-main);
   min-height: 100vh;
@@ -33,17 +34,36 @@ body {
 /* Base Page Layout Wrapper */
 .app-container {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
   width: 100%;
 }
 
 .main-content {
-  padding: 40px;
+  padding: 24px 16px;
   background-color: var(--bg-primary);
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding: 24px 4%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding: 32px 8%;
+  }
+}
+
+@media (min-width: 1440px) {
+  .main-content {
+    padding: 40px 15%;
+  }
 }
 
 /* Sidebar Styling */
@@ -298,7 +318,7 @@ body {
 }
 
 .app-container.sidebar-closed {
-  grid-template-columns: 0px 1fr;
+  grid-template-columns: 0px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -359,7 +379,55 @@ body {
 }
 
 .app-container.sidebar-closed .main-content {
-  padding-left: 72px;
+  padding-left: 16px;
   transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 768px) {
+  .app-container.sidebar-closed .main-content {
+    padding-left: 4%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container.sidebar-closed .main-content {
+    padding-left: 8%;
+  }
+}
+
+@media (min-width: 1440px) {
+  .app-container.sidebar-closed .main-content {
+    padding-left: 15%;
+  }
+}
+
+/* Offset header text from overlap with the navigation toggle when closed */
+.app-container.sidebar-closed .page-header {
+  padding-left: 52px;
+}
+
+@media (min-width: 768px) {
+  .app-container.sidebar-closed .page-header {
+    padding-left: 36px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container.sidebar-closed .page-header {
+    padding-left: 0;
+  }
+}
+
+.kpi-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 1024px) {
+  .kpi-cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
 }
 

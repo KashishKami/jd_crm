@@ -4,11 +4,11 @@ export interface PerformerRow {
 }
 
 export interface PendingCounts {
-  'Pending Booking': number;
-  'Pending Shipment': number;
-  'Pending Delivery': number;
-  'Pending Feedback': number;
-  'Pending Resolutions': number;
+  'Pending Booking': MetricValue;
+  'Pending Shipment': MetricValue;
+  'Pending Delivery': MetricValue;
+  'Pending Feedback': MetricValue;
+  'Pending Resolutions': MetricValue;
 }
 
 export interface AttendanceSummary {
@@ -27,13 +27,18 @@ export interface RecentOrderRow {
   orderDate: string;
 }
 
+export interface MetricValue {
+  amount: number;
+  count: number;
+}
+
 export interface DashboardMetrics {
-  totalSales?: number;
-  totalSalesThisMonth?: number;
-  todaySales?: number;
-  chargebackThisMonth?: number;
-  refundThisMonth?: number;
-  netSales?: number;
+  totalSales?: MetricValue;
+  totalSalesThisMonth?: MetricValue;
+  todaySales?: MetricValue;
+  chargebackThisMonth?: MetricValue;
+  refundThisMonth?: MetricValue;
+  netSales?: MetricValue;
   topPerformers?: PerformerRow[];
   bottomPerformers?: PerformerRow[];
   recentOrders?: RecentOrderRow[];

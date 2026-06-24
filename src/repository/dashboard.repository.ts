@@ -1,9 +1,15 @@
 import { prisma } from '../lib/db';
 
 export async function getTotalSales() {
-  return await prisma.crmOrders.count({
+  const orders = await prisma.crmOrders.findMany({
     where: { saleStatus: '1' },
+    select: { orderMarkup: true },
   });
+  let amount = 0;
+  for (const order of orders) {
+    amount += parseFloat(order.orderMarkup || '0');
+  }
+  return { amount, count: orders.length };
 }
 
 export async function getTotalSalesThisMonth() {
@@ -11,7 +17,7 @@ export async function getTotalSalesThisMonth() {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  return await prisma.crmOrders.count({
+  const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '1',
       orderDate: {
@@ -19,7 +25,13 @@ export async function getTotalSalesThisMonth() {
         lt: end,
       },
     },
+    select: { orderMarkup: true },
   });
+  let amount = 0;
+  for (const order of orders) {
+    amount += parseFloat(order.orderMarkup || '0');
+  }
+  return { amount, count: orders.length };
 }
 
 export async function getTodaySales() {
@@ -27,7 +39,7 @@ export async function getTodaySales() {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-  return await prisma.crmOrders.count({
+  const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '1',
       orderDate: {
@@ -35,7 +47,13 @@ export async function getTodaySales() {
         lt: end,
       },
     },
+    select: { orderMarkup: true },
   });
+  let amount = 0;
+  for (const order of orders) {
+    amount += parseFloat(order.orderMarkup || '0');
+  }
+  return { amount, count: orders.length };
 }
 
 export async function getChargebackThisMonth() {
@@ -43,7 +61,7 @@ export async function getChargebackThisMonth() {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  return await prisma.crmOrders.count({
+  const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '8',
       orderDate: {
@@ -51,7 +69,13 @@ export async function getChargebackThisMonth() {
         lt: end,
       },
     },
+    select: { orderMarkup: true },
   });
+  let amount = 0;
+  for (const order of orders) {
+    amount += parseFloat(order.orderMarkup || '0');
+  }
+  return { amount, count: orders.length };
 }
 
 export async function getRefundThisMonth() {
@@ -59,7 +83,7 @@ export async function getRefundThisMonth() {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  return await prisma.crmOrders.count({
+  const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '7',
       orderDate: {
@@ -67,7 +91,13 @@ export async function getRefundThisMonth() {
         lt: end,
       },
     },
+    select: { orderMarkup: true },
   });
+  let amount = 0;
+  for (const order of orders) {
+    amount += parseFloat(order.orderMarkup || '0');
+  }
+  return { amount, count: orders.length };
 }
 
 export async function getNetSales() {
@@ -81,16 +111,19 @@ export async function getNetSales() {
     },
   });
 
-  let net = 0;
+  let amount = 0;
+  let count = 0;
   for (const order of orders) {
     const val = parseFloat(order.orderMarkup || '0');
     if (order.saleStatus === '1') {
-      net += val;
+      amount += val;
+      count += 1;
     } else if (order.saleStatus === '7' || order.saleStatus === '8') {
-      net -= val;
+      amount -= val;
+      count -= 1;
     }
   }
-  return net;
+  return { amount, count };
 }
 
 export async function getTopPerformers(limit = 5) {
@@ -215,22 +248,38 @@ export async function getAttendanceSummary(date: Date) {
 }
 
 export async function getPendingCounts() {
-  const counts = await prisma.crmOrders.groupBy({
-    by: ['orderCurrentStatus'],
-    _count: true,
+  const orders = await prisma.crmOrders.findMany({
+    where: {
+      orderCurrentStatus: {
+        in: [
+          'Pending Booking',
+          'Pending Shipment',
+          'Pending Delivery',
+          'Pending Feedback',
+          'Pending Resolutions',
+        ],
+      },
+    },
+    select: {
+      orderCurrentStatus: true,
+      orderMarkup: true,
+    },
   });
 
-  const res: Record<string, number> = {
-    'Pending Booking': 0,
-    'Pending Shipment': 0,
-    'Pending Delivery': 0,
-    'Pending Feedback': 0,
-    'Pending Resolutions': 0,
+  const res: Record<string, { amount: number; count: number }> = {
+    'Pending Booking': { amount: 0, count: 0 },
+    'Pending Shipment': { amount: 0, count: 0 },
+    'Pending Delivery': { amount: 0, count: 0 },
+    'Pending Feedback': { amount: 0, count: 0 },
+    'Pending Resolutions': { amount: 0, count: 0 },
   };
 
-  for (const group of counts) {
-    if (group.orderCurrentStatus && group.orderCurrentStatus in res) {
-      res[group.orderCurrentStatus] = group._count;
+  for (const order of orders) {
+    const status = order.orderCurrentStatus;
+    if (status && status in res) {
+      const markupVal = parseFloat(order.orderMarkup || '0');
+      res[status].amount += markupVal;
+      res[status].count += 1;
     }
   }
 

@@ -16,12 +16,12 @@ import DashboardPage from '../app/dashboard_client_page'; // We can write a clie
 
 describe('Dashboard Component Unit Tests', () => {
   const mockMetrics = {
-    totalSales: 150,
-    totalSalesThisMonth: 45,
-    todaySales: 5,
-    chargebackThisMonth: 2,
-    refundThisMonth: 1,
-    netSales: 12000,
+    totalSales: { amount: 30000, count: 150 },
+    totalSalesThisMonth: { amount: 9000, count: 45 },
+    todaySales: { amount: 1000, count: 5 },
+    chargebackThisMonth: { amount: 400, count: 2 },
+    refundThisMonth: { amount: 200, count: 1 },
+    netSales: { amount: 12000, count: 147 },
     topPerformers: [
       { agentName: 'Alice', amount: 8000 },
       { agentName: 'Bob', amount: 6000 },
@@ -39,11 +39,11 @@ describe('Dashboard Component Unit Tests', () => {
       halfDay: 1,
     },
     pendingCounts: {
-      'Pending Booking': 5,
-      'Pending Shipment': 8,
-      'Pending Delivery': 12,
-      'Pending Feedback': 4,
-      'Pending Resolutions': 2,
+      'Pending Booking': { amount: 1000, count: 5 },
+      'Pending Shipment': { amount: 2000, count: 8 },
+      'Pending Delivery': { amount: 3000, count: 12 },
+      'Pending Feedback': { amount: 800, count: 4 },
+      'Pending Resolutions': { amount: 400, count: 2 },
     },
   };
 
@@ -83,13 +83,14 @@ describe('Dashboard Component Unit Tests', () => {
 
     render(
       <DashboardPage
-        initialMetrics={{ totalSales: 150 }}
+        initialMetrics={{ totalSales: { amount: 30000, count: 150 } }}
         userPermissions="dashboard:total-sales"
         userName="Admin"
       />
     );
     expect(screen.getByText('Total Sales')).toBeDefined();
-    expect(screen.getByText('150')).toBeDefined();
+    expect(screen.getByText('30000')).toBeDefined();
+    expect(screen.getByText('(150 Sales)')).toBeDefined();
   });
 
   it('should NOT render TotalSalesWidget when user lacks permission', () => {
@@ -148,9 +149,11 @@ describe('Dashboard Component Unit Tests', () => {
       />
     );
     expect(screen.getByText('Pending Booking')).toBeDefined();
-    expect(screen.getByText('5')).toBeDefined();
+    expect(screen.getByText('1000')).toBeDefined();
+    expect(screen.getByText('(5 Sales)')).toBeDefined();
     expect(screen.getByText('Pending Shipment')).toBeDefined();
-    expect(screen.getByText('8')).toBeDefined();
+    expect(screen.getByText('2000')).toBeDefined();
+    expect(screen.getByText('(8 Sales)')).toBeDefined();
   });
 
   it('should render TeamMonthlyScoresWidget with top and bottom performers when permitted', async () => {
