@@ -87,7 +87,7 @@ export default function OrderList({ orders }: OrderListProps) {
 
   return (
     <div className="table-wrapper">
-      <table className="custom-table">
+      <table className="custom-table table-responsive">
         <thead>
           <tr>
             <th>Order ID</th>

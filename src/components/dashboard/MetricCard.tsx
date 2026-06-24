@@ -31,6 +31,7 @@ export default function MetricCard({
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayValue(amount);
       return;
     }

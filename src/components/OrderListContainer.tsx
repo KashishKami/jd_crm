@@ -42,6 +42,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
     if (fromParam !== null) setDateFrom(fromParam);

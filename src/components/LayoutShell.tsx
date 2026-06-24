@@ -63,20 +63,28 @@ export default function LayoutShell({ children }: LayoutShellProps) {
 
   return (
     <div className={`app-container ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => handleToggleSidebar(false)}
+          aria-hidden="true"
+        />
+      )}
       <Sidebar ref={sidebarRef} onToggle={() => handleToggleSidebar(false)} />
       <main ref={mainRef} className="main-content" style={{ position: 'relative' }}>
-        {!sidebarOpen && (
-          <button
-            onClick={() => handleToggleSidebar(true)}
-            className="floating-sidebar-trigger"
-            title="Open Navigation"
-            aria-label="Open Navigation"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleSidebar(!sidebarOpen);
+          }}
+          className="floating-sidebar-trigger"
+          title={sidebarOpen ? "Close Navigation" : "Open Navigation"}
+          aria-label={sidebarOpen ? "Close Navigation" : "Open Navigation"}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         {children}
       </main>
     </div>

@@ -13,14 +13,19 @@
 }
 
 .page-title {
-  font-size: 1.85rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   background: linear-gradient(120deg, #1e293b 25%, #2563eb 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  line-height: 1;
+  margin: 0 !important;
+  padding-left: 48px !important;
 }
 
 .page-subtitle {
@@ -171,19 +176,21 @@
   padding: 8px 10px;
   background-color: #f8fafc;
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
 }
 
 .custom-table td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   color: var(--text-main);
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .custom-table tr:last-child td {
@@ -216,12 +223,15 @@
 }
 
 .username-code {
-  background-color: #f1f5f9;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.8rem;
-  color: #0f172a;
+  font-family: Georgia, serif !important;
+  font-size: 0.76rem !important;
+  color: var(--text-main) !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .badge-team {
@@ -858,7 +868,10 @@
     align-items: flex-start;
     gap: 12px;
   }
-  .btn-primary-custom, .btn-secondary-custom {
+  .page-header .btn-primary-custom,
+  .page-header .btn-secondary-custom,
+  .form-actions .btn-primary-custom,
+  .form-actions .btn-secondary-custom {
     width: 100%;
     justify-content: center;
   }
@@ -885,11 +898,11 @@
   
   .custom-table th {
     padding: 4px 6px;
-    font-size: 0.62rem;
+    font-size: 0.58rem;
   }
   .custom-table td {
     padding: 4px 6px;
-    font-size: 0.68rem;
+    font-size: 0.62rem;
   }
   .badge-team, .badge-role, .status-dot-badge {
     padding: 2px 6px;
@@ -964,12 +977,15 @@
   width: 100%;
 }
 
+@media (max-width: 1024px) {
+  .table-responsive {
+    min-width: 750px;
+  }
+}
+
 @media (max-width: 768px) {
   .card-table-container {
     padding: 8px;
-  }
-  .table-responsive {
-    min-width: 750px;
   }
 }
 
@@ -1004,5 +1020,21 @@
 @media (max-width: 768px) {
   .dashboard-section-header h2 {
     font-size: 1.05rem;
+  }
+}
+
+/* Responsive Table Action Buttons */
+.custom-table td .btn-primary-custom,
+.custom-table td .btn-secondary-custom {
+  padding: 4px 8px !important;
+  font-size: 0.72rem !important;
+  gap: 4px;
+}
+
+@media (max-width: 768px) {
+  .custom-table td .btn-primary-custom,
+  .custom-table td .btn-secondary-custom {
+    padding: 3px 6px !important;
+    font-size: 0.65rem !important;
   }
 }

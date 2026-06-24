@@ -107,7 +107,7 @@ export default function GatewayList() {
       </div>
 
       <div className="table-wrapper">
-          <table className="custom-table" style={{ tableLayout: 'fixed' }}>
+          <table className="custom-table table-responsive">
             <thead>
               <tr>
                 <th style={{ width: '80px' }}>#</th>

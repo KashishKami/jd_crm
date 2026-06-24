@@ -48,3 +48,5 @@ JD_Connect/
 jd_crm.json
 seed.sql
 scratch/
+dashboard.html
+dashboard-polished.html

@@ -173,7 +173,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
                   <p className="text-slate-400 text-center py-8">No academic history recorded.</p>
                 ) : (
                   <div className="table-wrapper">
-                    <table className="custom-table">
+                    <table className="custom-table table-responsive">
                       <thead>
                         <tr>
                           <th>Standard / Degree</th>
@@ -207,7 +207,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
                   <p className="text-slate-400 text-center py-8">No professional experience recorded.</p>
                 ) : (
                   <div className="table-wrapper">
-                    <table className="custom-table">
+                    <table className="custom-table table-responsive">
                       <thead>
                         <tr>
                           <th>Organization</th>
