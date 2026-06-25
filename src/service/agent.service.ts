@@ -1,6 +1,7 @@
 import * as agentRepository from '../repository/agent.repository';
 import { CreateAgentInput, UpdateAgentInput } from '../repository/agent.repository';
 import { prisma } from '../lib/db';
+import { AgentDetail } from '../types/agent';
 
 function sanitizeUser<T extends { password?: string | null }>(user: T | null): Omit<T, 'password'> | null {
   if (!user) return null;
@@ -14,9 +15,9 @@ export async function getAllAgents(status?: number) {
   return agents.map(sanitizeUser);
 }
 
-export async function getAgentById(uid: number) {
+export async function getAgentById(uid: number): Promise<AgentDetail | null> {
   const agent = await agentRepository.findById(uid);
-  return sanitizeUser(agent);
+  return sanitizeUser(agent) as AgentDetail | null;
 }
 
 export async function createAgent(data: CreateAgentInput) {
