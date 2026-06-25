@@ -1,18 +1,69 @@
 import { hasPermission } from './permission.service';
 import * as dashboardRepository from '../repository/dashboard.repository';
 
+function calcPctChange(current: number, previous: number): number {
+  if (previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return parseFloat((((current - previous) / previous) * 100).toFixed(2));
+}
+
 export async function getMetricsForUser(session: any) {
   const permissions = session?.user?.userPermissions || '';
   const metrics: Record<string, any> = {};
 
+  const now = new Date();
+
+  // Year dates
+  const curYearStart = new Date(now.getFullYear(), 0, 1);
+  const curYearEnd = new Date(now.getFullYear() + 1, 0, 1);
+  const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+  const prevYearEnd = new Date(now.getFullYear(), 0, 1);
+
+  // Month dates
+  const curMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const curMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Day dates
+  const curDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const curDayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const prevDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const prevDayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   if (hasPermission(permissions, 'dashboard:total-sales')) {
-    metrics.totalSales = await dashboardRepository.getTotalSales();
+    const current = await dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd);
+    const previous = await dashboardRepository.getSalesBetweenDates(prevYearStart, prevYearEnd);
+    metrics.thisYearSales = {
+      amount: current.amount,
+      count: current.count,
+      lastAmount: previous.amount,
+      lastCount: previous.count,
+      percentageChange: calcPctChange(current.amount, previous.amount),
+    };
   }
   if (hasPermission(permissions, 'dashboard:monthly-sales')) {
-    metrics.totalSalesThisMonth = await dashboardRepository.getTotalSalesThisMonth();
+    const current = await dashboardRepository.getSalesBetweenDates(curMonthStart, curMonthEnd);
+    const previous = await dashboardRepository.getSalesBetweenDates(prevMonthStart, prevMonthEnd);
+    metrics.totalSalesThisMonth = {
+      amount: current.amount,
+      count: current.count,
+      lastAmount: previous.amount,
+      lastCount: previous.count,
+      percentageChange: calcPctChange(current.amount, previous.amount),
+    };
   }
   if (hasPermission(permissions, 'dashboard:today-sales')) {
-    metrics.todaySales = await dashboardRepository.getTodaySales();
+    const current = await dashboardRepository.getSalesBetweenDates(curDayStart, curDayEnd);
+    const previous = await dashboardRepository.getSalesBetweenDates(prevDayStart, prevDayEnd);
+    metrics.todaySales = {
+      amount: current.amount,
+      count: current.count,
+      lastAmount: previous.amount,
+      lastCount: previous.count,
+      percentageChange: calcPctChange(current.amount, previous.amount),
+    };
   }
   if (hasPermission(permissions, 'dashboard:chargeback')) {
     metrics.chargebackThisMonth = await dashboardRepository.getChargebackThisMonth();
@@ -21,7 +72,15 @@ export async function getMetricsForUser(session: any) {
     metrics.refundThisMonth = await dashboardRepository.getRefundThisMonth();
   }
   if (hasPermission(permissions, 'dashboard:net-sales')) {
-    metrics.netSales = await dashboardRepository.getNetSales();
+    const current = await dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd);
+    const previous = await dashboardRepository.getNetSalesBetweenDates(prevMonthStart, prevMonthEnd);
+    metrics.netSales = {
+      amount: current.amount,
+      count: current.count,
+      lastAmount: previous.amount,
+      lastCount: previous.count,
+      percentageChange: calcPctChange(current.amount, previous.amount),
+    };
   }
   if (hasPermission(permissions, 'dashboard:top-performer')) {
     metrics.topPerformers = await dashboardRepository.getTopPerformers();

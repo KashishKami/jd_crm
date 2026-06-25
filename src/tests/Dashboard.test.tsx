@@ -73,7 +73,7 @@ describe('Dashboard Component Unit Tests', () => {
     global.fetch = globalFetch;
   });
 
-  it('should render TotalSalesWidget when user has permission', () => {
+  it('should render ThisYearSalesWidget when user has permission', () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: { name: 'Admin', userPermissions: 'dashboard:total-sales' },
@@ -83,17 +83,17 @@ describe('Dashboard Component Unit Tests', () => {
 
     render(
       <DashboardPage
-        initialMetrics={{ totalSales: { amount: 30000, count: 150 } }}
+        initialMetrics={{ thisYearSales: { amount: 30000, count: 150, lastAmount: 20000, lastCount: 100, percentageChange: 50 } }}
         userPermissions="dashboard:total-sales"
         userName="Admin"
       />
     );
-    expect(screen.getByText('Total Sales')).toBeDefined();
-    expect(screen.getByText('30000')).toBeDefined();
+    expect(screen.getByText('This Year Sales')).toBeDefined();
+    expect(screen.getByText('30,000')).toBeDefined();
     expect(screen.getByText('(150 Sales)')).toBeDefined();
   });
 
-  it('should NOT render TotalSalesWidget when user lacks permission', () => {
+  it('should NOT render ThisYearSalesWidget when user lacks permission', () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: { name: 'Agent', userPermissions: 'vendors:view' },
@@ -108,7 +108,7 @@ describe('Dashboard Component Unit Tests', () => {
         userName="Agent"
       />
     );
-    expect(screen.queryByText('Total Sales')).toBeNull();
+    expect(screen.queryByText('This Year Sales')).toBeNull();
   });
 
   it('should render TopPerformersTable with ranks', () => {
@@ -149,10 +149,10 @@ describe('Dashboard Component Unit Tests', () => {
       />
     );
     expect(screen.getByText('Pending Booking')).toBeDefined();
-    expect(screen.getByText('1000')).toBeDefined();
+    expect(screen.getByText('1,000')).toBeDefined();
     expect(screen.getByText('(5 Sales)')).toBeDefined();
     expect(screen.getByText('Pending Shipment')).toBeDefined();
-    expect(screen.getByText('2000')).toBeDefined();
+    expect(screen.getByText('2,000')).toBeDefined();
     expect(screen.getByText('(8 Sales)')).toBeDefined();
   });
 

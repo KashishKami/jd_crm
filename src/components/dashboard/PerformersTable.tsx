@@ -26,7 +26,7 @@ export default function PerformersTable({ title, performers, isTop = true }: Per
         </div>
       ) : (
         <div className="card-table-container">
-          <table className="custom-table table-responsive" style={{ width: '100%' }}>
+          <table className="custom-table" style={{ width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ width: '45px' }}>Rank</th>

@@ -22,6 +22,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 9** | Order Intake & Sales Pipeline | **[x] COMPLETED** | Add order form, pipeline queues (Pending Tracking/Feedback) |
 | **Phase 9.5**| Order Status Workflow Standardization | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, routing, views |
 | **Phase 10**| Interactive Sales Dashboard | **[x] COMPLETED** | Metric counters, top/bottom performance widgets |
+| **Phase 10.5**| Dashboard UI Enhancements & Top Navbar Layout | **[ ] PENDING** | Navbar, dashboard charts, metric comparisons |
 | **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
 | **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[ ] PENDING** | Unified global search bar, order filters |
@@ -194,7 +195,7 @@ Install `lenis` and `gsap`. Wrap the app root in a `LenisProvider` client compon
   - [x] [Provider] Create `src/components/LenisProvider.tsx`:
     - `'use client'` component.
     - Initializes `new Lenis({ autoRaf: false })` on mount.
-    - Runs the Lenis RAF loop inside a `gsap.ticker.add((time) => lenis.raf(time * 1000))` call so GSAP and Lenis share a single animation frame tick.
+    - Runs the Lenis RAF loop inside a `gsap.ticker.add((time) => lenis.raf(time * 1000)) ` call so GSAP and Lenis share a single animation frame tick.
     - Cleans up on unmount (`lenis.destroy()`, `gsap.ticker.remove(...)`).
     - Exposes a `useLenis()` context hook for child components that need to call `lenis.scrollTo()`.
   - [x] [Layout] Add `<LenisProvider>` inside `src/app/layout.tsx`, wrapping the `<LayoutShell>` children.
@@ -582,6 +583,122 @@ For the team monthly widgets, expose a separate `/api/dashboard/teams/monthly?mo
 
 ---
 
+### Phase 10.5 — Dashboard UI Enhancements & Top Navbar Layout
+
+#### W-1051 — Top Navigation Navbar Layout & Sidebar Decommissioning
+
+**Goal:**
+Replace the current vertical collapsible sidebar navigation with a responsive, modern top-aligned navigation navbar matching the Zenith reference mockup, supporting swipeable navigation links on mobile viewports.
+
+**Approach:**
+Implement a new `Navbar.tsx` component to render the "JD CRM" logo on the left, horizontal pill links (Dashboard, Orders, Vendors, Agents, Gateways) in the center, and the "Sign Out" button on the right. Modify `LayoutShell.tsx` and `layout.css` to accommodate a single-column container layout. Enable horizontal swiping on mobile viewports using CSS flex layout and hidden scrollbars.
+
+---
+
+- [x] **RED — Integration (N/A):**
+  - [x] `N/A` — pure UI refactoring of navigation layout structure; base authentication, permissions checks, and routing functionality remain unchanged.
+
+- [x] **RED — Unit / Component (`Navbar.test.tsx`):**
+  - [x] Test: Mount `Navbar`. Assert logo "JD CRM" is rendered.
+  - [x] Test: Given a session with `agents:view` permission, verify "Agents" nav link is rendered. Given a session without it, verify "Agents" nav link is hidden.
+  - [x] Test: Assert clicking the "Sign Out" button calls NextAuth's `signOut()` handler.
+  - [x] Test: On viewports <= 768px, assert that the nav container CSS allows horizontal scrolling (`overflow-x: auto`).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Component → Styles):**
+  - [x] [Component] Create `src/components/Navbar.tsx` rendering the top logo, permission-checked navigation pill links (rounded borders with dark background active style), and user sign-out action button.
+  - [x] [Component] In `src/components/LayoutShell.tsx`, replace `<Sidebar />` with `<Navbar />` and remove sidebar-specific toggle states, backdrop elements, and sliding GSAP animation triggers.
+  - [x] [Styles] Modify `src/app/layout.css` and `src/app/components.css` to update layout container classes (`.app-container`, `.main-content`) to a single-column layout. Implement `.top-navbar`, `.nav-pills`, `.nav-pill-btn`, and mobile-swipe rules `.swipable-nav`.
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Authenticated agent visits `/` → navbar renders at the top with "JD CRM" logo on the left and navigation pills in the middle → agent shrinks the viewport to mobile width → navigation pills collapse into a swipeable horizontal row → agent swiped left to see all items and clicks "Vendors" → browser routes to `/vendors` and the "Vendors" pill button is highlighted active → ✅ Done.
+
+---
+
+#### W-1052 — Modernized KPI Cards with Mini-Histogram Sparklines
+
+**Goal:**
+Improve dashboard readability and match reference mockup layouts by transforming the KPI cards to use light grey borders, display a "View Details ->" link at the bottom right, and replace static icons with dynamic comparison sparkline histograms that plot current vs. last period values with trend directions and percentage change metrics.
+
+**Approach:**
+Modify dashboard repository queries and service calculations to return sales comparisons:
+1. "This Year Sales" (replaces all-time "Total Sales"): current calendar year vs. last calendar year.
+2. "Sales This Month": current month vs. last month.
+3. "Today's Sales": today vs. yesterday.
+4. "Net Sales": current month net vs. last month net.
+Refund and Chargeback cards will have no comparison sparklines and are placed last in the KPI grid sequence. Re-design `MetricCard.tsx` using SVG elements (two columns representing last vs current, with a trend line overlay) and style cards with light grey borders.
+
+---
+
+- [x] **RED — Integration (`dashboard.test.ts`):**
+  - [x] Test: `GET /api/dashboard/metrics` response includes a `thisYearSales` object containing `{ amount, count, lastAmount, lastCount, percentageChange }` instead of all-time `totalSales`.
+  - [x] Test: The response includes comparison objects containing `{ currentAmount, currentCount, lastAmount, lastCount, percentageChange }` for `salesThisMonth`, `todaySales`, and `netSales`.
+  - [x] Test: The `refundThisMonth` and `chargebackThisMonth` objects contain no comparison metadata fields.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service):**
+  - [x] [Repository] In `dashboard.repository.ts`, implement database aggregation helpers `getSalesForYear(year: number)`, `getSalesForMonth(month: number, year: number)`, `getSalesForDate(dateStr: string)`, and `getNetSalesForMonth(month: number, year: number)`.
+  - [x] [Service] In `dashboard.service.ts`, compute current-to-prior period comparisons and percentage increase/decrease values for sales metrics. Structure the return payload of `getMetricsForUser` to include these computed comparison nodes in sequence.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`MetricCard.test.tsx`):**
+  - [x] Test: Given comparison parameters, verify that `MetricCard` renders an SVG sparkline histogram along with the percentage change text and trend indicator icon (green up-arrow for positive change, red down-arrow for negative).
+  - [x] Test: Verify "View Details ->" is rendered at the bottom right of the card linking to the appropriate filtered orders route.
+  - [x] Test: Clicking the "This Year Sales" card routes to `/orders?saleStatus=1&dateFrom=YYYY-01-01&dateTo=YYYY-12-31` (dynamically using current year).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] In `src/types/dashboard.ts`, update `DashboardMetrics` to support comparisons: `{ currentAmount, currentCount, lastAmount, lastCount, percentageChange }`.
+  - [x] [Component] In `src/app/dashboard_client_page.tsx`, update the cards array mapping to sort in sequence: "This Year Sales", "Sales This Month", "Today's Sales", "Net Sales", "Refunds", "Chargebacks". Remove hardcoded icons.
+  - [x] [Component] In `src/components/dashboard/MetricCard.tsx`, update styling classes to render cards with a white background, light grey borders (`border: 1px solid #e2e8f0`), and custom padding. Render the SVG Sparkline and comparison elements (left: "From last period" label, right: percentage change pill, bottom-right: "View Details ->" action link).
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User navigates to dashboard → 6 KPI cards are rendered with white backgrounds and light grey borders → first 4 cards show a mini bar-and-line sparkline trend next to the metric value, with a percentage pill at the top right → Refunds and Chargebacks cards are rendered last with no sparklines → user clicks "This Year Sales" → redirected to orders search pre-filtered for current year sold orders → ✅ Done.
+
+---
+
+#### W-1053 — Interactive Sales & Orders Advanced Chart with Dynamic Granularity
+
+**Goal:**
+Build a permission-guarded interactive chart widget below the KPI cards grid, displaying a combined smooth line chart and bar histogram for Sales Amount or Order Count, complete with Sales Team, Range, and corresponding dynamically enabled/disabled Granularity dropdown filters.
+
+**Approach:**
+Create a permission-restricted API endpoint `/api/dashboard/advanced-chart` that queries aggregated database orders filtered by team and date range, grouped by granularity. Create an interactive `AdvancedChartWidget.tsx` component that queries this endpoint when filters change. Implement front-end granularity validation to grey out and disable option dropdowns based on the selected range. Draw the line and bar charts using styled react SVG coordinates.
+
+---
+
+- [ ] **RED — Integration (`dashboard.test.ts`):**
+  - [ ] Test: `GET /api/dashboard/advanced-chart?range=7d&granularity=daily` returns a JSON array of 7 items matching `{ label, amount, count }`.
+  - [ ] Test: `GET /api/dashboard/advanced-chart?teamId=1&range=year&granularity=monthly` filters data to Team 1 and returns monthly values.
+  - [ ] Test: Fetching `/api/dashboard/advanced-chart` with a session missing `dashboard:view-advanced-chart` returns `403 Forbidden`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] In `dashboard.repository.ts`, implement `getAdvancedChartData(teamId?: number, dateFrom: Date, dateTo: Date, granularity: 'daily' | 'monthly' | 'yearly')` grouping orders by the database date grouping expressions.
+  - [ ] [Service] In `dashboard.service.ts`, implement date calculations for range parameters: `Last 7 Days` (last 7 days), `Last 30 Days` (last 30 days), `Current Year` (from Jan 1st of current year to today), and `All Time` (from first order date to today).
+  - [ ] [Controller] Create endpoint `/api/dashboard/advanced-chart` in `src/app/api/dashboard/advanced-chart/route.ts` checking permission `dashboard:view-advanced-chart` and returning structured aggregates.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit / Component (`AdvancedChartWidget.test.tsx`):**
+  - [ ] Test: Mount `AdvancedChartWidget`. Verify toggle button alters local state between sales amount and order count.
+  - [ ] Test: Verify selecting Range "Last 7 Days" disables the "Monthly" and "Yearly" options in the Granularity dropdown.
+  - [ ] Test: Verify selecting Range "Current Year" disables the "Daily" option in the Granularity dropdown.
+  - [ ] Test: Assert SVG rendering elements (`<rect>`, `<path>`) are rendered when the chart loads with data.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Types] In `src/types/dashboard.ts`, add types for `AdvancedChartDataPoint` and widget filter states.
+  - [ ] [Component] Implement `src/components/dashboard/AdvancedChartWidget.tsx` containing dropdowns (Sales Team, Range, Granularity), toggle selectors (Sales Amount / Number of Orders), granularity validation mapping, and SVG elements to render line path (using bezier interpolation with gradient stroke) and histogram bars (using SVG `<rect>` shapes).
+  - [ ] [Integration] In `src/app/dashboard_client_page.tsx`, mount `<AdvancedChartWidget />` directly under the KPI cards scoreboard if user permissions list contains `dashboard:view-advanced-chart`.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin views dashboard → below KPI cards, a large chart panel displays Sales Amount over time → Admin clicks "Number of Orders" → chart updates immediately to show order counts → Admin changes Range to "Last 7 Days" → "Monthly" and "Yearly" checkboxes in the Granularity selector are greyed out and unclickable → Admin logs in as restricted agent lacking `dashboard:view-advanced-chart` → chart card is not rendered on the page → ✅ Done.
+
+---
+
 ### Phase 11 — Comments & Audits System
 
 #### W-1101 — Order Comment Timeline & Image Upload
@@ -880,3 +997,34 @@ Build a search repository with a parameterized LIKE query across the most useful
   - Modified `order.repository.ts` to include the nested `team` relation when fetching `salesAgent`.
   - Added a backend integration test in `src/tests/orders.test.ts` to verify `teamId` query parameter filtering.
   - Verification: All tests passed cleanly (82/82 tests green), type checks and ESLint checks passed successfully.
+
+### Session 10 — June 25, 2026
+  **Phase 10.5 - UI & Navbar Styling Corrections**
+  - Updated the global background color definition in `layout.css` to pure white (`#ffffff`).
+  - Restructured the mobile Navbar layout in `layout.css` to place the `JD CRM` logo on the left, the user avatar dropdown button on the right with a premium ring border, and the navigation pills menu wrapped on a new line below.
+  - Fixed mobile menu cutting off by setting `justify-content: flex-start` on the scrollable navbar menu, and scaled down font size/paddings on mobile devices.
+  - Applied a thick grey border (`3px solid #cbd2d9`) and rounded corners (`16px`) on executive dashboard metric cards and Orders Journey cards in `components.css` (setting card padding to `0` globally and in both `1280px` and `768px` media queries to completely remove white gaps).
+  - Configured card footer band with `#cbd2d9` background matching the border color exactly, a thick top border (`3px solid #cbd2d9`), and aligned footer items cleanly in both `MetricCard.tsx` and `PendingCountsRow.tsx`.
+  - Desaturated the entire application's primary color theme (using soft slate blue `#4b7ccd`/`#3b5982` for blue, soft sage `#5c8f76` for green, soft red `#b25353` for red, soft tan `#a47c5c` for amber, and `#cbd2d9` for card borders/footers) to present a softer, muted visual palette.
+  - Removed the "From last..." comparison text when a card comparison exists, and kept original font configurations intact.
+  - Converted sparkline connection lines to smooth cubic bezier curves and enabled sparkline visibility on mobile viewports.
+  - Fixed performers tables width issues on smaller screens by removing the `table-responsive` class.
+  - Verification: All 91 unit and integration tests passed successfully.
+
+### Session 11 — June 25, 2026
+  **Phase 10.5 - Card Border & Footer Alignment, Double Column No-Graph Grid**
+  - Lightened the grey borders, sparkline background fills, and footer bands across all metric cards on the dashboard to `#f1f5f9` (slate-100) to blend card elements seamlessly with the white background.
+  - Removed JS-based mouse listeners (`onMouseEnter` / `onMouseLeave`) from `MetricCard.tsx` and `PendingCountsRow.tsx`, moving hover logic entirely to the CSS class `.metric-card-interactive` to prevent dynamic border-color desyncs.
+  - Removed description lines ("Returned funds this month" and "Disputed orders this month") from the footer bands of the Refunds and Chargebacks cards to present a uniform "View Details →" footer layout.
+  - Rendered all scoreboard cards in a single `kpi-cards-grid` in `dashboard_client_page.tsx`, and configured CSS Grid columns and spans in `layout.css` so that on mobile/phone screens, cards with graphs span the full width (1 per row) while cards without graphs (Refunds and Chargebacks) share the row (2 in a row). On desktop and tablet viewports, all cards render naturally in a standard grid (3 columns on desktop, 2 columns on tablet) without separate sections.
+  - Fixed a formatting mismatch in `Dashboard.test.tsx` where pending count assertions expected unformatted numbers rather than localized numeric strings (e.g. `1,000` and `2,000`).
+  - Added inline style overrides (`border: '3px solid #f1f5f9'`) to both `MetricCard.tsx` and `PendingCountsRow.tsx` wrappers and footer bands to completely bypass any browser/dev server caching issues and guarantee that the borders and footers match perfectly on all viewports and states.
+  - Removed the path (connection curve line) and circle (trend indicator dot) from the sparkline SVG in `MetricCard.tsx`, keeping only the previous and current period comparison bars.
+  - Increased the heading font sizes (`.page-title`) slightly on all screens (default to `1.85rem`, 1280px to `1.6rem`, and 768px to `1.45rem`) and set `min-height` to prevent text clipping from gradient backgrounds.
+  - Standardized `.metric-card` size to remain constant (with a baseline `min-height: 130px`) across all screens by removing media query overrides.
+  - Scaled down `.metric-card-title`, `.metric-card-value`, and `.metric-card-footer` ("View Details") text sizes progressively across laptop (`max-width: 1280px`), tablet (`max-width: 1024px`), and mobile/phone screens (`max-width: 768px`) to prevent card labels (e.g. "SALES THIS MONTH") and view details links from wrapping or looking too large on smaller viewports.
+
+
+
+
+

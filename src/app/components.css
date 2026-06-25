@@ -13,7 +13,7 @@
 }
 
 .page-title {
-  font-size: 1.6rem;
+  font-size: 1.85rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   background: linear-gradient(120deg, #1e293b 25%, #2563eb 100%);
@@ -22,10 +22,10 @@
   color: transparent;
   display: inline-flex;
   align-items: center;
-  height: 36px;
-  line-height: 1;
+  min-height: 42px;
+  line-height: 1.1;
   margin: 0 !important;
-  padding-left: 48px !important;
+  padding-left: 0 !important;
 }
 
 .page-subtitle {
@@ -263,13 +263,13 @@
 }
 
 .status-active {
-  background-color: #f0fdf4;
-  color: #15803d;
+  background-color: #f2f7f4;
+  color: #5c8f76;
 }
 
 .status-inactive {
-  background-color: #fef2f2;
-  color: #b91c1c;
+  background-color: #faf2f2;
+  color: #b25353;
 }
 
 /* Actions Column */
@@ -685,9 +685,9 @@
 
 .metric-card {
   background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 20px;
+  border: 3px solid #f1f5f9;
+  border-radius: 16px;
+  padding: 0;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -698,11 +698,16 @@
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.metric-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.12), 0 8px 12px -6px rgba(0, 0, 0, 0.08);
-  border-color: #94a3b8;
+.metric-card-interactive {
+  cursor: pointer;
 }
+
+.metric-card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+
 
 .metric-card-title {
   font-size: 0.8rem;
@@ -758,9 +763,8 @@
 
 .metric-card-footer {
   font-size: 0.72rem;
-  color: var(--accent-color);
-  font-weight: 600;
-  margin-top: 10px;
+  color: #3b5982;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -777,27 +781,29 @@
 /* Width Breakpoint: 1280px (Laptops & Medium Desktops) */
 @media (max-width: 1280px) {
   .page-title {
-    font-size: 1.4rem;
+    font-size: 1.6rem;
   }
   .page-subtitle {
     font-size: 0.8rem;
   }
   
   .metric-card {
-    padding: 16px;
-    min-height: 110px;
+    padding: 0;
   }
   .metric-card-title {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
   }
   .metric-card-value {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
   }
   .metric-card-prefix {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
   }
   .metric-card-count {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+  }
+  .metric-card-footer {
+    font-size: 0.68rem;
   }
   
   .custom-table th {
@@ -859,6 +865,21 @@
   .flex-wrap-container {
     margin-top: 4px;
   }
+  .metric-card-title {
+    font-size: 0.65rem;
+  }
+  .metric-card-value {
+    font-size: 1.35rem;
+  }
+  .metric-card-prefix {
+    font-size: 1.05rem;
+  }
+  .metric-card-count {
+    font-size: 0.65rem;
+  }
+  .metric-card-footer {
+    font-size: 0.65rem;
+  }
 }
 
 /* Width Breakpoint: 768px (Mobile Screens) */
@@ -867,6 +888,10 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  .page-title {
+    font-size: 1.45rem;
+    min-height: 36px;
   }
   .page-header .btn-primary-custom,
   .page-header .btn-secondary-custom,
@@ -877,20 +902,22 @@
   }
   
   .metric-card {
-    padding: 12px;
-    min-height: 95px;
+    padding: 0;
   }
   .metric-card-title {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
   }
   .metric-card-value {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
   .metric-card-prefix {
-    font-size: 1rem;
+    font-size: 0.9rem;
   }
   .metric-card-count {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
+  }
+  .metric-card-footer {
+    font-size: 0.6rem;
   }
   .metric-card-icon-container {
     display: none;
@@ -960,13 +987,13 @@
 }
 
 .status-leaders {
-  background-color: #f0fdf4;
-  color: #16a34a;
+  background-color: #f2f7f4;
+  color: #5c8f76;
 }
 
 .status-needs-review {
-  background-color: #fffbeb;
-  color: #b45309;
+  background-color: #faf7f2;
+  color: #a47c5c;
 }
 
 /* Table container padding */
@@ -1038,3 +1065,57 @@
     font-size: 0.65rem !important;
   }
 }
+
+/* MetricCard Premium Shaded Footer Band & Responsiveness */
+.metric-card-body {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.metric-card-footer-band {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f1f5f9;
+  border-top: 3px solid #f1f5f9;
+  padding: 14px 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.metric-card-value-wrapper {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.metric-card-comparison-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.metric-card-period-label {
+  font-size: 0.72rem;
+  color: #2f3e4e;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .metric-card-body {
+    padding: 12px;
+  }
+  .metric-card-footer-band {
+    padding: 8px 12px;
+  }
+  .metric-card-sparkline {
+    display: block !important;
+  }
+}
+

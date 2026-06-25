@@ -23,6 +23,7 @@ if (globalForPrisma.prisma) {
     password: decodeURIComponent(url.password),
     database: decodeURIComponent(url.pathname.replace(/^\//, '')),
     connectionLimit: 10,
+    allowPublicKeyRetrieval: true,
   });
 
   prismaInstance = new PrismaClient({

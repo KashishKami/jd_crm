@@ -56,7 +56,7 @@ describe('Dashboard Integration Tests', () => {
       expect(data.error).toBe('Unauthorized');
     });
 
-    it('should return all metrics for super-admin', async () => {
+    it('should return all metrics for super-admin with comparison details', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
       });
@@ -67,7 +67,7 @@ describe('Dashboard Integration Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data).toHaveProperty('totalSales');
+      expect(data).toHaveProperty('thisYearSales');
       expect(data).toHaveProperty('totalSalesThisMonth');
       expect(data).toHaveProperty('todaySales');
       expect(data).toHaveProperty('chargebackThisMonth');
@@ -78,6 +78,27 @@ describe('Dashboard Integration Tests', () => {
       expect(data).toHaveProperty('recentOrders');
       expect(data).toHaveProperty('attendanceSummary');
       expect(data).toHaveProperty('pendingCounts');
+
+      // Assert comparison fields exist on sales metrics
+      expect(data.thisYearSales).toHaveProperty('lastAmount');
+      expect(data.thisYearSales).toHaveProperty('lastCount');
+      expect(data.thisYearSales).toHaveProperty('percentageChange');
+
+      expect(data.totalSalesThisMonth).toHaveProperty('lastAmount');
+      expect(data.totalSalesThisMonth).toHaveProperty('lastCount');
+      expect(data.totalSalesThisMonth).toHaveProperty('percentageChange');
+
+      expect(data.todaySales).toHaveProperty('lastAmount');
+      expect(data.todaySales).toHaveProperty('lastCount');
+      expect(data.todaySales).toHaveProperty('percentageChange');
+
+      expect(data.netSales).toHaveProperty('lastAmount');
+      expect(data.netSales).toHaveProperty('lastCount');
+      expect(data.netSales).toHaveProperty('percentageChange');
+
+      // Assert no comparison fields exist on refunds and chargebacks
+      expect(data.refundThisMonth).not.toHaveProperty('lastAmount');
+      expect(data.chargebackThisMonth).not.toHaveProperty('lastAmount');
     });
 
     it('should restrict metrics based on permissions', async () => {
@@ -91,7 +112,7 @@ describe('Dashboard Integration Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data).toHaveProperty('totalSales');
+      expect(data).toHaveProperty('thisYearSales');
       expect(data).not.toHaveProperty('topPerformers');
       expect(data).not.toHaveProperty('bottomPerformers');
       expect(data).not.toHaveProperty('netSales');

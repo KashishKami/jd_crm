@@ -32,13 +32,21 @@ export interface MetricValue {
   count: number;
 }
 
+export interface ComparisonMetricValue {
+  amount: number;
+  count: number;
+  lastAmount: number;
+  lastCount: number;
+  percentageChange: number;
+}
+
 export interface DashboardMetrics {
-  totalSales?: MetricValue;
-  totalSalesThisMonth?: MetricValue;
-  todaySales?: MetricValue;
+  thisYearSales?: ComparisonMetricValue;
+  totalSalesThisMonth?: ComparisonMetricValue;
+  todaySales?: ComparisonMetricValue;
   chargebackThisMonth?: MetricValue;
   refundThisMonth?: MetricValue;
-  netSales?: MetricValue;
+  netSales?: ComparisonMetricValue;
   topPerformers?: PerformerRow[];
   bottomPerformers?: PerformerRow[];
   recentOrders?: RecentOrderRow[];

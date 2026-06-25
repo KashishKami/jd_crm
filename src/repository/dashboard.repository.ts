@@ -1,8 +1,14 @@
 import { prisma } from '../lib/db';
 
-export async function getTotalSales() {
+export async function getSalesBetweenDates(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
-    where: { saleStatus: '1' },
+    where: {
+      saleStatus: '1',
+      orderDate: {
+        gte: start,
+        lt: end,
+      },
+    },
     select: { orderMarkup: true },
   });
   let amount = 0;
@@ -10,50 +16,57 @@ export async function getTotalSales() {
     amount += parseFloat(order.orderMarkup || '0');
   }
   return { amount, count: orders.length };
+}
+
+export async function getNetSalesBetweenDates(start: Date, end: Date) {
+  const orders = await prisma.crmOrders.findMany({
+    where: {
+      saleStatus: { in: ['1', '7', '8'] },
+      orderDate: {
+        gte: start,
+        lt: end,
+      },
+    },
+    select: {
+      saleStatus: true,
+      orderMarkup: true,
+    },
+  });
+
+  let amount = 0;
+  let count = 0;
+  for (const order of orders) {
+    const val = parseFloat(order.orderMarkup || '0');
+    if (order.saleStatus === '1') {
+      amount += val;
+      count += 1;
+    } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+      amount -= val;
+      count -= 1;
+    }
+  }
+  return { amount, count };
+}
+
+export async function getThisYearSales() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear() + 1, 0, 1);
+  return getSalesBetweenDates(start, end);
 }
 
 export async function getTotalSalesThisMonth() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: '1',
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: { orderMarkup: true },
-  });
-  let amount = 0;
-  for (const order of orders) {
-    amount += parseFloat(order.orderMarkup || '0');
-  }
-  return { amount, count: orders.length };
+  return getSalesBetweenDates(start, end);
 }
 
 export async function getTodaySales() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: '1',
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: { orderMarkup: true },
-  });
-  let amount = 0;
-  for (const order of orders) {
-    amount += parseFloat(order.orderMarkup || '0');
-  }
-  return { amount, count: orders.length };
+  return getSalesBetweenDates(start, end);
 }
 
 export async function getChargebackThisMonth() {
