@@ -33,17 +33,14 @@ export default function MetricCard({
   const [displayValue, setDisplayValue] = React.useState(amount);
 
   useEffect(() => {
+    const end = amount;
+
+    // In test environments, skip animation entirely — initial state already equals amount
     if (process.env.NODE_ENV === 'test') {
-      setDisplayValue(amount);
       return;
     }
 
-    const start = 0;
-    const end = amount;
-    if (start === end) {
-      setDisplayValue(end);
-      return;
-    }
+    if (displayValue === end) return;
 
     const duration = 1200; // 1.2 seconds animation
     const startTime = performance.now();
@@ -53,8 +50,8 @@ export default function MetricCard({
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easeProgress = progress * (2 - progress);
-      const currentValue = Math.floor(start + easeProgress * (end - start));
-      
+      const currentValue = Math.floor(easeProgress * end);
+
       setDisplayValue(currentValue);
 
       if (progress < 1) {
@@ -69,7 +66,7 @@ export default function MetricCard({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [amount]);
+  }, [amount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sparkline calculations
   const hasComparison = lastAmount !== undefined && percentageChange !== undefined;

@@ -408,3 +408,39 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
 
   return bottomAgent;
 }
+
+export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {
+  const where: any = {
+    saleStatus: { in: ['1', '7', '8'] },
+  };
+
+  if (dateFrom || dateTo) {
+    where.orderDate = {};
+    if (dateFrom) {
+      where.orderDate.gte = dateFrom;
+    }
+    if (dateTo) {
+      where.orderDate.lte = dateTo;
+    }
+  }
+
+  if (agentId) {
+    where.orderSalesAgentId = agentId;
+  } else if (teamId) {
+    where.salesAgent = {
+      teamId: teamId,
+    };
+  }
+
+  return await prisma.crmOrders.findMany({
+    where,
+    select: {
+      orderDate: true,
+      orderMarkup: true,
+      saleStatus: true,
+    },
+    orderBy: {
+      orderDate: 'asc',
+    },
+  });
+}

@@ -48,10 +48,57 @@ Now we will use Prisma on your computer to automatically build the 14 new InnoDB
 ### Step 5: Seed Baseline Roles, Teams, and the Admin Account
 To populate the database with default teams, roles, designations, and the default Super Admin user:
 
-1.  Open [seed.sql](file:///c:/Users/Administrator/Desktop/JD%20CRM/seed.sql) in your editor and copy its entire contents.
+1.  Open [seed.sql](/seed.sql) in your editor and copy its entire contents.
 2.  In GoDaddy cPanel, open **phpMyAdmin** and select your new database (`jd_crm_new`).
 3.  Click the **SQL** tab at the top.
 4.  Paste the contents of `seed.sql` into the text box and click **Go**.
 5.  *(Optional)* If phpMyAdmin complains about `USE jd_crm;` at the top of the script, you can remove line 1 of the SQL script and run it again.
 
 Your GoDaddy database is now fully set up, structured, and ready! Let me know when this is done, and we can look at migrating your legacy data or setting up the Vercel hosting.
+
+---
+
+Yes, you can easily delete or clean out the seed data later when you're ready to import your real production database. Here are the ways you can do it:
+
+1.  **Direct SQL Cleanup (Recommended):** When you're ready to switch to your real data, you can run cleanup statements directly in your phpMyAdmin SQL tab to clear the test tables:
+    ```sql
+SET FOREIGN_KEY_CHECKS = 0;
+DELETE FROM crm_comments;
+DELETE FROM crm_orders;
+DELETE FROM crm_customer_cards;
+DELETE FROM crm_customers;
+DELETE FROM crm_vendors;
+DELETE FROM crm_gateway;
+DELETE FROM crm_role_permissions;
+DELETE FROM crm_permissions;
+DELETE FROM crm_attendance;
+DELETE FROM users_profile_professional;
+DELETE FROM users_profile_academic;
+DELETE FROM users_profile;
+DELETE FROM users;
+DELETE FROM crm_roles;
+DELETE FROM crm_teams;
+DELETE FROM crm_designations;
+DELETE FROM admin;
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+    ```
+2.  **Prisma Reset:** During development, you can run `npx prisma migrate reset` in your terminal. This will completely wipe all tables in the database and re-run migrations from scratch.
+3.  **Migration Script:** When we write the data import script, we can include a command at the very start to clear the test records automatically before inserting the real data.
+
+---
+
+### Seeding New Accounts
+I have updated [seed.sql](/seed.sql) to include a test account for every user role, and successfully pushed the changes to your GitHub repository. 
+
+Here are the usernames and passwords you can use to access the CRM:
+
+| Role Name | Username | Password |
+| :--- | :--- | :--- |
+| **Super Administrator** | `admin` | `admin123` |
+| **Sales Manager** | `manager` | `manager123` |
+| **Sales Agent** | `agent` | `agent123` |
+| **Verifier** | `verifier` | `verifier123` |
+
+You can copy the contents of the updated `seed.sql` and run them in your GoDaddy phpMyAdmin SQL tab to populate these test accounts!

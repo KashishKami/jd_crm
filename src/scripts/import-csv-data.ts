@@ -104,7 +104,7 @@ async function main() {
   // Fetch seeded agents to map aliases to uids
   console.log('Fetching seeded agents...');
   const agentsInDb = await prisma.users.findMany({
-    select: { uid: true, nickname: true },
+    select: { uid: true, nickname: true, username: true },
   });
   for (const agent of agentsInDb) {
     if (agent.nickname) {
@@ -112,6 +112,15 @@ async function main() {
     }
   }
   console.log(`Loaded ${agentCache.size} agent aliases into memory cache.`);
+
+  // Resolve the fallback admin uid safely (admin user has username = 'admin')
+  const adminUser = agentsInDb.find(a => a.username === 'admin');
+  const FALLBACK_AGENT_UID: number | null = adminUser?.uid ?? null;
+  if (!FALLBACK_AGENT_UID) {
+    console.warn('WARNING: Admin user (username=admin) not found. Comments without a matched agent will be skipped.');
+  } else {
+    console.log(`Fallback comment agent resolved to uid=${FALLBACK_AGENT_UID} (admin).`);
+  }
 
   // Cleanup dynamic tables before importing (to start fresh)
   console.log('Cleaning up existing database records (Orders, Cards, Customers, Gateways, Vendors)...');
@@ -261,13 +270,15 @@ async function main() {
 
         // Create Card details if present
         if (cardNumber && cardNumber !== 'NA' && cardNumber !== '') {
+          // Truncate CVV to VARCHAR(5) max — guard against malformed CSV data
+          const safeCvv = (cvvCode && cvvCode !== 'NA' && cvvCode !== '') ? cvvCode.substring(0, 5) : null;
           await tx.crmCustomerCards.create({
             data: {
               cardCustomerId: customer.customerId,
               customerNameOncard: nameOnCard || customerNameClean,
               customerCardNumber: cardNumber,
               customerCardExpDate: expiryDate || 'NA',
-              customerCardCvv: cvvCode || 'NA',
+              customerCardCvv: safeCvv,
               customerCardCreatedAt: orderDateParsed,
               customerCardUpdated: new Date(),
             },
@@ -309,14 +320,16 @@ async function main() {
         });
 
         // Add Remarks as a Comment
-        if (remarks && remarks !== 'NA' && remarks !== '') {
+        // Only create comment if we have a valid agent FK — commentAgentId is NOT NULL
+        const commentAgentUid = agentId ?? FALLBACK_AGENT_UID;
+        if (remarks && remarks !== 'NA' && remarks !== '' && commentAgentUid !== null) {
           await tx.crmComments.create({
             data: {
               customerId: customer.customerId,
               orderId: order.crmOrderId,
               comment: remarks,
-              commentAgentId: agentId || 1, // Fallback to Admin if no agent matched
-              commentAgentName: salesAgentName || 'System',
+              commentAgentId: commentAgentUid,
+              commentAgentName: salesAgentName || 'Admin',
               commentCreatedDate: orderDateParsed,
               commentUpdatedDate: new Date(),
             },

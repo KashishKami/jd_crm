@@ -24,6 +24,8 @@ if (globalForPrisma.prisma) {
     database: decodeURIComponent(url.pathname.replace(/^\//, '')),
     connectionLimit: 10,
     allowPublicKeyRetrieval: true,
+    connectTimeout: 30000,   // 30s socket connect timeout (default is ~1s, too short for remote DBs)
+    acquireTimeout: 60000,   // 60s max wait to acquire a pooled connection
   });
 
   prismaInstance = new PrismaClient({

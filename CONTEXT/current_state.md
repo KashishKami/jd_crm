@@ -22,10 +22,11 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 9** | Order Intake & Sales Pipeline | **[x] COMPLETED** | Add order form, pipeline queues (Pending Tracking/Feedback) |
 | **Phase 9.5**| Order Status Workflow Standardization | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, routing, views |
 | **Phase 10**| Interactive Sales Dashboard | **[x] COMPLETED** | Metric counters, top/bottom performance widgets |
-| **Phase 10.5**| Dashboard UI Enhancements & Top Navbar Layout | **[ ] PENDING** | Navbar, dashboard charts, metric comparisons |
+| **Phase 10.5**| Dashboard UI Enhancements & Top Navbar Layout | **[x] COMPLETED** | Navbar, dashboard charts, metric comparisons |
 | **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
 | **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[ ] PENDING** | Unified global search bar, order filters |
+| **Phase 14**| Admin Settings & RBAC Permissions | **[ ] PENDING** | Role settings page, permission matrices |
 
 ---
 
@@ -669,33 +670,33 @@ Create a permission-restricted API endpoint `/api/dashboard/advanced-chart` that
 
 ---
 
-- [ ] **RED — Integration (`dashboard.test.ts`):**
-  - [ ] Test: `GET /api/dashboard/advanced-chart?range=7d&granularity=daily` returns a JSON array of 7 items matching `{ label, amount, count }`.
-  - [ ] Test: `GET /api/dashboard/advanced-chart?teamId=1&range=year&granularity=monthly` filters data to Team 1 and returns monthly values.
-  - [ ] Test: Fetching `/api/dashboard/advanced-chart` with a session missing `dashboard:view-advanced-chart` returns `403 Forbidden`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`dashboard.test.ts`):**
+  - [x] Test: `GET /api/dashboard/advanced-chart?range=7d&granularity=daily` returns a JSON array of 7 items matching `{ label, amount, count }`.
+  - [x] Test: `GET /api/dashboard/advanced-chart?teamId=1&range=year&granularity=monthly` filters data to Team 1 and returns monthly values.
+  - [x] Test: Fetching `/api/dashboard/advanced-chart` with a session missing `dashboard:view-advanced-chart` returns `403 Forbidden`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] In `dashboard.repository.ts`, implement `getAdvancedChartData(teamId?: number, dateFrom: Date, dateTo: Date, granularity: 'daily' | 'monthly' | 'yearly')` grouping orders by the database date grouping expressions.
-  - [ ] [Service] In `dashboard.service.ts`, implement date calculations for range parameters: `Last 7 Days` (last 7 days), `Last 30 Days` (last 30 days), `Current Year` (from Jan 1st of current year to today), and `All Time` (from first order date to today).
-  - [ ] [Controller] Create endpoint `/api/dashboard/advanced-chart` in `src/app/api/dashboard/advanced-chart/route.ts` checking permission `dashboard:view-advanced-chart` and returning structured aggregates.
-  - [ ] Run integration test — **confirm GREEN**.
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] In `dashboard.repository.ts`, implement `getAdvancedChartData(teamId?: number, dateFrom: Date, dateTo: Date, granularity: 'daily' | 'monthly' | 'yearly')` grouping orders by the database date grouping expressions.
+  - [x] [Service] In `dashboard.service.ts`, implement date calculations for range parameters: `Last 7 Days` (last 7 days), `Last 30 Days` (last 30 days), `Current Year` (from Jan 1st of current year to today), and `All Time` (from first order date to today).
+  - [x] [Controller] Create endpoint `/api/dashboard/advanced-chart` in `src/app/api/dashboard/advanced-chart/route.ts` checking permission `dashboard:view-advanced-chart` and returning structured aggregates.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit / Component (`AdvancedChartWidget.test.tsx`):**
-  - [ ] Test: Mount `AdvancedChartWidget`. Verify toggle button alters local state between sales amount and order count.
-  - [ ] Test: Verify selecting Range "Last 7 Days" disables the "Monthly" and "Yearly" options in the Granularity dropdown.
-  - [ ] Test: Verify selecting Range "Current Year" disables the "Daily" option in the Granularity dropdown.
-  - [ ] Test: Assert SVG rendering elements (`<rect>`, `<path>`) are rendered when the chart loads with data.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit / Component (`AdvancedChartWidget.test.tsx`):**
+  - [x] Test: Mount `AdvancedChartWidget`. Verify toggle button alters local state between sales amount and order count.
+  - [x] Test: Verify selecting Range "Last 7 Days" disables the "Monthly" and "Yearly" options in the Granularity dropdown.
+  - [x] Test: Verify selecting Range "Current Year" disables the "Daily" option in the Granularity dropdown.
+  - [x] Test: Assert SVG rendering elements (`<rect>`, `<path>`) are rendered when the chart loads with data.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Types] In `src/types/dashboard.ts`, add types for `AdvancedChartDataPoint` and widget filter states.
-  - [ ] [Component] Implement `src/components/dashboard/AdvancedChartWidget.tsx` containing dropdowns (Sales Team, Range, Granularity), toggle selectors (Sales Amount / Number of Orders), granularity validation mapping, and SVG elements to render line path (using bezier interpolation with gradient stroke) and histogram bars (using SVG `<rect>` shapes).
-  - [ ] [Integration] In `src/app/dashboard_client_page.tsx`, mount `<AdvancedChartWidget />` directly under the KPI cards scoreboard if user permissions list contains `dashboard:view-advanced-chart`.
-  - [ ] Run unit tests — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] In `src/types/dashboard.ts`, add types for `AdvancedChartDataPoint` and widget filter states.
+  - [x] [Component] Implement `src/components/dashboard/AdvancedChartWidget.tsx` containing dropdowns (Sales Team, Range, Granularity), toggle selectors (Sales Amount / Number of Orders), granularity validation mapping, and SVG elements to render line path (using bezier interpolation with gradient stroke) and histogram bars (using SVG `<rect>` shapes).
+  - [x] [Integration] In `src/app/dashboard_client_page.tsx`, mount `<AdvancedChartWidget />` directly under the KPI cards scoreboard if user permissions list contains `dashboard:view-advanced-chart`.
+  - [x] Run unit tests — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin views dashboard → below KPI cards, a large chart panel displays Sales Amount over time → Admin clicks "Number of Orders" → chart updates immediately to show order counts → Admin changes Range to "Last 7 Days" → "Monthly" and "Yearly" checkboxes in the Granularity selector are greyed out and unclickable → Admin logs in as restricted agent lacking `dashboard:view-advanced-chart` → chart card is not rendered on the page → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin views dashboard → below KPI cards, a large chart panel displays Sales Amount over time → Admin clicks "Number of Orders" → chart updates immediately to show order counts → Admin changes Range to "Last 7 Days" → "Monthly" and "Yearly" checkboxes in the Granularity selector are greyed out and unclickable → Admin logs in as restricted agent lacking `dashboard:view-advanced-chart` → chart card is not rendered on the page → ✅ Done.
 
 ---
 
@@ -839,6 +840,50 @@ Build a search repository with a parameterized LIKE query across the most useful
 
 - [ ] **Verification chain:**
   - [ ] Agent types "Toyota Camry" into the global search bar in the sidebar → presses Enter → navigates to `/search?q=Toyota+Camry` → results page shows matching orders grouped by entity type → agent clicks an order row → navigates to `/orders/:id` → order detail renders → ✅ Done.
+
+---
+
+### Phase 14 — Admin Settings & RBAC Permission Management
+
+#### W-1401 — Dynamic Permissions Matrix & Role Management
+
+**Goal:**
+Create an administrative interface for configuring user permissions by role. Provide APIs to fetch, create, update, and delete roles, along with their mapped permissions, and safeguard administrative roles from lockouts.
+
+**Approach:**
+Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT /api/settings/roles/[id]`, and `DELETE /api/settings/roles/[id]`. Build a frontend matrix UI under `/settings/roles` showing a list of roles and a checklist of permissions. Enforce a transaction-safe database mapping using `CrmRolePermissions` and protect default administrator accounts.
+
+---
+
+- [ ] **RED — Integration (`settings.test.ts`):**
+  - [ ] Test: `GET /api/settings/roles` returns `403 Forbidden` for non-admin session.
+  - [ ] Test: `GET /api/settings/roles` for administrator returns array of roles, each with names and array of mapped permission IDs.
+  - [ ] Test: `PUT /api/settings/roles/2` updates role name and permission list, returning `200 OK`.
+  - [ ] Test: `PUT /api/settings/roles/1` (Super Admin) attempting to remove `super-admin` permission returns `400 Bad Request` (safeguard).
+  - [ ] Test: `DELETE /api/settings/roles/3` (role with active users) returns `400 Bad Request`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → Controller):**
+  - [ ] [Repository] Create `src/repository/role.repository.ts` with operations to list, create, update (atomic delete-and-insert transaction), and delete roles/permissions.
+  - [ ] [Service] Create `src/service/role.service.ts` validating requests, checking active users before role deletion, and enforcing admin lockout protection.
+  - [ ] [Controller] Create API handlers in `src/app/api/settings/roles/route.ts` and `src/app/api/settings/roles/[id]/route.ts`.
+  - [ ] [Controller] Create API handler in `src/app/api/settings/permissions/route.ts` to expose all defined permissions.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`RoleSettings.test.tsx`):**
+  - [ ] Test: Mount page and assert list of roles is rendered.
+  - [ ] Test: Clicking a role updates the permission checkbox state.
+  - [ ] Test: Checking/unchecking permissions and clicking Save sends a PUT request with the updated permission IDs list.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Components → Pages):**
+  - [ ] [Component] Build `src/components/settings/PermissionMatrix.tsx` displaying interactive checkboxes grouped by resource scope.
+  - [ ] [Page] Build `src/app/settings/roles/page.tsx` rendering the role sidebar alongside `<PermissionMatrix />` with GSAP transitions and save banners.
+  - [ ] [Navbar] Add a settings navigation pill under `Navbar.tsx` visible only to users with the `settings:manage-permissions` permission.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Super Admin navigates to `/settings/roles` -> selects "Verifier Staff" -> toggles "orders:edit" permission -> clicks Save -> logs in as a verifier in a new window -> verifies they now have access to order editing controls -> ✅ Done.
 
 ---
 
@@ -1023,6 +1068,15 @@ Build a search repository with a parameterized LIKE query across the most useful
   - Increased the heading font sizes (`.page-title`) slightly on all screens (default to `1.85rem`, 1280px to `1.6rem`, and 768px to `1.45rem`) and set `min-height` to prevent text clipping from gradient backgrounds.
   - Standardized `.metric-card` size to remain constant (with a baseline `min-height: 130px`) across all screens by removing media query overrides.
   - Scaled down `.metric-card-title`, `.metric-card-value`, and `.metric-card-footer` ("View Details") text sizes progressively across laptop (`max-width: 1280px`), tablet (`max-width: 1024px`), and mobile/phone screens (`max-width: 768px`) to prevent card labels (e.g. "SALES THIS MONTH") and view details links from wrapping or looking too large on smaller viewports.
+
+### Session 12 — June 26, 2026
+  **Phase 10.5 - Interactive Sales & Orders Advanced Chart with Dynamic Granularity (W-1053)**
+  - Implemented `getAdvancedChartData` in `dashboard.repository.ts` to fetch Sold orders within date ranges, supporting team filtering.
+  - Created `getAdvancedChartMetrics` in `dashboard.service.ts` to manage range bounds (`7d`, `30d`, `year`, `all`), enforce granularity constraints, and aggregate metrics dynamically.
+  - Built API route `/api/dashboard/advanced-chart` for permission-guarded fetch requests.
+  - Created the SVG-based `AdvancedChartWidget.tsx` React component rendering bezier curves and bar histograms with active metric toggle.
+  - Mounted `AdvancedChartWidget` under the KPI grid, updated `components.css` with layout chart classes, and updated `current_state.md` and types.
+  - Verification: All 99 integration/unit tests passed successfully.
 
 
 

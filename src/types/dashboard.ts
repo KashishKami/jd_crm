@@ -71,3 +71,13 @@ export interface TeamMonthlyReport {
   topPerformer?: TeamPerformerRow;
   bottomPerformer?: TeamPerformerRow;
 }
+
+export interface AdvancedChartDataPoint {
+  label: string;
+  salesAmount: number;
+  salesCount: number;
+  refundsAmount: number;
+  refundsCount: number;
+  chargebacksAmount: number;
+  chargebacksCount: number;
+}

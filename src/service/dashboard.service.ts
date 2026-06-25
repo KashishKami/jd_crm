@@ -140,3 +140,207 @@ export async function getTeamMonthlyReport(session: any, month: number, year: nu
 
   return enrichedReports;
 }
+
+export async function getAdvancedChartMetrics(
+  session: any,
+  teamId?: number,
+  agentId?: number,
+  range = '7d',
+  startDateStr?: string,
+  endDateStr?: string
+) {
+  const permissions = session?.user?.userPermissions || '';
+  if (!hasPermission(permissions, 'dashboard:view-advanced-chart')) {
+    throw new Error('Forbidden');
+  }
+
+  const now = new Date();
+  let dateFrom: Date;
+  let dateTo: Date;
+  let granularity = 'daily';
+  let isSingleBin = false;
+  let singleBinLabel = '';
+
+  const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+  const endOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+
+  if (range === 'today') {
+    dateFrom = startOfDay(now);
+    dateTo = endOfDay(now);
+    granularity = 'daily';
+  } else if (range === 'yesterday') {
+    const yest = new Date(now);
+    yest.setUTCDate(now.getUTCDate() - 1);
+    dateFrom = startOfDay(yest);
+    dateTo = endOfDay(yest);
+    granularity = 'daily';
+  } else if (range === '2d') {
+    const yest = new Date(now);
+    yest.setUTCDate(now.getUTCDate() - 1);
+    dateFrom = startOfDay(yest);
+    dateTo = endOfDay(now);
+    granularity = 'daily';
+  } else if (range === '7d') {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - 6);
+    dateFrom = startOfDay(start);
+    dateTo = endOfDay(now);
+    granularity = 'daily';
+  } else if (range === 'this-week') {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    dateFrom = startOfDay(start);
+    dateTo = endOfDay(now);
+    granularity = 'weekly';
+    isSingleBin = true;
+    singleBinLabel = 'This Week';
+  } else if (range === 'last-week') {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - now.getUTCDay() - 7);
+    const end = new Date(now);
+    end.setUTCDate(now.getUTCDate() - now.getUTCDay() - 1);
+    dateFrom = startOfDay(start);
+    dateTo = endOfDay(end);
+    granularity = 'weekly';
+    isSingleBin = true;
+    singleBinLabel = 'Last Week';
+  } else if (range === '30d') {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - 29);
+    dateFrom = startOfDay(start);
+    dateTo = endOfDay(now);
+    granularity = 'daily';
+  } else if (range === 'this-month') {
+    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+    dateTo = endOfDay(now);
+    granularity = 'monthly';
+    isSingleBin = true;
+    singleBinLabel = 'This Month';
+  } else if (range === 'last-month') {
+    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0));
+    dateTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
+    granularity = 'monthly';
+    isSingleBin = true;
+    singleBinLabel = 'Last Month';
+  } else if (range === '6m') {
+    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1, 0, 0, 0, 0));
+    dateTo = endOfDay(now);
+    granularity = 'monthly';
+  } else if (range === 'this-year' || range === 'year') {
+    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
+    dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
+    granularity = 'yearly';
+    isSingleBin = true;
+    singleBinLabel = 'This Year';
+  } else if (range === 'custom' && startDateStr && endDateStr) {
+    dateFrom = startOfDay(new Date(startDateStr));
+    dateTo = endOfDay(new Date(endDateStr));
+    const diffTime = Math.abs(dateTo.getTime() - dateFrom.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 31) {
+      granularity = 'daily';
+    } else if (diffDays <= 365) {
+      granularity = 'monthly';
+    } else {
+      granularity = 'yearly';
+    }
+  } else {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - 6);
+    dateFrom = startOfDay(start);
+    dateTo = endOfDay(now);
+    granularity = 'daily';
+  }
+
+  interface ClusteredBin {
+    label: string;
+    salesAmount: number;
+    salesCount: number;
+    refundsAmount: number;
+    refundsCount: number;
+    chargebacksAmount: number;
+    chargebacksCount: number;
+  }
+
+  const bins: ClusteredBin[] = [];
+
+  const formatUtcDateLabel = (date: Date, gran: string): string => {
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    if (gran === 'daily') {
+      return `${y}-${m}-${d}`;
+    } else if (gran === 'monthly') {
+      return `${y}-${m}`;
+    } else {
+      return String(y);
+    }
+  };
+
+  const createBin = (label: string): ClusteredBin => ({
+    label,
+    salesAmount: 0,
+    salesCount: 0,
+    refundsAmount: 0,
+    refundsCount: 0,
+    chargebacksAmount: 0,
+    chargebacksCount: 0,
+  });
+
+  // Generate bins
+  if (isSingleBin) {
+    bins.push(createBin(singleBinLabel));
+  } else if (granularity === 'daily') {
+    const temp = new Date(Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth(), dateFrom.getUTCDate()));
+    const end = new Date(Date.UTC(dateTo.getUTCFullYear(), dateTo.getUTCMonth(), dateTo.getUTCDate()));
+    while (temp <= end) {
+      bins.push(createBin(formatUtcDateLabel(temp, 'daily')));
+      temp.setUTCDate(temp.getUTCDate() + 1);
+    }
+  } else if (granularity === 'monthly') {
+    const temp = new Date(Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(dateTo.getUTCFullYear(), dateTo.getUTCMonth(), 1));
+    while (temp <= end) {
+      bins.push(createBin(formatUtcDateLabel(temp, 'monthly')));
+      temp.setUTCMonth(temp.getUTCMonth() + 1);
+    }
+  } else {
+    // yearly
+    const temp = new Date(Date.UTC(dateFrom.getUTCFullYear(), 0, 1));
+    const end = new Date(Date.UTC(dateTo.getUTCFullYear(), 0, 1));
+    while (temp <= end) {
+      bins.push(createBin(formatUtcDateLabel(temp, 'yearly')));
+      temp.setUTCFullYear(temp.getUTCFullYear() + 1);
+    }
+  }
+
+  // Query database
+  const orders = await dashboardRepository.getAdvancedChartData(teamId, agentId, dateFrom, dateTo);
+
+  // Fill bins
+  for (const o of orders) {
+    if (!o.orderDate) continue;
+    let bin;
+    if (isSingleBin) {
+      bin = bins[0];
+    } else {
+      const label = formatUtcDateLabel(new Date(o.orderDate), granularity);
+      bin = bins.find(b => b.label === label);
+    }
+    if (bin) {
+      const val = parseFloat(o.orderMarkup || '0');
+      if (o.saleStatus === '1') {
+        bin.salesAmount += val;
+        bin.salesCount += 1;
+      } else if (o.saleStatus === '7') {
+        bin.refundsAmount += val;
+        bin.refundsCount += 1;
+      } else if (o.saleStatus === '8') {
+        bin.chargebacksAmount += val;
+        bin.chargebacksCount += 1;
+      }
+    }
+  }
+
+  return bins;
+}

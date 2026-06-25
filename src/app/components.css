@@ -1119,3 +1119,56 @@
   }
 }
 
+/* Advanced Performance Analytics Chart Styling */
+.advanced-chart-card {
+  margin-top: 16px;
+  background-color: white;
+  border: 3px solid #f1f5f9;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.chart-toggle-btn {
+  transition: all 0.2s ease-in-out;
+  font-weight: 700;
+  border: 1px solid var(--border-color);
+  background-color: white;
+  color: var(--text-muted);
+}
+
+.chart-toggle-btn.active {
+  background-color: var(--accent-color) !important;
+  color: white !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 2px 6px rgba(75, 124, 205, 0.2);
+}
+
+.chart-toggle-btn:not(.active):hover {
+  background-color: #f8fafc;
+  color: var(--text-main);
+  border-color: #cbd5e1;
+}
+
+.chart-canvas-container {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 16px 12px;
+}
+
+.chart-canvas-container text {
+  font-family: inherit;
+  user-select: none;
+}
+
+.chart-canvas-container circle:hover {
+  r: 6;
+  fill: #4b7ccd;
+  stroke: white;
+  stroke-width: 2;
+  transition: all 0.15s ease-in-out;
+}
+

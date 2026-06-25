@@ -9,6 +9,7 @@ import RecentOrdersTable from '../components/dashboard/RecentOrdersTable';
 import AttendanceSummaryRow from '../components/dashboard/AttendanceSummaryRow';
 import PendingCountsRow from '../components/dashboard/PendingCountsRow';
 import TeamMonthlyScoresWidget from '../components/dashboard/TeamMonthlyScoresWidget';
+import AdvancedChartWidget from '../components/dashboard/AdvancedChartWidget';
 
 interface DashboardPageProps {
   initialMetrics?: DashboardMetrics;
@@ -154,6 +155,10 @@ export default function DashboardPage({
             ))}
           </div>
         </>
+      )}
+
+      {hasPermission(permissions, 'dashboard:view-advanced-chart') && (
+        <AdvancedChartWidget />
       )}
 
       {/* Leaderboard and Performance standings */}

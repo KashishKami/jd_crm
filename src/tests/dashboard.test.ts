@@ -344,4 +344,128 @@ describe('Dashboard Integration Tests', () => {
       });
     });
   });
+
+  describe('GET /api/dashboard/advanced-chart', () => {
+    it('should return 401 Unauthorized if there is no session', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce(null);
+
+      const { GET } = await import('../app/api/dashboard/advanced-chart/route');
+      const req = new Request('http://localhost/api/dashboard/advanced-chart');
+      const res = await GET(req);
+
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe('Unauthorized');
+    });
+
+    it('should return 403 Forbidden if user lacks dashboard:view-advanced-chart permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Agent', userPermissions: 'dashboard:total-sales' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/advanced-chart/route');
+      const req = new Request('http://localhost/api/dashboard/advanced-chart?range=7d');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 7 items for range 7d for permitted user with clustered columns data', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/advanced-chart/route');
+      const req = new Request('http://localhost/api/dashboard/advanced-chart?range=7d');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(7);
+      expect(data[0]).toHaveProperty('label');
+      expect(data[0]).toHaveProperty('salesAmount');
+      expect(data[0]).toHaveProperty('salesCount');
+      expect(data[0]).toHaveProperty('refundsAmount');
+      expect(data[0]).toHaveProperty('refundsCount');
+      expect(data[0]).toHaveProperty('chargebacksAmount');
+      expect(data[0]).toHaveProperty('chargebacksCount');
+    });
+
+    it('should filter by teamId (Center) and agentId and return monthly values for range year', async () => {
+      // Find or create test team/role
+      const team = await prisma.crmTeams.create({ data: { teamName: 'Test Team A' } });
+      const role = await prisma.crmRoles.findFirst();
+
+      const agent = await prisma.users.create({
+        data: {
+          name: 'Agent A1',
+          username: 'agent_a1_test',
+          teamId: team.teamId,
+          roleId: role!.roleId,
+        },
+      });
+
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          firstName: 'Team',
+          lastName: 'Customer',
+          customerEmail: 'team_cust@example.com',
+        },
+      });
+
+      const now = new Date();
+      const orderDate = new Date(now.getFullYear(), now.getMonth(), 15);
+
+      // 1 Sales (Sold) order
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '250',
+          orderDate,
+          orderSalesAgentId: agent.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // 1 Refund order
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '7',
+          orderMarkup: '120',
+          orderDate,
+          orderSalesAgentId: agent.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Manager', userPermissions: 'dashboard:view-advanced-chart' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/advanced-chart/route');
+      const req = new Request(`http://localhost/api/dashboard/advanced-chart?teamId=${team.teamId}&agentId=${agent.uid}&range=year`);
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(1);
+
+      expect(data[0].salesAmount).toBe(250);
+      expect(data[0].salesCount).toBe(1);
+      expect(data[0].refundsAmount).toBe(120);
+      expect(data[0].refundsCount).toBe(1);
+      expect(data[0].chargebacksAmount).toBe(0);
+      expect(data[0].chargebacksCount).toBe(0);
+
+      // Cleanup
+      await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+      await prisma.users.delete({ where: { uid: agent.uid } });
+      await prisma.crmTeams.delete({ where: { teamId: team.teamId } });
+    });
+  });
 });

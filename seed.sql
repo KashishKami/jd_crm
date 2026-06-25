@@ -1,7 +1,13 @@
 USE jd_crm;
 
+-- ============================================================
+-- Disable FK checks during seeding to avoid ordering issues
+-- ============================================================
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- Seed default designations
-INSERT INTO crm_designations (designation_name, designation_created) VALUES
+-- INSERT IGNORE prevents errors on re-run (designation_name has no unique index, so use regular insert)
+INSERT IGNORE INTO crm_designations (designation_name, designation_created) VALUES
 ('Super Admin', NOW()),
 ('Admin', NOW()),
 ('Manager', NOW()),
@@ -9,56 +15,63 @@ INSERT INTO crm_designations (designation_name, designation_created) VALUES
 ('Agent', NOW());
 
 -- Seed default teams (IT Park, DB Park, Alex)
-INSERT INTO crm_teams (team_name, team_created) VALUES
-('IT Park', NOW()),
-('DB Park', NOW()),
-('Alex', NOW());
+-- team_id is AUTO_INCREMENT — we force IDs so that users can reliably reference team_id = 1, 2, 3
+INSERT INTO crm_teams (team_id, team_name, team_created) VALUES
+(1, 'IT Park', NOW()),
+(2, 'DB Park', NOW()),
+(3, 'Alex', NOW())
+ON DUPLICATE KEY UPDATE team_name = VALUES(team_name);
 
 -- Seed default roles
+-- role_name has a UNIQUE INDEX — use ON DUPLICATE KEY UPDATE to be idempotent
 INSERT INTO crm_roles (role_id, role_name, role_created) VALUES
 (1, 'Super Admin', NOW()),
 (2, 'Admin', NOW()),
 (3, 'Manager', NOW()),
 (4, 'Team Lead', NOW()),
-(5, 'Agent', NOW());
+(5, 'Agent', NOW())
+ON DUPLICATE KEY UPDATE role_name = VALUES(role_name);
 
 -- Seed default permissions
+-- permission_name has a UNIQUE INDEX — use ON DUPLICATE KEY UPDATE to be idempotent
 INSERT INTO crm_permissions (permission_id, permission_name, permission_description) VALUES
 (1, 'super-admin', 'Administrative superuser bypass'),
 (2, 'vendors:view', 'View vendors directory'),
 (3, 'agents:view', 'View and manage agents/staff list'),
 (4, 'gateways:view', 'View and manage payment gateways'),
-(5, 'orders:view', 'View orders, transactions, and status boards');
+(5, 'orders:view', 'View orders, transactions, and status boards')
+ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- Link permissions to Super Admin role (role_id = 1)
 -- Super Admin has 'super-admin' bypass which covers all permissions
-INSERT INTO crm_role_permissions (role_id, permission_id) VALUES
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1, 1), (1, 2), (1, 3), (1, 4), (1, 5);
 
 -- Link permissions to Admin (role_id = 2)
-INSERT INTO crm_role_permissions (role_id, permission_id) VALUES
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2, 1), (2, 2), (2, 3), (2, 4), (2, 5);
 
 -- Link permissions to Manager (role_id = 3)
-INSERT INTO crm_role_permissions (role_id, permission_id) VALUES
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (3, 2), (3, 3), (3, 4), (3, 5);
 
 -- Link permissions to Team Lead (role_id = 4)
-INSERT INTO crm_role_permissions (role_id, permission_id) VALUES
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (4, 2), (4, 3), (4, 4), (4, 5);
 
 -- Link permissions to Agent (role_id = 5)
-INSERT INTO crm_role_permissions (role_id, permission_id) VALUES
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (5, 5);
 
 -- Seed default Super Admin account (Username: admin, Password: admin123)
 -- SHA-256: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
 -- Belongs to 'IT Park' team (team_id = 1), 'Super Admin' role (role_id = 1)
-INSERT INTO users (
+-- INSERT IGNORE skips if username 'admin' already exists (no UNIQUE on username in schema, but safe)
+INSERT IGNORE INTO users (
   name, nickname, username, email, mobile, gender, password, status, age, designation, agent_id, role_id, team_id
 ) VALUES (
-  'Super Admin', 'Admin', 'admin', 'admin@jdfusion.in', '1234567890', '0', 
-  '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 1, 30, 
+  'Super Admin', 'Admin', 'admin', 'admin@jdfusion.in', '1234567890', '0',
+  '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 1, 30,
   'Super Admin', 'AG101', 1, 1
 );
 
@@ -66,9 +79,10 @@ INSERT INTO users (
 -- SHA-256 of 'password123' is 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f'
 -- Teams: IT Park (team_id = 1), DB Park (team_id = 2), Alex (team_id = 3)
 -- Roles: Super Admin (1), Admin (2), Manager (3), Team Lead (4), Agent (5)
-INSERT INTO users (
+-- INSERT IGNORE skips duplicate rows on re-run
+INSERT IGNORE INTO users (
   name, nickname, username, email, mobile, gender, password, status, age, designation, agent_id, role_id, team_id
-) VALUES 
+) VALUES
 ('Aman Goel', 'Alex', 'alex', 'Alex@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 25, 'Sales Agent', 'JD0016', 5, 3),
 ('Priyansh Sharma', 'Bruce', 'bruce', 'Bruce@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 28, 'Sales Team Lead', 'JD0017', 4, 2),
 ('Akansha Bisht', 'Sarah', 'sarah', 'Sarah@jdfusion.in', NULL, '1', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 26, 'Sales Agent', 'JD0091', 5, 2),
@@ -102,3 +116,6 @@ INSERT INTO users (
 ('Kshitej Mandhwal', 'Ken Miles', 'ken_miles', 'Ken@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 25, 'Sales Agent', 'JD0645', 5, 1),
 ('Aryan Batra', 'Tom', 'tom', 'tom@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 24, 'Sales Agent', 'JD0662', 5, 2),
 ('Vishal Dogra', 'James', 'james', 'James@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 26, 'Sales Agent', 'JD0678', 5, 1);
+
+-- Re-enable FK checks
+SET FOREIGN_KEY_CHECKS = 1;
