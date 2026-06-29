@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import EditOrderForm from '../components/EditOrderForm';
 
@@ -26,6 +26,7 @@ const getMockOrder = (status: string) => ({
     customerShippingAddress: '123 Street',
     cards: [
       {
+        cardId: 99,
         customerNameOncard: 'John Doe',
         customerCardNumber: '4111222233334444',
         customerCardExpDate: '12/29',
@@ -91,4 +92,59 @@ describe('EditOrderForm Unit Tests', () => {
     expect(optionValues).toContain('Pending Shipment');
     expect(optionValues).toContain('Pending Delivery');
   });
+
+  it('[RED] should include customer and card fields in the fetch payload on submit', async () => {
+    // This test replicates the bug: the form was sending a payload that omitted
+    // firstName, lastName, customerPhone, customerEmail, and all card fields,
+    // meaning customer edits were silently discarded by the API.
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <EditOrderForm
+        order={getMockOrder('Pending Shipment')}
+        vendors={[]}
+        gateways={[]}
+        agents={[]}
+      />
+    );
+
+    // Change the customer first name
+    const firstNameInput = screen.getByDisplayValue('John') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'UpdatedFirst' } });
+
+    // Change the customer last name
+    const lastNameInput = screen.getByDisplayValue('Doe') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'UpdatedLast' } });
+
+    // Submit the form
+    const saveButton = screen.getByText('Save Changes');
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    const [, fetchOptions] = fetchSpy.mock.calls[0];
+    const sentBody = JSON.parse(fetchOptions.body);
+
+    // Customer fields MUST be present in the sent payload
+    expect(sentBody).toHaveProperty('firstName', 'UpdatedFirst');
+    expect(sentBody).toHaveProperty('lastName', 'UpdatedLast');
+    expect(sentBody).toHaveProperty('customerPhone', '1234567890');
+    expect(sentBody).toHaveProperty('customerEmail', 'john@example.com');
+    expect(sentBody).toHaveProperty('customerBillingAddress', '123 Street');
+    expect(sentBody).toHaveProperty('customerShippingAddress', '123 Street');
+
+    // Card fields MUST be present in the sent payload
+    expect(sentBody).toHaveProperty('customerNameOncard', 'John Doe');
+    expect(sentBody).toHaveProperty('customerCardNumber', '4111222233334444');
+    expect(sentBody).toHaveProperty('customerCardExpDate', '12/29');
+    expect(sentBody).toHaveProperty('customerCardCopyStatus', 'No');
+    expect(sentBody).toHaveProperty('customerCardPhotoStatus', 'No');
+
+    vi.unstubAllGlobals();
+  });
 });
+

@@ -37,7 +37,27 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
     throw new Error('Order not found');
   }
 
-  const updatedData: OrderUpdateInput = { ...data };
+  // ─── Separate customer & card fields from the order-level payload ───────────
+  const {
+    // Customer fields
+    firstName,
+    lastName,
+    customerPhone,
+    customerEmail,
+    customerBillingAddress,
+    customerShippingAddress,
+    // Card fields
+    customerNameOncard,
+    customerCardNumber,
+    customerCardExpDate,
+    customerCardCvv,
+    customerCardCopyStatus,
+    customerCardPhotoStatus,
+    // Everything else belongs to the crm_orders row
+    ...orderFields
+  } = data;
+
+  const updatedData: OrderUpdateInput = { ...orderFields };
 
   // Calculate markup if pricing fields are updated
   if (data.orderTotalPitched !== undefined || data.orderVendorPrice !== undefined) {
@@ -46,21 +66,40 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
     updatedData.orderMarkup = (totalPitched - vendorPrice).toString();
   }
 
-  // State machine logic
-  // 1. If vendor is set/updated and status is Pending Booking, transition to Pending Shipment
-  if (data.orderVendorId && !existingOrder.orderVendorId && existingOrder.orderCurrentStatus === 'Pending Booking') {
+  // ─── State machine: auto-advance only when a specific trigger fires ──────────
+  // The user's manually selected orderCurrentStatus (from the dropdown) is used
+  // as the base. Auto-transitions only fire when the trigger condition is met AND
+  // the user hasn't manually set a later status themselves.
+  const manualStatus = orderFields.orderCurrentStatus;
+
+  // 1. Newly assigning a vendor on a Pending Booking order → Pending Shipment
+  if (
+    data.orderVendorId &&
+    !existingOrder.orderVendorId &&
+    existingOrder.orderCurrentStatus === 'Pending Booking' &&
+    (!manualStatus || manualStatus === 'Pending Booking')
+  ) {
     updatedData.orderCurrentStatus = 'Pending Shipment';
     updatedData.orderCurrentStatusUpdateDate = new Date();
   }
 
-  // 2. If tracking number is set/updated and order is not already in a later status
-  if (data.orderTrackingNumber && !existingOrder.orderTrackingNumber) {
+  // 2. Newly setting a tracking number on a Pending Shipment order → Pending Delivery
+  if (
+    data.orderTrackingNumber &&
+    !existingOrder.orderTrackingNumber &&
+    existingOrder.orderCurrentStatus === 'Pending Shipment' &&
+    (!manualStatus || manualStatus === 'Pending Shipment')
+  ) {
     updatedData.orderCurrentStatus = 'Pending Delivery';
     updatedData.orderCurrentStatusUpdateDate = new Date();
   }
 
-  // 3. If delivery status is confirmed, transition to Pending Feedback
-  if (data.orderDeliveryStatus && data.orderDeliveryStatus.toLowerCase().includes('delivered')) {
+  // 3. Delivery status confirmed → Pending Feedback
+  if (
+    data.orderDeliveryStatus &&
+    data.orderDeliveryStatus.toLowerCase().includes('delivered') &&
+    (!manualStatus || manualStatus === 'Pending Delivery')
+  ) {
     updatedData.orderCurrentStatus = 'Pending Feedback';
     updatedData.orderCurrentStatusUpdateDate = new Date();
   }
@@ -98,7 +137,47 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
     }
   }
 
-  return await orderRepository.update(crmOrderId, updatedData);
+  // ─── Persist the order row ────────────────────────────────────────────────────
+  const updatedOrder = await orderRepository.update(crmOrderId, updatedData);
+
+  // ─── Persist customer fields ──────────────────────────────────────────────────
+  const customerUpdate: Record<string, unknown> = {};
+  if (firstName !== undefined) customerUpdate.firstName = firstName;
+  if (lastName !== undefined) customerUpdate.lastName = lastName;
+  if (customerPhone !== undefined) customerUpdate.customerPhone = customerPhone;
+  if (customerEmail !== undefined) customerUpdate.customerEmail = customerEmail;
+  if (customerBillingAddress !== undefined) customerUpdate.customerBillingAddress = customerBillingAddress;
+  if (customerShippingAddress !== undefined) customerUpdate.customerShippingAddress = customerShippingAddress;
+
+  if (Object.keys(customerUpdate).length > 0 && existingOrder.orderCustomerId) {
+    const { prisma } = await import('../lib/db');
+    customerUpdate.dateUpdated = new Date();
+    await prisma.crmCustomers.update({
+      where: { customerId: existingOrder.orderCustomerId },
+      data: customerUpdate,
+    });
+  }
+
+  // ─── Persist card fields (first card only) ───────────────────────────────────
+  const cardUpdate: Record<string, unknown> = {};
+  if (customerNameOncard !== undefined) cardUpdate.customerNameOncard = customerNameOncard;
+  if (customerCardNumber !== undefined) cardUpdate.customerCardNumber = customerCardNumber;
+  if (customerCardExpDate !== undefined) cardUpdate.customerCardExpDate = customerCardExpDate;
+  if (customerCardCvv !== undefined) cardUpdate.customerCardCvv = customerCardCvv;
+  if (customerCardCopyStatus !== undefined) cardUpdate.customerCardCopyStatus = customerCardCopyStatus;
+  if (customerCardPhotoStatus !== undefined) cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus;
+
+  if (Object.keys(cardUpdate).length > 0 && existingOrder.customer?.cards?.length) {
+    const { prisma } = await import('../lib/db');
+    const firstCardId = existingOrder.customer.cards[0].cardId;
+    cardUpdate.customerCardUpdated = new Date();
+    await prisma.crmCustomerCards.update({
+      where: { cardId: firstCardId },
+      data: cardUpdate,
+    });
+  }
+
+  return updatedOrder;
 }
 
 export async function deleteOrder(crmOrderId: number) {

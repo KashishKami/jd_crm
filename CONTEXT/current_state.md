@@ -1078,7 +1078,19 @@ Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT 
   - Mounted `AdvancedChartWidget` under the KPI grid, updated `components.css` with layout chart classes, and updated `current_state.md` and types.
   - Verification: All 99 integration/unit tests passed successfully.
 
+### Session 13 — June 29, 2026
+  **Bug Fix (TDD) — Edit Order "Save Changes" Not Persisting Customer & Card Data**
 
+  #### Root Cause Analysis
+  - **Root Cause 1 (Service Layer — Previous Session):** `orderRepository.update()` was spreading the entire incoming payload directly into `prisma.crmOrders.update()`. This was a risk point since customer/card fields don't live on `crm_orders`. The service layer was refactored to destructure the payload into three buckets (order fields / customer fields / card fields) and issue separate Prisma updates to `crm_customers` and `crm_customer_cards`. This fix was architecturally correct but had no effect because the real bug was in the form.
+  - **Root Cause 2 (Form Payload — Confirmed This Session):** `EditOrderForm.tsx`'s `handleSubmit` built a `payload` object that only included order-level fields (`orderYear`, `orderMakeModel`, etc.). All customer and card state variables (`firstName`, `lastName`, `customerPhone`, `customerEmail`, `customerBillingAddress`, `customerShippingAddress`, `customerNameOncard`, `customerCardNumber`, `customerCardExpDate`, `customerCardCvv`, `customerCardCopyStatus`, `customerCardPhotoStatus`) were tracked in React state but **never included in the `payload` sent to the API**. The service received them as `undefined`, so the customer/card update blocks were skipped entirely.
+  - This was confirmed by the Prisma query log: `UPDATE crm_orders SET...` was firing, but no `UPDATE crm_customers` ever appeared, proving the data wasn't arriving at the server.
+
+  #### TDD Process
+  - **RED — Integration (`orders.test.ts`):** Added two new integration tests: one asserting `PATCH /api/orders/:id` with `{ firstName, lastName }` persists updated values to `crm_customers`, and a second asserting `customerPhone`, `customerEmail`, `customerBillingAddress`, `customerShippingAddress` are also persisted. Both tests called `PATCH` directly (bypassing the form) and **passed immediately**, confirming the service-layer fix from the previous session was working correctly end-to-end.
+  - **RED — Unit (`EditOrderForm.test.tsx`):** Added a new unit test that spies on `fetch`, renders the form, fires a name change, submits, and asserts `firstName` and all other customer/card fields are present in `JSON.parse(fetchOptions.body)`. This test **failed**, precisely pinpointing `EditOrderForm.tsx`'s `handleSubmit` as the source of the bug.
+  - **GREEN — Fix (`EditOrderForm.tsx`):** Added all 12 customer and card state variables to the `payload` object in `handleSubmit`, grouped under clear comments.
+  - **Verification:** All 16 tests in `EditOrderForm.test.tsx` and `orders.test.ts` pass (exit 0).
 
 
 

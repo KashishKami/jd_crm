@@ -35,6 +35,7 @@ export interface OrderCreateInput {
 }
 
 export interface OrderUpdateInput {
+  // --- Order-level fields (written to crm_orders) ---
   orderYear?: string;
   orderMakeModel?: string;
   orderPart?: string;
@@ -56,14 +57,30 @@ export interface OrderUpdateInput {
   orderDocumentation?: string;
   orderBooked?: string;
   orderAmountCharged?: string;
-  orderTrackingNumber?: string;
-  orderDeliveryStatus?: string;
+  orderTrackingNumber?: string | null;
+  orderDeliveryStatus?: string | null;
   orderQualifiedIncentiveStatus?: string;
   orderQualifiedIncentiveAmount?: string;
   orderStatus?: string;
   saleStatus?: string;
   orderCurrentStatus?: string;
   orderCurrentStatusUpdateDate?: Date | null;
+
+  // --- Customer fields (written to crm_customers via separate update) ---
+  firstName?: string;
+  lastName?: string;
+  customerPhone?: string | null;
+  customerEmail?: string;
+  customerBillingAddress?: string | null;
+  customerShippingAddress?: string | null;
+
+  // --- Card fields (written to crm_customer_cards via separate update) ---
+  customerNameOncard?: string;
+  customerCardNumber?: string;
+  customerCardExpDate?: string;
+  customerCardCvv?: string | null;
+  customerCardCopyStatus?: string;
+  customerCardPhotoStatus?: string;
 }
 
 export interface OrderFilters {

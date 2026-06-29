@@ -81,6 +81,20 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
     }
 
     const payload = {
+      // Customer fields — sent to the service to update crm_customers
+      firstName,
+      lastName,
+      customerPhone,
+      customerEmail,
+      customerBillingAddress,
+      customerShippingAddress,
+      // Card fields — sent to the service to update crm_customer_cards
+      customerNameOncard,
+      customerCardNumber,
+      customerCardExpDate,
+      customerCardCvv,
+      customerCardCopyStatus,
+      customerCardPhotoStatus,
       // Order direct updates
       orderYear,
       orderMakeModel,

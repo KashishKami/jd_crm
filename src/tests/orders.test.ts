@@ -510,5 +510,71 @@ describe('Order Management Integration Tests', () => {
 
       await prisma.crmOrders.delete({ where: { crmOrderId: shipmentOrder.crmOrderId } });
     });
+
+    // ─── RED: Customer & Card update tests ───────────────────────────────────────
+    it('[RED] should persist updated firstName and lastName to crm_customers when PATCH includes customer fields', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'UpdatedFirst',
+          lastName: 'UpdatedLast',
+          customerEmail: 'initial.cust@example.com',
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      // The customer row must be updated in crm_customers
+      const dbCustomer = await prisma.crmCustomers.findUnique({
+        where: { customerId: testCustomer.customerId },
+      });
+      expect(dbCustomer?.firstName).toBe('UpdatedFirst');
+      expect(dbCustomer?.lastName).toBe('UpdatedLast');
+    });
+
+    it('[RED] should persist updated customerPhone and customerEmail to crm_customers when PATCH includes those fields', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerPhone: '9998887777',
+          customerEmail: 'updated.email@example.com',
+          customerBillingAddress: '999 New Billing St',
+          customerShippingAddress: '888 New Shipping Ave',
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbCustomer = await prisma.crmCustomers.findUnique({
+        where: { customerId: testCustomer.customerId },
+      });
+      expect(dbCustomer?.customerPhone).toBe('9998887777');
+      expect(dbCustomer?.customerEmail).toBe('updated.email@example.com');
+      expect(dbCustomer?.customerBillingAddress).toBe('999 New Billing St');
+      expect(dbCustomer?.customerShippingAddress).toBe('888 New Shipping Ave');
+    });
   });
 });
+
