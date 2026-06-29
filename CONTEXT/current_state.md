@@ -1150,6 +1150,17 @@ Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT 
   - **Responsive Orders Table**: Styled the main orders pipeline table in `OrderList.tsx` with the `.card-with-accent` top-border container. Removed fixed-pixel Tailwind font overrides (`text-xs`, `text-[10px]`) and applied relative fluid sizing (`inherit`, `0.92em`), allowing the table columns and content to dynamically scale down on small viewports and match other dashboard list tables.
   - **Verification**: Verified Next.js turbopack production build succeeds cleanly, and all 119 tests pass successfully.
 
+### Session 20 — June 30, 2026
+  **Phase 11.5 - Navigation Menu Title, Static Pagination, Georgia Typography & Chart Mobile Click Support**
+  - **Mobile Orders Table Swiping**: Wrapped the main pipeline orders table inside a nested `div` with class `.card-table-container` in [OrderList.tsx](../src/components/OrderList.tsx). This bypasses the parent `.card-with-accent` card container's `overflow: hidden` constraint, allowing horizontal swipe scrolling on mobile.
+  - **Static Pagination Row**: Moved the pagination block outside of the scrollable `.table-wrapper` block in [AgentList.tsx](../src/components/AgentList.tsx) and [VendorList.tsx](../src/components/VendorList.tsx) so that the pagination footer remains static on the page and does not slide with the table.
+  - **Reverted Performers Table**: Reverted changes on [PerformersTable.tsx](../src/components/dashboard/PerformersTable.tsx) to use standard `custom-table` rather than `table-responsive`, keeping its columns tight and clean on mobile.
+  - **Responsive Table Sizing**: Expanded `.table-responsive`'s mobile `min-width` to `1000px` in [components.css](../src/app/components.css) to ensure wide tables overflow clean and swipe smoothly without squishing column columns.
+  - **Georgia Serif Fonts Refinement**: Reverted body font changes in `globals.css` and `layout.css` to `Georgia, serif` to maintain the design system. Styled the date cells in [OrderList.tsx](../src/components/OrderList.tsx) and [RecentOrdersTable.tsx](../src/components/dashboard/RecentOrdersTable.tsx) to `font-normal` (weight reset) and `fontSize: '0.82em'` to format Georgia's large numbers cleanly.
+  - **Sidebar Section Title & Pure White Links**: Added a visual `MENU` heading inside [Sidebar.tsx](../src/components/Sidebar.tsx) and updated all Link elements and SVG icon strokes inside the sidebar to pure white (`#ffffff`).
+  - **Interactive Chart Mobile Tap Support**: Configured [AdvancedChartWidget.tsx](../src/components/dashboard/AdvancedChartWidget.tsx) to listen for `onClick` events. Tapping on a column now triggers coordinates calculations and shows the tooltip card, and clicking anywhere else (global event listener on window) dismisses the tooltip card.
+  - **ESLint & Typecheck Compliance**: Fixed ESLint warnings and errors across [GlobalSearchBar.tsx](../src/components/GlobalSearchBar.tsx), [OrderListContainer.tsx](../src/components/OrderListContainer.tsx), [AgentList.tsx](../src/components/AgentList.tsx), and [VendorList.tsx](../src/components/VendorList.tsx) by cleaning up inline disables and replacing them with clean file-level disables. All 119 unit/integration test suites build and pass cleanly with 0 warnings or errors.
+
 
 
 

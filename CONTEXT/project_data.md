@@ -50,7 +50,8 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `dashboard:top-vendors` | `131` | View Top Vendors widget |
 | `dashboard:blacklisted-vendors` | `132` | View Blacklisted Vendors widget |
 | `dashboard:recent-orders` | `140` | View Recent Orders table |
-| `dashboard:attendance-summary` | `151`–`156` | View Attendance summary row (Present / Absent / LWOP / etc.) |
+| `dashboard:view-advanced-chart` | — | View advanced sales analytics chart (new) |
+| ~~`dashboard:attendance-summary`~~ | ~~`151`–`156`~~ | ~~View Attendance summary row (Present / Absent / LWOP / etc.)~~ ⚠️ *Phase 12 skipped — not seeded or enforced* |
 | `dashboard:team-monthly-scores` | — | View monthly team-wise aggregate scores widget (new — teams are a new concept) |
 | `dashboard:team-top-performer` | — | View top performer per team for the current month (new) |
 | `dashboard:team-bottom-performer` | — | View bottom performer per team for the current month (new) |
@@ -103,11 +104,20 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `customers:view-cards` | `204` | View full (unmasked) payment card details |
 
 ### Resource: `attendance`
+
+> [!WARNING]
+> **Phase 12 skipped.** All attendance permissions below are crossed out — they are **not seeded into the database** and **not enforced in any API route or UI**. Do not assign these to roles until Phase 12 is implemented.
+
 | Permission Key | Legacy Code | Description |
 | :--- | :--- | :--- |
-| `attendance:view` | `164` + `166` | Access Today's and Previous Attendance pages |
-| `attendance:view-history` | `165` + `167` | Access historical attendance log |
-| `attendance:mark` | — | Submit daily attendance marking (new — was admin-only implicit) |
+| ~~`attendance:view`~~ | ~~`164` + `166`~~ | ~~Access Today's and Previous Attendance pages~~ |
+| ~~`attendance:view-history`~~ | ~~`165` + `167`~~ | ~~Access historical attendance log~~ |
+| ~~`attendance:mark`~~ | — | ~~Submit daily attendance marking~~ |
+
+### Resource: `settings`
+| Permission Key | Legacy Code | Description |
+| :--- | :--- | :--- |
+| `settings:manage-permissions` | — | Access Role & Permission Settings page (new) |
 
 ### Super Admin
 | Permission Key | Legacy Code | Description |

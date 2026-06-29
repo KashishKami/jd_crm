@@ -257,14 +257,6 @@ export default function DashboardPage({
           <RecentOrdersTable orders={initialMetrics.recentOrders} />
         </>
       )}
-
-      {/* Attendance summary moved to the bottom */}
-      {hasPermission(permissions, 'dashboard:attendance-summary') && initialMetrics.attendanceSummary && (
-        <>
-          <DashboardSectionHeader title="Who’s In Today?" />
-          <AttendanceSummaryRow summary={initialMetrics.attendanceSummary} />
-        </>
-      )}
     </div>
   );
 }

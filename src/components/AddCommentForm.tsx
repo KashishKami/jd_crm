@@ -78,6 +78,48 @@ export default function AddCommentForm({ onSubmit, isSubmitting: parentIsSubmitt
         <label htmlFor="comment-file" className="info-label" style={{ fontWeight: '600' }}>
           Attach Image (Optional)
         </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="btn-secondary-custom"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: '8px 16px',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            Choose Image
+          </button>
+          <span className="font-sans" style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: '500' }}>
+            {file ? file.name : 'No image chosen'}
+          </span>
+          {file && (
+            <button
+              type="button"
+              onClick={() => {
+                setFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ef4444',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                padding: '4px'
+              }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
         <input
           id="comment-file"
           type="file"
@@ -88,7 +130,7 @@ export default function AddCommentForm({ onSubmit, isSubmitting: parentIsSubmitt
             setFile(selectedFile);
           }}
           disabled={isSubmitting}
-          style={{ fontSize: '0.85rem' }}
+          style={{ display: 'none' }}
         />
       </div>
 

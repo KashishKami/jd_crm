@@ -1251,3 +1251,181 @@
   }
 }
 
+
+/* =============================
+   Settings / Roles / Permissions
+   ============================= */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.settings-sidebar {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  background: #f8fafc;
+}
+
+.settings-roles-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 80px;
+}
+
+.settings-role-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+  transition: background-color 0.15s, color 0.15s;
+  position: relative;
+}
+.settings-role-btn:hover { background: #f1f5f9; }
+.settings-role-btn.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+
+.settings-role-avatar {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1d4ed8;
+  font-weight: 700; font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.settings-role-btn.active .settings-role-avatar {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.settings-role-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.settings-role-delete-btn {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: none; background: transparent;
+  color: #94a3b8; font-size: 1.1rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  padding: 0; flex-shrink: 0;
+}
+.settings-role-btn:hover .settings-role-delete-btn { opacity: 1; }
+.settings-role-delete-btn:hover { background: #fee2e2; color: #ef4444; }
+
+.settings-add-role { padding: 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; }
+.settings-add-role-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+.settings-add-role-row { display: flex; gap: 6px; }
+.settings-create-error { font-size: 0.78rem; color: #dc2626; margin: 0; }
+
+.settings-main-panel {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.perm-matrix-wrapper { display: flex; flex-direction: column; }
+
+.perm-matrix-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex; flex-direction: column; gap: 12px;
+  background: #fafafa;
+}
+.perm-matrix-name-row { display: flex; align-items: center; gap: 16px; }
+.perm-matrix-name-row .form-label { white-space: nowrap; margin: 0; min-width: 90px; }
+.perm-name-input { flex: 1; max-width: 320px; }
+
+.perm-lockout-notice {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 0.8rem; color: #b45309;
+  background: #fffbeb; border: 1px solid #fde68a;
+  border-radius: 8px; padding: 8px 12px;
+}
+.perm-lockout-notice svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+
+.perm-groups-list { display: flex; flex-direction: column; }
+.perm-group { border-bottom: 1px solid var(--border-color); }
+.perm-group:last-child { border-bottom: none; }
+
+.perm-group-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 24px;
+  background: #f8fafc;
+  cursor: pointer; user-select: none;
+  transition: background 0.12s;
+}
+.perm-group-header:hover { background: #f1f5f9; }
+
+.perm-group-checkbox { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent-color); }
+.perm-group-label { font-size: 0.8rem; font-weight: 700; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.04em; flex: 1; }
+.perm-group-count { font-size: 0.72rem; color: var(--text-muted); background: #e2e8f0; padding: 2px 7px; border-radius: 50px; font-weight: 600; }
+
+.perm-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  padding: 4px 24px 12px;
+}
+
+.perm-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 6px; cursor: pointer; transition: background 0.12s; }
+.perm-item:hover { background: #f8fafc; }
+.perm-item-locked { opacity: 0.55; cursor: not-allowed; }
+.perm-item-locked:hover { background: transparent; }
+
+.perm-checkbox { width: 15px; height: 15px; margin-top: 2px; cursor: pointer; accent-color: var(--accent-color); flex-shrink: 0; }
+.perm-item-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.perm-name { font-size: 0.82rem; font-weight: 600; color: var(--text-main); font-family: 'Courier New', monospace; }
+.perm-desc { font-size: 0.74rem; color: var(--text-muted); }
+.perm-lock-icon { width: 13px; height: 13px; color: #d97706; flex-shrink: 0; margin-top: 3px; }
+
+.perm-banner { display: flex; align-items: center; gap: 10px; padding: 12px 24px; font-size: 0.85rem; font-weight: 500; }
+.perm-banner svg { width: 18px; height: 18px; flex-shrink: 0; }
+.perm-banner-error { background: #fef2f2; color: #b91c1c; border-top: 1px solid #fecaca; }
+.perm-banner-success { background: #f0fdf4; color: #15803d; border-top: 1px solid #bbf7d0; }
+
+.perm-matrix-footer {
+  display: flex; justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: #fafafa;
+}
+
+@media (max-width: 900px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .perm-items-grid { grid-template-columns: 1fr; }
+}
