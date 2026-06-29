@@ -74,7 +74,7 @@ describe('Order Comments Integration Tests', () => {
         method: 'POST',
         body: JSON.stringify({ comment: 'Test note' }),
       });
-      const res = await POST(req, { params: { id: String(testOrder.crmOrderId) } });
+      const res = await POST(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
 
       expect(res.status).toBe(401);
     });
@@ -92,7 +92,7 @@ describe('Order Comments Integration Tests', () => {
         method: 'POST',
         body: formData,
       });
-      const res = await POST(req, { params: { id: String(testOrder.crmOrderId) } });
+      const res = await POST(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
 
       expect(res.status).toBe(201);
       const data = await res.json();
@@ -118,7 +118,7 @@ describe('Order Comments Integration Tests', () => {
         method: 'POST',
         body: formData,
       });
-      const res = await POST(req, { params: { id: String(testOrder.crmOrderId) } });
+      const res = await POST(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
 
       expect(res.status).toBe(201);
       const data = await res.json();
@@ -157,7 +157,7 @@ describe('Order Comments Integration Tests', () => {
 
       const { GET } = await import('../app/api/orders/[id]/comments/route');
       const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/comments`);
-      const res = await GET(req, { params: { id: String(testOrder.crmOrderId) } });
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
 
       expect(res.status).toBe(200);
       const data = await res.json();

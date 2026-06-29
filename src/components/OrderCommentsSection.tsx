@@ -31,6 +31,7 @@ export default function OrderCommentsSection({ orderId }: OrderCommentsSectionPr
   }, [orderId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchComments();
   }, [fetchComments]);
 
