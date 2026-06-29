@@ -214,6 +214,11 @@ export default function AdvancedChartWidget() {
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
       }
+    } else if (label.length === 7) {
+      const dateObj = new Date(label + '-01');
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      }
     }
     return label;
   };
@@ -484,7 +489,7 @@ export default function AdvancedChartWidget() {
                   position: 'absolute',
                   left: `${tooltipPos.x}px`,
                   top: `${tooltipPos.y}px`,
-                  transform: tooltipPos.y < 130 ? 'translate(15px, 10px)' : 'translate(15px, -100%)',
+                  transform: `translate(${hoveredIdx >= data.length / 2 ? 'calc(-100% - 15px)' : '15px'}, ${tooltipPos.y < 130 ? '10px' : '-100%'})`,
                   pointerEvents: 'none',
                   backgroundColor: 'rgba(255, 255, 255, 0.98)',
                   border: '1.5px solid #cbd5e1',
@@ -492,7 +497,8 @@ export default function AdvancedChartWidget() {
                   padding: '12px 16px',
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
                   zIndex: 50,
-                  minWidth: '220px',
+                  minWidth: '240px',
+                  whiteSpace: 'nowrap',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '6px',

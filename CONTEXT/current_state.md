@@ -23,7 +23,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 9.5**| Order Status Workflow Standardization | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, routing, views |
 | **Phase 10**| Interactive Sales Dashboard | **[x] COMPLETED** | Metric counters, top/bottom performance widgets |
 | **Phase 10.5**| Dashboard UI Enhancements & Top Navbar Layout | **[x] COMPLETED** | Navbar, dashboard charts, metric comparisons |
-| **Phase 11**| Comments & Audits System | **[ ] PENDING** | Order comments timeline, image upload handler |
+| **Phase 11**| Comments & Audits System | **[x] COMPLETED** | Order comments timeline, image upload handler |
 | **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[ ] PENDING** | Unified global search bar, order filters |
 | **Phase 14**| Admin Settings & RBAC Permissions | **[ ] PENDING** | Role settings page, permission matrices |
@@ -712,37 +712,37 @@ Build a comment repository and service. Expose `POST /api/orders/:id/comments` a
 
 ---
 
-- [ ] **RED — Integration (`comments.test.ts`):**
-  - [ ] Test: `POST /api/orders/:id/comments` with `{ comment: 'Test note' }` creates a row in `crm_comments` and returns `201 Created` with the new comment object.
-  - [ ] Test: `POST /api/orders/:id/comments` with `multipart/form-data` including an image file saves the file path into `comment_image` column. Assert the returned `commentImage` field is a non-null string path.
-  - [ ] Test: `GET /api/orders/:id/comments` returns all comments for that order in `commentCreatedDate` ascending order.
-  - [ ] Test: `POST /api/orders/:id/comments` without an active session returns `401 Unauthorized`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`comments.test.ts`):**
+  - [x] Test: `POST /api/orders/:id/comments` with `{ comment: 'Test note' }` creates a row in `crm_comments` and returns `201 Created` with the new comment object.
+  - [x] Test: `POST /api/orders/:id/comments` with `multipart/form-data` including an image file saves the file path into `comment_image` column. Assert the returned `commentImage` field is a non-null string path.
+  - [x] Test: `GET /api/orders/:id/comments` returns all comments for that order in `commentCreatedDate` ascending order.
+  - [x] Test: `POST /api/orders/:id/comments` without an active session returns `401 Unauthorized`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/comment.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/comment.repository.ts`:
     - `findByOrderId(orderId: number)` — ordered by `commentCreatedDate ASC`.
     - `create(data: CommentCreateInput)`.
-  - [ ] [Service] Create `src/service/comment.service.ts`:
+  - [x] [Service] Create `src/service/comment.service.ts`:
     - `handleUpload(file: File)` — validates file type (image only), generates a unique filename, writes to `public/uploads/comments/`, returns the stored path.
-  - [ ] [Controller] `src/app/api/orders/[id]/comments/route.ts` (GET, POST). Parse `FormData` in POST handler. Call upload service if file is present.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] `src/app/api/orders/[id]/comments/route.ts` (GET, POST). Parse `FormData` in POST handler. Call upload service if file is present.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`CommentTimeline.test.tsx`):**
-  - [ ] Test: Renders a list of comment cards in chronological order from mocked data.
-  - [ ] Test: Comment with a `commentImage` renders an `<img>` tag with the correct `src`.
-  - [ ] Test: Comment without an image renders only the text with no `<img>` element.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`CommentTimeline.test.tsx`):**
+  - [x] Test: Renders a list of comment cards in chronological order from mocked data.
+  - [x] Test: Comment with a `commentImage` renders an `<img>` tag with the correct `src`.
+  - [x] Test: Comment without an image renders only the text with no `<img>` element.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Types] Create `src/types/comment.ts` with `Comment` type.
-  - [ ] [Component] `src/components/CommentTimeline.tsx` — renders the list of comments.
-  - [ ] [Component] `src/components/AddCommentForm.tsx` — text area + file input, submits via `FormData`.
-  - [ ] [Integration] Add `CommentTimeline` and `AddCommentForm` to the order detail page `src/app/orders/[id]/page.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Create `src/types/comment.ts` with `Comment` type.
+  - [x] [Component] `src/components/CommentTimeline.tsx` — renders the list of comments.
+  - [x] [Component] `src/components/AddCommentForm.tsx` — text area + file input, submits via `FormData`.
+  - [x] [Integration] Add `CommentTimeline` and `AddCommentForm` to the order detail page `src/app/orders/[id]/page.tsx`.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent opens an order detail page → comment timeline is empty → agent types a note and attaches an image → submits → comment appears immediately in timeline with image thumbnail → second agent opens same order and sees the comment → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent opens an order detail page → comment timeline is empty → agent types a note and attaches an image → submits → comment appears immediately in timeline with image thumbnail → second agent opens same order and sees the comment → ✅ Done.
 
 ---
 

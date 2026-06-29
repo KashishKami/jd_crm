@@ -14,23 +14,23 @@ export async function getMetricsForUser(session: any) {
 
   const now = new Date();
 
-  // Year dates
-  const curYearStart = new Date(now.getFullYear(), 0, 1);
-  const curYearEnd = new Date(now.getFullYear() + 1, 0, 1);
-  const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
-  const prevYearEnd = new Date(now.getFullYear(), 0, 1);
+  // Year dates (UTC)
+  const curYearStart = new Date(Date.UTC(now.getFullYear(), 0, 1));
+  const curYearEnd = new Date(Date.UTC(now.getFullYear() + 1, 0, 1));
+  const prevYearStart = new Date(Date.UTC(now.getFullYear() - 1, 0, 1));
+  const prevYearEnd = new Date(Date.UTC(now.getFullYear(), 0, 1));
 
-  // Month dates
-  const curMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const curMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Month dates (UTC)
+  const curMonthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  const curMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
+  const prevMonthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+  const prevMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
 
-  // Day dates
-  const curDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const curDayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const prevDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const prevDayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Day dates (UTC)
+  const curDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const curDayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+  const prevDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const prevDayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
   if (hasPermission(permissions, 'dashboard:total-sales')) {
     const current = await dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd);
@@ -66,10 +66,10 @@ export async function getMetricsForUser(session: any) {
     };
   }
   if (hasPermission(permissions, 'dashboard:chargeback')) {
-    metrics.chargebackThisMonth = await dashboardRepository.getChargebackThisMonth();
+    metrics.chargebackThisMonth = await dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd);
   }
   if (hasPermission(permissions, 'dashboard:refund')) {
-    metrics.refundThisMonth = await dashboardRepository.getRefundThisMonth();
+    metrics.refundThisMonth = await dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd);
   }
   if (hasPermission(permissions, 'dashboard:net-sales')) {
     const current = await dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd);
@@ -191,9 +191,7 @@ export async function getAdvancedChartMetrics(
     start.setUTCDate(now.getUTCDate() - now.getUTCDay());
     dateFrom = startOfDay(start);
     dateTo = endOfDay(now);
-    granularity = 'weekly';
-    isSingleBin = true;
-    singleBinLabel = 'This Week';
+    granularity = 'daily';
   } else if (range === 'last-week') {
     const start = new Date(now);
     start.setUTCDate(now.getUTCDate() - now.getUTCDay() - 7);
@@ -201,9 +199,7 @@ export async function getAdvancedChartMetrics(
     end.setUTCDate(now.getUTCDate() - now.getUTCDay() - 1);
     dateFrom = startOfDay(start);
     dateTo = endOfDay(end);
-    granularity = 'weekly';
-    isSingleBin = true;
-    singleBinLabel = 'Last Week';
+    granularity = 'daily';
   } else if (range === '30d') {
     const start = new Date(now);
     start.setUTCDate(now.getUTCDate() - 29);
@@ -213,15 +209,11 @@ export async function getAdvancedChartMetrics(
   } else if (range === 'this-month') {
     dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
     dateTo = endOfDay(now);
-    granularity = 'monthly';
-    isSingleBin = true;
-    singleBinLabel = 'This Month';
+    granularity = 'daily';
   } else if (range === 'last-month') {
     dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0));
     dateTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-    granularity = 'monthly';
-    isSingleBin = true;
-    singleBinLabel = 'Last Month';
+    granularity = 'daily';
   } else if (range === '6m') {
     dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1, 0, 0, 0, 0));
     dateTo = endOfDay(now);
@@ -229,9 +221,7 @@ export async function getAdvancedChartMetrics(
   } else if (range === 'this-year' || range === 'year') {
     dateFrom = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
     dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
-    granularity = 'yearly';
-    isSingleBin = true;
-    singleBinLabel = 'This Year';
+    granularity = 'monthly';
   } else if (range === 'custom' && startDateStr && endDateStr) {
     dateFrom = startOfDay(new Date(startDateStr));
     dateTo = endOfDay(new Date(endDateStr));

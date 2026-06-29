@@ -97,12 +97,12 @@ export default function DashboardPage({
   // 4. Net Sales
   if (hasPermission(permissions, 'dashboard:net-sales') && initialMetrics.netSales !== undefined) {
     cards.push({
-      title: 'Net Sales',
+      title: 'Net Sales This Month',
       amount: initialMetrics.netSales.amount,
       count: initialMetrics.netSales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: '/orders?saleStatus=1,7,8',
+      link: `/orders?saleStatus=1,7,8&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.netSales.lastAmount,
       lastCount: initialMetrics.netSales.lastCount,
       percentageChange: initialMetrics.netSales.percentageChange,
@@ -113,7 +113,7 @@ export default function DashboardPage({
   // 5. Refunds (No comparisons, placed 5th)
   if (hasPermission(permissions, 'dashboard:refund') && initialMetrics.refundThisMonth !== undefined) {
     cards.push({
-      title: 'Refunds',
+      title: 'Refunds This Month',
       amount: initialMetrics.refundThisMonth.amount,
       count: initialMetrics.refundThisMonth.count,
       countLabel: 'Refunds',
@@ -126,7 +126,7 @@ export default function DashboardPage({
   // 6. Chargebacks (No comparisons, placed 6th)
   if (hasPermission(permissions, 'dashboard:chargeback') && initialMetrics.chargebackThisMonth !== undefined) {
     cards.push({
-      title: 'Chargebacks',
+      title: 'Chargebacks This Month',
       amount: initialMetrics.chargebackThisMonth.amount,
       count: initialMetrics.chargebackThisMonth.count,
       countLabel: 'Chargebacks',

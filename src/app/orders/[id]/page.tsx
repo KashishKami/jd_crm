@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../service/permission.service';
 import { prisma } from '../../../lib/db';
+import OrderCommentsSection from '../../../components/OrderCommentsSection';
+import { formatDateDDMMYYYY } from '../../../lib/date';
+
 
 export const metadata = {
   title: 'Order Details - JD CRM',
@@ -119,7 +122,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {order.customer.firstName} {order.customer.lastName}
           </h1>
           <p className="page-subtitle">
-            Registered on {order.orderCreatedDate?.toLocaleDateString('en-US', { dateStyle: 'long' })}
+            Registered on {formatDateDDMMYYYY(order.orderCreatedDate)}
           </p>
         </div>
 
@@ -207,6 +210,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
             </div>
           </div>
+
+          {/* Section 3: Comments & Timeline */}
+          <OrderCommentsSection orderId={order.crmOrderId} />
         </div>
 
         {/* Sidebar Info */}

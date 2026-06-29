@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { RecentOrderRow } from '../../types/dashboard';
+import { formatDateDDMMYYYY } from '../../lib/date';
 
 interface RecentOrdersTableProps {
   orders: RecentOrderRow[];
@@ -60,7 +61,7 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
               {orders.map((order) => (
                 <tr key={order.crmOrderId}>
                   <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
-                  <td>{order.orderDate}</td>
+                  <td>{formatDateDDMMYYYY(order.orderDate)}</td>
                   <td>{order.customerName}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

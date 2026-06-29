@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
+import { formatDateDDMMYYYY } from '../lib/date';
 
 interface OrderListProps {
   orders: Array<{
@@ -48,13 +49,7 @@ export default function OrderList({ orders }: OrderListProps) {
 
   // Format date helper
   const formatDate = (dateVal: string | Date | null) => {
-    if (!dateVal) return '—';
-    const d = new Date(dateVal);
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatDateDDMMYYYY(dateVal);
   };
 
   // Status badge styling helper

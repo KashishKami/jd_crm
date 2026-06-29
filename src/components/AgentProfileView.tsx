@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
 import { AgentDetail } from '../types/agent';
 import { fadeInPage } from '../lib/animations';
+import { formatDateDDMMYYYY } from '../lib/date';
 
 interface AgentProfileViewProps {
   agent: AgentDetail;
@@ -27,9 +28,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
 
   // Helper to format dates
   const formatDate = (dateVal: string | Date | null | undefined) => {
-    if (!dateVal) return '—';
-    const date = new Date(dateVal);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    return formatDateDDMMYYYY(dateVal);
   };
 
   return (

@@ -118,11 +118,12 @@ export default function MetricCard({
       className={`metric-card ${link ? 'metric-card-interactive' : ''} ${hasComparison ? 'card-has-graph' : 'card-no-graph'}`}
       style={{
         border: '3px solid #f1f5f9',
+        height: '100%',
       }}
     >
       <div className="metric-card-body">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span className="metric-card-title">
+          <span className="metric-card-title" style={{ display: 'block', minHeight: '38px' }}>
             {title}
           </span>
           <div className="metric-card-value-wrapper">

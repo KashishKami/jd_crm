@@ -452,14 +452,15 @@ describe('Dashboard Integration Tests', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
-      expect(data.length).toBe(1);
+      expect(data.length).toBe(12);
 
-      expect(data[0].salesAmount).toBe(250);
-      expect(data[0].salesCount).toBe(1);
-      expect(data[0].refundsAmount).toBe(120);
-      expect(data[0].refundsCount).toBe(1);
-      expect(data[0].chargebacksAmount).toBe(0);
-      expect(data[0].chargebacksCount).toBe(0);
+      const currentMonthIndex = now.getMonth();
+      expect(data[currentMonthIndex].salesAmount).toBe(250);
+      expect(data[currentMonthIndex].salesCount).toBe(1);
+      expect(data[currentMonthIndex].refundsAmount).toBe(120);
+      expect(data[currentMonthIndex].refundsCount).toBe(1);
+      expect(data[currentMonthIndex].chargebacksAmount).toBe(0);
+      expect(data[currentMonthIndex].chargebacksCount).toBe(0);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });

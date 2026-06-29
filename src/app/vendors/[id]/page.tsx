@@ -8,6 +8,7 @@ import { hasPermission } from '../../../service/permission.service';
 import { Vendor } from '../../../types/vendor';
 import { fadeInPage, staggerEntrance } from '../../../lib/animations';
 import VendorStatusBadge from '../../../components/VendorStatusBadge';
+import { formatDateDDMMYYYY } from '../../../lib/date';
 
 interface LinkedOrder {
   crmOrderId: number;
@@ -345,13 +346,7 @@ export default function VendorDetailPage() {
                     {orders.map((order) => (
                       <tr key={order.crmOrderId}>
                         <td>
-                          {order.orderDate
-                            ? new Date(order.orderDate).toLocaleDateString('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })
-                            : '—'}
+                          {formatDateDDMMYYYY(order.orderDate)}
                         </td>
                         <td>
                           <Link href={`/orders/${order.orderCustomerId}`} className="font-semibold text-blue-600 font-mono">

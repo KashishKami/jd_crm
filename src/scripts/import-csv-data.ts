@@ -4,7 +4,9 @@ import { prisma } from '../lib/db';
 
 const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data for CRM - CRM_Import_Ready.csv');
 
-// Robust CSV parser that handles quoted commas, escaped quotes, and newlines inside quotes
+// Robust CSV parser that handles quoted commas, escaped quotes, and newlines inside quotes.
+// It only treats quote characters as cell boundaries if they are at field delimiters,
+// preventing unescaped literal quotes inside comments from throwing off the parser state.
 function parseCSV(content: string): string[][] {
   const result: string[][] = [];
   let row: string[] = [];
@@ -14,13 +16,34 @@ function parseCSV(content: string): string[][] {
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
     const nextChar = content[i + 1];
+    const prevChar = content[i - 1];
 
     if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        cell += '"';
-        i++;
+      if (inQuotes) {
+        if (nextChar === '"') {
+          cell += '"';
+          i++;
+        } else if (
+          nextChar === ',' ||
+          nextChar === '\r' ||
+          nextChar === '\n' ||
+          i === content.length - 1
+        ) {
+          inQuotes = false;
+        } else {
+          cell += '"';
+        }
       } else {
-        inQuotes = !inQuotes;
+        if (
+          i === 0 ||
+          prevChar === ',' ||
+          prevChar === '\r' ||
+          prevChar === '\n'
+        ) {
+          inQuotes = true;
+        } else {
+          cell += '"';
+        }
       }
     } else if (char === ',' && !inQuotes) {
       row.push(cell.trim());
@@ -39,6 +62,7 @@ function parseCSV(content: string): string[][] {
       cell += char;
     }
   }
+
   if (cell !== '' || row.length > 0) {
     row.push(cell.trim());
     result.push(row);
@@ -73,6 +97,14 @@ function parseCSVDate(dateStr: string): Date | null {
   }
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
+}
+
+// Parses prices containing mathematical characters like + (e.g. $8250 + $1250) and returns the sum
+function parsePriceString(priceStr: string): number {
+  if (!priceStr) return 0;
+  const matches = priceStr.match(/\d+(\.\d+)?/g);
+  if (!matches) return 0;
+  return matches.reduce((sum, val) => sum + parseFloat(val), 0);
 }
 
 async function main() {
@@ -132,10 +164,16 @@ async function main() {
   await prisma.crmGateway.deleteMany();
   console.log('Database cleaned successfully.');
 
+  // Allow resuming mid-import: set RESUME_FROM_ROW=N env var to skip already-imported rows
+  const resumeFrom = parseInt(process.env.RESUME_FROM_ROW || '0', 10);
+  if (resumeFrom > 0) {
+    console.log(`Resuming from row ${resumeFrom + 2} (skipping first ${resumeFrom} data rows).`);
+  }
+
   let importedCount = 0;
   let failedCount = 0;
 
-  for (let i = 0; i < dataRows.length; i++) {
+  for (let i = resumeFrom; i < dataRows.length; i++) {
     const row = dataRows[i];
     // Check if row has enough cells
     if (row.length < 25) {
@@ -236,8 +274,8 @@ async function main() {
       }
 
       // Calculate markup
-      const pitchedNum = parseFloat(pricePitched.replace(/[^0-9.]/g, '')) || 0;
-      const buyingNum = parseFloat(buyingPrice.replace(/[^0-9.]/g, '')) || 0;
+      const pitchedNum = parsePriceString(pricePitched);
+      const buyingNum = parsePriceString(buyingPrice);
       const markupVal = (pitchedNum - buyingNum).toFixed(2);
 
       // Extract Year and Make/Model
@@ -249,97 +287,107 @@ async function main() {
         makeAndModel = makeModel.replace(/^(\d{4})\s*/, '');
       }
 
-      const orderDateParsed = parseCSVDate(dateRaw) || new Date();
+      const orderDateParsed = parseCSVDate(dateRaw);
+      if (!orderDateParsed) {
+        console.warn(`Skipping row ${i + 2}: Order date is missing/empty for customer "${customerName || 'Unknown'}"`);
+        failedCount++;
+        continue;
+      }
 
-      // Create records atomically in a transaction (Customer -> Card -> Order -> Comment)
-      await prisma.$transaction(async (tx) => {
-        // Create Customer - assigning full name as both firstName and lastName as requested
-        const customerNameClean = customerName || 'Unknown Customer';
-        const customer = await tx.crmCustomers.create({
-          data: {
-            firstName: customerNameClean,
-            lastName: customerNameClean,
-            customerEmail: emailAddress && emailAddress !== 'NA' && emailAddress !== '' ? emailAddress : `${customerNameClean.replace(/\s+/g, '').toLowerCase()}@example.com`,
-            customerPhone: phoneNumber && phoneNumber !== 'NA' ? phoneNumber : null,
-            customerBillingAddress: billingAddress && billingAddress !== 'NA' ? billingAddress : null,
-            customerShippingAddress: shippingAddress && shippingAddress !== 'NA' ? shippingAddress : null,
-            dateCreated: orderDateParsed,
-            dateUpdated: new Date(),
-          },
-        });
+      // ---------------------------------------------------------------
+      // Create records WITHOUT $transaction() — each operation uses its
+      // own pooled connection so GoDaddy's wait_timeout cannot kill a
+      // long-held transaction connection mid-row (ECONNRESET fix).
+      // ---------------------------------------------------------------
 
-        // Create Card details if present
-        if (cardNumber && cardNumber !== 'NA' && cardNumber !== '') {
-          // Truncate CVV to VARCHAR(5) max — guard against malformed CSV data
-          const safeCvv = (cvvCode && cvvCode !== 'NA' && cvvCode !== '') ? cvvCode.substring(0, 5) : null;
-          await tx.crmCustomerCards.create({
-            data: {
-              cardCustomerId: customer.customerId,
-              customerNameOncard: nameOnCard || customerNameClean,
-              customerCardNumber: cardNumber,
-              customerCardExpDate: expiryDate || 'NA',
-              customerCardCvv: safeCvv,
-              customerCardCreatedAt: orderDateParsed,
-              customerCardUpdated: new Date(),
-            },
-          });
-        }
-
-        // Create Order
-        const order = await tx.crmOrders.create({
-          data: {
-            orderCustomerId: customer.customerId,
-            orderYear: year || null,
-            orderMakeModel: makeAndModel || null,
-            orderPart: partDescription || null,
-            orderPartSize: specifications || null,
-            orderQuotedMiles: quotedMiles || null,
-            orderGivenMiles: vendorMiles || null,
-            orderVin: vinNumber || null,
-            orderTotalPitched: pricePitched || '0',
-            orderVendorPrice: buyingPrice || '0',
-            orderVendorId: vendorId,
-            orderVendorName: supplierVendor || null,
-            orderShippingType: shippingType || null,
-            orderMarkup: markupVal,
-            orderPaymentGatewayId: gatewayId,
-            orderSalesAgentId: agentId,
-            orderSalesAgentName: salesAgentName || null,
-            orderVerifierId: verifierId,
-            orderVerifierName: qaVerifierName || null,
-            saleStatus: mapSaleStatus(saleStatusRaw),
-            orderCurrentStatus: 'Completed Orders',
-            orderCurrentStatusUpdateDate: orderDateParsed,
-            orderDate: orderDateParsed,
-            orderVendorFeedback: 'Positive',
-            orderClientFeedback: 'Positive',
-            orderResolution: 'Resolved',
-            orderCreatedDate: orderDateParsed,
-            orderUpdatedDate: new Date(),
-          },
-        });
-
-        // Add Remarks as a Comment
-        // Only create comment if we have a valid agent FK — commentAgentId is NOT NULL
-        const commentAgentUid = agentId ?? FALLBACK_AGENT_UID;
-        if (remarks && remarks !== 'NA' && remarks !== '' && commentAgentUid !== null) {
-          await tx.crmComments.create({
-            data: {
-              customerId: customer.customerId,
-              orderId: order.crmOrderId,
-              comment: remarks,
-              commentAgentId: commentAgentUid,
-              commentAgentName: salesAgentName || 'Admin',
-              commentCreatedDate: orderDateParsed,
-              commentUpdatedDate: new Date(),
-            },
-          });
-        }
+      // Step 1: Create Customer
+      const customerNameClean = customerName || 'Unknown Customer';
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          firstName: customerNameClean,
+          lastName: customerNameClean,
+          customerEmail: emailAddress && emailAddress !== 'NA' && emailAddress !== ''
+            ? emailAddress
+            : `${customerNameClean.replace(/\s+/g, '').toLowerCase()}@example.com`,
+          customerPhone: phoneNumber && phoneNumber !== 'NA' ? phoneNumber : null,
+          customerBillingAddress: billingAddress && billingAddress !== 'NA' ? billingAddress : null,
+          customerShippingAddress: shippingAddress && shippingAddress !== 'NA' ? shippingAddress : null,
+          dateCreated: orderDateParsed,
+          dateUpdated: new Date(),
+        },
       });
 
+      // Step 2: Create Card details if present
+      if (cardNumber && cardNumber !== 'NA' && cardNumber !== '') {
+        // Truncate CVV to VARCHAR(5) max — guard against malformed CSV data
+        const safeCvv = (cvvCode && cvvCode !== 'NA' && cvvCode !== '') ? cvvCode.substring(0, 5) : null;
+        await prisma.crmCustomerCards.create({
+          data: {
+            cardCustomerId: customer.customerId,
+            customerNameOncard: nameOnCard || customerNameClean,
+            customerCardNumber: cardNumber,
+            customerCardExpDate: expiryDate || 'NA',
+            customerCardCvv: safeCvv,
+            customerCardCreatedAt: orderDateParsed,
+            customerCardUpdated: new Date(),
+          },
+        });
+      }
+
+      // Step 3: Create Order
+      const order = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderYear: year || null,
+          orderMakeModel: makeAndModel || null,
+          orderPart: partDescription || null,
+          orderPartSize: specifications || null,
+          orderQuotedMiles: quotedMiles || null,
+          orderGivenMiles: vendorMiles || null,
+          orderVin: vinNumber || null,
+          orderTotalPitched: pricePitched || '0',
+          orderVendorPrice: buyingPrice || '0',
+          orderVendorId: vendorId,
+          orderVendorName: supplierVendor || null,
+          orderShippingType: shippingType || null,
+          orderMarkup: markupVal,
+          orderPaymentGatewayId: gatewayId,
+          orderSalesAgentId: agentId,
+          orderSalesAgentName: salesAgentName || null,
+          orderVerifierId: verifierId,
+          orderVerifierName: qaVerifierName || null,
+          saleStatus: mapSaleStatus(saleStatusRaw),
+          orderCurrentStatus: 'Completed Orders',
+          orderCurrentStatusUpdateDate: orderDateParsed,
+          orderDate: orderDateParsed,
+          orderVendorFeedback: 'Positive',
+          orderClientFeedback: 'Positive',
+          orderResolution: 'Resolved',
+          orderCreatedDate: orderDateParsed,
+          orderUpdatedDate: new Date(),
+        },
+      });
+
+      // Step 4: Add Remarks as a Comment
+      // Only create comment if we have a valid agent FK — commentAgentId is NOT NULL
+      const commentAgentUid = agentId ?? FALLBACK_AGENT_UID;
+      if (remarks && remarks !== 'NA' && remarks !== '' && commentAgentUid !== null) {
+        await prisma.crmComments.create({
+          data: {
+            customerId: customer.customerId,
+            orderId: order.crmOrderId,
+            comment: remarks,
+            commentAgentId: commentAgentUid,
+            commentAgentName: salesAgentName || 'Admin',
+            commentCreatedDate: orderDateParsed,
+            commentUpdatedDate: new Date(),
+          },
+        });
+      }
+
       importedCount++;
-      if (importedCount % 200 === 0) {
-        console.log(`Imported ${importedCount} records...`);
+      if (importedCount % 50 === 0) {
+        console.log(`Imported ${importedCount} records... (CSV row ${i + 2})`);
       }
     } catch (err) {
       console.error(`Failed to import row ${i + 2}:`, err);

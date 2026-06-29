@@ -69,11 +69,7 @@ export async function getTodaySales() {
   return getSalesBetweenDates(start, end);
 }
 
-export async function getChargebackThisMonth() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
+export async function getChargebackThisMonth(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '8',
@@ -91,11 +87,7 @@ export async function getChargebackThisMonth() {
   return { amount, count: orders.length };
 }
 
-export async function getRefundThisMonth() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
+export async function getRefundThisMonth(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: '7',
@@ -317,9 +309,8 @@ export async function getTeamMonthlyScores(month: number, year: number) {
         END
       ) AS netAmount
     FROM crm_teams t
-    JOIN users u ON u.team_id = t.team_id
-    JOIN crm_orders o ON o.order_sales_agent_id = u.uid
-    WHERE MONTH(o.order_date) = ${month} AND YEAR(o.order_date) = ${year}
+    LEFT JOIN users u ON u.team_id = t.team_id
+    LEFT JOIN crm_orders o ON o.order_sales_agent_id = u.uid AND MONTH(o.order_date) = ${month} AND YEAR(o.order_date) = ${year}
     GROUP BY t.team_id, t.team_name
   `;
 
