@@ -129,3 +129,31 @@ To polish the dashboard scoreboard and Orders Journey cards:
 - Ensures sparklines remain minimal, clean, and focused solely on bar comparisons.
 - Prevents awkward text-wrapping of titles (such as "SALES THIS MONTH") and view details text on mobile viewports.
 
+---
+
+### Decision 8: Isolated Test Database Schema with Automatic Setup & Teardown
+
+**Date:** 2026-06-29
+**Status:** Approved
+
+#### Context
+Prior to this decision, Vitest integration tests connected directly to the primary local development database (`jd_crm`) defined in `.env`. This had severe drawbacks:
+1. Running tests populated or mutated real development data (creating orphaned customers, fake cards, and mock orders), which cluttered the local dashboard.
+2. Stale seeded data (such as dummy orders from `seed-dummy-orders.ts`) caused tests to fail due to duplicate entries or state conflicts.
+3. Tests would dirty the database, requiring manual cleanup or re-seeding to keep development environments pristine.
+
+#### Decision
+Migrate the test suite to a dedicated, isolated database schema (`jd_crm_test`) with fully automated lifecycle management:
+1. **Config Isolation**: Create a `.env.test` file pointing to `DATABASE_URL="mysql://root:root_password@127.0.0.1:3306/jd_crm_test"`. Using the root account enables the test runner to manage schemas dynamically without host privilege restrictions.
+2. **Vitest Global Hooks**: Implement a `src/tests/globalSetup.ts` script executed by Vitest before tests run. This setup hook:
+   - Uses `mariadb` to connect to the MySQL instance and runs `CREATE DATABASE IF NOT EXISTS jd_crm_test`.
+   - Runs `npx prisma db push --accept-data-loss` to synchronize the latest Prisma schemas automatically.
+   - Runs `npx tsx src/scripts/run-seed.ts` to populate roles, teams, permissions, and default admin accounts so tests can authenticate immediately.
+3. **Automated Teardown**: Program the `teardown` hook in `globalSetup.ts` to connect to the test database and run `TRUNCATE TABLE` on all tables, leaving the test database fully clean after tests run.
+
+#### Consequences
+- Zero test data pollution in the local development database (`jd_crm`).
+- Clean, reliable, and reproducible test runs from a pristine schema state on every execution.
+- Tests automatically configure and teardown their own database, requiring no manual DB administration during local runs or in CI environments.
+
+

@@ -1,6 +1,7 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { hasPermission } from '../service/permission.service';
 import { getServerSession } from 'next-auth';
+import { prisma } from '../lib/db';
 
 // Mock next-auth to simulate session resolution
 vi.mock('next-auth', () => ({
@@ -31,8 +32,28 @@ describe('Permission Service Tests', () => {
 });
 
 describe('API Authorization Guard Integration Test', () => {
-  beforeEach(() => {
+  let testVendor: any;
+
+  beforeEach(async () => {
     vi.resetAllMocks();
+    
+    // Ensure at least one vendor exists for the API to return
+    testVendor = await prisma.crmVendors.create({
+      data: {
+        vendorName: 'Test Auth Guard Vendor',
+        vendorContactPerson: 'John Guard',
+        vendorPhone: '000-000-0000',
+        vendorStatus: 1,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    if (testVendor) {
+      await prisma.crmVendors.delete({
+        where: { vendorId: testVendor.vendorId },
+      });
+    }
   });
 
   it('should return 401 Unauthorized if there is no session', async () => {

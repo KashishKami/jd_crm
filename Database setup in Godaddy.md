@@ -103,5 +103,27 @@ Here are the usernames and passwords you can use to access the CRM:
 
 You can copy the contents of the updated `seed.sql` and run them in your GoDaddy phpMyAdmin SQL tab to populate these test accounts!
 
+---
+
+## Commands to reset and reimport cleanly
+
+Run these **in order**, one after the other:
+
+**Step 1 — Wipe everything:**
+```
+npx tsx src/scripts/clean-db.ts
+```
+
+**Step 2 — Re-seed agents, roles, teams, permissions, and the admin account:**
+```
+npx tsx src/scripts/run-seed.ts
+```
+
+**Step 3 — Import all real CSV data:**
+```
+npm run import:csv
+```
+
+---
 
 Use local-to-remote SQL Dump (Fastest): Run the ingestion script locally against your local MySQL Docker container (which takes just seconds because network latency is zero). Once the local database is populated, export a compressed SQL dump file (using mysqldump or phpMyAdmin) and import/run that SQL file directly on your GoDaddy database. This uploads the entire dataset in a single compressed file.

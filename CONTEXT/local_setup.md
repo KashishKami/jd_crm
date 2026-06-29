@@ -90,6 +90,18 @@ Run the test suite to verify that the application successfully connects to the d
 npx vitest run src/tests/db_connection.test.ts
 ```
 
+#### Isolated Testing Environment
+To prevent test data from polluting your local development database (`jd_crm`), the test suite runs in full database isolation:
+*   **Environment Configuration**: Create your test environment file by copying the template:
+    ```bash
+    cp .env.test.example .env.test
+    ```
+    The `.env.test` file is configured with the database URL `mysql://root:root_password@127.0.0.1:3306/jd_crm_test`.
+    > [!NOTE]
+    > **Why root user?** The default development user (`crm_user`) only has authorization for the `jd_crm` database and cannot create new database schemas. The test database connection uses the database superuser (`root`) so that the test runner's setup script has sufficient privileges to automatically create the `jd_crm_test` schema.
+*   **Automatic Setup (`src/tests/globalSetup.ts`)**: When Vitest starts, it automatically ensures the `jd_crm_test` database exists on the same local container, synchronizes the Prisma schema structures via `db push`, and executes `seed.sql` to populate baseline roles and admin accounts.
+*   **Automatic Teardown**: After all tests complete, the global setup handler connects to the test database and truncates all dynamic tables, leaving the test database fully clean.
+
 ### Run the Development Server
 Since we have configured the app to run on port `3080`, start the Next.js development server on this port:
 ```bash

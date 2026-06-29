@@ -1092,5 +1092,13 @@ Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT 
   - **GREEN — Fix (`EditOrderForm.tsx`):** Added all 12 customer and card state variables to the `payload` object in `handleSubmit`, grouped under clear comments.
   - **Verification:** All 16 tests in `EditOrderForm.test.tsx` and `orders.test.ts` pass (exit 0).
 
+  **Test Database Isolation & Setup**
+  - **Root Cause & Risks**: Investigated test database usage and confirmed that Vitest was previously connecting directly to the primary local development database (`jd_crm`). This meant test executions polluted the development database, and manually run seed scripts could create conflicts or leave stale data (like today's test orders) in the active database.
+  - **Isolated Database (`jd_crm_test`)**: Created a dedicated `.env.test.example` template. Configured the connection to use the database superuser (`root`) instead of the development user (`crm_user`), as only the root account has permissions to create new database schemas on the local MySQL instance. Referressed `.env.test.example` copying instructions in the setup guide.
+  - **Vitest & Global Setup**: Created `vitest.config.ts` and `src/tests/globalSetup.ts`. The global setup script now automatically ensures that `jd_crm_test` is created, synchronizes schemas via Prisma `db push`, and runs the default database seeds prior to test execution.
+  - **Automatic Teardown & Cleanup**: Configured the global `teardown` hook in `globalSetup.ts` to automatically connect to `jd_crm_test` after all tests complete and truncate all tables, leaving the database 100% clean.
+  - **Verification**: Tests run successfully against the new test database, and the cleanup logs confirm that all tables are truncated at exit.
+
+
 
 
