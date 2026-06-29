@@ -262,6 +262,7 @@ export async function getPendingCounts() {
           'Pending Delivery',
           'Pending Feedback',
           'Pending Resolutions',
+          'Completed Orders',
         ],
       },
     },
@@ -277,6 +278,7 @@ export async function getPendingCounts() {
     'Pending Delivery': { amount: 0, count: 0 },
     'Pending Feedback': { amount: 0, count: 0 },
     'Pending Resolutions': { amount: 0, count: 0 },
+    'Completed Orders': { amount: 0, count: 0 },
   };
 
   for (const order of orders) {

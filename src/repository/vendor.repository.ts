@@ -14,7 +14,7 @@ export async function findAll(status?: number) {
       },
     },
     orderBy: {
-      vendorName: 'asc',
+      createdAt: 'desc',
     },
   });
 }

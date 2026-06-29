@@ -24,8 +24,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 10**| Interactive Sales Dashboard | **[x] COMPLETED** | Metric counters, top/bottom performance widgets |
 | **Phase 10.5**| Dashboard UI Enhancements & Top Navbar Layout | **[x] COMPLETED** | Navbar, dashboard charts, metric comparisons |
 | **Phase 11**| Comments & Audits System | **[x] COMPLETED** | Order comments timeline, image upload handler |
-| **Phase 12**| Attendance Logging System | **[ ] PENDING** | Mark attendance sheet, historical attendance view |
-| **Phase 13**| global Full-Text Search | **[ ] PENDING** | Unified global search bar, order filters |
+| **Phase 12**| Attendance Logging System | **[ ] SKIPPED** | Mark attendance sheet, historical attendance view |
+| **Phase 13**| global Full-Text Search | **[x] COMPLETED** | Unified global search bar, order filters |
 | **Phase 14**| Admin Settings & RBAC Permissions | **[ ] PENDING** | Role settings page, permission matrices |
 
 ---
@@ -746,7 +746,7 @@ Build a comment repository and service. Expose `POST /api/orders/:id/comments` a
 
 ---
 
-### Phase 12 — Attendance Logging System
+### Phase 12 — Attendance Logging System (SKIPPED)
 
 #### W-1201 — Daily Attendance Marking & Historical View
 
@@ -807,39 +807,39 @@ Build a search repository with a parameterized LIKE query across the most useful
 
 ---
 
-- [ ] **RED — Integration (`search.test.ts`):**
-  - [ ] Test: `GET /api/search?q=Toyota` returns results where at least one order's `orderMakeModel` contains `Toyota`.
-  - [ ] Test: `GET /api/search?q=john@example.com` returns at least one customer result where `customerEmail` matches.
-  - [ ] Test: `GET /api/search?q=VIN123` returns orders where `orderVin` contains `VIN123`.
-  - [ ] Test: `GET /api/search?q=` (empty query) returns `400 Bad Request`.
-  - [ ] Test: `GET /api/search?q=test` without a session returns `401 Unauthorized`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`search.test.ts`):**
+  - [x] Test: `GET /api/search?q=Toyota` returns results where at least one order's `orderMakeModel` contains `Toyota`.
+  - [x] Test: `GET /api/search?q=john@example.com` returns at least one customer result where `customerEmail` matches.
+  - [x] Test: `GET /api/search?q=VIN123` returns orders where `orderVin` contains `VIN123`.
+  - [x] Test: `GET /api/search?q=` (empty query) returns `400 Bad Request`.
+  - [x] Test: `GET /api/search?q=test` without a session returns `401 Unauthorized`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Service → Controller):**
-  - [ ] [Repository] Create `src/repository/search.repository.ts`:
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Create `src/repository/search.repository.ts`:
     - `searchOrders(query: string)` — `$queryRaw` with `LIKE '%{query}%'` across `order_make_model`, `order_vin`, `order_part`, `order_sales_agent_name`, `order_tracking_number`.
     - `searchCustomers(query: string)` — `LIKE` across `first_name`, `last_name`, `customer_email`, `customer_phone`.
-  - [ ] [Service] Create `src/service/search.service.ts`:
+  - [x] [Service] Create `src/service/search.service.ts`:
     - `search(query)` — calls both repository methods in parallel with `Promise.all`, merges and deduplicates results, returns `{ orders: [...], customers: [...] }`.
-  - [ ] [Controller] `src/app/api/search/route.ts` (GET). Validate `q` is non-empty. Guard with active session.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Controller] `src/app/api/search/route.ts` (GET). Validate `q` is non-empty. Guard with active session.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`SearchResults.test.tsx`):**
-  - [ ] Test: Given mocked results with 2 orders and 1 customer, renders two sections with correct item counts.
-  - [ ] Test: Clicking an order result navigates to `/orders/:id`.
-  - [ ] Test: Clicking a customer result navigates to `/customers/:id`.
-  - [ ] Test: Empty results state renders a "No results found" message.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`SearchResults.test.tsx`):**
+  - [x] Test: Given mocked results with 2 orders and 1 customer, renders two sections with correct item counts.
+  - [x] Test: Clicking an order result navigates to `/orders/:id`.
+  - [x] Test: Clicking a customer result navigates to `/customers/:id`.
+  - [x] Test: Empty results state renders a "No results found" message.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Components → Page):**
-  - [ ] [Types] Create `src/types/search.ts` with `SearchResults`, `OrderSearchResult`, `CustomerSearchResult` types.
-  - [ ] [Component] `src/components/GlobalSearchBar.tsx` — input that navigates to `/search?q=...` on submit. Added to `Sidebar.tsx`.
-  - [ ] [Page] `src/app/search/page.tsx` — server component that reads `?q` param, calls `/api/search`, and renders `SearchResults`.
-  - [ ] [Component] `src/components/SearchResults.tsx` — renders grouped results sections.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Components → Page):**
+  - [x] [Types] Create `src/types/search.ts` with `SearchResults`, `OrderSearchResult`, `CustomerSearchResult` types.
+  - [x] [Component] `src/components/GlobalSearchBar.tsx` — input that navigates to `/search?q=...` on submit. Added to `Sidebar.tsx`.
+  - [x] [Page] `src/app/search/page.tsx` — server component that reads `?q` param, calls `/api/search`, and renders `SearchResults`.
+  - [x] [Component] `src/components/SearchResults.tsx` — renders grouped results sections.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent types "Toyota Camry" into the global search bar in the sidebar → presses Enter → navigates to `/search?q=Toyota+Camry` → results page shows matching orders grouped by entity type → agent clicks an order row → navigates to `/orders/:id` → order detail renders → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent types "Toyota Camry" into the global search bar in the sidebar → presses Enter → navigates to `/search?q=Toyota+Camry` → results page shows matching orders grouped by entity type → agent clicks an order row → navigates to `/orders/:id` → order detail renders → ✅ Done.
 
 ---
 
@@ -1098,6 +1098,58 @@ Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT 
   - **Vitest & Global Setup**: Created `vitest.config.ts` and `src/tests/globalSetup.ts`. The global setup script now automatically ensures that `jd_crm_test` is created, synchronizes schemas via Prisma `db push`, and runs the default database seeds prior to test execution.
   - **Automatic Teardown & Cleanup**: Configured the global `teardown` hook in `globalSetup.ts` to automatically connect to `jd_crm_test` after all tests complete and truncate all tables, leaving the database 100% clean.
   - **Verification**: Tests run successfully against the new test database, and the cleanup logs confirm that all tables are truncated at exit.
+
+### Session 14 — June 30, 2026
+  **Phase 11 - Search Optimization, Navbar & Scoreboard Responsiveness**
+  - **Grid-Aligned Search**: Integrated a dual search bar layout (`.mobile-search-wrapper` / `.desktop-search-wrapper`) toggling display states cleanly via media queries. Desktop search is positioned in the `.navbar-aligned-content` overlay, matching the 15% padding grid while the Logo and Profile Dropdown remain unshifted at the screen boundary.
+  - **Overlap Resolution at 1600px Breakpoint**: Implemented layout contraction rules when the viewport is 1600px or less (hiding the "CRM" logo suffix and the "Admin" username text, displaying only the circular avatar). This prevents element collisions on intermediate widths (such as half-screen viewports).
+  - **Mobile Navbar Row Structure**: Programmed top navbar item order on mobile screens (max-width: 768px): Row 1 places Logo on left, Mobile Search Bar in the middle (taking up `flex: 1` space), and User Avatar on right; Row 2 displays the scrollable Navigation Pills.
+  - **Mobile 2-Column KPI Cards & Font Scaling**: Restored the scoreboard to render exactly 2 cards per row on mobile viewports by setting `grid-column: span 1 !important` for all cards (`.card-has-graph`, `.card-no-graph`) under 768px. Progressively scaled down card font sizes (title, value, prefix, count, footer) and sparkline width/height boundaries inside both 768px and 480px breakpoints to prevent visual overlaps.
+  - **Polished Search Recommendation spacing**: Removed Tailwind wrapper styles from the suggestion dropdown list box. Implemented Vanilla inline styles specifying clear borders, vertical row padding (`12px`), and background hover colors (`.suggestion-item-row:hover`).
+  - **Legacy Name Deduplication**: Implemented client-side merge cleanup in `GlobalSearchBar.tsx` to automatically deduplicate displayed customer names if legacy import records stored identical full-name values in both the `first_name` and `last_name` columns.
+  - **Verification**: Verified that all 119 integration and unit tests pass successfully.
+
+### Session 15 — June 30, 2026
+  **Phase 11.5 - Mobile Navigation Hamburger Menu & Swipable Scoreboard Carousel**
+  - **Mobile Hamburger Drawer**: Mounted the collapsible `Sidebar` component in `LayoutShell.tsx` and wired its toggle state (`sidebarOpen`) to a mobile hamburger menu button (`.hamburger-btn`) in `Navbar.tsx`. Clicking the button opens the slide-over navigation sidebar drawer, and clicking the backdrop closes it.
+  - **Full-Width Mobile Search**: Hid the swipable navigation pills menu (`.navbar-aligned-content`) on mobile viewports (<= 768px). Extended the mobile search bar wrapper (`.mobile-search-wrapper`) to fill all remaining width (`flex: 1`) on Row 1 between the Logo and Profile Avatar.
+  - **Scroll-Snapping Metric Carousel**: Configured `.kpi-cards-swipeable` in CSS to act as a horizontal swipeable carousel on mobile. By using native CSS Scroll Snapping (`scroll-snap-type: x mandatory` and `scroll-snap-align: start`), the browser smoothly locks viewport coordinates showing exactly one KPI metric card at a time.
+  - **Swipe Dot Indicators**: Added pagination dot indicators (`.kpi-swipe-indicators` / `.swipe-dot`) below the carousel. Implemented a scroll position event listener in React (`onScroll`) that calculates `Math.round(scrollLeft / clientWidth)` to dynamically update the active dot index. Clicking on a dot smoothly scrolls the grid container to the chosen card.
+  - **Verification**: Verified alignment and swipability behaviors, and confirmed all integration test suites remain fully green.
+
+### Session 16 — June 30, 2026
+  **Phase 11.5 - Sidebar Drawer Streamlining, Header Tightening & Swipable Orders Journey**
+  - **Sidebar Drawer Streamlining**: Streamlined `Sidebar.tsx` to display only the list of navigation page links (`nav-list`). Removed the logo header, user profile area, sign out footer button, and section headers to present a clean, minimal menu drawer on mobile.
+  - **Tightened Header Spacing**: Grouped the hamburger toggle button and `JD CRM` logo inside a flex container (`.navbar-left-group`) with an `8px` gap, preventing space-between distribution from pushing them apart and allowing the mobile search bar to expand tightly.
+  - **Metric Card Font Enlargement**: Re-increased font sizes of the metric card elements (`1.7rem` value, `0.85rem` title) inside both 768px and 480px breakpoints. Since cards are shown as full-width slides in swipable carousels on mobile, this scales the contents nicely to fill the screen space.
+  - **Swipable Orders Journey**: Refactored `PendingCountsRow.tsx` (the "Orders Journey" pipeline stage cards) to wrap its grid in `.kpi-swipe-container` and implement scroll ref hooks, state indicators, and listeners. Orders Journey cards are now swipable on mobile viewports exactly like the Scoreboard.
+  - **Prisma Parameter Logs Explanation**: Reassured that `?` query parameters printed in the server logs are prepared statement parameter placeholders, which is native Prisma batch querying behavior and not database errors.
+  - **Verification**: Verified all visual alignments, drawer interactions, and swipability functions, confirming tests remain fully green.
+
+### Session 17 — June 30, 2026
+  **Phase 11.5 - Dual-Row Mobile Swipe Carousels for Scoreboard & Orders Journey**
+  - **Scoreboard Row Split**: Split the 6 dashboard scoreboard cards into `cardsRow1` (first 3 cards) and `cardsRow2` (remaining 3 cards) in `dashboard_client_page.tsx`, rendering them as two stacked swipable rows with separate scroll refs and active dot indicator states.
+  - **Orders Journey Row Split**: Split the 5 Orders Journey stage cards into `stepsRow1` (first 3 stages) and `stepsRow2` (remaining 2 stages) in `PendingCountsRow.tsx`, rendering them as two stacked swipable slider containers on mobile with independent dot indicators.
+  - **Verification**: Verified dual-row alignment, sliding lock snap boundaries, and dot update hooks, keeping test suites clean.
+
+### Session 18 — June 30, 2026
+  **Phase 11.5 - Mobile Paired Combo Columns Swipe & Completed Orders Dashboard Metric**
+  - **Completed Orders Metric**: Integrated `'Completed Orders'` order current status calculations into `getPendingCounts()` in `dashboard.repository.ts` to return its total volume and count.
+  - **Paired Combo Columns (`.kpi-combo-column`)**: Grouped Scoreboard and Orders Journey cards into three vertically stacked pairs:
+    - **Scoreboard**: (This Year / Sales This Month), (Today's / Net Sales), (Refunds / Chargebacks).
+    - **Orders Journey**: (Pending Booking / Pending Shipment), (Pending Delivery / Pending Feedback), (Pending Resolutions / Completed Orders).
+  - **Single Swipe Double Cards**: Wrapped each pair in a `.kpi-combo-column` flex container. Configured `.kpi-combo-column` to snap horizontally as a single slide unit on mobile, meaning swipe gestures scroll both cards in a combo column simultaneously.
+  - **Verification**: Ran vitest test suites, confirming all 119 unit and integration tests build and pass cleanly.
+
+### Session 19 — June 30, 2026
+  **Phase 11.5 - Sidebar Layout Correction, Filter Sizing Harmony & Responsive Orders Table**
+  - **Completed Orders Route Sync**: Updated the redirect route of the 'Completed Orders' dashboard card to query both `saleStatus=1` and `status=Completed+Orders`, ensuring users land directly on the "Completed Orders" pipeline tab with matching filters.
+  - **Sidebar Layout Resolution**: Added `display: none !important;` to `.sidebar` on desktop viewports (>768px), and configured `display: flex !important;` exclusively within the mobile media query. This resolved a layout bug where the invisible desktop sidebar occupied 100vh of vertical space, creating a blank white gap above dashboard components.
+  - **TypeScript & Linting Cleanup**: Resolved ESLint warn/error directives (`react-hooks/set-state-in-effect`) inside `GlobalSearchBar.tsx` and `LayoutShell.tsx`. Added explicit property index typing for `'Completed Orders'` in the `PendingCounts` interface in `src/types/dashboard.ts`. Resolved SearchResults test module casting mismatches.
+  - **Filter Sizing Harmony**: Added aligned `<label>` controls (Team, Agent, Start Date, End Date) above each pipeline input in `OrderListContainer.tsx` to match the dashboard's chart filters. Styled date inputs with `.filter-select-custom` and added a mobile-specific CSS override to scale down filter fonts (`0.72rem`) and render 2 columns per row on mobile screens.
+  - **Responsive Orders Table**: Styled the main orders pipeline table in `OrderList.tsx` with the `.card-with-accent` top-border container. Removed fixed-pixel Tailwind font overrides (`text-xs`, `text-[10px]`) and applied relative fluid sizing (`inherit`, `0.92em`), allowing the table columns and content to dynamically scale down on small viewports and match other dashboard list tables.
+  - **Verification**: Verified Next.js turbopack production build succeeds cleanly, and all 119 tests pass successfully.
+
 
 
 

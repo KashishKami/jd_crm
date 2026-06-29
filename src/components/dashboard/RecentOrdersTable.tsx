@@ -61,7 +61,7 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
               {orders.map((order) => (
                 <tr key={order.crmOrderId}>
                   <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
-                  <td>{formatDateDDMMYYYY(order.orderDate)}</td>
+                  <td style={{ fontSize: '0.82em' }}>{formatDateDDMMYYYY(order.orderDate)}</td>
                   <td>{order.customerName}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

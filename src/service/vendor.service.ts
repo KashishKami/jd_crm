@@ -9,7 +9,60 @@ function validatePhone(phone: string) {
   }
 }
 
-export async function getAllVendors(status?: number): Promise<VendorWithMetrics[]> {
+export async function getAllVendors(status?: number, page?: number, limit?: number): Promise<any> {
+  const where = status !== undefined ? { vendorStatus: status } : undefined;
+
+  if (page !== undefined && limit !== undefined) {
+    const skip = (page - 1) * limit;
+    const { prisma } = await import('../lib/db');
+    const [vendors, total] = await Promise.all([
+      prisma.crmVendors.findMany({
+        where,
+        include: {
+          orders: {
+            select: {
+              crmOrderId: true,
+              saleStatus: true,
+              orderVendorFeedback: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.crmVendors.count({ where })
+    ]);
+
+    const mappedData = vendors.map((vendor) => {
+      const validOrders = vendor.orders.filter(
+        (order) => order.saleStatus === '1' || order.saleStatus === '7' || order.saleStatus === '8'
+      );
+      const totalOrders = validOrders.length;
+      const negativeOrders = validOrders.filter(
+        (order) => order.orderVendorFeedback === 'Negative'
+      ).length;
+      const positiveOrders = totalOrders - negativeOrders;
+      const { orders: _orders, ...vendorData } = vendor;
+      return {
+        ...vendorData,
+        totalOrders,
+        positiveOrders,
+        negativeOrders,
+      };
+    });
+
+    return {
+      data: mappedData,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
   const vendors = await vendorRepository.findAll(status);
   
   return vendors.map((vendor) => {

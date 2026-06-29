@@ -5,8 +5,13 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
+import GlobalSearchBar from './GlobalSearchBar';
 
-export default function Navbar() {
+interface NavbarProps {
+  onToggleSidebar?: () => void;
+}
+
+export default function Navbar({ onToggleSidebar }: NavbarProps) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -52,71 +57,96 @@ export default function Navbar() {
 
   return (
     <header className="top-navbar">
-      <div className="navbar-left">
+      <div className="navbar-left-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 101 }}>
+        {/* Mobile Hamburger menu toggle button */}
+        <button 
+          onClick={onToggleSidebar} 
+          className="hamburger-btn" 
+          aria-label="Open Navigation Drawer"
+          data-testid="hamburger-btn"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
         <Link href="/" className="navbar-logo">
           <span className="logo-icon">JD</span>
           <span className="logo-text">CRM</span>
         </Link>
       </div>
 
-      <nav className="navbar-middle swipable-nav">
-        <ul className="nav-pills">
-          <li className="nav-item">
-            <Link
-              href="/"
-              className={`nav-pill-btn ${isActive('/') ? 'active' : ''}`}
-            >
-              Dashboard
-            </Link>
-          </li>
+      {/* Mobile-only search bar rendered inline between logo and avatar */}
+      <div className="mobile-search-wrapper" style={{ zIndex: 101 }}>
+        <GlobalSearchBar />
+      </div>
 
-          {hasPermission(permissions, 'orders:view') && (
+      <div className="navbar-aligned-content">
+        {/* Navigation pills aligned directly above page heading */}
+        <nav className="navbar-middle swipable-nav" style={{ margin: 0 }}>
+          <ul className="nav-pills" style={{ margin: 0, padding: 0 }}>
             <li className="nav-item">
               <Link
-                href="/orders"
-                className={`nav-pill-btn ${isActive('/orders') ? 'active' : ''}`}
+                href="/"
+                className={`nav-pill-btn ${isActive('/') ? 'active' : ''}`}
               >
-                Orders
+                Dashboard
               </Link>
             </li>
-          )}
 
-          {hasPermission(permissions, 'vendors:view') && (
-            <li className="nav-item">
-              <Link
-                href="/vendors"
-                className={`nav-pill-btn ${isActive('/vendors') ? 'active' : ''}`}
-              >
-                Vendors
-              </Link>
-            </li>
-          )}
+            {hasPermission(permissions, 'orders:view') && (
+              <li className="nav-item">
+                <Link
+                  href="/orders"
+                  className={`nav-pill-btn ${isActive('/orders') ? 'active' : ''}`}
+                >
+                  Orders
+                </Link>
+              </li>
+            )}
 
-          {hasPermission(permissions, 'agents:view') && (
-            <li className="nav-item">
-              <Link
-                href="/agents"
-                className={`nav-pill-btn ${isActive('/agents') ? 'active' : ''}`}
-              >
-                Agents
-              </Link>
-            </li>
-          )}
+            {hasPermission(permissions, 'vendors:view') && (
+              <li className="nav-item">
+                <Link
+                  href="/vendors"
+                  className={`nav-pill-btn ${isActive('/vendors') ? 'active' : ''}`}
+                >
+                  Vendors
+                </Link>
+              </li>
+            )}
 
-          {hasPermission(permissions, 'gateways:view') && (
-            <li className="nav-item">
-              <Link
-                href="/gateways"
-                className={`nav-pill-btn ${isActive('/gateways') ? 'active' : ''}`}
-              >
-                Gateways
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
+            {hasPermission(permissions, 'agents:view') && (
+              <li className="nav-item">
+                <Link
+                  href="/agents"
+                  className={`nav-pill-btn ${isActive('/agents') ? 'active' : ''}`}
+                >
+                  Agents
+                </Link>
+              </li>
+            )}
 
-      <div className="navbar-right" ref={dropdownRef}>
+            {hasPermission(permissions, 'gateways:view') && (
+              <li className="nav-item">
+                <Link
+                  href="/gateways"
+                  className={`nav-pill-btn ${isActive('/gateways') ? 'active' : ''}`}
+                >
+                  Gateways
+                </Link>
+              </li>
+            )}
+          </ul>
+        </nav>
+
+        {/* Desktop-only search bar aligned on the other end of the content grid */}
+        <div className="desktop-search-wrapper">
+          <GlobalSearchBar />
+        </div>
+      </div>
+
+      <div className="navbar-right" ref={dropdownRef} style={{ zIndex: 101 }}>
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
           className="user-profile-btn"

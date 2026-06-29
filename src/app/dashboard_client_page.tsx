@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { hasPermission } from '../service/permission.service';
 import { DashboardMetrics } from '../types/dashboard';
 import MetricCard from '../components/dashboard/MetricCard';
@@ -29,6 +29,19 @@ export default function DashboardPage({
   userName = '',
 }: DashboardPageProps) {
   const permissions = userPermissions;
+  
+  // Refs and active index for mobile swipable combo columns slider
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleScroll = () => {
+    if (gridRef.current) {
+      const { scrollLeft, clientWidth } = gridRef.current;
+      if (clientWidth > 0) {
+        setActiveIndex(Math.round(scrollLeft / clientWidth));
+      }
+    }
+  };
 
   // Grid cards configuration based on permissions
   const cards = [];
@@ -78,10 +91,10 @@ export default function DashboardPage({
     });
   }
 
-  // 3. Today\'s Sales
+  // 3. Today's Sales
   if (hasPermission(permissions, 'dashboard:today-sales') && initialMetrics.todaySales !== undefined) {
     cards.push({
-      title: 'Today\'s Sales',
+      title: "Today's Sales",
       amount: initialMetrics.todaySales.amount,
       count: initialMetrics.todaySales.count,
       countLabel: 'Sales',
@@ -136,6 +149,22 @@ export default function DashboardPage({
     });
   }
 
+  // Group cards into specified columns/combos
+  const combos = [
+    {
+      top: cards.find(c => c.title === 'This Year Sales'),
+      bottom: cards.find(c => c.title === 'Sales This Month'),
+    },
+    {
+      top: cards.find(c => c.title === "Today's Sales"),
+      bottom: cards.find(c => c.title === 'Net Sales This Month'),
+    },
+    {
+      top: cards.find(c => c.title === 'Refunds This Month'),
+      bottom: cards.find(c => c.title === 'Chargebacks This Month'),
+    }
+  ].filter(combo => combo.top || combo.bottom);
+
   return (
     <div className="agents-page-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div className="page-header">
@@ -146,13 +175,43 @@ export default function DashboardPage({
       </div>
 
       {/* KPI Metric Cards Grid */}
-      {cards.length > 0 && (
+      {combos.length > 0 && (
         <>
           <DashboardSectionHeader title="The Scoreboard" />
-          <div className="kpi-cards-grid">
-            {cards.map((card, idx) => (
-              <MetricCard key={idx} {...card} />
-            ))}
+          <div className="kpi-swipe-container" style={{ position: 'relative', width: '100%' }}>
+            <div
+              ref={gridRef}
+              onScroll={handleScroll}
+              className="kpi-cards-grid kpi-cards-swipeable"
+            >
+              {combos.map((combo, idx) => (
+                <div 
+                  key={idx} 
+                  className="kpi-combo-column" 
+                >
+                  {combo.top && <MetricCard {...combo.top} />}
+                  {combo.bottom && <MetricCard {...combo.bottom} />}
+                </div>
+              ))}
+            </div>
+            
+            <div className="kpi-swipe-indicators">
+              {combos.map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`swipe-dot ${idx === activeIndex ? 'active' : ''}`}
+                  onClick={() => {
+                    if (gridRef.current) {
+                      gridRef.current.scrollTo({
+                        left: idx * gridRef.current.clientWidth,
+                        behavior: 'smooth'
+                      });
+                    }
+                  }}
+                  title={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
           </div>
         </>
       )}

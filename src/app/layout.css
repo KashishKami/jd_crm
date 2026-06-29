@@ -75,16 +75,7 @@ html, .app-container {
 
 /* Sidebar Styling */
 .sidebar {
-  background-color: var(--bg-sidebar);
-  color: var(--text-sidebar-inactive);
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  height: 100vh;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  font-size: 0.95rem;
+  display: none !important;
 }
 
 /* Sidebar Header / User Profile */
@@ -478,6 +469,7 @@ html, .app-container {
   }
   
   .sidebar {
+    display: flex !important;
     position: fixed !important;
     top: 0;
     left: 0;
@@ -488,6 +480,11 @@ html, .app-container {
     opacity: 1 !important;
     pointer-events: auto !important;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+    background-color: var(--bg-sidebar);
+    color: var(--text-sidebar-inactive);
+    flex-direction: column;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.95rem;
   }
   
   .app-container.sidebar-closed .sidebar {
@@ -568,6 +565,10 @@ html, .app-container {
     backdrop-filter: blur(2px);
     transition: opacity 0.3s ease;
   }
+  
+  .kpi-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 .sidebar-backdrop {
@@ -586,6 +587,53 @@ html, .app-container {
   top: 0;
   z-index: 100;
   height: 70px;
+  width: 100%;
+}
+
+.navbar-aligned-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+  margin: 0 20px;
+}
+
+@media (min-width: 1024px) {
+  .navbar-aligned-content {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    padding: 0 8%;
+    margin: 0;
+    flex: none;
+  }
+  .navbar-aligned-content > * {
+    pointer-events: auto;
+  }
+}
+
+@media (min-width: 1440px) {
+  .navbar-aligned-content {
+    padding: 0 15%;
+  }
+}
+
+@media (max-width: 1600px) {
+  .navbar-logo .logo-text {
+    display: none !important;
+  }
+  .user-name-small {
+    display: none !important;
+  }
+  .user-profile-btn {
+    padding: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }
 
 .navbar-left {
@@ -620,10 +668,9 @@ html, .app-container {
 }
 
 .navbar-middle {
-  flex: 1;
   display: flex;
-  justify-content: center;
-  margin: 0 24px;
+  justify-content: flex-start;
+  margin: 0;
 }
 
 .nav-pills {
@@ -849,12 +896,17 @@ html, .app-container {
     gap: 8px;
   }
 
-  .navbar-middle {
+  .navbar-aligned-content {
     order: 3;
     flex: 0 0 100%;
     width: 100%;
     margin: 12px 0 0 0;
     justify-content: flex-start;
+  }
+
+  .navbar-middle {
+    width: 100%;
+    margin: 0;
   }
 
   .nav-pill-btn {
@@ -899,6 +951,187 @@ html, .app-container {
   .profile-dropdown-menu {
     top: 48px;
     right: 0;
+  }
+}
+
+/* Suggestion container hover rules */
+.suggestion-item-row:hover {
+  background-color: #f8fafc !important;
+}
+.suggestion-item-view-all:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Hamburger Button styles */
+.hamburger-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+.hamburger-btn:hover {
+  background-color: #f1f5f9;
+}
+
+/* Search visibility wrappers */
+.mobile-search-wrapper {
+  display: none;
+}
+.desktop-search-wrapper {
+  display: block;
+}
+
+/* Swipe indicators (hidden on desktop) */
+.kpi-swipe-indicators {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex;
+    order: 1;
+    margin-right: 4px;
+  }
+  .navbar-logo {
+    order: 2;
+    margin-right: 8px;
+  }
+  .mobile-search-wrapper {
+    display: block;
+    order: 3;
+    flex: 1;
+    margin: 0 12px;
+    max-width: none; /* Take all remaining space */
+  }
+  .navbar-right {
+    order: 4;
+  }
+  .navbar-aligned-content {
+    display: none !important; /* Hide navigation pills completely on mobile */
+  }
+
+  /* KPI cards swipe container (1 card visible at a time) */
+  .kpi-cards-swipeable {
+    display: flex !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    scroll-behavior: smooth !important;
+    gap: 0 !important;
+    width: 100% !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .kpi-cards-swipeable::-webkit-scrollbar {
+    display: none !important;
+  }
+  .kpi-cards-swipeable > * {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Swipe indicator dots visible on mobile */
+  .kpi-swipe-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+    width: 100%;
+  }
+  .swipe-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #cbd5e1;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+  .swipe-dot.active {
+    background-color: #4b7ccd;
+    transform: scale(1.2);
+  }
+  
+  /* MetricCard Mobile Font Scaling - Enlarged for swipable full-width cards */
+  .metric-card-title {
+    font-size: 0.85rem !important;
+  }
+  .metric-card-value {
+    font-size: 1.3rem !important;
+  }
+  .metric-card-prefix {
+    font-size: 1.05rem !important;
+  }
+  .metric-card-count {
+    font-size: 0.8rem !important;
+  }
+  .metric-card-footer {
+    font-size: 0.72rem !important;
+  }
+  .metric-card-sparkline {
+    width: 60px !important;
+    height: 35px !important;
+  }
+
+  /* Mobile filters custom size adjustments */
+  .filter-select-custom {
+    font-size: 0.72rem !important;
+    height: 32px !important;
+    padding: 0 8px !important;
+  }
+  .form-label {
+    font-size: 0.65rem !important;
+  }
+  .flex-wrap-container > .filter-select-wrapper {
+    flex: 1 1 calc(50% - 8px) !important;
+    min-width: 100px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-search-wrapper {
+    margin: 0 8px;
+  }
+  /* MetricCard Extra Mobile Font Scaling */
+  .metric-card-title {
+    font-size: 0.8rem !important;
+  }
+  .metric-card-value {
+    font-size: 1.2rem !important;
+  }
+  .metric-card-prefix {
+    font-size: 0.95rem !important;
+  }
+  .metric-card-count {
+    font-size: 0.75rem !important;
+  }
+  .metric-card-footer {
+    font-size: 0.68rem !important;
+  }
+  .metric-card-sparkline {
+    width: 50px !important;
+    height: 30px !important;
+  }
+}
+
+
+/* KPI combo column desktop flat layout vs mobile stacked layout */
+.kpi-combo-column {
+  display: contents;
+}
+
+@media (max-width: 768px) {
+  .kpi-combo-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
   }
 }
 

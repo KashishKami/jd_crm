@@ -329,7 +329,7 @@ export default function VendorDetailPage() {
               <p style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No orders recorded for this supplier.</p>
             ) : (
               <div className="table-wrapper" style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }}>
-                <table className="custom-table">
+                <table className="custom-table table-responsive">
                   <thead>
                     <tr>
                       <th>Order Date</th>

@@ -28,6 +28,10 @@ export async function GET(request: Request) {
   const teamId = teamIdStr ? Number(teamIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
+  const pageStr = searchParams.get('page');
+  const limitStr = searchParams.get('limit');
+  const page = pageStr !== null ? Number(pageStr) : undefined;
+  const limit = limitStr !== null ? Number(limitStr) : undefined;
 
   try {
     const orders = await orderService.getAllOrders({
@@ -37,6 +41,8 @@ export async function GET(request: Request) {
       teamId,
       dateFrom,
       dateTo,
+      page,
+      limit,
     });
     return NextResponse.json(orders);
   } catch (error: unknown) {

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
@@ -17,6 +18,12 @@ export default function VendorList() {
   const [statusFilter, setStatusFilter] = useState<number>(1); // 1 = Active, 0 = Blacklisted
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 20;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
 
@@ -24,19 +31,32 @@ export default function VendorList() {
   const canCreate = hasPermission(permissions, 'vendors:create');
   const canEdit = hasPermission(permissions, 'vendors:edit');
 
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
   useEffect(() => {
     let active = true;
     const fetchVendors = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/vendors?status=${statusFilter}`);
+        const res = await fetch(`/api/vendors?status=${statusFilter}&page=${page}&limit=${limit}`);
         if (!res.ok) {
           throw new Error(`Failed to fetch vendors: ${res.statusText}`);
         }
         const data = await res.json();
         if (active) {
-          setVendors(data);
+          if (data && data.data) {
+            setVendors(data.data);
+            setTotalPages(data.pages || 1);
+            setTotalItems(data.total || 0);
+          } else {
+            setVendors(data || []);
+            setTotalPages(1);
+            setTotalItems(data ? data.length : 0);
+          }
         }
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : 'An error occurred while fetching vendors.';
@@ -55,7 +75,7 @@ export default function VendorList() {
     return () => {
       active = false;
     };
-  }, [statusFilter, refetchTrigger]);
+  }, [statusFilter, refetchTrigger, page]);
 
   // Page entrance animation
   useEffect(() => {
@@ -157,8 +177,9 @@ export default function VendorList() {
           <p>No vendors found matching this criteria.</p>
         </div>
       ) : (
-        <div className="table-wrapper">
-          <table className="custom-table table-responsive">
+        <>
+          <div className="table-wrapper">
+            <table className="custom-table table-responsive">
             <thead>
               <tr>
                 <th>Vendor&apos;s Name</th>
@@ -214,7 +235,29 @@ export default function VendorList() {
             </tbody>
           </table>
         </div>
-      )}
-    </div>
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button 
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+              disabled={page === 1}
+              className="pagination-btn"
+            >
+              Previous
+            </button>
+            <span className="pagination-info">
+              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
+            </span>
+            <button 
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+              disabled={page === totalPages}
+              className="pagination-btn"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </div>
   );
 }

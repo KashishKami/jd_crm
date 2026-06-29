@@ -90,4 +90,6 @@ export interface OrderFilters {
   teamId?: number;
   dateFrom?: string;
   dateTo?: string;
+  page?: number;
+  limit?: number;
 }

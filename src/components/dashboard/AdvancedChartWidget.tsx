@@ -91,6 +91,19 @@ export default function AdvancedChartWidget() {
     return () => { cancelled = true; };
   }, [range, selectedTeam, effectiveAgent, appliedStartDate, appliedEndDate]);
 
+  // Click outside to dismiss mobile tooltip cards
+  useEffect(() => {
+    const closeTooltip = () => setHoveredIdx(null);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('click', closeTooltip);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('click', closeTooltip);
+      }
+    };
+  }, []);
+
   const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setRange(val);
@@ -178,8 +191,8 @@ export default function AdvancedChartWidget() {
     gridLines.push({ val, y });
   }
 
-  // Mouse event handlers for tooltip positioning
-  const handleMouseOver = (idx: number, e: React.MouseEvent<SVGElement>) => {
+  // Mouse and Touch event handlers for tooltip positioning
+  const handleMouseOver = (idx: number, e: React.MouseEvent<SVGElement> | React.TouchEvent<SVGElement> | any) => {
     setHoveredIdx(idx);
     
     const svg = e.currentTarget.closest('svg');
@@ -399,6 +412,10 @@ export default function AdvancedChartWidget() {
                     data-testid={`bar-group-${i}`}
                     onMouseOver={(e) => handleMouseOver(i, e)}
                     onMouseOut={handleMouseOut}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMouseOver(i, e);
+                    }}
                   >
                     {/* Invisible backing rect to capture hover events reliably */}
                     <rect

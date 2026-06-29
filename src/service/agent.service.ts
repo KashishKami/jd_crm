@@ -10,7 +10,35 @@ function sanitizeUser<T extends { password?: string | null }>(user: T | null): O
   return sanitized;
 }
 
-export async function getAllAgents(status?: number) {
+export async function getAllAgents(status?: number, page?: number, limit?: number): Promise<any> {
+  if (page !== undefined && limit !== undefined) {
+    const skip = (page - 1) * limit;
+    const [agents, total] = await Promise.all([
+      prisma.users.findMany({
+        where: status !== undefined ? { status } : undefined,
+        include: {
+          team: true,
+          role: true,
+        },
+        orderBy: {
+          created: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.users.count({
+        where: status !== undefined ? { status } : undefined,
+      })
+    ]);
+    return {
+      data: agents.map(sanitizeUser),
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
   const agents = await agentRepository.findAll(status);
   return agents.map(sanitizeUser);
 }

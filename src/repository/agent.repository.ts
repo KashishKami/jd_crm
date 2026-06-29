@@ -53,7 +53,7 @@ export async function findAll(status?: number) {
       role: true,
     },
     orderBy: {
-      uid: 'asc',
+      created: 'desc',
     },
   });
 }

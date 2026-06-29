@@ -22,10 +22,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const statusStr = searchParams.get('status');
   const status = statusStr !== null ? Number(statusStr) : undefined;
+  const pageStr = searchParams.get('page');
+  const limitStr = searchParams.get('limit');
+  const page = pageStr !== null ? Number(pageStr) : undefined;
+  const limit = limitStr !== null ? Number(limitStr) : undefined;
 
   try {
-    const agents = await agentService.getAllAgents(status);
-    return NextResponse.json(agents);
+    const result = await agentService.getAllAgents(status, page, limit);
+    return NextResponse.json(result);
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });

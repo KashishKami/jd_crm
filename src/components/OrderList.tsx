@@ -81,99 +81,101 @@ export default function OrderList({ orders }: OrderListProps) {
   };
 
   return (
-    <div className="table-wrapper">
-      <table className="custom-table table-responsive">
-        <thead>
-          <tr>
-            <th>Order ID</th>
-            <th>Customer</th>
-            <th>Vehicle & Part</th>
-            <th>Agent</th>
-            <th>Team</th>
-            <th>Pricing</th>
-            <th>Workflow Status</th>
-            <th>Order Date</th>
-            <th className="actions-cell">Actions</th>
-          </tr>
-        </thead>
-        <tbody ref={tableRowsRef}>
-          {orders.map((order) => {
-            const markupVal = parseFloat(order.orderMarkup || '0');
-            return (
-              <tr key={order.crmOrderId} style={{ opacity: 0 }}>
-                <td>
-                  <span className="font-mono text-[11px] font-semibold text-slate-500">
-                    #{order.crmOrderId}
-                  </span>
-                </td>
-                <td>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900">
-                      {order.customer.firstName} {order.customer.lastName}
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {order.customer.customerEmail}
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div>
-                    <div className="text-xs font-medium text-slate-800">
-                      {order.orderYear ? `${order.orderYear} ` : ''}
-                      {order.orderMakeModel || 'Unknown Vehicle'}
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-semibold italic mt-0.5">
-                      {order.orderPart || '—'}
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <span className="badge-team bg-slate-100 text-slate-700 font-medium" style={{ fontSize: '0.725rem', padding: '2px 6px' }}>
-                    {order.salesAgent?.nickname || order.salesAgent?.name || 'Unassigned'}
-                  </span>
-                </td>
-                <td>
-                  <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.725rem', padding: '2px 6px' }}>
-                    {order.salesAgent?.team?.teamName || '—'}
-                  </span>
-                </td>
-                <td>
-                  <div className="flex flex-col text-[10px] font-mono">
-                    <span className="text-slate-500">Pitch: ${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
-                    <span className="text-slate-400">Buy: ${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
-                    <span className={`font-semibold mt-0.5 ${markupVal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      Margin: ${markupVal.toFixed(2)}
+    <div className="table-wrapper card-with-accent">
+      <div className="card-table-container" style={{ padding: 0 }}>
+        <table className="custom-table table-responsive">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Vehicle & Part</th>
+              <th>Agent</th>
+              <th>Team</th>
+              <th>Pricing</th>
+              <th>Workflow Status</th>
+              <th>Order Date</th>
+              <th className="actions-cell">Actions</th>
+            </tr>
+          </thead>
+          <tbody ref={tableRowsRef}>
+            {orders.map((order) => {
+              const markupVal = parseFloat(order.orderMarkup || '0');
+              return (
+                <tr key={order.crmOrderId} style={{ opacity: 0 }}>
+                  <td>
+                    <span className="font-mono font-semibold text-slate-500" style={{ fontSize: '0.95em' }}>
+                      #{order.crmOrderId}
                     </span>
-                  </div>
-                </td>
-                <td>
-                  {(() => {
-                    const statusText = order.orderCurrentStatus || 'Unknown';
-                    return (
-                      <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(statusText)}`} style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
-                        {statusText}
+                  </td>
+                  <td>
+                    <div>
+                      <div className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
+                        {order.customer.firstName} {order.customer.lastName}
+                      </div>
+                      <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
+                        {order.customer.customerEmail}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div>
+                      <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>
+                        {order.orderYear ? `${order.orderYear} ` : ''}
+                        {order.orderMakeModel || 'Unknown Vehicle'}
+                      </div>
+                      <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em' }}>
+                        {order.orderPart || '—'}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="badge-team bg-slate-100 text-slate-700 font-medium" style={{ fontSize: '0.92em', padding: '2px 6px' }}>
+                      {order.salesAgent?.nickname || order.salesAgent?.name || 'Unassigned'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.92em', padding: '2px 6px' }}>
+                      {order.salesAgent?.team?.teamName || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex flex-col font-mono" style={{ fontSize: '0.92em' }}>
+                      <span className="text-slate-500">Pitch: ${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
+                      <span className="text-slate-400">Buy: ${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
+                      <span className={`font-semibold mt-0.5 ${markupVal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        Margin: ${markupVal.toFixed(2)}
                       </span>
-                    );
-                  })()}
-                </td>
-                <td className="text-[11px] text-slate-500 font-medium">
-                  {formatDate(order.orderDate)}
-                </td>
-                <td className="actions-cell">
-                  <div className="action-buttons">
-                    <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view" style={{ fontSize: '0.725rem' }}>
-                      Details
-                    </Link>
-                    <Link href={`/orders/${order.crmOrderId}/edit`} className="action-link-btn edit" style={{ fontSize: '0.725rem' }}>
-                      Edit
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    </div>
+                  </td>
+                  <td>
+                    {(() => {
+                      const statusText = order.orderCurrentStatus || 'Unknown';
+                      return (
+                        <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(statusText)}`} style={{ fontSize: '0.92em', padding: '2px 8px' }}>
+                          {statusText}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td className="text-slate-500 font-normal" style={{ fontSize: '0.82em' }}>
+                    {formatDate(order.orderDate)}
+                  </td>
+                  <td className="actions-cell">
+                    <div className="action-buttons">
+                      <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
+                        Details
+                      </Link>
+                      <Link href={`/orders/${order.crmOrderId}/edit`} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
+                        Edit
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

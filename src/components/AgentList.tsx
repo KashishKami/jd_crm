@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
@@ -20,6 +21,10 @@ export default function AgentList() {
   const [teamFilter, setTeamFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('1'); // Default to "1" (Active)
+
+  // Pagination States
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
@@ -78,6 +83,11 @@ export default function AgentList() {
   const teams = Array.from(new Set(agents.map(a => a.team?.teamName).filter(Boolean))).sort() as string[];
   const roles = Array.from(new Set(agents.map(a => a.role?.roleName).filter(Boolean))).sort() as string[];
 
+  // Reset page when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, designationFilter, teamFilter, roleFilter, statusFilter]);
+
   // Client-side filtering logic
   const filteredAgents = agents.filter(agent => {
     // 1. Text Search query: Matches Name or Nickname (case-insensitive)
@@ -114,16 +124,22 @@ export default function AgentList() {
     return true;
   });
 
-  // Stagger entrance on table rows whenever the filtered agents list changes
+  // Pagination computations
+  const totalItems = filteredAgents.length;
+  const totalPages = Math.ceil(totalItems / limit) || 1;
+  const startIndex = (page - 1) * limit;
+  const paginatedAgents = filteredAgents.slice(startIndex, startIndex + limit);
+
+  // Stagger entrance on table rows whenever the paginated agents list changes
   useEffect(() => {
-    if (tableRowsRef.current && filteredAgents.length > 0) {
+    if (tableRowsRef.current && paginatedAgents.length > 0) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
       const ctx = gsap.context(() => {
         staggerEntrance(rows);
       });
       return () => ctx.revert();
     }
-  }, [filteredAgents]);
+  }, [paginatedAgents]);
 
   const handleToggleStatus = async (uid: number, currentStatus: number) => {
     if (!confirm(`Are you sure you want to ${currentStatus === 1 ? 'deactivate' : 'activate'} this agent?`)) {
@@ -271,8 +287,9 @@ export default function AgentList() {
           <p>No agents found matching this criteria.</p>
         </div>
       ) : (
-        <div className="table-wrapper">
-          <table className="custom-table table-responsive">
+        <>
+          <div className="table-wrapper">
+            <table className="custom-table table-responsive">
             <thead>
               <tr>
                 <th>Name</th>
@@ -286,7 +303,7 @@ export default function AgentList() {
               </tr>
             </thead>
             <tbody ref={tableRowsRef}>
-              {filteredAgents.map((agent) => (
+              {paginatedAgents.map((agent) => (
                 <tr key={agent.uid} style={{ opacity: 0 }}>
                   <td>
                     <div className="name-cell">
@@ -346,7 +363,29 @@ export default function AgentList() {
             </tbody>
           </table>
         </div>
-      )}
-    </div>
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button 
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+              disabled={page === 1}
+              className="pagination-btn"
+            >
+              Previous
+            </button>
+            <span className="pagination-info">
+              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
+            </span>
+            <button 
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+              disabled={page === totalPages}
+              className="pagination-btn"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </div>
   );
 }

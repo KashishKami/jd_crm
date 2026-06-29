@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
@@ -29,10 +30,21 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 20;
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const permissions = session?.user?.userPermissions || '';
   const canCreate = hasPermission(permissions, 'orders:create');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, dateFrom, dateTo]);
 
   // Synchronize URL search parameters with filter states
   useEffect(() => {
@@ -42,7 +54,6 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
     if (fromParam !== null) setDateFrom(fromParam);
@@ -83,7 +94,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     fetchTeams();
   }, [status]);
 
-  // Fetch orders when filters change
+  // Fetch orders when filters or page changes
   useEffect(() => {
     if (status !== 'authenticated') return;
 
@@ -99,6 +110,8 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       if (teamFilter) params.append('teamId', teamFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
+      params.append('page', String(page));
+      params.append('limit', String(limit));
 
       try {
         const res = await fetch(`/api/orders?${params.toString()}`);
@@ -107,7 +120,15 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
         }
         const data = await res.json();
         if (active) {
-          setOrders(data);
+          if (data && data.data) {
+            setOrders(data.data);
+            setTotalPages(data.pages || Math.ceil((data.total || 0) / limit) || 1);
+            setTotalItems(data.total || 0);
+          } else {
+            setOrders(data || []);
+            setTotalPages(1);
+            setTotalItems(data ? data.length : 0);
+          }
         }
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : 'An error occurred';
@@ -126,7 +147,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     return () => {
       active = false;
     };
-  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, dateFrom, dateTo]);
+  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, dateFrom, dateTo, page]);
 
   // Page entrance animation
   useEffect(() => {
@@ -223,44 +244,49 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
         </div>
 
         {/* Date, Agent & Team Filters */}
-        <div className="flex-wrap-container">
+        <div className="flex-wrap-container" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end', marginTop: '8px', width: '100%' }}>
           <div className="filter-select-wrapper">
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
             <select
               value={teamFilter}
               onChange={(e) => setTeamFilter(e.target.value)}
               className="filter-select-custom"
             >
-              <option value="">-- All Teams --</option>
+              <option value="">All Teams</option>
               {teams.map((t) => (
                 <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
               ))}
             </select>
           </div>
           <div className="filter-select-wrapper">
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Agent</label>
             <select
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
               className="filter-select-custom"
             >
-              <option value="">-- All Agents --</option>
+              <option value="">All Agents</option>
               {agents.map((a) => (
                 <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
               ))}
             </select>
           </div>
-          <div className="date-range-container">
+          <div className="filter-select-wrapper">
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Start Date</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="form-input"
+              className="filter-select-custom"
             />
-            <span>to</span>
+          </div>
+          <div className="filter-select-wrapper">
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>End Date</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="form-input"
+              className="filter-select-custom"
             />
           </div>
         </div>
@@ -312,12 +338,31 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           </svg>
           <p>{error}</p>
         </div>
-      ) : orders.length === 0 ? (
-        <div className="empty-box">
-          <p>No sales orders found matching this criteria.</p>
-        </div>
       ) : (
-        <OrderList orders={orders} />
+        <>
+          <OrderList orders={orders} />
+          {totalPages > 1 && (
+            <div className="pagination-bar">
+              <button 
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+                disabled={page === 1}
+                className="pagination-btn"
+              >
+                Previous
+              </button>
+              <span className="pagination-info">
+                Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
+              </span>
+              <button 
+                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+                disabled={page === totalPages}
+                className="pagination-btn"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

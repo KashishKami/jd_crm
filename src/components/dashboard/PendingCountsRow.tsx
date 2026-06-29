@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { PendingCounts } from '../../types/dashboard';
 
@@ -9,6 +9,19 @@ interface PendingCountsRowProps {
 }
 
 export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProps) {
+  // Refs and active index for mobile swipable combo columns slider
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleScroll = () => {
+    if (gridRef.current) {
+      const { scrollLeft, clientWidth } = gridRef.current;
+      if (clientWidth > 0) {
+        setActiveIndex(Math.round(scrollLeft / clientWidth));
+      }
+    }
+  };
+
   const steps = [
     {
       label: 'Pending Booking',
@@ -75,73 +88,157 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
         </svg>
       )
     },
+    {
+      label: 'Completed Orders',
+      amount: pendingCounts['Completed Orders']?.amount || 0,
+      count: pendingCounts['Completed Orders']?.count || 0,
+      route: '/orders?saleStatus=1&status=Completed+Orders',
+      color: '#4b7ccd',
+      bg: '#f0f5fa',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    }
   ];
 
+  // Group steps into columns/combos
+  const combos = [
+    {
+      top: steps.find(s => s.label === 'Pending Booking'),
+      bottom: steps.find(s => s.label === 'Pending Shipment'),
+    },
+    {
+      top: steps.find(s => s.label === 'Pending Delivery'),
+      bottom: steps.find(s => s.label === 'Pending Feedback'),
+    },
+    {
+      top: steps.find(s => s.label === 'Pending Resolutions'),
+      bottom: steps.find(s => s.label === 'Completed Orders'),
+    }
+  ].filter(combo => combo.top || combo.bottom);
+
   return (
-    <div className="kpi-cards-grid">
-      {steps.map((step, idx) => (
-          <Link
-            key={idx}
-            href={step.route}
-            style={{
-              textDecoration: 'none',
-              color: 'inherit',
-              display: 'block',
-            }}
+    <div className="kpi-swipe-container" style={{ position: 'relative', width: '100%' }}>
+      <div
+        ref={gridRef}
+        onScroll={handleScroll}
+        className="kpi-cards-grid kpi-cards-swipeable"
+      >
+        {combos.map((combo, idx) => (
+          <div 
+            key={idx} 
+            className="kpi-combo-column" 
           >
-            <div
-              className="metric-card metric-card-interactive"
-              style={{
-                border: '3px solid #f1f5f9',
-              }}
-            >
-              <div className="metric-card-body">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span className="metric-card-title">
-                    {step.label}
-                  </span>
-                  <div className="metric-card-value-wrapper">
-                    <div className="metric-card-value-container">
-                      <span className="metric-card-prefix">$</span>
-                      <span className="metric-card-value">
-                        {step.amount.toLocaleString()}
+            {combo.top && (
+              <Link
+                href={combo.top.route}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+              >
+                <div className="metric-card metric-card-interactive" style={{ border: '3px solid #f1f5f9', height: '100%' }}>
+                  <div className="metric-card-body">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span className="metric-card-title" style={{ display: 'block', minHeight: '38px' }}>
+                        {combo.top.label}
                       </span>
+                      <div className="metric-card-value-wrapper">
+                        <div className="metric-card-value-container">
+                          <span className="metric-card-prefix">$</span>
+                          <span className="metric-card-value">
+                            {combo.top.amount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="metric-card-count">
+                          ({combo.top.count} Sales)
+                        </div>
+                      </div>
                     </div>
-                    <div className="metric-card-count">
-                      ({step.count} Sales)
-                    </div>
+                    {combo.top.icon && (
+                      <div
+                        className="metric-card-icon-container"
+                        style={{
+                          background: combo.top.bg,
+                          color: combo.top.color,
+                          borderRadius: '10px',
+                          alignSelf: 'center',
+                        }}
+                      >
+                        {combo.top.icon}
+                      </div>
+                    )}
+                  </div>
+                  <div className="metric-card-footer-band" style={{ backgroundColor: '#f1f5f9', borderTop: '3px solid #f1f5f9' }}>
+                    <span className="metric-card-footer">View Details &rarr;</span>
                   </div>
                 </div>
-                {step.icon && (
-                  <div
-                    className="metric-card-icon-container"
-                    style={{
-                      background: step.bg,
-                      color: step.color,
-                      borderRadius: '10px',
-                      alignSelf: 'center',
-                    }}
-                  >
-                    {step.icon}
-                  </div>
-                )}
-              </div>
-              <div
-                className="metric-card-footer-band"
-                style={{
-                  backgroundColor: '#f1f5f9',
-                  borderTop: '3px solid #f1f5f9',
-                }}
+              </Link>
+            )}
+
+            {combo.bottom && (
+              <Link
+                href={combo.bottom.route}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
               >
-                <span className="metric-card-period-label">
-                </span>
-                <span className="metric-card-footer">
-                  View Details &rarr;
-                </span>
-              </div>
-            </div>
-          </Link>
+                <div className="metric-card metric-card-interactive" style={{ border: '3px solid #f1f5f9', height: '100%' }}>
+                  <div className="metric-card-body">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span className="metric-card-title" style={{ display: 'block', minHeight: '38px' }}>
+                        {combo.bottom.label}
+                      </span>
+                      <div className="metric-card-value-wrapper">
+                        <div className="metric-card-value-container">
+                          <span className="metric-card-prefix">$</span>
+                          <span className="metric-card-value">
+                            {combo.bottom.amount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="metric-card-count">
+                          ({combo.bottom.count} Sales)
+                        </div>
+                      </div>
+                    </div>
+                    {combo.bottom.icon && (
+                      <div
+                        className="metric-card-icon-container"
+                        style={{
+                          background: combo.bottom.bg,
+                          color: combo.bottom.color,
+                          borderRadius: '10px',
+                          alignSelf: 'center',
+                        }}
+                      >
+                        {combo.bottom.icon}
+                      </div>
+                    )}
+                  </div>
+                  <div className="metric-card-footer-band" style={{ backgroundColor: '#f1f5f9', borderTop: '3px solid #f1f5f9' }}>
+                    <span className="metric-card-footer">View Details &rarr;</span>
+                  </div>
+                </div>
+              </Link>
+            )}
+          </div>
         ))}
       </div>
+
+      <div className="kpi-swipe-indicators">
+        {combos.map((_, idx) => (
+          <span
+            key={idx}
+            className={`swipe-dot ${idx === activeIndex ? 'active' : ''}`}
+            onClick={() => {
+              if (gridRef.current) {
+                gridRef.current.scrollTo({
+                  left: idx * gridRef.current.clientWidth,
+                  behavior: 'smooth'
+                });
+              }
+            }}
+            title={`Go to slide ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

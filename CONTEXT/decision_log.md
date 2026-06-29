@@ -156,4 +156,144 @@ Migrate the test suite to a dedicated, isolated database schema (`jd_crm_test`) 
 - Clean, reliable, and reproducible test runs from a pristine schema state on every execution.
 - Tests automatically configure and teardown their own database, requiring no manual DB administration during local runs or in CI environments.
 
+---
 
+### Decision 9: Grid-Aligned Top Navbar Search & Mobile-Responsive Layout Refinements
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+To refine the visual layout and user experience:
+1. The global search bar was previously placed in the main page content layout, causing it to look detached. It needed to be integrated into the top navbar but aligned horizontally with the 15% desktop content margins, while the logo and profile buttons remained at the far edges of the screen.
+2. In intermediate and half-screen widths (under 1600px), absolute layout positioning caused elements (the Logo, Navigation Pills, Search Bar, and User Profile Button) to collide and overlap.
+3. On mobile screens (under 768px), the search bar was hidden, but users required it to be accessible on Row 1 (between Logo and User Profile) while the Navigation Pills wrapped to Row 2.
+4. Scoreboard cards on mobile screens overlapped and wrapped because they were rendering in two columns without scaling their fonts and graphics properly, and the suggestion box was cramped and lacked spacing.
+
+#### Decision
+1. **Desktop Grid Alignment via Absolute Overlay**: Enforced that `.navbar-aligned-content` uses absolute positioning overlay ONLY at screen widths >= 1024px, wrapping the Navigation Pills and Global Search Bar. This aligns them with the 15% page content margins while the Logo and Profile Dropdown remain unshifted at the screen boundaries.
+2. **Intermediate Width Contraction (1600px Breakpoint)**: Programmed contraction rules to trigger at screen widths of 1600px or less. The logo suffix "CRM" is hidden, and the User Profile text "Admin" is hidden (showing only the avatar), freeing up space and preventing element overlap.
+3. **Dual Search Bar Architecture**: Integrated a mobile-only search bar (`.mobile-search-wrapper`) and a desktop-only search bar (`.desktop-search-wrapper`). On mobile screens (<= 768px), the desktop search bar is hidden and the mobile search bar is displayed inline on Row 1 between the Logo and Avatar, while the Navigation Pills wrap to Row 2.
+4. **Mobile 2-Column KPI Card Scaling**: Configured the dashboard scoreboard to render as exactly 2 cards per row on mobile screens by forcing all card containers (`.card-has-graph`, `.card-no-graph`) to span 1 column. Concurrently scaled down title, value, count, and sparkline graphics in CSS to prevent layout overflow.
+5. **Polished Suggestion List Row spacing**: Replaced Tailwind classes with Vanilla inline style definitions. Added explicit vertical paddings (`12px`), row borders, and hover backgrounds (`.suggestion-item-row:hover`) to make search recommendations readable and visually premium.
+
+#### Consequences
+- Navbar elements align perfectly with page boundaries on large desktop viewports.
+- Eliminates intermediate overlaps on half-screen viewports (up to 1600px wide).
+- Mobile search remains instantly accessible next to the branding.
+- KPI metric indicators fit cleanly side-by-side on all mobile viewports.
+- The search suggestion box displays beautifully with clear row definitions and click indicators.
+
+---
+
+### Decision 10: Mobile Hamburger Navigation Drawer & Swipable Scoreboard Cards
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+To optimize mobile navigation usability and layout density:
+1. Mobile viewports previously wrapped the navigation pills onto a second row, cluttering the top navbar. We needed to group all navigation links under a single hamburger button, allowing the search bar to occupy the remaining width.
+2. Even with font scaling, rendering two columns of KPI metric cards side-by-side on very narrow devices squished the details. A swipable horizontal carousel showing one card at a time with indicators was requested.
+
+#### Decision
+1. **Hamburger Navigation Drawer**: Lifted the sidebar open/close state (`sidebarOpen`) to `LayoutShell.tsx` and mounted `Sidebar` as a slide-over drawer overlay with a backdrop click handler. Integrated a hamburger toggle button (`.hamburger-btn`) into the mobile top navbar on the left of the Logo.
+2. **Full-Width Mobile Search Bar**: Hidden the pills menu (`.navbar-aligned-content`) entirely on screens <= 768px. Concurrently allowed the mobile search bar (`.mobile-search-wrapper`) to expand and occupy all remaining width between the Logo and Profile Avatar.
+3. **Scroll-Snapping KPI Carousel**: Configured the scoreboard container `.kpi-cards-swipeable` to use CSS Scroll Snapping (`scroll-snap-type: x mandatory`) and `overflow-x: auto` on mobile screens. Set card children to `flex: 0 0 100%` and `scroll-snap-align: start` to present exactly one card at a time.
+4. **Slide Indicators**: Appended interactive dots (`.kpi-swipe-indicators`) updating dynamically via a React scroll event listener (`onScroll`) that matches `scrollLeft / clientWidth`.
+
+#### Consequences
+- Mobile navbar displays cleanly on a single line: Hamburger | Logo | Full-Width Search | Avatar.
+- Swipe gestures are completely native and smooth, powered by high-performance CSS Scroll Snapping.
+- Dot indicators provide clear visual cues of multi-card availability and current slide index.
+- Standardizes desktop layout behavior, keeping pills visible on larger viewports.
+
+---
+
+### Decision 11: Sidebar Drawer Streamlining & Orders Journey Mobile Carousel
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+To polish the user experience on mobile screens:
+1. The sidebar drawer previously contained profile info, sign out buttons, and section headers that took up significant visual space. We needed to strip it down to display only the navigation links.
+2. Under mobile viewports, the spacing between navbar elements (Hamburger, Logo, Search Bar) was too loose due to flex space-between distribution.
+3. Once the scoreboard and pipeline metrics were turned into single-card-per-row horizontal sliders on mobile, their font sizes looked too small. We needed to enlarge them to fill the container space nicely.
+4. The "Orders Journey" pipeline stage cards also needed to be horizontal scroll-snap swipable, matching the Scoreboard layout.
+
+#### Decision
+1. **Sidebar Streamlining**: Modified `Sidebar.tsx` to remove the header logo, user profile details, section titles, and footer sign out blocks, keeping ONLY the link elements list (`nav-list`).
+2. **Horizontal Grouping**: Wrapped the Hamburger Button and Logo inside a unified flex div (`.navbar-left-group`) with an 8px gap. On mobile, this group acts as a single flex item, reducing the gap between navbar components and allowing the mobile search bar to expand tightly.
+3. **Card Font Enlargement**: Restored MetricCard mobile font sizes (under 768px and 480px breakpoints) to normal desktop dimensions (`1.7rem` value, `0.85rem` title) to leverage the full width of single-card slide views.
+4. **Orders Journey Swipeable Row**: Wrapped the grid in `PendingCountsRow.tsx` inside `.kpi-swipe-container` and set up the ref hooks, state indicators, and scroll listeners to match the Scoreboard swipe layout.
+
+#### Consequences
+- Mobile sidebar navigation drawer is minimal and distraction-free.
+- Header element spacing is tight and premium.
+- Slide cards are fully readable and aesthetically bold.
+- Consistent swipable card carousels across the dashboard.
+
+---
+
+### Decision 12: Dual-Row Mobile KPI Carousel Refinement
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+To optimize mobile dashboard layouts:
+- Rendering 5 or 6 swipable cards in a single long horizontal slider required excessive scrolling. We wanted to split them into a stacked two-row layout, displaying the first three cards in the first swipable row, and the remaining cards in the second swipable row.
+
+#### Decision
+- **Scoreboard Dual-Row Carousel**: Split the 6 dashboard metric cards into `cardsRow1` (first 3 cards) and `cardsRow2` (remaining 3 cards). Rendered them as two separate `.kpi-swipe-container` blocks stacked vertically on mobile viewports.
+- **Orders Journey Dual-Row Carousel**: Split the 5 pipeline stage cards into `stepsRow1` (first 3 stages) and `stepsRow2` (remaining 2 stages) inside `PendingCountsRow.tsx`, rendering them as two separate stacked swipable sliders with independent scroll references and indicator dots.
+
+#### Consequences
+- Mobile users can see up to two metric categories in view simultaneously on the screen.
+- Significantly reduces the horizontal swipe distance, improving dashboard scannability.
+- Keeps desktop layout behavior clean, rendering separate grid segments side-by-side.
+
+---
+
+### Decision 13: Paired Combo Columns Swipe & Completed Orders Dashboard Metric
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+To create a clean mobile layout and display logical pairings of metric states:
+1. Instead of scrolling separate rows, stacked vertical pairs of metric cards should scroll together. Swiping right-to-left should move both cards in a column simultaneously.
+2. The "Orders Journey" pipeline lacked a completion status indicator. Adding a "Completed Orders" step would yield exactly 6 steps, allowing for three vertical paired combos matching the Scoreboard layout.
+
+#### Decision
+1. **Completed Orders Metric**: Added `'Completed Orders'` to the database status list queried in `getPendingCounts()` inside `dashboard.repository.ts`, returning aggregate markup and volume.
+2. **Paired Combo Columns (`.kpi-combo-column`)**: Grouped the Scoreboard and Orders Journey cards into three vertical pairs:
+   - **Dashboard**: (This Year / Sales This Month), (Today's / Net Sales), (Refunds / Chargebacks).
+   - **Order Status**: (Pending Booking / Pending Shipment), (Pending Delivery / Pending Feedback), (Pending Resolutions / Completed Orders).
+3. **Carousel Snapping**: Wrapped each pair inside a `.kpi-combo-column` flex container. Configured `.kpi-combo-column` to act as the scroll-snap child on mobile screens, making a single swipe slide both cards out together.
+
+#### Consequences
+- Visual structure is consistent across viewports: 3 columns of 2 stacked cards on desktop, and a single horizontal carousel of 3 column slides on mobile.
+- Completed orders are tracked dynamically on the Executive Dashboard.
+- Keeps pagination dots synced to the 3-column flow.
+
+---
+
+### Decision 14: Completed Orders Property Type Declaration in PendingCounts Interface
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+- After incorporating `'Completed Orders'` database queries into the pipeline counts row metrics, the Next.js production build broke with a compilation type checking failure:
+  `Type error: Element implicitly has an 'any' type because expression of type '"Completed Orders"' can't be used to index type 'PendingCounts'.`
+  This prevented the local development dev server from loading or rendering pages (causing blank screens).
+
+#### Decision
+- **TypeScript Interface Update**: Modified `PendingCounts` in [dashboard.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/types/dashboard.ts) to define the property `'Completed Orders'?: MetricValue;` as an optional type property, matching the other pending status structures.
+
+#### Consequences
+- Resolves all Next.js dev and production build compilation crashes.
+- Guarantees typesafe property indexing on `pendingCounts['Completed Orders']` across client components.
+- Dev server successfully renders pages on all paths.

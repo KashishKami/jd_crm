@@ -23,10 +23,14 @@ export async function GET(request?: Request) {
   const { searchParams } = new URL(url);
   const statusStr = searchParams.get('status');
   const status = statusStr !== null ? Number(statusStr) : undefined;
+  const pageStr = searchParams.get('page');
+  const limitStr = searchParams.get('limit');
+  const page = pageStr !== null ? Number(pageStr) : undefined;
+  const limit = limitStr !== null ? Number(limitStr) : undefined;
 
   try {
-    const vendors = await vendorService.getAllVendors(status);
-    return NextResponse.json(vendors);
+    const result = await vendorService.getAllVendors(status, page, limit);
+    return NextResponse.json(result);
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });

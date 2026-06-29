@@ -114,7 +114,7 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
   });
 }
 
-export async function findAll(filters: OrderFilters) {
+export async function findAll(filters: OrderFilters): Promise<any> {
   const where: Prisma.CrmOrdersWhereInput = {};
 
   if (filters.status) {
@@ -149,6 +149,37 @@ export async function findAll(filters: OrderFilters) {
       dateFilter.lte = new Date(filters.dateTo);
     }
     where.orderDate = dateFilter;
+  }
+
+  if (filters.page !== undefined && filters.limit !== undefined) {
+    const skip = (filters.page - 1) * filters.limit;
+    const [orders, total] = await Promise.all([
+      prisma.crmOrders.findMany({
+        where,
+        include: {
+          customer: true,
+          vendor: true,
+          gateway: true,
+          salesAgent: {
+            include: {
+              team: true,
+            },
+          },
+          verifier: true,
+        },
+        orderBy: {
+          orderCreatedDate: 'desc',
+        },
+        skip,
+        take: filters.limit,
+      }),
+      prisma.crmOrders.count({ where })
+    ]);
+    return {
+      data: orders,
+      total,
+      pages: Math.ceil(total / filters.limit),
+    };
   }
 
   return await prisma.crmOrders.findMany({
