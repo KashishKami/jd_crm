@@ -9,15 +9,20 @@ vi.mock('next-auth', () => ({
 
 describe('Vendor Management Integration Tests', () => {
   let testVendor: { vendorId: number };
+  let testUserUid: number | null = null;
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    testUserUid = null;
 
     // Clean up test data
     await prisma.crmOrders.deleteMany({
       where: {
         orderVendorName: 'Test Integration Vendor',
       },
+    });
+    await prisma.users.deleteMany({
+      where: { username: 'test_sales_agent_vendor' },
     });
     await prisma.crmVendors.deleteMany({
       where: {
@@ -40,11 +45,18 @@ describe('Vendor Management Integration Tests', () => {
   });
 
   afterEach(async () => {
-    // Clean up test data
+    // Clean up test data in dependency order
     await prisma.crmOrders.deleteMany({
       where: {
         orderVendorName: 'Test Integration Vendor',
       },
+    });
+    if (testUserUid !== null) {
+      await prisma.users.deleteMany({ where: { uid: testUserUid } });
+      testUserUid = null;
+    }
+    await prisma.users.deleteMany({
+      where: { username: 'test_sales_agent_vendor' },
     });
     await prisma.crmVendors.deleteMany({
       where: {
@@ -52,6 +64,7 @@ describe('Vendor Management Integration Tests', () => {
       },
     });
   });
+
 
   describe('GET /api/vendors', () => {
     it('should return 403 Forbidden if user lacks vendors:view permission', async () => {
@@ -152,6 +165,7 @@ describe('Vendor Management Integration Tests', () => {
           roleId: role!.roleId,
         },
       });
+      testUserUid = user.uid;
 
       // Create a customer
       const customer = await prisma.crmCustomers.create({
@@ -191,10 +205,9 @@ describe('Vendor Management Integration Tests', () => {
       expect(data.length).toBe(1);
       expect(data[0].crmOrderId).toBe(order.crmOrderId);
 
-      // Cleanup
-      await prisma.crmOrders.delete({ where: { crmOrderId: order.crmOrderId } });
-      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
-      await prisma.users.delete({ where: { uid: user.uid } });
+      // Delete order first (FK), then customer; user cleaned up by afterEach
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: order.crmOrderId } });
+      await prisma.crmCustomers.deleteMany({ where: { customerEmail: 'vendor_cust@example.com' } });
     });
   });
 });

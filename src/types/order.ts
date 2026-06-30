@@ -28,6 +28,8 @@ export interface OrderCreateInput {
   orderPaymentGatewayId?: number | null;
   orderSalesAgentId?: number | null;
   orderVerifierId?: number | null;
+  orderSalesVerifierId?: number | null;
+  orderBackendExecutiveId?: number | null;
   saleStatus?: string;
   orderDate?: string | Date;
 }
@@ -51,6 +53,10 @@ export interface OrderUpdateInput {
   orderSalesAgentName?: string | null;
   orderVerifierId?: number | null;
   orderVerifierName?: string | null;
+  orderSalesVerifierId?: number | null;
+  orderSalesVerifierName?: string | null;
+  orderBackendExecutiveId?: number | null;
+  orderBackendExecutiveName?: string | null;
   orderDocumentation?: string;
   orderBooked?: string;
   orderAmountCharged?: string;

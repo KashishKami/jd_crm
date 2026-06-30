@@ -677,5 +677,209 @@ describe('Order Management Integration Tests', () => {
       expect(threwError).toBe(true);
     });
   });
+
+  describe('W-1601: Add Sales Verifier and Backend Executive to Orders', () => {
+    let testUserA: Users;
+    let testUserB: Users;
+    let testUserC: Users;
+
+    beforeEach(async () => {
+      // Create additional test users for verifier/executive roles
+      testUserA = await prisma.users.create({
+        data: {
+          name: 'Verifier User A',
+          username: 'verifier_user_a',
+          teamId: testTeam.teamId,
+          roleId: testRole.roleId,
+          nickname: 'UserANick',
+        },
+      });
+
+      testUserB = await prisma.users.create({
+        data: {
+          name: 'Executive User B',
+          username: 'executive_user_b',
+          teamId: testTeam.teamId,
+          roleId: testRole.roleId,
+          nickname: 'UserBNick',
+        },
+      });
+
+      testUserC = await prisma.users.create({
+        data: {
+          name: 'Verifier User C',
+          username: 'verifier_user_c',
+          teamId: testTeam.teamId,
+          roleId: testRole.roleId,
+          nickname: 'UserCNick',
+        },
+      });
+    });
+
+    afterEach(async () => {
+      await prisma.users.deleteMany({
+        where: {
+          username: { in: ['verifier_user_a', 'executive_user_b', 'verifier_user_c'] }
+        }
+      });
+    });
+
+    it('should create order with sales verifier and backend executive and snapshot names', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Creator', userPermissions: 'orders:create' },
+      });
+
+      const payload = {
+        customerName: 'New Buyer',
+        customerPhone: '9876543210',
+        customerEmail: 'new.buyer@example.com',
+        customerBillingAddress: '123 Billing Rd',
+        customerShippingAddress: '456 Shipping Rd',
+        customerNameOncard: 'New Buyer',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2021 Jeep Grand Cherokee',
+        orderPart: 'Alternator',
+        orderPartSize: 'Standard',
+        orderQuotedMiles: '50',
+        orderGivenMiles: '55',
+        orderVin: 'VIN789XYZ',
+        orderTotalPitched: '500',
+        orderVendorPrice: '300',
+        orderVendorId: testVendor.vendorId,
+        orderShippingType: 'Express',
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        orderVerifierId: null,
+        saleStatus: '1',
+        orderSalesVerifierId: testUserA.uid,
+        orderBackendExecutiveId: testUserB.uid,
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      // Check database state with raw SQL to bypass schema.prisma type checker for RED step
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_sales_verifier_id, order_sales_verifier_name, order_backend_executive_id, order_backend_executive_name FROM crm_orders WHERE crm_order_id = ?`,
+        data.orderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_sales_verifier_id).toBe(testUserA.uid);
+      expect(dbRows[0].order_sales_verifier_name).toBe('UserANick');
+      expect(dbRows[0].order_backend_executive_id).toBe(testUserB.uid);
+      expect(dbRows[0].order_backend_executive_name).toBe('UserBNick');
+    });
+
+    it('should default to null if sales verifier or backend executive are not provided', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Creator', userPermissions: 'orders:create' },
+      });
+
+      const payload = {
+        customerName: 'New Buyer',
+        customerPhone: '9876543210',
+        customerEmail: 'new.buyer@example.com',
+        customerBillingAddress: '123 Billing Rd',
+        customerShippingAddress: '456 Shipping Rd',
+        customerNameOncard: 'New Buyer',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2021 Jeep Grand Cherokee',
+        orderPart: 'Alternator',
+        orderPartSize: 'Standard',
+        orderQuotedMiles: '50',
+        orderGivenMiles: '55',
+        orderVin: 'VIN789XYZ',
+        orderTotalPitched: '500',
+        orderVendorPrice: '300',
+        orderVendorId: testVendor.vendorId,
+        orderShippingType: 'Express',
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        orderVerifierId: null,
+        saleStatus: '1',
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_sales_verifier_id, order_sales_verifier_name, order_backend_executive_id, order_backend_executive_name FROM crm_orders WHERE crm_order_id = ?`,
+        data.orderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_sales_verifier_id).toBeNull();
+      expect(dbRows[0].order_sales_verifier_name).toBeNull();
+      expect(dbRows[0].order_backend_executive_id).toBeNull();
+      expect(dbRows[0].order_backend_executive_name).toBeNull();
+    });
+
+    it('should update sales verifier and backend executive and snapshot names via PATCH', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Editor', userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderSalesVerifierId: testUserC.uid,
+          orderBackendExecutiveId: testUserB.uid,
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_sales_verifier_id, order_sales_verifier_name, order_backend_executive_id, order_backend_executive_name FROM crm_orders WHERE crm_order_id = ?`,
+        testOrder.crmOrderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_sales_verifier_id).toBe(testUserC.uid);
+      expect(dbRows[0].order_sales_verifier_name).toBe('UserCNick');
+      expect(dbRows[0].order_backend_executive_id).toBe(testUserB.uid);
+      expect(dbRows[0].order_backend_executive_name).toBe('UserBNick');
+    });
+
+    it('should return sales verifier and backend executive fields via GET /api/orders/:id', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Viewer', userPermissions: 'orders:view' },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const getReq = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`);
+      const getRes = await GET(getReq, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson).toHaveProperty('orderSalesVerifierId');
+      expect(getJson).toHaveProperty('orderSalesVerifierName');
+      expect(getJson).toHaveProperty('orderBackendExecutiveId');
+      expect(getJson).toHaveProperty('orderBackendExecutiveName');
+    });
+  });
 });
 

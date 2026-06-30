@@ -41,6 +41,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderVendorId, setOrderVendorId] = useState('');
   const [orderPaymentGatewayId, setOrderPaymentGatewayId] = useState('');
   const [orderSalesAgentId, setOrderSalesAgentId] = useState('');
+  const [orderSalesVerifierId, setOrderSalesVerifierId] = useState('');
+  const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState('');
   const [orderVerifierId, setOrderVerifierId] = useState('');
   const [saleStatus, setSaleStatus] = useState('1'); // Default Sold
   const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
@@ -106,6 +108,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderVendorId: orderVendorId ? Number(orderVendorId) : null,
       orderPaymentGatewayId: orderPaymentGatewayId ? Number(orderPaymentGatewayId) : null,
       orderSalesAgentId: orderSalesAgentId ? Number(orderSalesAgentId) : null,
+      orderSalesVerifierId: orderSalesVerifierId ? Number(orderSalesVerifierId) : null,
+      orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
       orderDate,
@@ -324,7 +328,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMiles" className="form-label">Quotes Miles</label>
+              <label htmlFor="orderQuotedMiles" className="form-label">Quoted Miles</label>
               <input
                 type="text"
                 id="orderQuotedMiles"
@@ -460,6 +464,34 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 className="form-select"
               >
                 <option value="">-- Assign Sales Agent --</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderSalesVerifierId" className="form-label">Sales Verifier</label>
+              <select
+                id="orderSalesVerifierId"
+                value={orderSalesVerifierId}
+                onChange={(e) => setOrderSalesVerifierId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Assign Sales Verifier --</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderBackendExecutiveId" className="form-label">Backend Executive</label>
+              <select
+                id="orderBackendExecutiveId"
+                value={orderBackendExecutiveId}
+                onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Assign Backend Executive --</option>
                 {agents.map((a) => (
                   <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
                 ))}

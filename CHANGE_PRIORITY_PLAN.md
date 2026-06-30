@@ -113,11 +113,11 @@ These changes add new tables or columns. They won't destroy existing data, but t
 
 ---
 
-### #11 — Add `salesVerifierId` and `backendTeamMemberId` to Orders
+### #11 — Add `salesVerifierId` and `backendExecutiveId` to Orders
 
 **Depth:** `DB Schema → Migration → Repository → Service → Routes → UI`
 
-**What exists:** `CrmOrders` has `orderSalesAgentId` (Sales Rep) and `orderVerifierId` (QA Verifier). The request adds **Sales Verifier** and **Backend Team Member**.
+**What exists:** `CrmOrders` has `orderSalesAgentId` (Sales Rep) and `orderVerifierId` (QA Verifier). The request adds **Sales Verifier** and **Backend Executive**.
 
 **What changes:**
 - **DB/Migration:** Add 4 columns to `crm_orders`:
@@ -125,15 +125,15 @@ These changes add new tables or columns. They won't destroy existing data, but t
   ALTER TABLE crm_orders
     ADD COLUMN order_sales_verifier_id INT NULL,
     ADD COLUMN order_sales_verifier_name VARCHAR(55) NULL,
-    ADD COLUMN order_backend_member_id INT NULL,
-    ADD COLUMN order_backend_member_name VARCHAR(55) NULL;
+    ADD COLUMN order_backend_executive_id INT NULL,
+    ADD COLUMN order_backend_executive_name VARCHAR(55) NULL;
   ```
   Add FK constraints to `users(uid)`.
-- **Prisma Schema:** Add 4 new fields + relations (`salesVerifier`, `backendMember`).
+- **Prisma Schema:** Add 4 new fields + relations (`salesVerifier`, `backendExecutive`).
 - **Repository:** `order.repository.ts` — resolve and snapshot names on create/update (same pattern as `salesAgent`/`verifier`).
 - **Types:** Add fields to `OrderCreateInput`, `OrderUpdateInput`.
 - **Routes:** `POST /api/orders`, `PATCH /api/orders/:id` — accept new IDs.
-- **UI:** `AddOrderForm.tsx`, `EditOrderForm.tsx` — add two new agent dropdowns. `OrderList.tsx` — show all 4 roles in the sequence: Sales Rep → Sales Verifier → Backend Member → QA Verifier.
+- **UI:** `AddOrderForm.tsx`, `EditOrderForm.tsx` — add two new agent dropdowns. `OrderList.tsx` — show all 4 roles in the sequence: Sales Agent → Sales Verifier → Backend Executive → QA Verifier.
 
 **Can it be done later without affecting existing data?**
 > ✅ **YES, safely.** Columns are nullable, existing rows just get NULLs. But deferring means all orders created before the change lack these assignments — a gap in records. It's best to add before real orders come in.
@@ -159,6 +159,43 @@ These changes add new tables or columns. They won't destroy existing data, but t
 > ✅ **YES, safely.** Additive table. But every order opened before this goes live will have no view history. That's an acceptable gap, but the sooner this is deployed, the better the audit trail.
 
 **Priority: P1**
+
+---
+
+### #32 — Order Field Change Audit Log (Full Per-Field Change History on Every Order Edit)
+
+**Depth:** `DB Schema (NEW TABLE) → Migration → Repository → Service → Routes → UI + New RBAC Permission`
+
+**What exists:** When any agent edits an order via `PATCH /api/orders/:id`, only the final values are persisted. There is no record of *what changed*, *from what value*, *to what value*, *who made the change*, or *when*. The two status history tables from Change #12 track only `saleStatus` and `orderCurrentStatus`. All other fields — vehicle info, pricing, vendor, agent assignments, documentation, etc. — have zero audit coverage.
+
+**What changes:**
+- **DB/Migration [NEW TABLE]:** Create `crm_order_audit_log`:
+  ```sql
+  CREATE TABLE crm_order_audit_log (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    order_id        INT         NOT NULL,
+    field_name      VARCHAR(100) NOT NULL,   -- e.g. 'orderMakeModel', 'orderVendorId'
+    old_value       TEXT        NULL,         -- previous value serialized as string
+    new_value       TEXT        NULL,         -- new value serialized as string
+    changed_by_id   INT         NOT NULL,
+    changed_by_name VARCHAR(55) NOT NULL,
+    changed_at      DATETIME    NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by_id) REFERENCES users(uid)
+  );
+  ```
+- **Prisma Schema:** Add `CrmOrderAuditLog` model with relations to `CrmOrders` and `Users`.
+- **Repository:** Add `createAuditLogEntries(orderId, entries[])` (bulk insert for multi-field changes in one PATCH) and `getAuditLogByOrderId(orderId)`.
+- **Service:** In `order.service.ts` `updateOrder()`, before writing the update, fetch the current row, diff every incoming field against the stored value, and bulk-insert one `crm_order_audit_log` row per changed field.
+- **Routes:** `GET /api/orders/:id/audit-log` — returns all change entries for an order in reverse-chronological order, permission-gated by `orders:view-audit-log`.
+- **UI:** A collapsible "Change History" card at the bottom of the order detail page (rendered only when user has `orders:view-audit-log`). Shows a table: Date/Time | Field | Old Value | New Value | Agent.
+- **RBAC:** New permission `orders:view-audit-log` seeded for super-admin and manager roles.
+- **Seed:** Add permission to `seed.sql` and `project_data.md`.
+
+**Can it be done later without affecting existing data?**
+> ⚠️ **Partially.** The table is additive — existing orders won't lose data. But every edit made before this goes live is **permanently unauditable**. There will never be a way to know what was changed and by whom on orders edited before deployment. The sooner this is in place, the better the operational accountability trail.
+
+**Priority: P1** *(Additive, but audit history is retroactively irreversible — same reasoning as #12 and #19)*
 
 ---
 
@@ -532,6 +569,7 @@ These are pure frontend changes. No schema, no migration, no data risk. They can
 | **3** | Sale Date input field | **P1** | UI only (column exists) | ❌ | ✅ No | ⚠️ UX gap |
 | **11** | Sales Verifier + Backend Member fields | **P1** | DB→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Missing from future orders |
 | **19** | Order view log / audit trail | **P1** | New Table→Repo→Routes→UI | ✅ Additive | ✅ No | ⚠️ Loses view history |
+| **32** | Order field change audit log | **P1** | New Table→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Loses edit history |
 | **21** | Order delete with cascade | **P1** | DB FK check→Routes→UI | ✅ FK constraints | ✅ No | ✅ Yes |
 | **13** | Champions League current month filter | **P2** | Service→UI | ❌ | ✅ No | ✅ Yes |
 | **14** | Team Monthly: Top 3 + Bottom 3 | **P2** | Repo→Service→UI | ❌ | ✅ No | ✅ Yes |
@@ -569,6 +607,7 @@ Sprint 2 (Before Go-Live):
   → #17 (fix team scores refund bug)
   → #21 (verify cascade FKs + delete button)
   → #19 (order view log table + RBAC)
+  → #32 (order field change audit log + RBAC)
 
 Sprint 3 (Post-Launch Features):
   → #13, #14 (dashboard filter/performer improvements)

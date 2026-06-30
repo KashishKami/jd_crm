@@ -207,7 +207,7 @@ async function main() {
       const supplierVendor = row[20];
       const billingGateway = row[21];
       const salesAgentName = row[22];
-      const qaVerifierName = row[23];
+      const salesVerifierName = row[23];
       const saleStatusRaw = row[24];
       const remarks = row[25];
 
@@ -257,7 +257,7 @@ async function main() {
         }
       }
 
-      // 3. Resolve Sales Agent and QA Verifier
+      // 3. Resolve Sales Agent and Sales Verifier
       let agentId: number | null = null;
       if (salesAgentName) {
         const agentKey = salesAgentName.toLowerCase().trim();
@@ -265,11 +265,11 @@ async function main() {
           agentId = agentCache.get(agentKey)!;
         }
       }
-      let verifierId: number | null = null;
-      if (qaVerifierName) {
-        const verifierKey = qaVerifierName.toLowerCase().trim();
+      let salesVerifierId: number | null = null;
+      if (salesVerifierName) {
+        const verifierKey = salesVerifierName.toLowerCase().trim();
         if (agentCache.has(verifierKey)) {
-          verifierId = agentCache.get(verifierKey)!;
+          salesVerifierId = agentCache.get(verifierKey)!;
         }
       }
 
@@ -352,8 +352,8 @@ async function main() {
           orderPaymentGatewayId: gatewayId,
           orderSalesAgentId: agentId,
           orderSalesAgentName: salesAgentName || null,
-          orderVerifierId: verifierId,
-          orderVerifierName: qaVerifierName || null,
+          orderSalesVerifierId: salesVerifierId,
+          orderSalesVerifierName: salesVerifierName || null,
           saleStatus: mapSaleStatus(saleStatusRaw),
           orderCurrentStatus: 'Completed Orders',
           orderCurrentStatusUpdateDate: orderDateParsed,

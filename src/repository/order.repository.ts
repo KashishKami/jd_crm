@@ -25,6 +25,28 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
     }
   }
 
+  // Resolve sales verifier name if present
+  let salesVerifierName: string | null = null;
+  if (data.orderSalesVerifierId) {
+    const sv = await prisma.users.findUnique({
+      where: { uid: data.orderSalesVerifierId },
+    });
+    if (sv) {
+      salesVerifierName = sv.nickname || sv.name;
+    }
+  }
+
+  // Resolve backend executive name if present
+  let backendExecutiveName: string | null = null;
+  if (data.orderBackendExecutiveId) {
+    const be = await prisma.users.findUnique({
+      where: { uid: data.orderBackendExecutiveId },
+    });
+    if (be) {
+      backendExecutiveName = be.nickname || be.name;
+    }
+  }
+
   // Resolve vendor name if present
   let vendorName: string | null = null;
   if (data.orderVendorId) {
@@ -92,6 +114,10 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
         orderSalesAgentName: salesAgentName,
         orderVerifierId: data.orderVerifierId || null,
         orderVerifierName: verifierName,
+        orderSalesVerifierId: data.orderSalesVerifierId || null,
+        orderSalesVerifierName: salesVerifierName,
+        orderBackendExecutiveId: data.orderBackendExecutiveId || null,
+        orderBackendExecutiveName: backendExecutiveName,
         saleStatus: data.saleStatus || '1', // Default to Sold
         orderCurrentStatus: data.orderVendorId ? 'Pending Shipment' : 'Pending Booking', // Initial state
         orderCurrentStatusUpdateDate: new Date(),
@@ -164,6 +190,8 @@ export async function findAll(filters: OrderFilters): Promise<any> {
             },
           },
           verifier: true,
+          salesVerifier: true,
+          backendExecutive: true,
         },
         orderBy: {
           orderCreatedDate: 'desc',
@@ -192,6 +220,8 @@ export async function findAll(filters: OrderFilters): Promise<any> {
         },
       },
       verifier: true,
+      salesVerifier: true,
+      backendExecutive: true,
     },
     orderBy: {
       orderCreatedDate: 'desc',
@@ -216,6 +246,8 @@ export async function findById(crmOrderId: number) {
         },
       },
       verifier: true,
+      salesVerifier: true,
+      backendExecutive: true,
       comments: true,
     },
   });

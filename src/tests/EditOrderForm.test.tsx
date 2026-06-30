@@ -198,5 +198,81 @@ describe('EditOrderForm Unit Tests', () => {
       vi.unstubAllGlobals();
     });
   });
+
+  describe('W-1601: Add Sales Verifier and Backend Executive fields (Edit)', () => {
+    it('should render Sales Verifier and Backend Executive select dropdowns in correct sequence', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+
+      const salesAgentSelect = document.getElementById('orderSalesAgentId');
+      const salesVerifierSelect = document.getElementById('orderSalesVerifierId');
+      const backendExecutiveSelect = document.getElementById('orderBackendExecutiveId');
+      const verifierSelect = document.getElementById('orderVerifierId');
+
+      expect(salesAgentSelect).not.toBeNull();
+      expect(salesVerifierSelect).not.toBeNull();
+      expect(backendExecutiveSelect).not.toBeNull();
+      expect(verifierSelect).not.toBeNull();
+
+      const selects = Array.from(document.querySelectorAll('select'));
+      const indices = [
+        selects.indexOf(salesAgentSelect as HTMLSelectElement),
+        selects.indexOf(salesVerifierSelect as HTMLSelectElement),
+        selects.indexOf(backendExecutiveSelect as HTMLSelectElement),
+        selects.indexOf(verifierSelect as HTMLSelectElement),
+      ];
+
+      expect(indices[0]).toBeLessThan(indices[1]);
+      expect(indices[1]).toBeLessThan(indices[2]);
+      expect(indices[2]).toBeLessThan(indices[3]);
+    });
+
+    it('should submit form with numeric salesVerifierId and backendExecutiveId', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const mockAgents = [
+        { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
+        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby' },
+        { uid: 6, name: 'Exec Carol', nickname: 'Carol' },
+      ];
+
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={mockAgents}
+        />
+      );
+
+      fireEvent.change(document.getElementById('orderSalesAgentId')!, { target: { value: '3' } });
+      fireEvent.change(document.getElementById('orderSalesVerifierId')!, { target: { value: '5' } });
+      fireEvent.change(document.getElementById('orderBackendExecutiveId')!, { target: { value: '6' } });
+
+      const saveButton = screen.getByText('Save Changes');
+      fireEvent.click(saveButton);
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+      const [, fetchOptions] = fetchSpy.mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions.body);
+
+      expect(sentBody).toHaveProperty('orderSalesAgentId', 3);
+      expect(sentBody).toHaveProperty('orderSalesVerifierId', 5);
+      expect(sentBody).toHaveProperty('orderBackendExecutiveId', 6);
+
+      vi.unstubAllGlobals();
+    });
+  });
 });
 

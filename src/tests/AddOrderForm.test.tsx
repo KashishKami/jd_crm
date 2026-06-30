@@ -187,12 +187,87 @@ describe('AddOrderForm Unit Tests', () => {
       expect(sentBody).toHaveProperty('orderDate', '2025-06-15');
     });
 
-    it('should render mileage fields with labels "Quotes Miles" and "Vendor Miles"', () => {
-      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
-      expect(screen.getByText('Quotes Miles')).toBeDefined();
+    it('should render mileage fields with labels "Quoted Miles" and "Vendor Miles"', () => {
+      render(<AddOrderForm agents={[]} gateways={[]} vendors={[]} />);
+      expect(screen.getByText('Quoted Miles')).toBeDefined();
       expect(screen.getByText('Vendor Miles')).toBeDefined();
       expect(screen.queryByText('Quoted Mileage')).toBeNull();
       expect(screen.queryByText('Vendor Mileage')).toBeNull();
+    });
+  });
+
+  describe('W-1601: Add Sales Verifier and Backend Executive fields', () => {
+    it('should render Sales Verifier and Backend Executive select dropdowns in correct sequence', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+
+      const salesAgentSelect = document.getElementById('orderSalesAgentId');
+      const salesVerifierSelect = document.getElementById('orderSalesVerifierId');
+      const backendExecutiveSelect = document.getElementById('orderBackendExecutiveId');
+      const verifierSelect = document.getElementById('orderVerifierId');
+
+      expect(salesAgentSelect).not.toBeNull();
+      expect(salesVerifierSelect).not.toBeNull();
+      expect(backendExecutiveSelect).not.toBeNull();
+      expect(verifierSelect).not.toBeNull();
+
+      // Check sequence order by their position in DOM tree or parent element children index
+      const selects = Array.from(document.querySelectorAll('select'));
+      const indices = [
+        selects.indexOf(salesAgentSelect as HTMLSelectElement),
+        selects.indexOf(salesVerifierSelect as HTMLSelectElement),
+        selects.indexOf(backendExecutiveSelect as HTMLSelectElement),
+        selects.indexOf(verifierSelect as HTMLSelectElement),
+      ];
+
+      expect(indices[0]).toBeLessThan(indices[1]);
+      expect(indices[1]).toBeLessThan(indices[2]);
+      expect(indices[2]).toBeLessThan(indices[3]);
+    });
+
+    it('should submit form with numeric salesVerifierId and backendExecutiveId', async () => {
+      const mockVendors = [{ vendorId: 1, vendorName: 'Test Vendor' }];
+      const mockGateways = [{ gatewayId: 2, gatewayName: 'Test Gateway' }];
+      const mockAgents = [
+        { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
+        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby' },
+        { uid: 6, name: 'Exec Carol', nickname: 'Carol' },
+      ];
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ orderId: 10, customerId: 20, cardId: 30 }),
+      } as Response);
+
+      render(<AddOrderForm vendors={mockVendors} gateways={mockGateways} agents={mockAgents} />);
+
+      // Fill out required fields
+      fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+      fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
+      fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
+      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
+      fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
+
+      // Select values
+      fireEvent.change(document.getElementById('orderSalesAgentId')!, { target: { value: '3' } });
+      fireEvent.change(document.getElementById('orderSalesVerifierId')!, { target: { value: '5' } });
+      fireEvent.change(document.getElementById('orderBackendExecutiveId')!, { target: { value: '6' } });
+
+      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalled();
+      });
+
+      const [, fetchOptions] = vi.mocked(fetch).mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions?.body as string);
+      expect(sentBody).toHaveProperty('orderSalesAgentId', 3);
+      expect(sentBody).toHaveProperty('orderSalesVerifierId', 5);
+      expect(sentBody).toHaveProperty('orderBackendExecutiveId', 6);
     });
   });
 });

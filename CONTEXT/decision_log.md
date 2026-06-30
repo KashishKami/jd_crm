@@ -367,5 +367,30 @@ We consolidated both fields into a single, unified `customer_name` column on the
 - Reduces UI density by removing redundant text fields, improving form completion flow.
 - Seamlessly back-fills all legacy records by concatenating first name and last name, preserving historical accuracy.
 
+---
 
+### Decision 18: Add Sales Verifier and Backend Executive Roles to Orders
 
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+Operational processing requirements demanded that orders track two additional workflow participants:
+1. **Sales Verifier:** The team member responsible for validating the sales rep's intake data.
+2. **Backend Executive:** The team member handling supplier assignment and logistical verification (previously referred to as "Backend Team Member").
+
+To maintain parity with other agent assignments (Sales Agent and QA Verifier) and support audits, these roles needed:
+- Dedicated foreign key relations to the `users` table (`orderSalesVerifierId` / `orderBackendExecutiveId`).
+- Denormalized name snapshots stored directly on the order record (`orderSalesVerifierName` / `orderBackendExecutiveName`) to preserve historical name references even if a user's record is deleted or updated.
+- Explicit display sequence in both UI forms (Add/Edit) and lists: Sales Agent → Sales Verifier → Backend Executive → QA Verifier.
+
+#### Decision
+1. **Database Schema:** Added columns `order_sales_verifier_id`, `order_sales_verifier_name`, `order_backend_executive_id`, and `order_backend_executive_name` to the `crm_orders` table. Configured foreign keys and indices in `schema.prisma`.
+2. **Name Resolution:** Updated the repository (`order.repository.ts`) and service (`order.service.ts`) layers to automatically lookup and snapshot the verifier/executive's display name (`nickname || name`) when an order is created or when its assigned IDs are updated.
+3. **UI Integration:** Integrated new select dropdowns in both `AddOrderForm.tsx` and `EditOrderForm.tsx` aligned sequentially: Sales Agent → Sales Verifier → Backend Executive → QA Verifier. Added four dedicated columns to `OrderList.tsx` showing the assigned names in order.
+4. **Renaming:** Standardized on "Backend Executive" across all documentation, plans, code files, and schema columns, completely deprecating "Backend Team Member".
+
+#### Consequences
+- Comprehensive audit trails for order handling.
+- Clear structural layout displaying processing responsibility sequence.
+- Full type safety and test coverage across repository, routes, and UI components.

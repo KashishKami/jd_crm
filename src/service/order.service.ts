@@ -125,6 +125,38 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
     }
   }
 
+  // 4.5. Resolve Sales Verifier nickname snapshot if ID is changed
+  if (data.orderSalesVerifierId !== undefined && data.orderSalesVerifierId !== existingOrder.orderSalesVerifierId) {
+    if (data.orderSalesVerifierId === null) {
+      updatedData.orderSalesVerifierId = null;
+      updatedData.orderSalesVerifierName = null;
+    } else {
+      const { prisma } = await import('../lib/db');
+      const sv = await prisma.users.findUnique({
+        where: { uid: data.orderSalesVerifierId },
+      });
+      if (sv) {
+        updatedData.orderSalesVerifierName = sv.nickname || sv.name;
+      }
+    }
+  }
+
+  // 4.6. Resolve Backend Executive nickname snapshot if ID is changed
+  if (data.orderBackendExecutiveId !== undefined && data.orderBackendExecutiveId !== existingOrder.orderBackendExecutiveId) {
+    if (data.orderBackendExecutiveId === null) {
+      updatedData.orderBackendExecutiveId = null;
+      updatedData.orderBackendExecutiveName = null;
+    } else {
+      const { prisma } = await import('../lib/db');
+      const be = await prisma.users.findUnique({
+        where: { uid: data.orderBackendExecutiveId },
+      });
+      if (be) {
+        updatedData.orderBackendExecutiveName = be.nickname || be.name;
+      }
+    }
+  }
+
   // 5. Resolve vendor name snapshot if ID is changed
   if (data.orderVendorId && data.orderVendorId !== existingOrder.orderVendorId) {
     const { prisma } = await import('../lib/db');

@@ -45,6 +45,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [orderVendorId, setOrderVendorId] = useState(order.orderVendorId ? String(order.orderVendorId) : '');
   const [orderPaymentGatewayId, setOrderPaymentGatewayId] = useState(order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '');
   const [orderSalesAgentId, setOrderSalesAgentId] = useState(order.orderSalesAgentId ? String(order.orderSalesAgentId) : '');
+  const [orderSalesVerifierId, setOrderSalesVerifierId] = useState(order.orderSalesVerifierId ? String(order.orderSalesVerifierId) : '');
+  const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState(order.orderBackendExecutiveId ? String(order.orderBackendExecutiveId) : '');
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
@@ -107,6 +109,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       orderVendorId: orderVendorId ? Number(orderVendorId) : null,
       orderPaymentGatewayId: orderPaymentGatewayId ? Number(orderPaymentGatewayId) : null,
       orderSalesAgentId: orderSalesAgentId ? Number(orderSalesAgentId) : null,
+      orderSalesVerifierId: orderSalesVerifierId ? Number(orderSalesVerifierId) : null,
+      orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
       orderCurrentStatus,
@@ -306,7 +310,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMiles" className="form-label">Quotes Miles</label>
+              <label htmlFor="orderQuotedMiles" className="form-label">Quoted Miles</label>
               <input
                 id="orderQuotedMiles"
                 type="text"
@@ -472,8 +476,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Sales Agent</label>
+              <label htmlFor="orderSalesAgentId" className="form-label">Sales Agent</label>
               <select
+                id="orderSalesAgentId"
                 value={orderSalesAgentId}
                 onChange={(e) => setOrderSalesAgentId(e.target.value)}
                 className="form-select"
@@ -485,8 +490,37 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">QA Verifier</label>
+              <label htmlFor="orderSalesVerifierId" className="form-label">Sales Verifier</label>
               <select
+                id="orderSalesVerifierId"
+                value={orderSalesVerifierId}
+                onChange={(e) => setOrderSalesVerifierId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Assign Sales Verifier --</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderBackendExecutiveId" className="form-label">Backend Executive</label>
+              <select
+                id="orderBackendExecutiveId"
+                value={orderBackendExecutiveId}
+                onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Assign Backend Executive --</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderVerifierId" className="form-label">QA Verifier</label>
+              <select
+                id="orderVerifierId"
                 value={orderVerifierId}
                 onChange={(e) => setOrderVerifierId(e.target.value)}
                 className="form-select"

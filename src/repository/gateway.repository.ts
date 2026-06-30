@@ -38,7 +38,7 @@ export interface MonthlyReportRow {
 
 /**
  * Returns monthly aggregated order metrics for a given gateway.
- * Groups crm_orders by year/month, filtering sale_status IN ('1','7','8').
+ * Groups crm_orders by year/month, filtering sale_status IN ('1','2','3').
  * Uses $queryRaw because Prisma does not natively support GROUP BY with
  * conditional SUMs in a single query without raw SQL.
  */
@@ -60,14 +60,14 @@ export async function getMonthlyReport(gatewayId: number): Promise<MonthlyReport
       MONTH(order_date) AS mo,
       SUM(CASE WHEN sale_status = '1' THEN 1 ELSE 0 END) AS completed_count,
       SUM(CASE WHEN sale_status = '1' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS completed_amount,
-      SUM(CASE WHEN sale_status = '7' THEN 1 ELSE 0 END) AS refund_count,
-      SUM(CASE WHEN sale_status = '7' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS refund_amount,
-      SUM(CASE WHEN sale_status = '8' THEN 1 ELSE 0 END) AS chargeback_count,
-      SUM(CASE WHEN sale_status = '8' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS chargeback_amount
+      SUM(CASE WHEN sale_status = '2' THEN 1 ELSE 0 END) AS refund_count,
+      SUM(CASE WHEN sale_status = '2' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS refund_amount,
+      SUM(CASE WHEN sale_status = '3' THEN 1 ELSE 0 END) AS chargeback_count,
+      SUM(CASE WHEN sale_status = '3' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS chargeback_amount
     FROM crm_orders
     WHERE
       order_payment_gateway = ${gatewayId}
-      AND sale_status IN ('1', '7', '8')
+      AND sale_status IN ('1', '2', '3')
       AND order_date IS NOT NULL
     GROUP BY YEAR(order_date), MONTH(order_date)
     ORDER BY yr DESC, mo DESC

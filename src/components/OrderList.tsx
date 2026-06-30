@@ -28,6 +28,21 @@ interface OrderListProps {
         teamName: string;
       } | null;
     } | null;
+    salesVerifier?: {
+      name: string;
+      nickname?: string | null;
+    } | null;
+    backendExecutive?: {
+      name: string;
+      nickname?: string | null;
+    } | null;
+    verifier?: {
+      name: string;
+      nickname?: string | null;
+    } | null;
+    orderSalesVerifierName?: string | null;
+    orderBackendExecutiveName?: string | null;
+    orderVerifierName?: string | null;
   }>;
 }
 
@@ -87,7 +102,7 @@ export default function OrderList({ orders }: OrderListProps) {
               <th>Order ID</th>
               <th>Customer</th>
               <th>Vehicle & Part</th>
-              <th>Agent</th>
+              <th>Agents</th>
               <th>Team</th>
               <th>Pricing</th>
               <th>Workflow Status</th>
@@ -125,10 +140,25 @@ export default function OrderList({ orders }: OrderListProps) {
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <span className="badge-team bg-slate-100 text-slate-700 font-medium" style={{ fontSize: '0.92em', padding: '2px 6px' }}>
-                      {order.salesAgent?.nickname || order.salesAgent?.name || 'Unassigned'}
-                    </span>
+                   <td>
+                    <div className="flex flex-col gap-0.5 text-slate-600" style={{ fontSize: '0.88em', minWidth: '170px', lineHeight: '1.4' }}>
+                      <div>
+                        <span className="font-semibold text-slate-800">Sales Agent: </span>
+                        <span>{order.salesAgent?.nickname || order.salesAgent?.name || 'Unassigned'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800">Sales Verifier: </span>
+                        <span>{order.salesVerifier?.nickname || order.salesVerifier?.name || order.orderSalesVerifierName || 'Unassigned'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800">Backend Executive: </span>
+                        <span>{order.backendExecutive?.nickname || order.backendExecutive?.name || order.orderBackendExecutiveName || 'Unassigned'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800">QA Verifier: </span>
+                        <span>{order.verifier?.nickname || order.verifier?.name || order.orderVerifierName || 'Unassigned'}</span>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.92em', padding: '2px 6px' }}>

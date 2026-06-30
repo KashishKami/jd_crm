@@ -129,24 +129,24 @@ describe('Gateway Management Integration Tests', () => {
           orderSalesAgentId: agent.uid,
         },
       });
-      // 1 Refunded (status '7')
+      // 1 Refunded (status '2')
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
           orderPaymentGatewayId: testGateway.gatewayId,
-          saleStatus: '7',
+          saleStatus: '2',
           orderMarkup: '80',
           orderDate: now,
           orderVendorName: 'GW_TEST_VENDOR',
           orderSalesAgentId: agent.uid,
         },
       });
-      // 1 Chargebacked (status '8')
+      // 1 Chargebacked (status '3')
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
           orderPaymentGatewayId: testGateway.gatewayId,
-          saleStatus: '8',
+          saleStatus: '3',
           orderMarkup: '60',
           orderDate: now,
           orderVendorName: 'GW_TEST_VENDOR',
@@ -168,8 +168,8 @@ describe('Gateway Management Integration Tests', () => {
       const data = await res.json();
       expect(data).toHaveProperty('monthly');
 
-      const month = now.getMonth() + 1; // JS months are 0-indexed
-      const year = now.getFullYear();
+      const month = now.getUTCMonth() + 1; // JS months are 0-indexed
+      const year = now.getUTCFullYear();
       const thisMonthEntry = data.monthly.find(
         (m: { month: number; year: number }) => m.month === month && m.year === year
       );

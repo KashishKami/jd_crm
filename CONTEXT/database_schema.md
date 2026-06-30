@@ -314,6 +314,10 @@ The following standard permissions are seeded in the system:
 | `order_sales_agent_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales agent name/nickname |
 | `order_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of checker |
 | `order_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of verifier name/nickname |
+| `order_sales_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of sales verifier |
+| `order_sales_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales verifier name/nickname |
+| `order_backend_executive_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of backend executive |
+| `order_backend_executive_name` | `varchar(55)` | YES | `NULL` | Snapshot of backend executive name/nickname |
 | `order_documentation` | `varchar(255)` | YES | `NULL` | Document upload links / status |
 | `order_booked` | `varchar(255)` | YES | `NULL` | Booking reference / metadata |
 | `order_amount_charged` | `varchar(25)` | YES | `NULL` | Amount successfully collected |

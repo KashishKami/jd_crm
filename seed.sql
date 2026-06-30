@@ -178,27 +178,6 @@ INSERT IGNORE INTO users (
 ('Aryan Batra', 'Tom', 'tom', 'tom@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 24, 'Sales Agent', 'JD0662', 5, 2),
 ('Vishal Dogra', 'James', 'james', 'James@jdfusion.in', NULL, '0', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 1, 26, 'Sales Agent', 'JD0678', 5, 1);
 
--- Seed default mock customer
-INSERT INTO crm_customers (customer_id, customer_name, customer_email, customer_phone, customer_billing_address, customer_shipping_address, date_created, date_updated) VALUES
-(1, 'Jane Doe', 'jane.doe@example.com', '555-0199', '123 Main St, New York, NY 10001', '123 Main St, New York, NY 10001', NOW(), NOW())
-ON DUPLICATE KEY UPDATE customer_name = VALUES(customer_name);
-
--- Seed default mock order
-INSERT INTO crm_orders (
-  crm_order_id, order_customer_id, order_make_model, order_part, order_part_size, order_quoted_miles, order_given_miles,
-  order_vin, order_total_pitched, order_vendor_price, order_vendor_id, order_vendor_name, order_shipping_type, order_markup,
-  order_payment_gateway, order_sales_agent_id, order_sales_agent_name, order_verifier_id, order_verifier_name,
-  sale_status, order_current_status, order_current_status_update_date, order_date, order_vendor_feedback, order_client_feedback,
-  order_resolution, order_created_date, order_updated_date
-) VALUES (
-  1, 1, '2026 Jeep Grand Cherokee', 'Transmission', 'V6 4.0L', '120000', '118000',
-  '1J4GR48P1LC123456', '3500.00', '2500.00', NULL, NULL, 'Ground', '1000.00',
-  NULL, 1, 'Admin', NULL, NULL,
-  '1', 'Pending Booking', NOW(), NOW(), 'Positive', 'Positive',
-  'Resolved', NOW(), NOW()
-)
-ON DUPLICATE KEY UPDATE order_make_model = VALUES(order_make_model);
 
 -- Re-enable FK checks
 SET FOREIGN_KEY_CHECKS = 1;
-

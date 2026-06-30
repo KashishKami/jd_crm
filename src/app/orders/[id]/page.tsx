@@ -191,11 +191,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-value">{order.orderPartSize || '—'}</span>
               </div>
               <div className="info-group">
-                <span className="info-label">Quoted Mileage</span>
+                <span className="info-label">Quoted Miles</span>
                 <span className="info-value font-mono">{order.orderQuotedMiles || '—'}</span>
               </div>
               <div className="info-group">
-                <span className="info-label">Vendor Mileage</span>
+                <span className="info-label">Vendor Miles</span>
                 <span className="info-value font-mono">{order.orderGivenMiles || '—'}</span>
               </div>
               <div className="info-group">
@@ -286,6 +286,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Sales Representative</span>
                 <span className="info-value" style={{ fontWeight: '600' }}>{order.orderSalesAgentName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Sales Verifier</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderSalesVerifierName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Backend Executive</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderBackendExecutiveName || 'Unassigned'}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Quality Verifier</span>
