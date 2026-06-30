@@ -2334,6 +2334,8 @@ When any user opens an order's detail page, there is no audit record of the acce
   - **Mileage Input Rename**: Renamed Quoted Mileage and Vendor Mileage form labels to `"Quotes Miles"` and `"Vendor Miles"`.
   - **Chart Filter Options Cleaned**: Removed rolling window ranges (`7d`, `30d`, and `2d`) from `AdvancedChartWidget.tsx`. Replaced `"This month"`, `"Last month"`, `"Last 6 months"`, and `"This year"` options with a simplified `"Monthly"` (covering all months of current year) and `"Yearly"` (covering the last 5 years) structure.
   - **Monday-to-Sunday Week Bounds**: Refactored `"This week"` and `"Last week"` range boundaries in `dashboard.service.ts` to begin on Monday and end on Sunday (UTC-based).
-  - **Daily Weekday Acronym Labels**: Formatted X-axis daily labels to print the weekday abbreviation space-separated after the date (e.g. `"Jun 25 Thu"`).
-  - **Role Settings Re-render Loop Fix**: Fixed a test suite timeout in `RoleSettings.test.tsx` by using a functional state setter (`setSelectedRoleId(prev => ...)`) inside the stable `fetchData` `useCallback` helper.
-  - **Verification**: Verified Next.js ESLint passes cleanly, and all 145 integration and unit tests compile and run green.
+  - **Daily X-Axis Labels Format**: Formatted X-axis daily labels to print in the requested `DD-MM-YYYY` structure (e.g. `"25-06-2026"`).
+  - **EST Timezone Realignment**: Shifted client form defaults and backend dashboard/metrics range calculations to match EST (`America/New_York`) wall-clock date boundaries instead of local server system or UTC time.
+  - **Edit Order Date Field Parsing**: Resolved a Prisma runtime validation error on order updates by adding `orderDate` to the `OrderUpdateInput` type and parsing the string date into a standard JS `Date` object in `order.repository.ts`.
+  - **Exposed Sale Date on Details Page**: Displayed the custom `orderDate` (labelled "Sale Date") next to the database registration date in the subtitle of the Order Details page ([page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/orders/[id]/page.tsx)).
+  - **Verification**: Verified Next.js ESLint and typechecks pass cleanly, and all 145 integration and unit tests compile and run green.

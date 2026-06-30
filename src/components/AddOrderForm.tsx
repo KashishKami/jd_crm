@@ -43,7 +43,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderSalesAgentId, setOrderSalesAgentId] = useState('');
   const [orderVerifierId, setOrderVerifierId] = useState('');
   const [saleStatus, setSaleStatus] = useState('1'); // Default Sold
-  const [orderDate, setOrderDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
 
   // Validation & Submission States
   const [error, setError] = useState<string | null>(null);

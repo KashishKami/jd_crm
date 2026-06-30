@@ -121,8 +121,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <h1 className="page-title mt-2">
             {order.customer.customerName}
           </h1>
-          <p className="page-subtitle">
-            Registered on {formatDateDDMMYYYY(order.orderCreatedDate)}
+          <p className="page-subtitle flex gap-4 text-xs mt-1 text-slate-500">
+            <span><strong>Sale Date:</strong> {order.orderDate ? formatDateDDMMYYYY(order.orderDate) : '—'}</span>
+            <span>|</span>
+            <span><strong>Registered on:</strong> {formatDateDDMMYYYY(order.orderCreatedDate)}</span>
           </p>
         </div>
 

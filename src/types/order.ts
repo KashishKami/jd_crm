@@ -62,6 +62,7 @@ export interface OrderUpdateInput {
   saleStatus?: string;
   orderCurrentStatus?: string;
   orderCurrentStatusUpdateDate?: Date | null;
+  orderDate?: string | Date;
 
   // --- Customer fields (written to crm_customers via separate update) ---
   customerName?: string;

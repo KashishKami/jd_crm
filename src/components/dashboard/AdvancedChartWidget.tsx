@@ -469,9 +469,8 @@ export default function AdvancedChartWidget() {
                 if (granularity === 'daily' && d.label.length === 10) {
                   const dateObj = new Date(d.label);
                   if (!isNaN(dateObj.getTime())) {
-                    const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-                    const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-                    labelText = `${formattedDate} ${weekday}`;
+                    const [y, m, dPart] = d.label.split('-');
+                    labelText = `${dPart}-${m}-${y}`;
                   }
                 } else if (granularity === 'monthly' && d.label.length === 7) {
                   const [yPart, mPart] = d.label.split('-');

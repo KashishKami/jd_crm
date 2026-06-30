@@ -48,7 +48,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
-  const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

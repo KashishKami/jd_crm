@@ -222,10 +222,14 @@ export async function findById(crmOrderId: number) {
 }
 
 export async function update(crmOrderId: number, data: OrderUpdateInput) {
+  const updateData = { ...data };
+  if (updateData.orderDate) {
+    updateData.orderDate = new Date(updateData.orderDate);
+  }
   return await prisma.crmOrders.update({
     where: { crmOrderId },
     data: {
-      ...data,
+      ...updateData,
       orderUpdatedDate: new Date(),
     },
   });

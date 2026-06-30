@@ -8,11 +8,63 @@ function calcPctChange(current: number, previous: number): number {
   return parseFloat((((current - previous) / previous) * 100).toFixed(2));
 }
 
+function getEstDate(d: Date = new Date()): Date {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(d);
+  const partMap: Record<string, string> = {};
+  for (const part of parts) {
+    partMap[part.type] = part.value;
+  }
+  return new Date(
+    parseInt(partMap.year),
+    parseInt(partMap.month) - 1,
+    parseInt(partMap.day),
+    parseInt(partMap.hour) === 24 ? 0 : parseInt(partMap.hour),
+    parseInt(partMap.minute),
+    parseInt(partMap.second)
+  );
+}
+
+function getEstDateUTC(d: Date = new Date()): Date {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(d);
+  const partMap: Record<string, string> = {};
+  for (const part of parts) {
+    partMap[part.type] = part.value;
+  }
+  return new Date(Date.UTC(
+    parseInt(partMap.year),
+    parseInt(partMap.month) - 1,
+    parseInt(partMap.day),
+    parseInt(partMap.hour) === 24 ? 0 : parseInt(partMap.hour),
+    parseInt(partMap.minute),
+    parseInt(partMap.second)
+  ));
+}
+
 export async function getMetricsForUser(session: any) {
   const permissions = session?.user?.userPermissions || '';
   const metrics: Record<string, any> = {};
 
-  const now = new Date();
+  const now = getEstDate(new Date());
 
   // Year dates (UTC)
   const curYearStart = new Date(Date.UTC(now.getFullYear(), 0, 1));
@@ -154,7 +206,7 @@ export async function getAdvancedChartMetrics(
     throw new Error('Forbidden');
   }
 
-  const now = new Date();
+  const now = getEstDateUTC(new Date());
   let dateFrom: Date;
   let dateTo: Date;
   let granularity = 'daily';
