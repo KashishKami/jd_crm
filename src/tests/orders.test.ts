@@ -93,6 +93,14 @@ describe('Order Management Integration Tests', () => {
       data: {
         customerName: 'Initial Customer',
         customerEmail: 'initial.cust@example.com',
+        cards: {
+          create: {
+            customerNameOncard: 'Initial Customer',
+            customerCardNumber: '1234567812345678',
+            customerCardExpDate: '12/28',
+            customerCardCvv: '123',
+          }
+        }
       },
     });
 
@@ -1354,6 +1362,160 @@ describe('Order Management Integration Tests', () => {
 
       // Restore original implementation
       prismaSpy.mockRestore();
+    });
+  });
+
+  describe('W-1605: Order Field Change Audit Log', () => {
+    it('should log field-level changes on PATCH /api/orders/:id and verify logs are stored raw in DB', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          orderPart: 'Modified Clutch Panel',
+          customerCardNumber: '1111222233334444',
+          customerCardCvv: '987',
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // Verify db storage contains raw values
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = ? ORDER BY id ASC`,
+        testOrder.crmOrderId
+      );
+
+      const partRow = dbRows.find(r => r.field_name === 'orderPart');
+      expect(partRow).toBeDefined();
+      expect(partRow.new_value).toBe('Modified Clutch Panel');
+
+      const cardRow = dbRows.find(r => r.field_name === 'customerCardNumber');
+      expect(cardRow).toBeDefined();
+      expect(cardRow.new_value).toBe('1111222233334444'); // stored raw in DB
+
+      const cvvRow = dbRows.find(r => r.field_name === 'customerCardCvv');
+      expect(cvvRow).toBeDefined();
+      expect(cvvRow.new_value).toBe('987'); // stored raw in DB
+    });
+
+    it('should return 403 when getting audit logs without orders:view-audit-log', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view', // lacks orders:view-audit-log
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/audit-log/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/audit-log`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 200 and list audit logs dynamically masked when lacking customers:view-cards permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view-audit-log', // has logs view, but lacks customers:view-cards
+        },
+      });
+
+      // Insert audit logs for the current testOrder
+      await prisma.crmOrderAuditLog.createMany({
+        data: [
+          {
+            orderId: testOrder.crmOrderId,
+            fieldName: 'customerCardNumber',
+            oldValue: '1234567812345678',
+            newValue: '1111222233334444',
+            changedById: testUser.uid,
+            changedByName: testUser.nickname || testUser.name,
+          },
+          {
+            orderId: testOrder.crmOrderId,
+            fieldName: 'customerCardCvv',
+            oldValue: '123',
+            newValue: '987',
+            changedById: testUser.uid,
+            changedByName: testUser.nickname || testUser.name,
+          },
+        ],
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/audit-log/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/audit-log`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const logs = await res.json();
+      const cardLog = logs.find((l: any) => l.fieldName === 'customerCardNumber');
+      expect(cardLog).toBeDefined();
+      expect(cardLog.newValue).toBe('**** **** **** 4444'); // Dynamically masked to last 4
+
+      const cvvLog = logs.find((l: any) => l.fieldName === 'customerCardCvv');
+      expect(cvvLog).toBeDefined();
+      expect(cvvLog.newValue).toBe('***'); // Dynamically masked CVV
+    });
+
+    it('should return 200 and list audit logs unmasked when user has customers:view-cards permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view-audit-log,customers:view-cards', // has both permissions
+        },
+      });
+
+      // Insert audit logs for the current testOrder
+      await prisma.crmOrderAuditLog.createMany({
+        data: [
+          {
+            orderId: testOrder.crmOrderId,
+            fieldName: 'customerCardNumber',
+            oldValue: '1234567812345678',
+            newValue: '1111222233334444',
+            changedById: testUser.uid,
+            changedByName: testUser.nickname || testUser.name,
+          },
+          {
+            orderId: testOrder.crmOrderId,
+            fieldName: 'customerCardCvv',
+            oldValue: '123',
+            newValue: '987',
+            changedById: testUser.uid,
+            changedByName: testUser.nickname || testUser.name,
+          },
+        ],
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/audit-log/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/audit-log`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const logs = await res.json();
+      const cardLog = logs.find((l: any) => l.fieldName === 'customerCardNumber');
+      expect(cardLog).toBeDefined();
+      expect(cardLog.newValue).toBe('1111222233334444'); // Unmasked card number
+
+      const cvvLog = logs.find((l: any) => l.fieldName === 'customerCardCvv');
+      expect(cvvLog).toBeDefined();
+      expect(cvvLog.newValue).toBe('987'); // Unmasked CVV
     });
   });
 });

@@ -44,6 +44,7 @@ model Users {
   saleStatusChanges    CrmSaleStatusHistory[]          @relation("SaleStatusChanges")
   workflowStatusChanges CrmOrderCurrentStatusHistory[] @relation("WorkflowStatusChanges")
   orderViews            CrmOrderViews[]
+  auditLogChanges       CrmOrderAuditLog[]             @relation("OrderAuditLogChanges")
   userchecks         Usercheck[]
   role               CrmRoles                   @relation(fields: [roleId], references: [roleId])
   team               CrmTeams                   @relation(fields: [teamId], references: [teamId])
@@ -245,6 +246,7 @@ model CrmOrders {
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]
   viewLogs                      CrmOrderViews[]
+  auditLogs                     CrmOrderAuditLog[]
   customer                      CrmCustomers  @relation(fields: [orderCustomerId], references: [customerId])
   gateway                       CrmGateway?   @relation(fields: [orderPaymentGatewayId], references: [gatewayId])
   salesAgent                    Users?        @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid])
@@ -387,4 +389,20 @@ model CrmOrderViews {
   @@index([orderId])
   @@index([viewerId])
   @@map("crm_order_views")
+}
+
+model CrmOrderAuditLog {
+  id            Int       @id @default(autoincrement())
+  orderId       Int       @map("order_id")
+  fieldName     String    @map("field_name")      @db.VarChar(100)
+  oldValue      String?   @map("old_value")       @db.Text
+  newValue      String?   @map("new_value")       @db.Text
+  changedById   Int       @map("changed_by_id")
+  changedByName String    @map("changed_by_name") @db.VarChar(55)
+  changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+  order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+  changedBy     Users     @relation("OrderAuditLogChanges", fields: [changedById], references: [uid])
+
+  @@index([orderId])
+  @@map("crm_order_audit_log")
 }

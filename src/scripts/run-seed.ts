@@ -35,24 +35,28 @@ async function main() {
 
   console.log(`Parsed ${statements.length} SQL statements to execute.`);
 
-  await prisma.$executeRaw(Prisma.raw('SET FOREIGN_KEY_CHECKS = 0;'));
+  const prismaPromises = [];
+  prismaPromises.push(prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0;'));
 
   for (let i = 0; i < statements.length; i++) {
     const stmt = statements[i];
     const cleanStmt = stmt.endsWith(';') ? stmt.slice(0, -1) : stmt;
-    try {
-      if (cleanStmt.trim().startsWith('USE ')) {
-        continue;
-      }
-      await prisma.$executeRaw(Prisma.raw(cleanStmt));
-    } catch (err) {
-      console.error(`Error executing statement ${i + 1}:`, cleanStmt);
-      console.error(err);
-      process.exit(1);
+    if (cleanStmt.trim().startsWith('USE ')) {
+      continue;
     }
+    prismaPromises.push(prisma.$executeRawUnsafe(cleanStmt));
   }
 
-  await prisma.$executeRaw(Prisma.raw('SET FOREIGN_KEY_CHECKS = 1;'));
+  prismaPromises.push(prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;'));
+
+  try {
+    await prisma.$transaction(prismaPromises, { timeout: 30000 });
+  } catch (err) {
+    console.error(`Error executing seed transaction:`);
+    console.error(err);
+    process.exit(1);
+  }
+
   console.log('--- DATABASE SEED EXECUTION COMPLETED ---');
 }
 

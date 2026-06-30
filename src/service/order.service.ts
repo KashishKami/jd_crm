@@ -1,4 +1,5 @@
 import * as orderRepository from '../repository/order.repository';
+import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
 
 export async function createOrder(data: OrderCreateInput) {
@@ -173,6 +174,106 @@ export async function updateOrder(
     if (vendor) {
       updatedData.orderVendorName = vendor.vendorName;
     }
+  }
+
+  // ─── Diff and write change audit log entries ──────────────────────────────────
+  const auditEntries: { fieldName: string; oldValue: string | null; newValue: string | null }[] = [];
+
+  const isSameDate = (d1: any, d2: any) => {
+    if (!d1 && !d2) return true;
+    if (!d1 || !d2) return false;
+    try {
+      const t1 = new Date(d1).toISOString().slice(0, 10);
+      const t2 = new Date(d2).toISOString().slice(0, 10);
+      return t1 === t2;
+    } catch {
+      return false;
+    }
+  };
+
+  const checkStrDiff = (fieldName: string, oldVal: any, newVal: any, isDate = false) => {
+    if (newVal === undefined) return;
+    if (isDate) {
+      if (!isSameDate(oldVal, newVal)) {
+        const oldStr = oldVal ? new Date(oldVal).toISOString().slice(0, 10) : null;
+        const newStr = newVal ? new Date(newVal).toISOString().slice(0, 10) : null;
+        auditEntries.push({ fieldName, oldValue: oldStr, newValue: newStr });
+      }
+      return;
+    }
+    const oldStr = oldVal !== null && oldVal !== undefined ? String(oldVal) : null;
+    const newStr = newVal !== null && newVal !== undefined ? String(newVal) : null;
+    if ((oldStr || '') !== (newStr || '')) {
+      auditEntries.push({ fieldName, oldValue: oldStr, newValue: newStr });
+    }
+  };
+
+  const orderKeysToAudit = [
+    'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMiles', 'orderGivenMiles',
+    'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName',
+    'orderShippingType', 'orderMarkup',
+    'orderSalesAgentName', 'orderVerifierName',
+    'orderSalesVerifierName', 'orderBackendExecutiveName',
+    'orderCurrentStatus', 'orderTrackingNumber', 'orderDeliveryStatus',
+    'orderVendorFeedback', 'orderClientFeedback', 'orderResolution', 'orderDocumentation',
+    'orderBooked', 'orderAmountCharged', 'orderQualifiedIncentiveStatus', 'orderQualifiedIncentiveAmount',
+    'orderStatus'
+  ];
+
+  for (const key of orderKeysToAudit) {
+    checkStrDiff(key, (existingOrder as any)[key], (updatedData as any)[key]);
+  }
+
+  // ─── Custom Checks for User-Side Values (mapping IDs/codes to Names/Labels) ───
+  if (updatedData.orderPaymentGatewayId !== undefined && existingOrder.orderPaymentGatewayId !== updatedData.orderPaymentGatewayId) {
+    const oldGatewayName = existingOrder.gateway?.gatewayName || null;
+    let newGatewayName = null;
+    if (updatedData.orderPaymentGatewayId) {
+      const gw = await prisma.crmGateway.findUnique({ where: { gatewayId: updatedData.orderPaymentGatewayId } });
+      newGatewayName = gw ? gw.gatewayName : null;
+    }
+    if ((oldGatewayName || '') !== (newGatewayName || '')) {
+      auditEntries.push({ fieldName: 'orderPaymentGatewayId', oldValue: oldGatewayName, newValue: newGatewayName });
+    }
+  }
+
+  const mapSaleStatus = (status: any) => {
+    if (status === '1' || status === 1) return 'Sold';
+    if (status === '2' || status === 2) return 'Refunded';
+    if (status === '3' || status === 3) return 'Chargebacked';
+    return status ? String(status) : null;
+  };
+
+  if (updatedData.saleStatus !== undefined) {
+    const oldStatusMapped = mapSaleStatus(existingOrder.saleStatus);
+    const newStatusMapped = mapSaleStatus(updatedData.saleStatus);
+    if ((oldStatusMapped || '') !== (newStatusMapped || '')) {
+      auditEntries.push({ fieldName: 'saleStatus', oldValue: oldStatusMapped, newValue: newStatusMapped });
+    }
+  }
+
+  checkStrDiff('orderDate', existingOrder.orderDate, updatedData.orderDate, true);
+
+  if (existingOrder.customer) {
+    checkStrDiff('customerName', existingOrder.customer.customerName, customerName);
+    checkStrDiff('customerPhone', existingOrder.customer.customerPhone, customerPhone);
+    checkStrDiff('customerEmail', existingOrder.customer.customerEmail, customerEmail);
+    checkStrDiff('customerBillingAddress', existingOrder.customer.customerBillingAddress, customerBillingAddress);
+    checkStrDiff('customerShippingAddress', existingOrder.customer.customerShippingAddress, customerShippingAddress);
+  }
+
+  const firstCard = existingOrder.customer?.cards?.[0];
+  if (firstCard) {
+    checkStrDiff('customerNameOncard', firstCard.customerNameOncard, customerNameOncard);
+    checkStrDiff('customerCardNumber', firstCard.customerCardNumber, customerCardNumber);
+    checkStrDiff('customerCardExpDate', firstCard.customerCardExpDate, customerCardExpDate);
+    checkStrDiff('customerCardCvv', firstCard.customerCardCvv, customerCardCvv);
+    checkStrDiff('customerCardCopyStatus', firstCard.customerCardCopyStatus, customerCardCopyStatus);
+    checkStrDiff('customerCardPhotoStatus', firstCard.customerCardPhotoStatus, customerCardPhotoStatus);
+  }
+
+  if (auditEntries.length > 0) {
+    await orderRepository.createAuditLogEntries(crmOrderId, auditEntries, changedByUserId, changedByName);
   }
 
   // ─── Persist the order row ────────────────────────────────────────────────────

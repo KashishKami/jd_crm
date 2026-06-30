@@ -155,8 +155,10 @@ async function main() {
   }
 
   // Cleanup dynamic tables before importing (to start fresh)
-  console.log('Cleaning up existing database records (Orders, Cards, Customers, Gateways, Vendors)...');
+  console.log('Cleaning up existing database records (Comments, Views, Audit logs, Orders, Cards, Customers, Gateways, Vendors)...');
   await prisma.crmComments.deleteMany();
+  await prisma.crmOrderViews.deleteMany();
+  await prisma.crmOrderAuditLog.deleteMany();
   await prisma.crmOrders.deleteMany();
   await prisma.crmCustomerCards.deleteMany();
   await prisma.crmCustomers.deleteMany();
@@ -164,238 +166,284 @@ async function main() {
   await prisma.crmGateway.deleteMany();
   console.log('Database cleaned successfully.');
 
-  // Allow resuming mid-import: set RESUME_FROM_ROW=N env var to skip already-imported rows
-  const resumeFrom = parseInt(process.env.RESUME_FROM_ROW || '0', 10);
-  if (resumeFrom > 0) {
-    console.log(`Resuming from row ${resumeFrom + 2} (skipping first ${resumeFrom} data rows).`);
+  // Reset auto-increment starting counters to 1
+  console.log('Resetting database auto-increment counters...');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_customers AUTO_INCREMENT = 1;');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_customer_cards AUTO_INCREMENT = 1;');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_orders AUTO_INCREMENT = 1;');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_vendors AUTO_INCREMENT = 1;');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_gateway AUTO_INCREMENT = 1;');
+  await prisma.$executeRawUnsafe('ALTER TABLE crm_comments AUTO_INCREMENT = 1;');
+
+  // 1. Resolve/create Gateways in bulk/unique list
+  console.log('Processing unique gateways...');
+  const uniqueGateways = Array.from(
+    new Set(
+      dataRows
+        .map((r) => r[21]?.trim())
+        .filter((gw) => gw && gw !== 'NA' && gw !== '')
+    )
+  );
+  for (const gwName of uniqueGateways) {
+    const gwKey = gwName.toLowerCase();
+    const gw = await prisma.crmGateway.create({
+      data: {
+        gatewayName: gwName,
+        gatewayStatus: 1,
+        gatewayCreatedAt: new Date(),
+        gatewayUpdatedAt: new Date(),
+      },
+    });
+    gatewayCache.set(gwKey, gw.gatewayId);
+  }
+  console.log(`Created and cached ${gatewayCache.size} unique gateways.`);
+
+  // 2. Resolve/create unique Vendors (prevent duplication of vendor names)
+  console.log('Processing unique vendors...');
+  const uniqueVendorsMap = new Map<string, { vName: string; vContact: string; rawKeys: string[] }>();
+  for (const row of dataRows) {
+    const supplierVendor = row[20];
+    if (supplierVendor && supplierVendor !== 'NA' && supplierVendor !== '') {
+      const parts = supplierVendor.split('/');
+      const vName = parts[0].trim();
+      const vContact = parts[1]?.trim() || 'Unknown';
+      const vNameKey = vName.toLowerCase();
+
+      if (!uniqueVendorsMap.has(vNameKey)) {
+        uniqueVendorsMap.set(vNameKey, {
+          vName,
+          vContact,
+          rawKeys: [supplierVendor.toLowerCase().trim()],
+        });
+      } else {
+        uniqueVendorsMap.get(vNameKey)!.rawKeys.push(supplierVendor.toLowerCase().trim());
+      }
+    }
   }
 
-  let importedCount = 0;
+  for (const [vNameKey, vendorInfo] of uniqueVendorsMap.entries()) {
+    const newVendor = await prisma.crmVendors.create({
+      data: {
+        vendorName: vendorInfo.vName,
+        vendorContactPerson: vendorInfo.vContact,
+        vendorPhone: '000-000-0000',
+        vendorStatus: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    for (const rawKey of vendorInfo.rawKeys) {
+      vendorCache.set(rawKey, newVendor.vendorId);
+    }
+    vendorCache.set(vNameKey, newVendor.vendorId);
+  }
+  console.log(`Created and cached unique vendors (Cache size: ${vendorCache.size}).`);
+
+  // Prepare arrays for batch insertion of main transaction tables
+  const customerData: any[] = [];
+  const cardData: any[] = [];
+  const orderData: any[] = [];
+  const commentData: any[] = [];
+
+  let nextCustomerId = 1;
   let failedCount = 0;
 
-  for (let i = resumeFrom; i < dataRows.length; i++) {
+  console.log('Parsing data rows...');
+  for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
-    // Check if row has enough cells
     if (row.length < 25) {
-      console.warn(`Skipping malformed row ${i + 2}: insufficient columns (${row.length})`);
       failedCount++;
       continue;
     }
 
-    try {
-      // Map columns based on indexes
-      const dateRaw = row[0];
-      const customerName = row[1];
-      const emailAddress = row[2];
-      const phoneNumber = row[3];
-      const phoneNumber2 = row[4];
-      const billingAddress = row[5];
-      const shippingAddress = row[6];
-      const nameOnCard = row[7];
-      const cardNumber = row[8];
-      const expiryDate = row[9];
-      const cvvCode = row[10];
-      const makeModel = row[11];
-      const partDescription = row[12];
-      const specifications = row[13];
-      const vinNumber = row[14];
-      const quotedMiles = row[15];
-      const vendorMiles = row[16];
-      const pricePitched = row[17];
-      const buyingPrice = row[18];
-      const shippingType = row[19];
-      const supplierVendor = row[20];
-      const billingGateway = row[21];
-      const salesAgentName = row[22];
-      const salesVerifierName = row[23];
-      const saleStatusRaw = row[24];
-      const remarks = row[25];
+    const dateRaw = row[0];
+    const customerName = row[1];
+    const emailAddress = row[2];
+    const phoneNumber = row[3];
+    const phoneNumber2 = row[4];
+    const billingAddress = row[5];
+    const shippingAddress = row[6];
+    const nameOnCard = row[7];
+    const cardNumber = row[8];
+    const expiryDate = row[9];
+    const cvvCode = row[10];
+    const makeModel = row[11];
+    const partDescription = row[12];
+    const specifications = row[13];
+    const vinNumber = row[14];
+    const quotedMiles = row[15];
+    const vendorMiles = row[16];
+    const pricePitched = row[17];
+    const buyingPrice = row[18];
+    const shippingType = row[19];
+    const supplierVendor = row[20];
+    const billingGateway = row[21];
+    const salesAgentName = row[22];
+    const salesVerifierName = row[23];
+    const saleStatusRaw = row[24];
+    const remarks = row[25];
 
-      // 1. Resolve Gateway or create on-the-fly
-      let gatewayId: number | null = null;
-      if (billingGateway && billingGateway !== 'NA' && billingGateway !== '') {
-        const gwKey = billingGateway.toLowerCase().trim();
-        if (gatewayCache.has(gwKey)) {
-          gatewayId = gatewayCache.get(gwKey)!;
-        } else {
-          const gw = await prisma.crmGateway.create({
-            data: {
-              gatewayName: billingGateway,
-              gatewayStatus: 1,
-              gatewayCreatedAt: new Date(),
-              gatewayUpdatedAt: new Date(),
-            },
-          });
-          gatewayCache.set(gwKey, gw.gatewayId);
-          gatewayId = gw.gatewayId;
-        }
-      }
-
-      // 2. Resolve Supplier / Vendor or create on-the-fly
-      let vendorId: number | null = null;
-      if (supplierVendor && supplierVendor !== 'NA' && supplierVendor !== '') {
-        const vendorKey = supplierVendor.toLowerCase().trim();
-        if (vendorCache.has(vendorKey)) {
-          vendorId = vendorCache.get(vendorKey)!;
-        } else {
-          // Parse name / contact person out of supplier (e.g. "Ace AA / Jay" -> Name: Ace AA, Contact: Jay)
-          const parts = supplierVendor.split('/');
-          const vName = parts[0].trim();
-          const vContact = parts[1]?.trim() || 'Unknown';
-          const newVendor = await prisma.crmVendors.create({
-            data: {
-              vendorName: vName,
-              vendorContactPerson: vContact,
-              vendorPhone: '000-000-0000',
-              vendorStatus: 1,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-          });
-          vendorCache.set(vendorKey, newVendor.vendorId);
-          vendorId = newVendor.vendorId;
-        }
-      }
-
-      // 3. Resolve Sales Agent and Sales Verifier
-      let agentId: number | null = null;
-      if (salesAgentName) {
-        const agentKey = salesAgentName.toLowerCase().trim();
-        if (agentCache.has(agentKey)) {
-          agentId = agentCache.get(agentKey)!;
-        }
-      }
-      let salesVerifierId: number | null = null;
-      if (salesVerifierName) {
-        const verifierKey = salesVerifierName.toLowerCase().trim();
-        if (agentCache.has(verifierKey)) {
-          salesVerifierId = agentCache.get(verifierKey)!;
-        }
-      }
-
-      // Calculate markup
-      const pitchedNum = parsePriceString(pricePitched);
-      const buyingNum = parsePriceString(buyingPrice);
-      const markupVal = (pitchedNum - buyingNum).toFixed(2);
-
-      // Extract Year and Make/Model
-      let year = '';
-      let makeAndModel = makeModel;
-      const yearMatch = makeModel.match(/^(\d{4})\b/);
-      if (yearMatch) {
-        year = yearMatch[1];
-        makeAndModel = makeModel.replace(/^(\d{4})\s*/, '');
-      }
-
-      const orderDateParsed = parseCSVDate(dateRaw);
-      if (!orderDateParsed) {
-        console.warn(`Skipping row ${i + 2}: Order date is missing/empty for customer "${customerName || 'Unknown'}"`);
-        failedCount++;
-        continue;
-      }
-
-      // ---------------------------------------------------------------
-      // Create records WITHOUT $transaction() — each operation uses its
-      // own pooled connection so GoDaddy's wait_timeout cannot kill a
-      // long-held transaction connection mid-row (ECONNRESET fix).
-      // ---------------------------------------------------------------
-
-      // Step 1: Create Customer
-      const customerNameClean = customerName || 'Unknown Customer';
-      const customer = await prisma.crmCustomers.create({
-        data: {
-          customerName: customerNameClean,
-          customerEmail: emailAddress && emailAddress !== 'NA' && emailAddress !== ''
-            ? emailAddress
-            : `${customerNameClean.replace(/\s+/g, '').toLowerCase()}@example.com`,
-          customerPhone: phoneNumber && phoneNumber !== 'NA' ? phoneNumber : null,
-          customerBillingAddress: billingAddress && billingAddress !== 'NA' ? billingAddress : null,
-          customerShippingAddress: shippingAddress && shippingAddress !== 'NA' ? shippingAddress : null,
-          dateCreated: orderDateParsed,
-          dateUpdated: new Date(),
-        },
-      });
-
-      // Step 2: Create Card details if present
-      if (cardNumber && cardNumber !== 'NA' && cardNumber !== '') {
-        // Truncate CVV to VARCHAR(5) max — guard against malformed CSV data
-        const safeCvv = (cvvCode && cvvCode !== 'NA' && cvvCode !== '') ? cvvCode.substring(0, 5) : null;
-        await prisma.crmCustomerCards.create({
-          data: {
-            cardCustomerId: customer.customerId,
-            customerNameOncard: nameOnCard || customerNameClean,
-            customerCardNumber: cardNumber,
-            customerCardExpDate: expiryDate || 'NA',
-            customerCardCvv: safeCvv,
-            customerCardCreatedAt: orderDateParsed,
-            customerCardUpdated: new Date(),
-          },
-        });
-      }
-
-      // Step 3: Create Order
-      const order = await prisma.crmOrders.create({
-        data: {
-          orderCustomerId: customer.customerId,
-          orderMakeModel: makeModel || null,
-          orderPart: partDescription || null,
-          orderPartSize: specifications || null,
-          orderQuotedMiles: quotedMiles || null,
-          orderGivenMiles: vendorMiles || null,
-          orderVin: vinNumber || null,
-          orderTotalPitched: pricePitched || '0',
-          orderVendorPrice: buyingPrice || '0',
-          orderVendorId: vendorId,
-          orderVendorName: supplierVendor || null,
-          orderShippingType: shippingType || null,
-          orderMarkup: markupVal,
-          orderPaymentGatewayId: gatewayId,
-          orderSalesAgentId: agentId,
-          orderSalesAgentName: salesAgentName || null,
-          orderSalesVerifierId: salesVerifierId,
-          orderSalesVerifierName: salesVerifierName || null,
-          saleStatus: mapSaleStatus(saleStatusRaw),
-          orderCurrentStatus: 'Completed Orders',
-          orderCurrentStatusUpdateDate: orderDateParsed,
-          orderDate: orderDateParsed,
-          orderVendorFeedback: 'Positive',
-          orderClientFeedback: 'Positive',
-          orderResolution: 'Resolved',
-          orderCreatedDate: orderDateParsed,
-          orderUpdatedDate: new Date(),
-        },
-      });
-
-      // Step 4: Add Remarks as a Comment
-      // Only create comment if we have a valid agent FK — commentAgentId is NOT NULL
-      const commentAgentUid = agentId ?? FALLBACK_AGENT_UID;
-      if (remarks && remarks !== 'NA' && remarks !== '' && commentAgentUid !== null) {
-        await prisma.crmComments.create({
-          data: {
-            customerId: customer.customerId,
-            orderId: order.crmOrderId,
-            comment: remarks,
-            commentAgentId: commentAgentUid,
-            commentAgentName: salesAgentName || 'Admin',
-            commentCreatedDate: orderDateParsed,
-            commentUpdatedDate: new Date(),
-          },
-        });
-      }
-
-      importedCount++;
-      if (importedCount % 50 === 0) {
-        console.log(`Imported ${importedCount} records... (CSV row ${i + 2})`);
-      }
-    } catch (err) {
-      console.error(`Failed to import row ${i + 2}:`, err);
+    const orderDateParsed = parseCSVDate(dateRaw);
+    if (!orderDateParsed) {
       failedCount++;
+      continue;
     }
+
+    // Resolve Gateway
+    let gatewayId: number | null = null;
+    if (billingGateway && billingGateway !== 'NA' && billingGateway !== '') {
+      gatewayId = gatewayCache.get(billingGateway.toLowerCase().trim()) ?? null;
+    }
+
+    // Resolve Vendor
+    let vendorId: number | null = null;
+    if (supplierVendor && supplierVendor !== 'NA' && supplierVendor !== '') {
+      vendorId = vendorCache.get(supplierVendor.toLowerCase().trim()) ?? null;
+    }
+
+    // Resolve Agent / Verifier
+    let agentId: number | null = null;
+    if (salesAgentName) {
+      agentId = agentCache.get(salesAgentName.toLowerCase().trim()) ?? null;
+    }
+    let salesVerifierId: number | null = null;
+    if (salesVerifierName) {
+      salesVerifierId = agentCache.get(salesVerifierName.toLowerCase().trim()) ?? null;
+    }
+
+    // Pricing & Markup calculations
+    const pitchedNum = parsePriceString(pricePitched);
+    const buyingNum = parsePriceString(buyingPrice);
+    const markupVal = (pitchedNum - buyingNum).toFixed(2);
+
+    const customerId = nextCustomerId;
+    const customerNameClean = customerName || 'Unknown Customer';
+
+    // 1. Customer
+    customerData.push({
+      customerId,
+      customerName: customerNameClean,
+      customerEmail: emailAddress && emailAddress !== 'NA' && emailAddress !== ''
+        ? emailAddress
+        : `${customerNameClean.replace(/\s+/g, '').toLowerCase()}@example.com`,
+      customerPhone: phoneNumber && phoneNumber !== 'NA' ? phoneNumber : null,
+      customerBillingAddress: billingAddress && billingAddress !== 'NA' ? billingAddress : null,
+      customerShippingAddress: shippingAddress && shippingAddress !== 'NA' ? shippingAddress : null,
+      dateCreated: orderDateParsed,
+      dateUpdated: new Date(),
+    });
+
+    // 2. Customer Card (if present)
+    if (cardNumber && cardNumber !== 'NA' && cardNumber !== '') {
+      const safeCvv = (cvvCode && cvvCode !== 'NA' && cvvCode !== '') ? cvvCode.substring(0, 5) : null;
+      cardData.push({
+        cardCustomerId: customerId,
+        customerNameOncard: nameOnCard || customerNameClean,
+        customerCardNumber: cardNumber,
+        customerCardExpDate: expiryDate || 'NA',
+        customerCardCvv: safeCvv,
+        customerCardCreatedAt: orderDateParsed,
+        customerCardUpdated: new Date(),
+      });
+    }
+
+    // 3. Order
+    orderData.push({
+      crmOrderId: customerId, // 1-to-1 matching during reset import
+      orderCustomerId: customerId,
+      orderMakeModel: makeModel || null,
+      orderPart: partDescription || null,
+      orderPartSize: specifications || null,
+      orderQuotedMiles: quotedMiles || null,
+      orderGivenMiles: vendorMiles || null,
+      orderVin: vinNumber || null,
+      orderTotalPitched: pricePitched || '0',
+      orderVendorPrice: buyingPrice || '0',
+      orderVendorId: vendorId,
+      orderVendorName: supplierVendor || null,
+      orderShippingType: shippingType || null,
+      orderMarkup: markupVal,
+      orderPaymentGatewayId: gatewayId,
+      orderSalesAgentId: agentId,
+      orderSalesAgentName: salesAgentName || null,
+      orderSalesVerifierId: salesVerifierId,
+      orderSalesVerifierName: salesVerifierName || null,
+      saleStatus: mapSaleStatus(saleStatusRaw),
+      orderCurrentStatus: 'Completed Orders',
+      orderCurrentStatusUpdateDate: orderDateParsed,
+      orderDate: orderDateParsed,
+      orderVendorFeedback: 'Positive',
+      orderClientFeedback: 'Positive',
+      orderResolution: 'Resolved',
+      orderCreatedDate: orderDateParsed,
+      orderUpdatedDate: new Date(),
+    });
+
+    // 4. Remarks Comment
+    const commentAgentUid = agentId ?? FALLBACK_AGENT_UID;
+    if (remarks && remarks !== 'NA' && remarks !== '' && commentAgentUid !== null) {
+      commentData.push({
+        customerId,
+        orderId: customerId,
+        comment: remarks,
+        commentAgentId: commentAgentUid,
+        commentAgentName: salesAgentName || 'Admin',
+        commentCreatedDate: orderDateParsed,
+        commentUpdatedDate: new Date(),
+      });
+    }
+
+    nextCustomerId++;
   }
 
-  console.log('--- IMPORT COMPLETED ---');
-  console.log(`Successfully imported: ${importedCount} orders`);
-  console.log(`Failed rows: ${failedCount}`);
+  // Bulk execution in database using batch inserts for performance
+  console.log(`Prepared bulk records:`);
+  console.log(`- Customers: ${customerData.length}`);
+  console.log(`- Cards: ${cardData.length}`);
+  console.log(`- Orders: ${orderData.length}`);
+  console.log(`- Comments: ${commentData.length}`);
+
+  try {
+    // Disable constraints during bulk load to speed up
+    await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0;');
+
+    // Chunk size to prevent too large query packets
+    const chunkSize = 500;
+
+    console.log('Inserting customers...');
+    for (let offset = 0; offset < customerData.length; offset += chunkSize) {
+      const chunk = customerData.slice(offset, offset + chunkSize);
+      await prisma.crmCustomers.createMany({ data: chunk });
+    }
+
+    console.log('Inserting customer cards...');
+    for (let offset = 0; offset < cardData.length; offset += chunkSize) {
+      const chunk = cardData.slice(offset, offset + chunkSize);
+      await prisma.crmCustomerCards.createMany({ data: chunk });
+    }
+
+    console.log('Inserting orders...');
+    for (let offset = 0; offset < orderData.length; offset += chunkSize) {
+      const chunk = orderData.slice(offset, offset + chunkSize);
+      await prisma.crmOrders.createMany({ data: chunk });
+    }
+
+    console.log('Inserting comments...');
+    for (let offset = 0; offset < commentData.length; offset += chunkSize) {
+      const chunk = commentData.slice(offset, offset + chunkSize);
+      await prisma.crmComments.createMany({ data: chunk });
+    }
+
+    await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;');
+
+    console.log('--- CSV IMPORT COMPLETED SUCCESSFULLY ---');
+    console.log(`Total Ingested Orders: ${orderData.length}`);
+    console.log(`Failed Rows: ${failedCount}`);
+  } catch (err) {
+    console.error('Fatal error during bulk database writes:', err);
+    await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;');
+    process.exit(1);
+  }
 }
 
 main()

@@ -28,7 +28,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 13**| global Full-Text Search | **[x] COMPLETED** | Unified global search bar, order filters |
 | **Phase 14**| Admin Settings & RBAC Permissions | **[x] COMPLETED** | Role settings page, permission matrices |
 | **Phase 15** | Sprint 1 — Critical Schema Surgery (P0) | **[x] COMPLETED** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
-| **Phase 16** | Sprint 2 — Pre-Go-Live Features (P1) | **[/] IN PROGRESS** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
+| **Phase 16** | Sprint 2 — Pre-Go-Live Features (P1) | **[x] COMPLETED** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
 
 ---
 
@@ -2637,3 +2637,24 @@ Every `PATCH /api/orders/:id` overwrites the current field values with no record
   - **Order Details Integration**: Injected a call to `orderRepo.logOrderView` into both the Next.js API route [route.ts](src/app/api/orders/[id]/route.ts) and the server component detail page [page.tsx](src/app/orders/[id]/page.tsx) to record views whenever the details page is visited in the browser or accessed via HTTP client.
   - **Access History Table Component**: Created [OrderViewLog.tsx](src/components/OrderViewLog.tsx) to render a list of view entries. Redesigned it using light glassmorphic card style to match the layout system. Guarded it under `orders:view-log` in [page.tsx](src/app/orders/[id]/page.tsx).
   - **Verification**: Created [OrderViewLog.test.tsx](src/tests/OrderViewLog.test.tsx). Verified all test suites pass successfully: **34 test files, 185 tests passing**.
+
+### Session 32 — July 1, 2026
+  **Phase 16 — W-1605 Order Field Change Audit Log, Database Seeding Alignment, & Test Isolation Correctness**
+  - **Database Migration**: Created and executed database migration `20260630222435_create_order_audit_log_table` creating the `crm_order_audit_log` table mapping `id`, `order_id`, `field_name`, `old_value`, `new_value`, `changed_by_id`, `changed_by_name`, and `changed_at` columns.
+  - **Prisma Schema Update**: Added the `CrmOrderAuditLog` model to `schema.prisma` mapping to the new database table and generated client types.
+  - **Field Diffs Calculation Service**: Implemented `createAuditLogEntries()` and `getAuditLogByOrderId()` in `order.repository.ts`, and updated `updateOrder()` in `order.service.ts` to calculate field-level diffs during edit submittals and record them raw in the database.
+  - **Permission-Guarded Audit Route**: Created `GET /api/orders/:id/audit-log` checking permission `orders:view-audit-log` (permission ID `50`), and dynamically masking customer credit card numbers/CVVs if the requesting user lacks `customers:view-cards` permission.
+  - **Audit Logs UI Timeline**: Created [OrderAuditLog.tsx](src/components/OrderAuditLog.tsx) timeline component and rendered it guarded by permissions in the Order Details page.
+  - **Database Seeder Realignment**: Updated [seed.sql](seed.sql) to define the new designations and roles (Super Admin, Admin, Manager, Team Lead, HR, Vendor Management, QA, Agent) and updated agent legacy SHA-256 hashes to correctly computed values.
+  - **Seeding Sequence FK Lock Resolution**: Reordered deletion SQL statements in [seed.sql](seed.sql) to cascade delete from child tables (views, audit logs, comments, status history, cards) first to prevent foreign key errors during database seeding under pool connection states.
+  - **Test Suite Card Seeding**: Seeded a mock credit card for the test customer in `orders.test.ts` setup block to ensure card diff assertions compile and pass successfully.
+  - **Verification**: Verified that all 35 test files and all 194 unit and integration tests compile and run green (100% success). All ESLint rules and typechecks are clean.
+
+### Session 33 — July 1, 2026
+  **Phase 16 — W-1605 User-Side Values Audit Log Formatting, Sales Status Labeling, & Seeder Transaction Isolation**
+  - **User-Side Audit Log Mappings**: Intercepted changes in `updateOrder()` in `order.service.ts` to map internal database representation of `saleStatus` (1/2/3) to user-side labels (Sold/Refunded/Chargebacked). Mapped payment gateway ID updates to resolve and record actual gateway names (e.g. *Authorize.net*) instead of primary key integers.
+  - **Excluded Database Foreign Keys**: Removed primary and foreign key IDs (`orderSalesAgentId`, `orderVerifierId`, `orderSalesVerifierId`, `orderBackendExecutiveId`, `orderVendorId`) from the generic audit fields list. Since the system already registers changes to their name counterparts (e.g. `orderSalesAgentName`), this prevents redundant entries and prevents numeric database IDs from displaying in the timeline.
+  - **"Sales Status" Label Renaming**: Renamed the label **Intake Classification** $\rightarrow$ **Sales Status** globally across the Order Details details view card and the Change History timeline layout component.
+  - **Prisma Seeder Transaction wrapper**: Refactored the database seed executor (`run-seed.ts`) to execute all queries inside a single Prisma database transaction (`prisma.$transaction`) with a 30s timeout, ensuring `SET FOREIGN_KEY_CHECKS = 0;` remains bound to the same session connection. This prevents foreign key violations when clearing parent tables during migrations/tests.
+  - **Stale Cookie Session Resilience (Order Views)**: Added a safety check in `logOrderView()` in `order.repository.ts` to verify the viewer's user existence in the database prior to writing a page view log. This prevents database 500 crashes and unhandled foreign key violations on developer/stale sessions after resetting or seeding databases.
+  - **Verification**: Verified typecheck and test execution runs perfectly: **35 test files, 194 unit and integration tests compile and run green (100% success)**.

@@ -337,6 +337,15 @@ export async function getWorkflowStatusHistoryByOrderId(orderId: number) {
 // ─── Order View Logs ─────────────────────────────────────────────────────────
 
 export async function logOrderView(orderId: number, viewerId: number, viewerName: string) {
+  const viewerExists = await prisma.users.findUnique({
+    where: { uid: viewerId },
+    select: { uid: true },
+  });
+  if (!viewerExists) {
+    console.warn(`[OrderView] Skip logging view for non-existent viewer ID: ${viewerId}`);
+    return null;
+  }
+
   return await prisma.crmOrderViews.create({
     data: { orderId, viewerId, viewerName, viewedAt: new Date() },
   });
@@ -347,6 +356,34 @@ export async function getOrderViews(orderId: number) {
     where: { orderId },
     orderBy: { viewedAt: 'desc' },
     take: 100, // cap at last 100 view events
+  });
+}
+
+// ─── Order Audit Logs ────────────────────────────────────────────────────────
+
+export async function createAuditLogEntries(
+  orderId: number,
+  entries: { fieldName: string; oldValue: string | null; newValue: string | null }[],
+  changedById: number,
+  changedByName: string
+) {
+  if (entries.length === 0) return;
+  const data = entries.map((entry) => ({
+    orderId,
+    fieldName:     entry.fieldName,
+    oldValue:      entry.oldValue,
+    newValue:      entry.newValue,
+    changedById,
+    changedByName,
+    changedAt:     new Date(),
+  }));
+  return await prisma.crmOrderAuditLog.createMany({ data });
+}
+
+export async function getAuditLogByOrderId(orderId: number) {
+  return await prisma.crmOrderAuditLog.findMany({
+    where: { orderId },
+    orderBy: { id: 'desc' },
   });
 }
 

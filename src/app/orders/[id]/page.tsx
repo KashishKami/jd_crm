@@ -11,6 +11,7 @@ import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
 import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
 import DeleteOrderButton from '../../../components/DeleteOrderButton';
 import OrderViewLog from '../../../components/OrderViewLog';
+import OrderAuditLog from '../../../components/OrderAuditLog';
 
 
 export const metadata = {
@@ -111,6 +112,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }) : [];
 
   const canViewLog = hasPermission(permissions, 'orders:view-log');
+  const canViewAuditLog = hasPermission(permissions, 'orders:view-audit-log');
   let viewLogs: any[] = [];
   if (canViewLog) {
     try {
@@ -135,6 +137,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       // Fallback directly to DB
       const orderRepository = await import('../../../repository/order.repository');
       viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
+    }
+  }
+
+  let auditLogs: any[] = [];
+  if (canViewAuditLog) {
+    try {
+      const { headers } = await import('next/headers');
+      const reqHeaders = await headers();
+      const cookie = reqHeaders.get('cookie') || '';
+      
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+      const auditRes = await fetch(`${baseUrl}/api/orders/${crmOrderId}/audit-log`, {
+        headers: {
+          cookie,
+        },
+      });
+      if (auditRes.ok) {
+        auditLogs = await auditRes.json();
+      } else {
+        const orderRepository = await import('../../../repository/order.repository');
+        auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
+      }
+    } catch (e) {
+      const orderRepository = await import('../../../repository/order.repository');
+      auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
     }
   }
 
@@ -279,6 +306,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           {canViewLog && (
             <OrderViewLog entries={viewLogs} />
           )}
+
+          {canViewAuditLog && (
+            <OrderAuditLog entries={auditLogs} />
+          )}
         </div>
 
         {/* Sidebar Info */}
@@ -380,7 +411,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-value" style={{ fontWeight: '600' }}>{order.orderVendorName || 'Unassigned'}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                <span className="info-label">Intake Classification</span>
+                <span className="info-label">Sales Status</span>
                 <span className="info-value" style={{ fontWeight: '600' }}>{saleStatuses[order.saleStatus || '1']}</span>
               </div>
             </div>
