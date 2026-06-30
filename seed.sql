@@ -31,7 +31,6 @@ INSERT INTO crm_roles (role_id, role_name, role_created) VALUES
 (4, 'Team Lead', NOW()),
 (5, 'Agent', NOW())
 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name);
-
 -- Seed default permissions
 -- permission_name has a UNIQUE INDEX — use ON DUPLICATE KEY UPDATE to be idempotent
 INSERT INTO crm_permissions (permission_id, permission_name, permission_description) VALUES
@@ -78,19 +77,20 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (35, 'orders:view-pending-delivery',   'View pending delivery queue'),
 (36, 'orders:view-pending-feedback',   'View pending feedback queue'),
 (37, 'orders:view-pending-resolutions','View pending resolutions queue'),
+(38, 'orders:view-sale-status-history', 'View sale status change history timeline'),
+(39, 'orders:view-workflow-history',    'View order workflow status change timeline'),
+(40, 'orders:delete',                    'Permanently delete an order and all its children logs'),
+(41, 'orders:view-log',                  'Access order detail page view access history log'),
 -- Customers
-(38, 'customers:view',                 'View customer list and detail pages'),
-(39, 'customers:create',               'Create a new customer'),
-(40, 'customers:edit',                 'Edit customer details'),
-(41, 'customers:view-phone',           'View customer phone number in order detail'),
-(42, 'customers:view-email',           'View customer email in order detail'),
-(43, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
-(44, 'customers:view-cards',           'View full unmasked payment card details'),
+(42, 'customers:view',                 'View customer list and detail pages'),
+(43, 'customers:create',               'Create a new customer'),
+(44, 'customers:edit',                 'Edit customer details'),
+(45, 'customers:view-phone',           'View customer phone number in order detail'),
+(46, 'customers:view-email',           'View customer email in order detail'),
+(47, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
+(48, 'customers:view-cards',           'View full unmasked payment card details'),
 -- Settings
-(45, 'settings:manage-permissions',    'Manage role permissions matrix'),
-(46, 'orders:view-sale-status-history', 'View sale status change history timeline'),
-(47, 'orders:view-workflow-history',    'View order workflow status change timeline'),
-(48, 'orders:delete',                    'Permanently delete an order and all its children logs')
+(49, 'settings:manage-permissions',    'Manage role permissions matrix')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- Link permissions to Super Admin role (role_id = 1)
@@ -100,7 +100,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),
 (1,21),(1,22),(1,23),(1,24),(1,25),(1,26),(1,27),(1,28),(1,29),(1,30),
 (1,31),(1,32),(1,33),(1,34),(1,35),(1,36),(1,37),(1,38),(1,39),(1,40),
-(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48);
+(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49);
 
 -- Link permissions to Admin (role_id = 2)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -108,24 +108,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),
 (2,21),(2,22),(2,23),(2,24),(2,25),(2,26),(2,27),(2,28),(2,29),(2,30),
 (2,31),(2,32),(2,33),(2,34),(2,35),(2,36),(2,37),(2,38),(2,39),(2,40),
-(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47);
-
--- Link permissions to Manager (role_id = 3)
-INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(3,2),(3,3),(3,4),(3,5),(3,6),(3,7),(3,8),(3,9),(3,10),(3,11),
-(3,12),(3,13),(3,14),(3,15),(3,16),(3,17),(3,18),(3,21),(3,22),
-(3,25),(3,27),(3,29),(3,30),(3,31),(3,32),(3,33),(3,34),(3,35),(3,36),
-(3,37),(3,38),(3,39),(3,40),(3,41),(3,42),(3,43),(3,46),(3,47);
-
--- Link permissions to Team Lead (role_id = 4)
-INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(4,2),(4,3),(4,4),(4,5),(4,6),(4,7),(4,8),(4,9),(4,10),(4,12),
-(4,13),(4,15),(4,16),(4,17),(4,18),(4,21),(4,25),(4,27),(4,29),(4,30),
-(4,32),(4,33),(4,34),(4,35),(4,36),(4,37),(4,38),(4,39),(4,41),(4,42);
-
--- Link permissions to Agent (role_id = 5)
-INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(5,29),(5,30),(5,38),(5,39),(5,41),(5,42);
+(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49);
 
 -- Seed default Super Admin account (Username: admin, Password: admin123)
 -- SHA-256: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9

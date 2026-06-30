@@ -1881,16 +1881,16 @@ When any user opens an order's detail page, there is no audit record of the acce
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: Call `GET /api/orders/:id` with an authenticated session for a user with `uid = <testUserId>`. Assert `200 OK`. Assert `SELECT * FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns exactly 1 row with `viewed_at` within 5 seconds of `NOW()`.
-  - [ ] Test: Call `GET /api/orders/:id` 3 times with the same session. Assert `SELECT COUNT(*) FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns `3` (all access events logged, no deduplication).
-  - [ ] Test: `GET /api/orders/:id/views` with a session that **has** `orders:view-log`. Assert `200 OK` and returns an array where each entry has `{ id, orderId, viewerId, viewerName, viewedAt }` keys.
-  - [ ] Test: `GET /api/orders/:id/views` **without** `orders:view-log` permission. Assert `403 Forbidden`.
-  - [ ] Test: Confirm that if `logOrderView` fails (e.g. by temporarily making the `crm_order_views` table not writable in the test), `GET /api/orders/:id` still returns `200 OK` with the order data (the view log failure must be silently swallowed).
-  - [ ] **Run — confirm RED** (table does not exist; `GET /api/orders/:id` does not write to it; `/views` endpoint does not exist).
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: Call `GET /api/orders/:id` with an authenticated session for a user with `uid = <testUserId>`. Assert `200 OK`. Assert `SELECT * FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns exactly 1 row with `viewed_at` within 5 seconds of `NOW()`.
+  - [x] Test: Call `GET /api/orders/:id` 3 times with the same session. Assert `SELECT COUNT(*) FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns `3` (all access events logged, no deduplication).
+  - [x] Test: `GET /api/orders/:id/views` with a session that **has** `orders:view-log`. Assert `200 OK` and returns an array where each entry has `{ id, orderId, viewerId, viewerName, viewedAt }` keys.
+  - [x] Test: `GET /api/orders/:id/views` **without** `orders:view-log` permission. Assert `403 Forbidden`.
+  - [x] Test: Confirm that if `logOrderView` fails (e.g. by temporarily making the `crm_order_views` table not writable in the test), `GET /api/orders/:id` still returns `200 OK` with the order data (the view log failure must be silently swallowed).
+  - [x] **Run — confirm RED** (table does not exist; `GET /api/orders/:id` does not write to it; `/views` endpoint does not exist).
 
-- [ ] **GREEN — Backend (Migration → Schema → Repository → Controller):**
-  - [ ] [Migration] Create and apply migration `create_order_views_table`:
+- [x] **GREEN — Backend (Migration → Schema → Repository → Controller):**
+  - [x] [Migration] Create and apply migration `create_order_views_table`:
     ```sql
     CREATE TABLE crm_order_views (
       id           INT          NOT NULL AUTO_INCREMENT,
@@ -1908,7 +1908,7 @@ When any user opens an order's detail page, there is no audit record of the acce
     );
     ```
     Apply via: `npx prisma migrate dev --name create_order_views_table`.
-  - [ ] [Schema] Add model `CrmOrderViews` to `prisma/schema.prisma`:
+  - [x] [Schema] Add model `CrmOrderViews` to `prisma/schema.prisma`:
     ```prisma
     model CrmOrderViews {
       id         Int       @id @default(autoincrement())
@@ -1925,7 +1925,7 @@ When any user opens an order's detail page, there is no audit record of the acce
     }
     ```
     Add `viewLogs CrmOrderViews[]` to `CrmOrders`. Add `orderViews CrmOrderViews[]` to `Users`. Run `npx prisma generate`.
-  - [ ] [Repository] Add to `src/repository/order.repository.ts`:
+  - [x] [Repository] Add to `src/repository/order.repository.ts`:
     ```typescript
     export async function logOrderView(orderId: number, viewerId: number, viewerName: string) {
       return await prisma.crmOrderViews.create({
@@ -1941,7 +1941,7 @@ When any user opens an order's detail page, there is no audit record of the acce
       });
     }
     ```
-  - [ ] [Controller] `src/app/api/orders/[id]/route.ts`, `GET` handler: After successfully fetching and building the response, add a fire-and-forget view log write **before** `return NextResponse.json(...)`:
+  - [x] [Controller] `src/app/api/orders/[id]/route.ts`, `GET` handler: After successfully fetching and building the response, add a fire-and-forget view log write **before** `return NextResponse.json(...)`:
     ```typescript
     // Fire-and-forget: log the view. Failure must NOT affect the response.
     orderRepository.logOrderView(
@@ -1950,7 +1950,7 @@ When any user opens an order's detail page, there is no audit record of the acce
       session.user.nickname || session.user.name
     ).catch((err) => console.error('[OrderView] Failed to log view:', err));
     ```
-  - [ ] [Controller] Create `src/app/api/orders/[id]/views/route.ts`:
+  - [x] [Controller] Create `src/app/api/orders/[id]/views/route.ts`:
     ```typescript
     export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
       const session = await getServerSession(authOptions);
@@ -1963,18 +1963,18 @@ When any user opens an order's detail page, there is no audit record of the acce
       return NextResponse.json(views);
     }
     ```
-  - [ ] [RBAC/Seed] Add `orders:view-log` to `crm_permissions` in `seed.sql`. Assign to super-admin and manager-level roles in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [RBAC/Seed] Add `orders:view-log` to `crm_permissions` in `seed.sql`. Assign to super-admin and manager-level roles in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/tests/OrderViewLog.test.tsx` — new file):**
-  - [ ] Test: Given mock entries `[{ id: 1, orderId: 5, viewerId: 10, viewerName: 'Alice', viewedAt: '2026-06-30T10:00:00Z' }, { id: 2, orderId: 5, viewerId: 11, viewerName: 'Bob', viewedAt: '2026-06-30T11:30:00Z' }]`, render `<OrderViewLog entries={mockEntries} />`. Assert both `"Alice"` and `"Bob"` appear in the rendered output.
-  - [ ] Test: Assert `"Alice"` appears **below** `"Bob"` in the DOM (descending order — most recent first: Bob at `11:30` is above Alice at `10:00`).
-  - [ ] Test: Assert each entry shows `viewerName` and a formatted date string `"30/06/2026 10:00"` for the `10:00` entry.
-  - [ ] Test: Render `<OrderViewLog entries={[]} />`. Assert the text `"No view history available."` is displayed.
-  - [ ] **Run — confirm RED** (component does not exist).
+- [x] **RED — Unit (`src/tests/OrderViewLog.test.tsx` — new file):**
+  - [x] Test: Given mock entries `[{ id: 1, orderId: 5, viewerId: 10, viewerName: 'Alice', viewedAt: '2026-06-30T10:00:00Z' }, { id: 2, orderId: 5, viewerId: 11, viewerName: 'Bob', viewedAt: '2026-06-30T11:30:00Z' }]`, render `<OrderViewLog entries={mockEntries} />`. Assert both `"Alice"` and `"Bob"` appear in the rendered output.
+  - [x] Test: Assert `"Alice"` appears **below** `"Bob"` in the DOM (descending order — most recent first: Bob at `11:30` is above Alice at `10:00`).
+  - [x] Test: Assert each entry shows `viewerName` and a formatted date string `"30/06/2026 10:00"` for the `10:00` entry.
+  - [x] Test: Render `<OrderViewLog entries={[]} />`. Assert the text `"No view history available."` is displayed.
+  - [x] **Run — confirm RED** (component does not exist).
 
-- [ ] **GREEN — Frontend (Types → Component → Page integration):**
-  - [ ] [Types] Add to `src/types/order.ts` (or a new `src/types/orderView.ts`):
+- [x] **GREEN — Frontend (Types → Component → Page integration):**
+  - [x] [Types] Add to `src/types/order.ts` (or a new `src/types/orderView.ts`):
     ```typescript
     export interface OrderViewEntry {
       id: number;
@@ -1984,17 +1984,17 @@ When any user opens an order's detail page, there is no audit record of the acce
       viewedAt: string; // ISO string from API
     }
     ```
-  - [ ] [Component] Create `src/components/OrderViewLog.tsx`:
+  - [x] [Component] Create `src/components/OrderViewLog.tsx`:
     - Accepts `entries: OrderViewEntry[]` prop.
     - Renders a compact table with columns: `"Agent"` (viewerName) and `"Opened At"` (formatted `DD/MM/YYYY HH:MM`).
     - Title: `"Access History — Who Has Viewed This Order"`.
     - If `entries.length === 0`: display `"No view history available."`.
     - Entries are already sorted descending from the API (most recent first).
-  - [ ] [Page] `src/app/orders/[id]/page.tsx`: If session user has `orders:view-log` permission, fetch `/api/orders/:id/views` server-side (pass the session cookie via `headers`). Pass result to `<OrderViewLog entries={views} />`. Render the component at the very bottom of the page, after `<OrderStatusTimeline />`. If user lacks the permission, render nothing (no placeholder, no error message).
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Page] `src/app/orders/[id]/page.tsx`: If session user has `orders:view-log` permission, fetch `/api/orders/:id/views` server-side (pass the session cookie via `headers`). Pass result to `<OrderViewLog entries={views} />`. Render the component at the very bottom of the page, after `<OrderStatusTimeline />`. If user lacks the permission, render nothing (no placeholder, no error message).
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Admin opens order #42 → `crm_order_views` gets a row: `order_id=42, viewer_id=<adminUid>, viewer_name='Admin Name'` → Agent also opens order #42 → a second row added → Admin re-opens order #42 → a third row added → Admin scrolls to the bottom of the order detail page → "Access History" section shows 3 entries sorted most-recent-first → Regular user without `orders:view-log` opens the same order → view is still logged in DB (their open is recorded), but the "Access History" section is completely hidden from their view → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Admin opens order #42 → `crm_order_views` gets a row: `order_id=42, viewer_id=<adminUid>, viewer_name='Admin Name'` → Agent also opens order #42 → a second row added → Admin re-opens order #42 → a third row added → Admin scrolls to the bottom of the order detail page → "Access History" section shows 3 entries sorted most-recent-first → Regular user without `orders:view-log` opens the same order → view is still logged in DB (their open is recorded), but the "Access History" section is completely hidden from their view → ✅ Done.
 
 ---
 
@@ -2627,3 +2627,13 @@ Every `PATCH /api/orders/:id` overwrites the current field values with no record
   - **Frontend UI Component**: Created [DeleteOrderButton.tsx](src/components/DeleteOrderButton.tsx) using a centered confirmation overlay modal portal. Rendered it in [page.tsx](src/app/orders/[id]/page.tsx) guarded by `orders:delete` permission.
   - **Permissions Matrix Update**: Added `orders:delete`, `orders:view-sale-status-history`, and `orders:view-workflow-history` to the permission list inside [project_data.md](CONTEXT/project_data.md).
   - **Verification**: All type checks and tests passing successfully: **33 test files, 176 tests passing**.
+
+### Session 31 — July 1, 2026
+  **W-1604 Order View Log / Access History & Database Permissions Sequence & Light Theme Restyling**
+  - **Database Migration**: Created and executed `20260701030000_add_order_views_table` creating the `crm_order_views` table mapping `id`, `order_id`, `viewer_id`, `viewer_name`, and `viewed_at` fields.
+  - **Prisma Schema Update**: Added `CrmOrderViews` model definition mapping to table `crm_order_views` in `schema.prisma`.
+  - **Order Views Logging Repository**: Created `logOrderView()` and `getOrderViews()` in `order.repository.ts`.
+  - **Permissions Restructure**: Added the view log permission `orders:view-log` under sequential permission ID `49` mapping only to Super Admin and Admin roles in `seed.sql`. Removed access permissions from Manager (3), Team Lead (4), and Agent (5) roles.
+  - **Order Details Integration**: Injected a call to `orderRepo.logOrderView` into both the Next.js API route [route.ts](src/app/api/orders/[id]/route.ts) and the server component detail page [page.tsx](src/app/orders/[id]/page.tsx) to record views whenever the details page is visited in the browser or accessed via HTTP client.
+  - **Access History Table Component**: Created [OrderViewLog.tsx](src/components/OrderViewLog.tsx) to render a list of view entries. Redesigned it using light glassmorphic card style to match the layout system. Guarded it under `orders:view-log` in [page.tsx](src/app/orders/[id]/page.tsx).
+  - **Verification**: Created [OrderViewLog.test.tsx](src/tests/OrderViewLog.test.tsx). Verified all test suites pass successfully: **34 test files, 185 tests passing**.

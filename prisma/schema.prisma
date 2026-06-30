@@ -43,6 +43,7 @@ model Users {
   backendExecutiveOrders CrmOrders[]            @relation("BackendExecutive")
   saleStatusChanges    CrmSaleStatusHistory[]          @relation("SaleStatusChanges")
   workflowStatusChanges CrmOrderCurrentStatusHistory[] @relation("WorkflowStatusChanges")
+  orderViews            CrmOrderViews[]
   userchecks         Usercheck[]
   role               CrmRoles                   @relation(fields: [roleId], references: [roleId])
   team               CrmTeams                   @relation(fields: [teamId], references: [teamId])
@@ -243,6 +244,7 @@ model CrmOrders {
   comments                      CrmComments[]
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]
+  viewLogs                      CrmOrderViews[]
   customer                      CrmCustomers  @relation(fields: [orderCustomerId], references: [customerId])
   gateway                       CrmGateway?   @relation(fields: [orderPaymentGatewayId], references: [gatewayId])
   salesAgent                    Users?        @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid])
@@ -373,3 +375,16 @@ model CrmOrderCurrentStatusHistory {
   @@map("crm_order_current_status_history")
 }
 
+model CrmOrderViews {
+  id         Int       @id @default(autoincrement())
+  orderId    Int       @map("order_id")
+  viewerId   Int       @map("viewer_id")
+  viewerName String    @map("viewer_name") @db.VarChar(55)
+  viewedAt   DateTime  @default(now()) @map("viewed_at") @db.DateTime(0)
+  order      CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+  viewer     Users     @relation(fields: [viewerId], references: [uid])
+
+  @@index([orderId])
+  @@index([viewerId])
+  @@map("crm_order_views")
+}

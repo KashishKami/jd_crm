@@ -333,3 +333,20 @@ export async function getWorkflowStatusHistoryByOrderId(orderId: number) {
     orderBy: { changedAt: 'asc' },
   });
 }
+
+// ─── Order View Logs ─────────────────────────────────────────────────────────
+
+export async function logOrderView(orderId: number, viewerId: number, viewerName: string) {
+  return await prisma.crmOrderViews.create({
+    data: { orderId, viewerId, viewerName, viewedAt: new Date() },
+  });
+}
+
+export async function getOrderViews(orderId: number) {
+  return await prisma.crmOrderViews.findMany({
+    where: { orderId },
+    orderBy: { viewedAt: 'desc' },
+    take: 100, // cap at last 100 view events
+  });
+}
+

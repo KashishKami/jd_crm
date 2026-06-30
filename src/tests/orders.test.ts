@@ -1214,6 +1214,148 @@ describe('Order Management Integration Tests', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('W-1604: Order View Logging & History', () => {
+    it('should log an access event in crm_order_views when GET /api/orders/:id is called', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // Verify log table row using raw SQL with a retry loop due to fire-and-forget async write
+      let dbRows: any[] = [];
+      for (let i = 0; i < 20; i++) {
+        dbRows = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT viewer_id, viewer_name, viewed_at FROM crm_order_views WHERE order_id = ? AND viewer_id = ?`,
+          testOrder.crmOrderId, testUser.uid
+        );
+        if (dbRows.length === 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].viewer_name).toBe(testUser.nickname);
+      const timeDiff = Math.abs(new Date(dbRows[0].viewed_at).getTime() - Date.now());
+      expect(timeDiff).toBeLessThan(10000); // within 10 seconds
+    });
+
+    it('should log multiple entries for multiple page views without deduplication', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view',
+        },
+      });
+
+      // Clear any existing logs from previous tests
+      await prisma.$executeRawUnsafe(`DELETE FROM crm_order_views WHERE order_id = ?`, testOrder.crmOrderId);
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+
+      for (let i = 0; i < 3; i++) {
+        const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`);
+        await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      }
+
+      let dbRows: any[] = [];
+      for (let i = 0; i < 20; i++) {
+        dbRows = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT id FROM crm_order_views WHERE order_id = ? AND viewer_id = ?`,
+          testOrder.crmOrderId, testUser.uid
+        );
+        if (dbRows.length === 3) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      expect(dbRows.length).toBe(3);
+    });
+
+    it('should return 200 and list views when GET /api/orders/:id/views is called with orders:view-log permission', async () => {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_order_views (order_id, viewer_id, viewer_name, viewed_at) VALUES (?, ?, ?, ?)`,
+        testOrder.crmOrderId, testUser.uid, testUser.nickname || testUser.name, new Date()
+      );
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view-log',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/views/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/views`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const data = await res.json();
+      expect(data.length).toBeGreaterThanOrEqual(1);
+      expect(data[0]).toHaveProperty('id');
+      expect(data[0]).toHaveProperty('orderId');
+      expect(data[0]).toHaveProperty('viewerId');
+      expect(data[0]).toHaveProperty('viewerName');
+      expect(data[0]).toHaveProperty('viewedAt');
+    });
+
+    it('should return 403 Forbidden when GET /api/orders/:id/views is called without orders:view-log', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view', // lacking orders:view-log
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/views/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/views`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(403);
+    });
+
+    it('should silently swallow errors from logOrderView and still return 200 OK on GET /api/orders/:id', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view',
+        },
+      });
+
+      // Mock prisma.crmOrderViews.create to throw an error simulating database failure
+      const prismaSpy = vi.spyOn(prisma.crmOrderViews, 'create').mockRejectedValue(new Error('Database error'));
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`);
+      
+      let res;
+      try {
+        res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      } catch (err) {
+        expect(err).toBeUndefined();
+      }
+
+      expect(res).toBeDefined();
+      expect(res!.status).toBe(200);
+
+      // Restore original implementation
+      prismaSpy.mockRestore();
+    });
+  });
 });
 
 

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { hasPermission } from '../../../../service/permission.service';
 import * as orderService from '../../../../service/order.service';
+import * as orderRepository from '../../../../repository/order.repository';
 import { prisma } from '../../../../lib/db';
 
 export async function GET(
@@ -31,6 +32,14 @@ export async function GET(
 
   try {
     const order = await orderService.getOrderDetails(crmOrderId);
+
+    // Fire-and-forget: log the view. Failure must NOT affect the response.
+    orderRepository.logOrderView(
+      crmOrderId,
+      Number(session.user.id),
+      session.user.nickname || session.user.name || 'Agent'
+    ).catch((err) => console.error('[OrderView] Failed to log view:', err));
+
     return NextResponse.json(order);
   } catch (error: unknown) {
     const err = error as Error;

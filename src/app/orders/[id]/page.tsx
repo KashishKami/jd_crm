@@ -10,6 +10,7 @@ import { formatDateDDMMYYYY } from '../../../lib/date';
 import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
 import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
 import DeleteOrderButton from '../../../components/DeleteOrderButton';
+import OrderViewLog from '../../../components/OrderViewLog';
 
 
 export const metadata = {
@@ -83,6 +84,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
+  // Fire-and-forget: log the view event in the database
+  const orderRepo = await import('../../../repository/order.repository');
+  orderRepo.logOrderView(
+    crmOrderId,
+    Number(session.user.id),
+    session.user.nickname || session.user.name || 'Agent'
+  ).catch((err) => console.error('[OrderView] Failed to log page view:', err));
+
   // Check detail-level permissions
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
   const canViewEmail = hasPermission(permissions, 'customers:view-email');
@@ -100,6 +109,34 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     where: { orderId: crmOrderId },
     orderBy: { changedAt: 'asc' },
   }) : [];
+
+  const canViewLog = hasPermission(permissions, 'orders:view-log');
+  let viewLogs: any[] = [];
+  if (canViewLog) {
+    try {
+      const { headers } = await import('next/headers');
+      const reqHeaders = await headers();
+      const cookie = reqHeaders.get('cookie') || '';
+      
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+      const viewsRes = await fetch(`${baseUrl}/api/orders/${crmOrderId}/views`, {
+        headers: {
+          cookie,
+        },
+      });
+      if (viewsRes.ok) {
+        viewLogs = await viewsRes.json();
+      } else {
+        // Fallback directly to DB
+        const orderRepository = await import('../../../repository/order.repository');
+        viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
+      }
+    } catch (e) {
+      // Fallback directly to DB
+      const orderRepository = await import('../../../repository/order.repository');
+      viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
+    }
+  }
 
   const customerPhoneDisplay = canViewPhone ? order.customer.customerPhone : maskPhone(order.customer.customerPhone);
   const customerEmailDisplay = canViewEmail ? order.customer.customerEmail : maskEmail(order.customer.customerEmail);
@@ -237,6 +274,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </h3>
               <WorkflowStatusTimeline history={workflowHistory} />
             </div>
+          )}
+
+          {canViewLog && (
+            <OrderViewLog entries={viewLogs} />
           )}
         </div>
 

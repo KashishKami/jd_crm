@@ -71,6 +71,9 @@ export async function teardown() {
   
   const tables = [
     'crm_comments',
+    'crm_sale_status_history',
+    'crm_order_current_status_history',
+    'crm_order_views',
     'crm_orders',
     'crm_customer_cards',
     'crm_customers',
