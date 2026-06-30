@@ -27,6 +27,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 12**| Attendance Logging System | **[ ] SKIPPED** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[x] COMPLETED** | Unified global search bar, order filters |
 | **Phase 14**| Admin Settings & RBAC Permissions | **[ ] PENDING** | Role settings page, permission matrices |
+| **Phase 15**| Sprint 1 — Critical Schema Surgery (P0) | **[ ] PENDING** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
+| **Phase 16**| Sprint 2 — Pre-Go-Live Features (P1) | **[ ] PENDING** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
 
 ---
 
@@ -1161,7 +1163,1312 @@ Implement endpoints `GET /api/settings/roles`, `POST /api/settings/roles`, `PUT 
   - **Interactive Chart Mobile Tap Support**: Configured [AdvancedChartWidget.tsx](../src/components/dashboard/AdvancedChartWidget.tsx) to listen for `onClick` events. Tapping on a column now triggers coordinates calculations and shows the tooltip card, and clicking anywhere else (global event listener on window) dismisses the tooltip card.
   - **ESLint & Typecheck Compliance**: Fixed ESLint warnings and errors across [GlobalSearchBar.tsx](../src/components/GlobalSearchBar.tsx), [OrderListContainer.tsx](../src/components/OrderListContainer.tsx), [AgentList.tsx](../src/components/AgentList.tsx), and [VendorList.tsx](../src/components/VendorList.tsx) by cleaning up inline disables and replacing them with clean file-level disables. All 119 unit/integration test suites build and pass cleanly with 0 warnings or errors.
 
+---
 
+### Phase 15 — Sprint 1: Critical Schema Surgery (P0)
 
+This phase contains every change that must be completed **before a single real production order is entered**. Two of these items (#1502, #1503) perform destructive database column changes. The longer real data exists in the old column structure, the more complex and risky the migration becomes. Complete W-1501 (the bug fix) first since it has no migration, then execute W-1502 and W-1503 in order. W-1504 and W-1505 can be interleaved during migration run-time.
 
+> **Execution order within this phase:** W-1501 → W-1502 → W-1503 → W-1504 → W-1505
 
+---
+
+#### W-1501 — BUG FIX: Team Monthly Performer Scores Ignore Refunds & Chargebacks
+
+**Root cause:**
+`getTeamMonthlyTopPerformer()` and `getTeamMonthlyBottomPerformer()` in `src/repository/dashboard.repository.ts` (lines 331–403) filter orders with `saleStatus: '1'` only. When an agent's Sold order is later changed to Refund (`saleStatus = '7'`) or Chargeback (`saleStatus = '8'`), the performer ranking does not deduct the reversed markup — the refunded order is simply excluded. The team-level `getTeamMonthlyScores()` SQL query (line 303–312) correctly computes `netAmount` by adding sold markups and subtracting refund/chargeback markups, but the per-agent queries do not. Additionally, both performer functions use `agent.name` instead of `agent.nickname || agent.name` (line 361, 398), breaking the alias-name convention used everywhere else in the app.
+
+**Approach:**
+Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`, `7`, `8`), compute each agent's net score as `SUM(markup where status='1') - SUM(markup where status IN ('7','8'))`, rank ascending/descending, and return the result. Fix the agent name to use `agent.nickname || agent.name`. Update `dashboard.service.ts` line 95 to use `o.customer.customerName` instead of the manual concat (this is also required for the W-1503 customer name migration).
+
+---
+
+- [ ] **RED — Integration (`src/tests/dashboard.test.ts`):**
+  - [ ] Test: Seed Team A with agent "Alice" — 2 Sold orders (markup `$200` each = `$400` gross) and 1 Refund order (markup `$150`). Call `GET /api/dashboard/teams/monthly?month=<currentMonth>&year=<currentYear>`. Assert `response.body[0].topPerformer.amount === 250` (net: 400 − 150), **not** `400`.
+  - [ ] Test: Seed Team A with agent "Bob" — 1 Sold order (markup `$100`). Assert `response.body[0].topPerformer.agentName === 'Alice'` (net $250 > Bob's $100).
+  - [ ] Test: Assert `response.body[0].bottomPerformer.agentName === 'Bob'` (net $100 < Alice's $250).
+  - [ ] Test: Seed agent "Carlos" in Team A — 0 Sold orders, 1 Chargeback order (markup `$50`). Assert Carlos appears with `amount: -50`, ranking him below Bob at the very bottom.
+  - [ ] Test: Assert agent names in the response use `nickname` when available (seed Carlos with `nickname = 'Carlo'`, assert `agentName === 'Carlo'`).
+  - [ ] **Run — confirm RED** (current impl returns `400` for Alice; ignores refunds; uses `agent.name` not `nickname || name`).
+
+- [ ] **GREEN — Backend (Repository → Service):**
+  - [ ] [Repository] In `src/repository/dashboard.repository.ts`, rewrite `getTeamMonthlyTopPerformer(teamId, month, year)` (lines 331–366):
+    - Fetch all agents in the team including their `salesOrders` where `saleStatus: { in: ['1', '7', '8'] }` and `orderDate` within the given month.
+    - For each agent compute: `netScore = SUM(markup where saleStatus='1') - SUM(markup where saleStatus IN ('7','8'))`.
+    - Find the agent with the **highest** `netScore` (do not filter by `netScore > 0` — include agents with zero or negative scores).
+    - Return `{ agentId: agent.uid, agentName: agent.nickname || agent.name, amount: netScore } | null` (null only when there are zero agents in the team).
+  - [ ] [Repository] Apply the identical net-score logic to `getTeamMonthlyBottomPerformer(teamId, month, year)` (lines 368–403): find the agent with the **lowest** `netScore`. Include agents with negative net scores in the ranking.
+  - [ ] [Service] In `src/service/dashboard.service.ts`, the `getTeamMonthlyReport()` function (line 112) calls both performer functions — no structural changes needed. Confirm `topPerformer` and `bottomPerformer` now carry the correct net-score `amount`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/Dashboard.test.tsx`):**
+  - [ ] Test: Mock API response with a team where `topPerformer.amount = 250`. Assert `TeamMonthlyScoresWidget` renders the string `"$250"` in the top performer row.
+  - [ ] Test: Mock API response where `bottomPerformer.amount = -50`. Assert the bottom performer row renders `"-$50"` (or `"($50)"`) styled in red (a negative CSS class or inline color red).
+  - [ ] **Run — confirm RED** (current component formats `amount` as `$amount.toLocaleString()` which renders `$-50` not `-$50`, and has no red negative styling).
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Types] In `src/types/dashboard.ts`, add `agentId: number` to the `TeamPerformerRow` type alongside existing `agentName: string` and `amount: number`.
+  - [ ] [Component] In `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, update the bottom performer render: when `team.bottomPerformer.amount < 0`, render with a red text color and format as `"-$" + Math.abs(amount).toLocaleString()`. When positive, render as `"$" + amount.toLocaleString()`.
+  - [ ] [Service] In `src/service/dashboard.service.ts` line 95: replace `` `${o.customer.firstName} ${o.customer.lastName}`.trim() `` with `o.customer.customerName` (this is a prerequisite fix for W-1503 to avoid a runtime crash after the migration drops `firstName`/`lastName`).
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin navigates to dashboard → Team Monthly Scores widget loads for the current month → Agent "Alice" who had $400 gross but a $150 refund appears with `$250` net in top performer row → Agent "Carlos" who only had a $50 chargeback appears with `-$50` in red in bottom performer row → Month navigator clicks to a month with no orders → both performer rows show `null` / hidden → ✅ Done.
+
+---
+
+#### W-1502 — Merge `order_year` into `order_make_model` (P0 — Destructive Migration)
+
+**Root cause / Goal:**
+`CrmOrders` stores vehicle year and make/model in two columns: `order_year VARCHAR(255)` and `order_make_model VARCHAR(255)`. The client has specified a single combined field at the database layer. `AddOrderForm.tsx` exposes two separate inputs: a "Year" field (state `orderYear`) and a "Make & Model" field (state `orderMakeModel`). Every display context must manually concatenate them. The column split creates redundancy in every layer. **This is a destructive migration** — `order_year` is dropped after data is merged into `order_make_model`.
+
+**Approach:**
+1. Write and apply a Prisma migration that back-fills `order_make_model` with the concatenation of `order_year + ' ' + order_make_model`, then drops `order_year`.
+2. Remove `orderYear` from `schema.prisma`, regenerate the client.
+3. Remove `orderYear` from `order.repository.ts` (line 79), `src/types/order.ts` (lines 19, 39), and `order.service.ts` (if referenced).
+4. Merge the two form inputs into a single "Year, Make & Model" input in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+
+**Migration name:** `merge_order_year_into_make_model`
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with payload `{ orderMakeModel: "2021 Jeep Grand Cherokee", /* no orderYear field */ }`. Assert `201 Created`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = <newId>` returns exactly `"2021 Jeep Grand Cherokee"`.
+  - [ ] Test: `GET /api/orders/:id` — assert the returned order object does **not** contain an `orderYear` property at all (field must be absent from the JSON response, not just `null`).
+  - [ ] Test: `PATCH /api/orders/:id` with `{ orderMakeModel: "2019 Ford F-150" }`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = :id` returns `"2019 Ford F-150"`.
+  - [ ] Test: `SELECT order_year FROM crm_orders LIMIT 1` via a direct Prisma `$queryRaw` — assert it throws an `Unknown column 'order_year'` error, confirming the column was dropped by the migration.
+  - [ ] **Run — confirm RED** (`orderYear` column still exists; GET response includes `orderYear`; the raw column-not-found query passes today because the column still exists).
+
+- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Types):**
+  - [ ] [Migration] Create and apply migration `merge_order_year_into_make_model`. The raw SQL steps must be:
+    ```sql
+    -- Step 1: Back-fill: prepend year to make_model for all rows that have a non-null, non-empty order_year
+    UPDATE crm_orders
+    SET order_make_model = TRIM(
+      CONCAT(
+        COALESCE(TRIM(order_year), ''),
+        CASE
+          WHEN TRIM(COALESCE(order_year, '')) != ''
+          AND  TRIM(COALESCE(order_make_model, '')) != ''
+          THEN ' '
+          ELSE ''
+        END,
+        COALESCE(TRIM(order_make_model), '')
+      )
+    )
+    WHERE order_year IS NOT NULL AND TRIM(order_year) != '';
+
+    -- Step 2: Drop the now-redundant column
+    ALTER TABLE crm_orders DROP COLUMN order_year;
+    ```
+    Apply via: `npx prisma migrate dev --name merge_order_year_into_make_model`.
+  - [ ] [Schema] In `prisma/schema.prisma`, model `CrmOrders`: remove the line `orderYear String? @map("order_year") @db.VarChar(255)`. Run `npx prisma generate`.
+  - [ ] [Repository] In `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (line 79): remove the line `orderYear: data.orderYear || null,`.
+  - [ ] [Service] In `src/service/order.service.ts`: confirm no reference to `orderYear` or `data.orderYear` remains. (Currently the service does not explicitly reference it — verify with a project-wide grep: `grep -r "orderYear" src/`)
+  - [ ] [Types] In `src/types/order.ts`:
+    - Remove line 19: `orderYear?: string;` from `OrderCreateInput`.
+    - Remove line 39: `orderYear?: string;` from `OrderUpdateInput`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx`):**
+  - [ ] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM does **not** contain any element with `id="orderYear"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Assert the DOM contains an element with `id="orderMakeModel"` and its associated label text is `"Year, Make & Model"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Submit form with `orderMakeModel = "2022 Honda Civic"`. Assert the `fetch` POST body (`JSON.parse(fetchArgs[1].body)`) contains `orderMakeModel: "2022 Honda Civic"` and does **not** contain an `orderYear` key.
+  - [ ] `EditOrderForm.test.tsx` Test: Render `<EditOrderForm order={{ orderMakeModel: "2020 BMW 3 Series", ...otherFields }} />`. Assert the `id="orderMakeModel"` input has `value="2020 BMW 3 Series"`.
+  - [ ] `EditOrderForm.test.tsx` Test: Assert the DOM does **not** contain any element with `id="orderYear"`.
+  - [ ] **Run — confirm RED** (current forms have a separate `id="orderYear"` input; label says `"Make & Model"` not `"Year, Make & Model"`).
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Component] `src/components/AddOrderForm.tsx`:
+    - Remove state variable `const [orderYear, setOrderYear] = useState('')`.
+    - Remove the entire `<div className="form-group">` block containing `<input id="orderYear" ...>` and its `<label>` (currently labeled "Year").
+    - On the remaining `<input id="orderMakeModel" ...>`: change its `<label>` text to `"Year, Make & Model *"` and its `placeholder` to `"e.g. 2021 Jeep Grand Cherokee"`.
+    - In `handleSubmit` `payload` object: remove the `orderYear` property. Confirm `orderMakeModel` is still included.
+  - [ ] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes — remove `orderYear` state, input, and label; update `orderMakeModel` label to `"Year, Make & Model"`; remove `orderYear` from the submit payload.
+  - [ ] [Search] In `src/repository/search.repository.ts`, confirm `searchOrders` LIKE clause does not reference `order_year` (it currently searches `order_make_model` which now includes year — no change needed, but grep to verify).
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Developer runs `npx prisma migrate dev` → migration applies with zero errors → runs `DESCRIBE crm_orders` → confirms `order_year` column is absent → runs `SELECT order_make_model FROM crm_orders LIMIT 5` → rows show combined year+make+model strings (e.g. `"2019 Jeep Grand Cherokee"`) → Agent navigates to `/orders/new` → Vehicle section shows a single field labeled `"Year, Make & Model *"` with placeholder `"e.g. 2021 Jeep Grand Cherokee"` → Agent types `"2021 Honda Accord"` → submits → order detail page shows `"2021 Honda Accord"` → Global search for `"Honda"` returns the order → ✅ Done.
+
+---
+
+#### W-1503 — Merge `first_name` + `last_name` → `customer_name` (P0 — Destructive Migration)
+
+**Root cause / Goal:**
+`CrmCustomers` stores customer name across two columns: `first_name VARCHAR(255)` and `last_name VARCHAR(255)`. The client requires a single `customer_name` column at the database layer. Currently, every layer manually concatenates them: `order.repository.ts` line 49–50 uses `firstName`/`lastName` in the create transaction; `order.service.ts` line 6 validates `!data.firstName || !data.lastName`; `dashboard.service.ts` line 95 uses `` `${o.customer.firstName} ${o.customer.lastName}`.trim() ``; search queries LIKE both columns separately; and all UI forms have two inputs. Consolidating into a single column eliminates all duplication and is a **destructive migration** — both old columns are dropped after back-fill.
+
+**⚠️ PREREQUISITE:** W-1501's service fix (`dashboard.service.ts` line 95) must be applied before or alongside this migration, or the running app will crash after the migration drops `firstName`/`lastName`.
+
+**Approach:**
+1. Migration: ADD `customer_name`, UPDATE to CONCAT existing values, ADD NOT NULL constraint, DROP `first_name` and `last_name`.
+2. Update `schema.prisma` and regenerate.
+3. Sweep every file that references `firstName`/`lastName` on the customer model.
+
+**Migration name:** `merge_customer_first_last_name`
+
+**Files touched (complete list — no file should be missed):**
+- `prisma/schema.prisma`
+- `src/repository/order.repository.ts` (lines 49–50)
+- `src/repository/customer.repository.ts`
+- `src/repository/search.repository.ts`
+- `src/service/order.service.ts` (lines 6–7, 43–46, 145–146)
+- `src/service/dashboard.service.ts` (line 95 — covered by W-1501 prerequisite)
+- `src/types/order.ts` (lines 3–4, 70–71)
+- `src/types/customer.ts`
+- `src/components/AddOrderForm.tsx`
+- `src/components/EditOrderForm.tsx`
+- `src/components/CustomerList.tsx`
+- `src/components/OrderList.tsx`
+- `src/components/GlobalSearchBar.tsx`
+- `src/components/SearchResults.tsx`
+- `src/components/dashboard/RecentOrdersTable.tsx` (if it references name directly)
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`, `src/tests/customers.test.ts`):**
+  - [ ] `orders.test.ts` Test: `POST /api/orders` with payload `{ customerName: "Jane Doe", customerEmail: "jane@test.com", /* no firstName or lastName */ }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_id = <newCustomerId>` returns `"Jane Doe"`.
+  - [ ] `orders.test.ts` Test: `GET /api/orders/:id` — assert the nested `customer` object in the response has a `customerName` field with value `"Jane Doe"` and does **not** contain `firstName` or `lastName` properties.
+  - [ ] `customers.test.ts` Test: `GET /api/customers` — assert each customer object has a `customerName` string field and does **not** have `firstName` or `lastName` fields.
+  - [ ] `customers.test.ts` Test: `POST /api/customers` with `{ customerName: "John Smith", customerEmail: "j@test.com", customerPhone: "555-1234" }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_email = 'j@test.com'` returns `"John Smith"`.
+  - [ ] **Run — confirm RED** (`firstName`/`lastName` columns still exist; `customerName` field does not exist on the model; POST with `customerName` is silently ignored; GET response has no `customerName`).
+
+- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Types → Controller):**
+  - [ ] [Migration] Create and apply migration `merge_customer_first_last_name`. The raw SQL:
+    ```sql
+    -- Step 1: Add the new combined column (nullable initially for safe back-fill)
+    ALTER TABLE crm_customers
+      ADD COLUMN customer_name VARCHAR(511) NULL
+      AFTER last_name;
+
+    -- Step 2: Back-fill from existing data (handle cases where either column may be NULL/empty)
+    UPDATE crm_customers
+    SET customer_name = TRIM(
+      CONCAT(
+        COALESCE(TRIM(first_name), ''),
+        CASE
+          WHEN TRIM(COALESCE(first_name, '')) != ''
+          AND  TRIM(COALESCE(last_name, '')) != ''
+          THEN ' '
+          ELSE ''
+        END,
+        COALESCE(TRIM(last_name), '')
+      )
+    );
+
+    -- Step 3: Make NOT NULL (after confirming back-fill left no NULLs)
+    ALTER TABLE crm_customers
+      MODIFY COLUMN customer_name VARCHAR(511) NOT NULL;
+
+    -- Step 4: Drop the old columns
+    ALTER TABLE crm_customers
+      DROP COLUMN first_name,
+      DROP COLUMN last_name;
+    ```
+    Apply via: `npx prisma migrate dev --name merge_customer_first_last_name`.
+  - [ ] [Schema] In `prisma/schema.prisma`, model `CrmCustomers`:
+    - Remove: `firstName String @map("first_name") @db.VarChar(255)`
+    - Remove: `lastName  String @map("last_name")  @db.VarChar(255)`
+    - Add: `customerName String @map("customer_name") @db.VarChar(511)`
+    - Run `npx prisma generate`.
+  - [ ] [Repository] `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (lines 49–50):
+    - Remove: `firstName: data.firstName,` and `lastName: data.lastName,`
+    - Add: `customerName: data.customerName,`
+  - [ ] [Repository] `src/repository/search.repository.ts`, `searchCustomers(query)` — update the LIKE clause from two separate `first_name LIKE` / `last_name LIKE` conditions to a single `customer_name LIKE '%${query}%'` condition.
+  - [ ] [Service] `src/service/order.service.ts`:
+    - Line 6–7: Change `if (!data.firstName || !data.lastName)` to `if (!data.customerName)`; change error message to `'Customer name is required'`.
+    - Lines 43–46 destructure: Replace `firstName,` and `lastName,` with `customerName,`.
+    - Lines 145–146 customer update block: Replace `if (firstName !== undefined) customerUpdate.firstName = firstName;` and `if (lastName !== undefined) customerUpdate.lastName = lastName;` with `if (customerName !== undefined) customerUpdate.customerName = customerName;`.
+  - [ ] [Types] `src/types/order.ts`:
+    - `OrderCreateInput` (lines 3–4): Remove `firstName: string;` and `lastName: string;`. Add `customerName: string;`.
+    - `OrderUpdateInput` (lines 70–71): Remove `firstName?: string;` and `lastName?: string;`. Add `customerName?: string;`.
+  - [ ] [Types] `src/types/customer.ts`: In every type that includes customer name fields (`Customer`, `CustomerCreateInput`, `CustomerUpdateInput`), replace `firstName: string` / `lastName: string` with `customerName: string`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/CustomerList.test.tsx`):**
+  - [ ] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM contains a single input with `id="customerName"` and its label text is `"Customer Name *"`. Assert the DOM does **not** contain any element with `id="firstName"` or `id="lastName"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Submit form with `customerName = "Mary Johnson"`. Assert `JSON.parse(fetchArgs[1].body)` contains `customerName: "Mary Johnson"` and does **not** contain `firstName` or `lastName` keys.
+  - [ ] `CustomerList.test.tsx` Test: Given mocked customer `{ customerName: "John Doe", customerId: 1, customerEmail: "j@e.com" }`, assert the rendered list row displays `"John Doe"` in the Name column.
+  - [ ] **Run — confirm RED** (current form has `id="firstName"` and `id="lastName"` inputs; POST body contains `firstName`/`lastName`; customer list renders individual first/last columns or concat).
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Component] `src/components/AddOrderForm.tsx`:
+    - Remove state: `const [firstName, setFirstName] = useState('')` and `const [lastName, setLastName] = useState('')`.
+    - Add state: `const [customerName, setCustomerName] = useState('')`.
+    - In the Customer Info section: remove the "First Name" `<div className="form-group">` block and the "Last Name" `<div className="form-group">` block.
+    - Add a single replacement block:
+      ```jsx
+      <div className="form-group form-grid-full">
+        <label htmlFor="customerName" className="form-label">Customer Name *</label>
+        <input
+          id="customerName"
+          type="text"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          className="form-input"
+          placeholder="e.g. Jane Doe"
+          required
+        />
+      </div>
+      ```
+    - In `handleSubmit`: remove `firstName` and `lastName` from the payload; add `customerName`.
+    - In validation: change `if (!firstName || !lastName || ...)` to `if (!customerName || ...)`.
+  - [ ] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes. Pre-populate `customerName` state from `order.customer.customerName`.
+  - [ ] [Component] `src/components/CustomerList.tsx`: Update column header from split name columns to `"Customer Name"`. Update cell to render `customer.customerName`.
+  - [ ] [Component] `src/components/OrderList.tsx`: Update any inline `` `${order.customer?.firstName} ${order.customer?.lastName}` `` patterns to `order.customer?.customerName`.
+  - [ ] [Component] `src/components/GlobalSearchBar.tsx`: Update customer result rendering from `customer.firstName + ' ' + customer.lastName` to `customer.customerName`.
+  - [ ] [Component] `src/components/SearchResults.tsx`: Apply same customer name render update.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Developer runs migration → `DESCRIBE crm_customers` shows `customer_name` column and no `first_name`/`last_name` columns → `SELECT customer_name FROM crm_customers LIMIT 3` shows full names (e.g. `"Timothy Manuli"`) → App restarts — no crash → Agent navigates to `/orders/new` → Customer section shows single `"Customer Name *"` input → Agent types `"Sarah Connor"` → submits → order detail shows `"Sarah Connor"` under Customer section → Customer list shows `"Sarah Connor"` in Name column → Global search for `"Sarah"` returns the customer result → ✅ Done.
+
+---
+
+#### W-1504 — Quick UI Wins: Sale Date Picker, Remove Redundant Chart Filters, Rename Mileage Labels
+
+**Root cause / Goal:**
+Three pure UI changes bundled into one work item. Zero migration risk. Intended to be completed during the migration run-time of W-1502 and W-1503.
+
+**Sub-item A — Sale Date Picker (#3):**
+`order_date` column already exists in `crm_orders` (schema). `order.repository.ts` line 100 already handles `data.orderDate` if provided. However, `AddOrderForm.tsx` does **not** expose a date input — `orderDate` is never in the user-submitted payload, so the column always defaults to the server's `new Date()` (system entry time). Agents cannot backdate sales.
+
+**Sub-item B — Remove Redundant Chart Filters (#4):**
+`AdvancedChartWidget.tsx` has `"Last 7 days"` (`value="7d"`) and `"Last 30 days"` (`value="30d"`) alongside calendar-aligned `"This week"` and `"This month"`. The client has asked to remove the rolling-window options.
+
+**Sub-item C — Rename Mileage Labels (#10):**
+`AddOrderForm.tsx` and `EditOrderForm.tsx` label the mileage fields `"Quoted Mileage"` and `"Vendor Mileage"`. The client wants `"Quotes Miles"` and `"Vendor Miles"`.
+
+---
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Sub-A Test: Render `<AddOrderForm />`. Assert the DOM contains `<input type="date" id="orderDate" />`.
+  - [ ] Sub-A Test: Assert the default value of `id="orderDate"` equals today's date in `YYYY-MM-DD` format (e.g. `new Date().toISOString().split('T')[0]`).
+  - [ ] Sub-A Test: Submit form with `orderDate` input set to `"2025-06-15"`. Assert `JSON.parse(fetchArgs[1].body).orderDate === "2025-06-15"`.
+  - [ ] Sub-B Test: Render `<AdvancedChartWidget />`. Assert the range `<select>` does **not** contain `<option value="7d">` or `<option value="30d">`.
+  - [ ] Sub-B Test: Assert the range `<select>` **does** contain `<option value="this-week">` and `<option value="this-month">`.
+  - [ ] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Quotes Miles"` (not `"Quoted Mileage"`).
+  - [ ] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Vendor Miles"` (not `"Vendor Mileage"`).
+  - [ ] **Run — confirm RED** (no `id="orderDate"` input; chart has `value="7d"` / `value="30d"`; labels say `"Mileage"`).
+
+- [ ] **GREEN — Frontend (Components only — no backend, no migration):**
+  - [ ] [Sub-A] `src/components/AddOrderForm.tsx`:
+    - Add state: `const [orderDate, setOrderDate] = useState(() => new Date().toISOString().split('T')[0])`.
+    - In Section 4 (Pricing & Allocation), add a new `<div className="form-group">` **before** the shipping type field:
+      ```jsx
+      <div className="form-group">
+        <label htmlFor="orderDate" className="form-label">
+          Sale Date
+          <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '6px' }}>
+            (defaults to today)
+          </span>
+        </label>
+        <input
+          type="date"
+          id="orderDate"
+          value={orderDate}
+          onChange={(e) => setOrderDate(e.target.value)}
+          className="form-input"
+        />
+      </div>
+      ```
+    - In `handleSubmit` payload: add `orderDate: orderDate`.
+  - [ ] [Sub-A] `src/components/EditOrderForm.tsx`:
+    - Add state initialized from order: `const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])`.
+    - Add the identical Sale Date input block in the appropriate section.
+    - Include `orderDate` in the submit payload.
+  - [ ] [Sub-B] `src/components/dashboard/AdvancedChartWidget.tsx`:
+    - Remove the line `<option value="7d">Last 7 days</option>`.
+    - Remove the line `<option value="30d">Last 30 days</option>`.
+    - Change `useState<string>('7d')` to `useState<string>('this-week')`.
+    - In `handleCancelCustom()`: change `setRange('7d')` to `setRange('this-week')`.
+  - [ ] [Sub-C] `src/components/AddOrderForm.tsx`: Change label text `"Quoted Mileage"` → `"Quotes Miles"` and `"Vendor Mileage"` → `"Vendor Miles"`.
+  - [ ] [Sub-C] `src/components/EditOrderForm.tsx`: Apply identical label text changes.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] [A] Agent opens `/orders/new` → "Sale Date" field shows today's date pre-filled → Agent changes date to `2025-06-15` → submits → `GET /api/orders/<newId>` returns `orderDate: "2025-06-15"` → Order appears correctly in date-range filters for June 2025 → ✅ Done.
+  - [ ] [B] Admin opens dashboard Advanced Chart → range dropdown shows `This week`, `This month`, `This year`, `All time` only — no `Last 7 days` or `Last 30 days` → ✅ Done.
+  - [ ] [C] Agent opens `/orders/new` → Vehicle info section shows labels `"Quotes Miles"` and `"Vendor Miles"` → ✅ Done.
+
+---
+
+#### W-1505 — Update Seed File to Match Post-Sprint-1 Schema
+
+**Root cause / Goal:**
+After W-1502 and W-1503, two schema-breaking changes have occurred: `order_year` is gone and `first_name`/`last_name` are replaced by `customer_name`. The `seed.sql` at the project root still references the old column names. Running `seed.sql` against any freshly provisioned database (dev, test, or production) will immediately fail with SQL syntax errors. Every `INSERT INTO crm_customers` and `INSERT INTO crm_orders` must be updated.
+
+**Approach:**
+1. Update all `INSERT INTO crm_customers` statements to use `customer_name` instead of `first_name`/`last_name`.
+2. Update all `INSERT INTO crm_orders` statements to remove `order_year` from the column list and merge its value into `order_make_model`.
+3. Wrap each table's inserts in a transaction, using multi-row batch syntax (max 500 rows per `INSERT` statement) for performance.
+4. Verify the updated seed runs cleanly on a fresh `jd_crm_test` database.
+
+---
+
+- [ ] **RED — Integration (`src/tests/db_connection.test.ts`):**
+  - [ ] Test: Drop and recreate `jd_crm_test` database. Apply all Prisma migrations (`npx prisma migrate deploy`). Run the updated `seed.sql` via `mysql jd_crm_test < seed.sql` (or equivalent programmatic execution). Assert `SELECT COUNT(*) FROM crm_customers` > 0.
+  - [ ] Test: `SELECT customer_name FROM crm_customers LIMIT 1` — assert the result is a non-null, non-empty string.
+  - [ ] Test: `SELECT first_name FROM crm_customers LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'first_name'` error (column was dropped by migration).
+  - [ ] Test: `SELECT order_year FROM crm_orders LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'order_year'` error.
+  - [ ] Test: `SELECT order_make_model FROM crm_orders WHERE order_make_model IS NOT NULL LIMIT 1` — assert the result contains a space character (confirming year + make/model are combined, e.g. `"2019 Jeep Grand Cherokee"`).
+  - [ ] **Run — confirm RED** (seed.sql still has `first_name`/`last_name` and `order_year` columns; the seed will fail after migrations run).
+
+- [ ] **GREEN — Backend (Seed file only):**
+  - [ ] [Seed] Open `seed.sql`. For every `INSERT INTO crm_customers (...)` statement:
+    - Remove `first_name` and `last_name` from the column list.
+    - Add `customer_name` in their place.
+    - For every row's `VALUES (...)`: replace the two separate name values with a single concatenated string (e.g. `'John', 'Smith'` → `'John Smith'`).
+  - [ ] [Seed] For every `INSERT INTO crm_orders (...)` statement:
+    - Remove `order_year` from the column list.
+    - In each row's `VALUES (...)`: prepend the year value to the `order_make_model` value (e.g. column was `'2021', 'Jeep Grand Cherokee'` → now just `'2021 Jeep Grand Cherokee'` in the `order_make_model` position).
+  - [ ] [Seed] Convert each table's individual `INSERT` statements to multi-row batch format:
+    ```sql
+    START TRANSACTION;
+    INSERT INTO crm_customers (customer_name, customer_email, customer_phone, ...) VALUES
+      ('Jane Doe', 'jane@test.com', '555-0001', ...),
+      ('John Smith', 'john@test.com', '555-0002', ...),
+      ...;
+    COMMIT;
+    ```
+    Batch maximum 500 rows per `INSERT` statement.
+  - [ ] [Import Script] If `seed_from_json.js` (or equivalent CSV import script) exists, update all column references: `firstName`/`lastName` → `customerName`; `orderYear`/`orderMakeModel` → combined `orderMakeModel`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Developer drops and recreates local `jd_crm` database → runs `npx prisma migrate deploy` → runs `mysql jd_crm < seed.sql` → zero SQL errors → app restarts and connects → Dashboard loads with metrics → Customer list shows full names (e.g. `"Timothy Manuli"`) → Order list shows combined make/model strings → ✅ Done.
+
+---
+
+### Phase 16 — Sprint 2: Pre-Go-Live Features (P1)
+
+All four items in this sprint add **new tables or columns only** — no existing data is destroyed. However, audit trails are retroactive by nature: every day these features are absent means permanently lost history. Complete all Sprint 1 work first, then execute these items in the order listed.
+
+> **Execution order within this phase:** W-1601 → W-1602 → W-1603 → W-1604
+
+---
+
+#### W-1601 — Add Sales Verifier + Backend Team Member to Orders
+
+**Root cause / Goal:**
+`CrmOrders` tracks only two people per order: `order_sales_agent_id` (Sales Rep) and `order_verifier_id` (QA Verifier). The client requires two additional roles: **Sales Verifier** and **Backend Team Member**. These must be FK relations to `users` with denormalized name snapshots, following the existing pattern for `orderSalesAgentName` / `orderVerifierName`. All four roles must appear in the order form and order list in this exact sequence: Sales Agent → Sales Verifier → Backend Team Member → QA Verifier.
+
+**Approach:**
+4 nullable columns added to `crm_orders` + 2 new FK relations in Prisma. Repository resolves and snapshots names on create and update. Types, API controller, and all UI forms and list views updated.
+
+**Migration name:** `add_sales_verifier_and_backend_member_to_orders`
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with `{ ..., orderSalesVerifierId: <validUserId_A>, orderBackendMemberId: <validUserId_B> }`. Assert `201 Created`. Assert `SELECT order_sales_verifier_id, order_sales_verifier_name, order_backend_member_id, order_backend_member_name FROM crm_orders WHERE crm_order_id = <newId>` returns: `order_sales_verifier_id = <validUserId_A>`, `order_sales_verifier_name` = the `nickname || name` of user A, `order_backend_member_id = <validUserId_B>`, `order_backend_member_name` = the `nickname || name` of user B.
+  - [ ] Test: `POST /api/orders` with **no** `orderSalesVerifierId` or `orderBackendMemberId`. Assert `201 Created` — all four new columns are `NULL` in the inserted row.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ orderSalesVerifierId: <validUserId_C> }`. Assert `200 OK`. Assert `SELECT order_sales_verifier_name FROM crm_orders WHERE crm_order_id = :id` equals the `nickname || name` of user C.
+  - [ ] Test: `GET /api/orders/:id` response body contains all four fields: `orderSalesVerifierId`, `orderSalesVerifierName`, `orderBackendMemberId`, `orderBackendMemberName`.
+  - [ ] **Run — confirm RED** (columns do not exist; POST payload fields are silently dropped; GET response has no new fields).
+
+- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Types):**
+  - [ ] [Migration] Create and apply migration `add_sales_verifier_and_backend_member_to_orders`:
+    ```sql
+    ALTER TABLE crm_orders
+      ADD COLUMN order_sales_verifier_id    INT         NULL,
+      ADD COLUMN order_sales_verifier_name  VARCHAR(55) NULL,
+      ADD COLUMN order_backend_member_id    INT         NULL,
+      ADD COLUMN order_backend_member_name  VARCHAR(55) NULL;
+
+    ALTER TABLE crm_orders
+      ADD CONSTRAINT crm_orders_sales_verifier_fkey
+        FOREIGN KEY (order_sales_verifier_id) REFERENCES users(uid)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+      ADD CONSTRAINT crm_orders_backend_member_fkey
+        FOREIGN KEY (order_backend_member_id) REFERENCES users(uid)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+    ```
+    Apply via: `npx prisma migrate dev --name add_sales_verifier_and_backend_member_to_orders`.
+  - [ ] [Schema] In `prisma/schema.prisma`, model `CrmOrders`, add after the existing `orderVerifierName` field:
+    ```prisma
+    orderSalesVerifierId   Int?    @map("order_sales_verifier_id")
+    orderSalesVerifierName String? @map("order_sales_verifier_name") @db.VarChar(55)
+    orderBackendMemberId   Int?    @map("order_backend_member_id")
+    orderBackendMemberName String? @map("order_backend_member_name") @db.VarChar(55)
+    salesVerifier          Users?  @relation("SalesVerifier", fields: [orderSalesVerifierId], references: [uid])
+    backendMember          Users?  @relation("BackendMember", fields: [orderBackendMemberId], references: [uid])
+    ```
+    Add to `@@index` block: `@@index([orderSalesVerifierId])` and `@@index([orderBackendMemberId])`.
+    In model `Users`, add:
+    ```prisma
+    salesVerifierOrders  CrmOrders[] @relation("SalesVerifier")
+    backendMemberOrders  CrmOrders[] @relation("BackendMember")
+    ```
+    Run `npx prisma generate`.
+  - [ ] [Repository] `src/repository/order.repository.ts`, `createWithCustomerAndCard()`: After the existing `verifierName` resolution block (lines 17–26), add identical blocks:
+    ```typescript
+    let salesVerifierName: string | null = null;
+    if (data.orderSalesVerifierId) {
+      const sv = await prisma.users.findUnique({ where: { uid: data.orderSalesVerifierId } });
+      if (sv) salesVerifierName = sv.nickname || sv.name;
+    }
+    let backendMemberName: string | null = null;
+    if (data.orderBackendMemberId) {
+      const bm = await prisma.users.findUnique({ where: { uid: data.orderBackendMemberId } });
+      if (bm) backendMemberName = bm.nickname || bm.name;
+    }
+    ```
+    In `tx.crmOrders.create` data block, add after `orderVerifierName`:
+    ```typescript
+    orderSalesVerifierId:   data.orderSalesVerifierId   || null,
+    orderSalesVerifierName: salesVerifierName,
+    orderBackendMemberId:   data.orderBackendMemberId   || null,
+    orderBackendMemberName: backendMemberName,
+    ```
+  - [ ] [Repository] In `findAll()` and `findById()` `include` blocks, add `salesVerifier: true` and `backendMember: true`.
+  - [ ] [Service] `src/service/order.service.ts`, `updateOrder()`: After the existing verifier snapshot block (lines 118–127), add two parallel blocks:
+    ```typescript
+    // Resolve Sales Verifier name snapshot if ID changed
+    if (data.orderSalesVerifierId && data.orderSalesVerifierId !== existingOrder.orderSalesVerifierId) {
+      const { prisma } = await import('../lib/db');
+      const sv = await prisma.users.findUnique({ where: { uid: data.orderSalesVerifierId } });
+      if (sv) updatedData.orderSalesVerifierName = sv.nickname || sv.name;
+    }
+    // Resolve Backend Member name snapshot if ID changed
+    if (data.orderBackendMemberId && data.orderBackendMemberId !== existingOrder.orderBackendMemberId) {
+      const { prisma } = await import('../lib/db');
+      const bm = await prisma.users.findUnique({ where: { uid: data.orderBackendMemberId } });
+      if (bm) updatedData.orderBackendMemberName = bm.nickname || bm.name;
+    }
+    ```
+  - [ ] [Types] `src/types/order.ts`:
+    - `OrderCreateInput`: Add `orderSalesVerifierId?: number | null;` and `orderBackendMemberId?: number | null;`.
+    - `OrderUpdateInput`: Add `orderSalesVerifierId?: number | null;`, `orderSalesVerifierName?: string | null;`, `orderBackendMemberId?: number | null;`, `orderBackendMemberName?: string | null;`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/OrderList.test.tsx`):**
+  - [ ] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM contains `<select id="orderSalesVerifierId">` with an associated label `"Sales Verifier"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Assert the DOM contains `<select id="orderBackendMemberId">` with an associated label `"Backend Team Member"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Assert the four dropdowns appear in DOM order: `id="orderSalesAgentId"`, `id="orderSalesVerifierId"`, `id="orderBackendMemberId"`, `id="orderVerifierId"`.
+  - [ ] `AddOrderForm.test.tsx` Test: Select `orderSalesVerifierId = "5"` and submit. Assert `JSON.parse(fetchArgs[1].body).orderSalesVerifierId === 5` (number, not string).
+  - [ ] `OrderList.test.tsx` Test: Given an order with `orderSalesAgentName: "Alice"`, `orderSalesVerifierName: "Bob"`, `orderBackendMemberName: "Carol"`, `orderVerifierName: "Dave"`, assert the rendered row contains all four names in the sequence Alice → Bob → Carol → Dave.
+  - [ ] **Run — confirm RED** (form has no `id="orderSalesVerifierId"` or `id="orderBackendMemberId"`; order list has no Sales Verifier / Backend Member columns).
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Component] `src/components/AddOrderForm.tsx`:
+    - Add states: `const [orderSalesVerifierId, setOrderSalesVerifierId] = useState('')` and `const [orderBackendMemberId, setOrderBackendMemberId] = useState('')`.
+    - In Section 4 (Pricing & Allocation), insert two new `<div className="form-group">` blocks **after** the Sales Agent select and **before** the QA Verifier select:
+      ```jsx
+      <div className="form-group">
+        <label htmlFor="orderSalesVerifierId" className="form-label">Sales Verifier</label>
+        <select id="orderSalesVerifierId" value={orderSalesVerifierId} onChange={(e) => setOrderSalesVerifierId(e.target.value)} className="form-select">
+          <option value="">-- Assign Sales Verifier (optional) --</option>
+          {agents.map((a) => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}
+        </select>
+      </div>
+      <div className="form-group">
+        <label htmlFor="orderBackendMemberId" className="form-label">Backend Team Member</label>
+        <select id="orderBackendMemberId" value={orderBackendMemberId} onChange={(e) => setOrderBackendMemberId(e.target.value)} className="form-select">
+          <option value="">-- Assign Backend Member (optional) --</option>
+          {agents.map((a) => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}
+        </select>
+      </div>
+      ```
+    - In `handleSubmit` payload: add `orderSalesVerifierId: orderSalesVerifierId ? Number(orderSalesVerifierId) : null` and `orderBackendMemberId: orderBackendMemberId ? Number(orderBackendMemberId) : null`.
+  - [ ] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes; pre-populate from `order.orderSalesVerifierId` and `order.orderBackendMemberId`.
+  - [ ] [Component] `src/components/OrderList.tsx`: Add two new `<th>` headers and corresponding `<td>` cells — `"Sales Verifier"` rendering `order.orderSalesVerifierName || '—'` and `"Backend Member"` rendering `order.orderBackendMemberName || '—'` — inserted in the correct sequence after the Sales Agent column and before QA Verifier.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens `/orders/new` → Section 4 shows four dropdowns in order: Sales Agent → Sales Verifier → Backend Team Member → QA Verifier → Agent assigns all four → submits → Order detail shows all four names → Order list table shows Sales Verifier and Backend Member columns populated → Admin edits order and changes Backend Team Member to a different agent → `order_backend_member_name` updates in DB and reflects on next page load → ✅ Done.
+
+---
+
+#### W-1602 — Dual Status History Tables: Sale Status + Order Workflow
+
+**Root cause / Goal:**
+When `saleStatus` or `orderCurrentStatus` changes on an order, only the current value is stored. There is zero audit trail — no record of when it changed, who changed it, or what the previous value was. The client requires full, separate history logs for both fields. These are **two distinct concerns** and warrant **two dedicated tables**:
+
+1. **`crm_sale_status_history`** — records every change to `saleStatus` (Sold, Refunded, Chargebacked, etc.). For Refund (`'7'`) and Chargeback (`'8'`) changes only, the UI prompts for the **actual date/time the event occurred** (which may pre-date the system entry). For all other `saleStatus` changes, the current timestamp is recorded automatically.
+
+2. **`crm_order_current_status_history`** — records every change to `orderCurrentStatus` (the workflow pipeline: Pending Booking → Pending Shipment → etc.). These always record the current date/time automatically — no date override prompt.
+
+Both tables automatically record: the agent who made the change (`changed_by_id`, `changed_by_name`), the previous value (`old_value`), the new value (`new_value`), and the exact timestamp (`changed_at`).
+
+**Migrations (2 separate migrations):**
+- `create_sale_status_history_table`
+- `create_order_current_status_history_table`
+
+**New RBAC permissions:**
+- `orders:view-sale-status-history` — controls visibility of the sale status timeline section
+- `orders:view-workflow-history` — controls visibility of the workflow status timeline section
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+
+  **Sale Status History:**
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "7", saleStatusChangeDate: "2026-01-15T10:30:00" }`. Assert `200 OK`. Assert `SELECT new_value, old_value, changed_at, changed_by_name FROM crm_sale_status_history WHERE order_id = :id ORDER BY id DESC LIMIT 1` returns: `new_value = '7'`, `old_value = '1'` (previous status), `changed_at = '2026-01-15 10:30:00'`, `changed_by_name` = test user's `nickname || name`.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "8" }` (Chargeback, no date provided). Assert a `crm_sale_status_history` row is created with `new_value = '8'` and `changed_at` within 5 seconds of `NOW()` (confirming the default-to-current-time behaviour).
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "2" }` (a non-refund status change, no date prompt). Assert a `crm_sale_status_history` row is created with `new_value = '2'` and `changed_at` within 5 seconds of `NOW()`.
+  - [ ] Test: No history row is written if `saleStatus` in the PATCH body is **identical** to the existing `saleStatus` (same value — no actual change occurred).
+  - [ ] Test: `GET /api/orders/:id/sale-status-history` with a session that has `orders:view-sale-status-history`. Assert `200 OK` and response is an array where each entry has `{ id, orderId, oldValue, newValue, changedById, changedByName, changedAt }` keys, ordered by `changedAt ASC`.
+  - [ ] Test: `GET /api/orders/:id/sale-status-history` **without** `orders:view-sale-status-history`. Assert `403 Forbidden`.
+  - [ ] Test: Change `saleStatus` 3 times on one order. Assert `GET /api/orders/:id/sale-status-history` returns exactly 3 entries in chronological order.
+
+  **Order Workflow History:**
+  - [ ] Test: `PATCH /api/orders/:id` updating `orderCurrentStatus` from `"Pending Booking"` to `"Pending Shipment"`. Assert a `crm_order_current_status_history` row is created with `old_value = 'Pending Booking'`, `new_value = 'Pending Shipment'`, and `changed_at` within 5 seconds of `NOW()`.
+  - [ ] Test: No history row is written if `orderCurrentStatus` does not change (same value as existing).
+  - [ ] Test: `GET /api/orders/:id/workflow-history` with `orders:view-workflow-history`. Assert `200 OK` and returns array of `{ id, orderId, oldValue, newValue, changedById, changedByName, changedAt }` entries, ordered by `changedAt ASC`.
+  - [ ] Test: `GET /api/orders/:id/workflow-history` **without** `orders:view-workflow-history`. Assert `403 Forbidden`.
+
+  - [ ] **Run — confirm RED** (neither table exists; PATCH handler writes nothing; neither GET endpoint exists).
+
+- [ ] **GREEN — Backend (Migrations → Schema → Repository → Service → Controller):**
+
+  - [ ] [Migration 1] Create and apply migration `create_sale_status_history_table`:
+    ```sql
+    CREATE TABLE crm_sale_status_history (
+      id              INT          NOT NULL AUTO_INCREMENT,
+      order_id        INT          NOT NULL,
+      old_value       VARCHAR(10)  NULL     COMMENT 'previous saleStatus code',
+      new_value       VARCHAR(10)  NOT NULL COMMENT 'new saleStatus code',
+      changed_by_id   INT          NOT NULL,
+      changed_by_name VARCHAR(55)  NOT NULL,
+      changed_at      DATETIME     NOT NULL DEFAULT NOW()
+                        COMMENT 'for Refund/Chargeback this is the actual event date, not system time',
+      PRIMARY KEY (id),
+      INDEX idx_ssh_order_id (order_id),
+      INDEX idx_ssh_changed_at (changed_at),
+      CONSTRAINT fk_ssh_order
+        FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
+      CONSTRAINT fk_ssh_user
+        FOREIGN KEY (changed_by_id) REFERENCES users(uid) ON DELETE RESTRICT
+    );
+    ```
+    Apply via: `npx prisma migrate dev --name create_sale_status_history_table`.
+
+  - [ ] [Migration 2] Create and apply migration `create_order_current_status_history_table`:
+    ```sql
+    CREATE TABLE crm_order_current_status_history (
+      id              INT          NOT NULL AUTO_INCREMENT,
+      order_id        INT          NOT NULL,
+      old_value       VARCHAR(55)  NULL     COMMENT 'previous orderCurrentStatus label',
+      new_value       VARCHAR(55)  NOT NULL COMMENT 'new orderCurrentStatus label',
+      changed_by_id   INT          NOT NULL,
+      changed_by_name VARCHAR(55)  NOT NULL,
+      changed_at      DATETIME     NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (id),
+      INDEX idx_ocsh_order_id (order_id),
+      CONSTRAINT fk_ocsh_order
+        FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
+      CONSTRAINT fk_ocsh_user
+        FOREIGN KEY (changed_by_id) REFERENCES users(uid) ON DELETE RESTRICT
+    );
+    ```
+    Apply via: `npx prisma migrate dev --name create_order_current_status_history_table`.
+
+  - [ ] [Schema] Add both models to `prisma/schema.prisma`:
+    ```prisma
+    model CrmSaleStatusHistory {
+      id            Int       @id @default(autoincrement())
+      orderId       Int       @map("order_id")
+      oldValue      String?   @map("old_value")       @db.VarChar(10)
+      newValue      String    @map("new_value")        @db.VarChar(10)
+      changedById   Int       @map("changed_by_id")
+      changedByName String    @map("changed_by_name") @db.VarChar(55)
+      changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+      order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+      changedBy     Users     @relation("SaleStatusChanges", fields: [changedById], references: [uid])
+
+      @@index([orderId])
+      @@index([changedAt])
+      @@map("crm_sale_status_history")
+    }
+
+    model CrmOrderCurrentStatusHistory {
+      id            Int       @id @default(autoincrement())
+      orderId       Int       @map("order_id")
+      oldValue      String?   @map("old_value")       @db.VarChar(55)
+      newValue      String    @map("new_value")        @db.VarChar(55)
+      changedById   Int       @map("changed_by_id")
+      changedByName String    @map("changed_by_name") @db.VarChar(55)
+      changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+      order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+      changedBy     Users     @relation("WorkflowStatusChanges", fields: [changedById], references: [uid])
+
+      @@index([orderId])
+      @@map("crm_order_current_status_history")
+    }
+    ```
+    In model `CrmOrders`, add:
+    ```prisma
+    saleStatusHistory    CrmSaleStatusHistory[]
+    workflowHistory      CrmOrderCurrentStatusHistory[]
+    ```
+    In model `Users`, add:
+    ```prisma
+    saleStatusChanges    CrmSaleStatusHistory[]          @relation("SaleStatusChanges")
+    workflowStatusChanges CrmOrderCurrentStatusHistory[] @relation("WorkflowStatusChanges")
+    ```
+    Run `npx prisma generate`.
+
+  - [ ] [Repository] Add four new functions to `src/repository/order.repository.ts`:
+    ```typescript
+    // ─── Sale Status History ──────────────────────────────────────────────────────
+
+    export async function createSaleStatusHistoryEntry(data: {
+      orderId: number;
+      oldValue: string | null;
+      newValue: string;
+      changedById: number;
+      changedByName: string;
+      changedAt?: Date; // optional override — used for Refund/Chargeback event dates
+    }) {
+      return await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId:       data.orderId,
+          oldValue:      data.oldValue ?? null,
+          newValue:      data.newValue,
+          changedById:   data.changedById,
+          changedByName: data.changedByName,
+          changedAt:     data.changedAt ?? new Date(), // defaults to NOW() if no override
+        },
+      });
+    }
+
+    export async function getSaleStatusHistoryByOrderId(orderId: number) {
+      return await prisma.crmSaleStatusHistory.findMany({
+        where: { orderId },
+        orderBy: { changedAt: 'asc' },
+      });
+    }
+
+    // ─── Order Workflow (Current Status) History ──────────────────────────────────
+
+    export async function createWorkflowStatusHistoryEntry(data: {
+      orderId: number;
+      oldValue: string | null;
+      newValue: string;
+      changedById: number;
+      changedByName: string;
+      // No changedAt override — workflow changes always use current time
+    }) {
+      return await prisma.crmOrderCurrentStatusHistory.create({
+        data: {
+          orderId:       data.orderId,
+          oldValue:      data.oldValue ?? null,
+          newValue:      data.newValue,
+          changedById:   data.changedById,
+          changedByName: data.changedByName,
+          changedAt:     new Date(), // always current time — no override possible
+        },
+      });
+    }
+
+    export async function getWorkflowStatusHistoryByOrderId(orderId: number) {
+      return await prisma.crmOrderCurrentStatusHistory.findMany({
+        where: { orderId },
+        orderBy: { changedAt: 'asc' },
+      });
+    }
+    ```
+
+  - [ ] [Service] `src/service/order.service.ts` — update `updateOrder()` signature:
+    ```typescript
+    export async function updateOrder(
+      crmOrderId: number,
+      data: OrderUpdateInput,
+      changedByUserId: number,
+      changedByName: string,
+    )
+    ```
+    After `orderRepository.update(crmOrderId, updatedData)` (currently line 141), add both history write blocks:
+    ```typescript
+    // ── Sale Status History: write if value actually changed ──────────────────────
+    if (data.saleStatus && data.saleStatus !== existingOrder.saleStatus) {
+      // For Refund ('7') and Chargeback ('8'), `data.saleStatusChangeDate` may carry
+      // the actual event date entered by the user in the UI modal.
+      // For all other transitions it will be undefined → defaults to new Date().
+      const saleChangedAt = data.saleStatusChangeDate
+        ? new Date(data.saleStatusChangeDate)
+        : new Date();
+
+      await orderRepository.createSaleStatusHistoryEntry({
+        orderId:       crmOrderId,
+        oldValue:      existingOrder.saleStatus ?? null,
+        newValue:      data.saleStatus,
+        changedById:   changedByUserId,
+        changedByName: changedByName,
+        changedAt:     saleChangedAt,
+      });
+    }
+
+    // ── Workflow Status History: write if value actually changed ──────────────────
+    // Note: `updatedData.orderCurrentStatus` may have been set by the auto-advance
+    // state machine (e.g. assigning a vendor advances Pending Booking → Pending Shipment).
+    // Those auto-transitions still get attributed to the user who triggered the update.
+    if (
+      updatedData.orderCurrentStatus &&
+      updatedData.orderCurrentStatus !== existingOrder.orderCurrentStatus
+    ) {
+      await orderRepository.createWorkflowStatusHistoryEntry({
+        orderId:       crmOrderId,
+        oldValue:      existingOrder.orderCurrentStatus ?? null,
+        newValue:      updatedData.orderCurrentStatus,
+        changedById:   changedByUserId,
+        changedByName: changedByName,
+        // changedAt always defaults to new Date() inside the repository function
+      });
+    }
+    ```
+
+  - [ ] [Types] `src/types/order.ts` — `OrderUpdateInput`: add:
+    ```typescript
+    // Passed by the UI modal for Refund/Chargeback only.
+    // NOT persisted on the crm_orders row — only used to set changed_at in crm_sale_status_history.
+    saleStatusChangeDate?: string | null;
+    ```
+
+  - [ ] [Controller] `src/app/api/orders/[id]/route.ts`, `PATCH` handler:
+    - Extract `session.user.uid` and `session.user.nickname || session.user.name`.
+    - Pass as 3rd and 4th arguments: `orderService.updateOrder(id, body, uid, name)`.
+    - `saleStatusChangeDate` flows through naturally as part of `body` (typed as `OrderUpdateInput`).
+
+  - [ ] [Controller — Sale Status History endpoint] Create `src/app/api/orders/[id]/sale-status-history/route.ts`:
+    ```typescript
+    export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+      const session = await getServerSession(authOptions);
+      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'orders:view-sale-status-history')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const id = Number((await params).id);
+      const history = await orderRepository.getSaleStatusHistoryByOrderId(id);
+      return NextResponse.json(history);
+    }
+    ```
+
+  - [ ] [Controller — Workflow History endpoint] Create `src/app/api/orders/[id]/workflow-history/route.ts`:
+    ```typescript
+    export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+      const session = await getServerSession(authOptions);
+      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'orders:view-workflow-history')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const id = Number((await params).id);
+      const history = await orderRepository.getWorkflowStatusHistoryByOrderId(id);
+      return NextResponse.json(history);
+    }
+    ```
+
+  - [ ] [RBAC/Seed] In `seed.sql`:
+    - Add `orders:view-sale-status-history` to `crm_permissions`. Assign to super-admin and manager roles in `crm_role_permissions`.
+    - Add `orders:view-workflow-history` to `crm_permissions`. Assign to super-admin and manager roles.
+  - [ ] [RBAC/Docs] Add both permissions to the permissions reference table in `project_data.md` under the `orders` resource.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/SaleStatusTimeline.test.tsx` and `src/tests/WorkflowStatusTimeline.test.tsx` — new files):**
+
+  **SaleStatusTimeline:**
+  - [ ] Test: Given mocked sale status history entries `[{ id: 1, orderId: 5, oldValue: '1', newValue: '7', changedByName: 'Alice', changedAt: '2026-01-15T10:30:00Z' }, { id: 2, orderId: 5, oldValue: '7', newValue: '1', changedByName: 'Bob', changedAt: '2026-01-20T09:00:00Z' }]`, render `<SaleStatusTimeline entries={mockEntries} />`. Assert 2 timeline nodes are rendered.
+  - [ ] Test: Assert the node with `newValue = '7'` displays the label `"Refunded"` (not the raw code `"7"`).
+  - [ ] Test: Assert the node with `newValue = '8'` (if present) displays `"Chargebacked"` (not `"8"`).
+  - [ ] Test: Assert the node with `newValue = '1'` displays `"Sold"`.
+  - [ ] Test: Assert each node displays `changedByName` and `changedAt` formatted as `"DD/MM/YYYY HH:MM"` (e.g. `"15/01/2026 10:30"`).
+  - [ ] Test: Assert Refund and Chargeback nodes render with a red/amber color class (e.g. `timeline-node--refund`); Sold nodes render with a green class (e.g. `timeline-node--sold`).
+  - [ ] **Run — confirm RED** (component does not exist).
+
+  **WorkflowStatusTimeline:**
+  - [ ] Test: Given mocked entries `[{ id: 1, orderId: 5, oldValue: 'Pending Booking', newValue: 'Pending Shipment', changedByName: 'Carol', changedAt: '2026-02-01T08:00:00Z' }]`, render `<WorkflowStatusTimeline entries={mockEntries} />`. Assert 1 timeline node is rendered.
+  - [ ] Test: Assert the node displays `"Pending Booking → Pending Shipment"`, `"Carol"`, and `"01/02/2026 08:00"`.
+  - [ ] Test: Render with empty array. Assert the text `"No workflow history available."` is displayed.
+  - [ ] **Run — confirm RED** (component does not exist).
+
+- [ ] **GREEN — Frontend (Types → Components → Modal → Page integration):**
+
+  - [ ] [Types] Create `src/types/orderStatus.ts`:
+    ```typescript
+    export interface SaleStatusHistoryEntry {
+      id: number;
+      orderId: number;
+      oldValue: string | null;  // raw saleStatus code ('1', '7', '8', etc.)
+      newValue: string;         // raw saleStatus code
+      changedById: number;
+      changedByName: string;
+      changedAt: string;        // ISO string from API
+    }
+
+    export interface WorkflowStatusHistoryEntry {
+      id: number;
+      orderId: number;
+      oldValue: string | null;  // orderCurrentStatus label ('Pending Booking', etc.)
+      newValue: string;         // orderCurrentStatus label
+      changedById: number;
+      changedByName: string;
+      changedAt: string;        // ISO string from API
+    }
+
+    // Human-readable label map for saleStatus codes
+    export const SALE_STATUS_LABELS: Record<string, string> = {
+      '1': 'Sold',
+      '2': 'Pending',
+      '3': 'Cancelled',
+      '4': 'Hold',
+      '5': 'Voided',
+      '6': 'Return',
+      '7': 'Refunded',
+      '8': 'Chargebacked',
+    };
+    ```
+
+  - [ ] [Component] Create `src/components/SaleStatusTimeline.tsx`:
+    - Accepts `entries: SaleStatusHistoryEntry[]` prop.
+    - For each entry, renders a vertical timeline node showing:
+      - **Agent name** (`changedByName`)
+      - **Date/time** formatted as `DD/MM/YYYY HH:MM` using `changedAt`
+      - **Transition** formatted as `"<oldLabel> → <newLabel>"` using `SALE_STATUS_LABELS` map. If `oldValue` is null, show `"— → <newLabel>"`.
+    - Color coding: `newValue === '7'` (Refunded) → amber/orange class `timeline-node--refund`; `newValue === '8'` (Chargebacked) → red class `timeline-node--chargeback`; `newValue === '1'` (Sold) → green class `timeline-node--sold`; all others → neutral grey class `timeline-node--neutral`.
+    - If `entries.length === 0`: display `"No sale status history available."`.
+    - Section title: `"Sale Status History"`.
+
+  - [ ] [Component] Create `src/components/WorkflowStatusTimeline.tsx`:
+    - Accepts `entries: WorkflowStatusHistoryEntry[]` prop.
+    - Identical structure to `SaleStatusTimeline` but uses `orderCurrentStatus` label strings directly (no code-to-label mapping needed).
+    - All nodes use a single blue class `timeline-node--workflow`.
+    - If `entries.length === 0`: display `"No workflow history available."`.
+    - Section title: `"Order Workflow History"`.
+
+  - [ ] [Component — Refund/Chargeback Modal] In `src/components/EditOrderForm.tsx`:
+    - Add state: `const [showStatusDateModal, setShowStatusDateModal] = useState(false)`.
+    - Add state: `const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('')` (stores `YYYY-MM-DD`).
+    - Add state: `const [saleStatusChangeTime, setSaleStatusChangeTime] = useState('')` (stores `HH:MM`).
+    - In the `saleStatus` `<select>` `onChange` handler: after updating the `saleStatus` state, add:
+      ```typescript
+      if (e.target.value === '7' || e.target.value === '8') {
+        setSaleStatusChangeDate(''); // reset date to blank (user must enter or skip)
+        setSaleStatusChangeTime('');
+        setShowStatusDateModal(true);
+      } else {
+        setSaleStatusChangeDate(''); // clear any previously set override date
+      }
+      ```
+    - Render the modal when `showStatusDateModal === true`:
+      ```
+      ┌──────────────────────────────────────────────────────────────────┐
+      │ ⚠️  Record Refund / Chargeback Date & Time                        │
+      │                                                                  │
+      │ When did this refund/chargeback actually occur?                  │
+      │                                                                  │
+      │  Date:  [ YYYY-MM-DD _________ ]                                 │
+      │  Time:  [ HH:MM ______________ ]                                 │
+      │                                                                  │
+      │  ⓘ If left blank, the current date and time will be recorded     │
+      │     automatically. You can always view this in the status        │
+      │     history section below the order.                             │
+      │                                                                  │
+      │           [ Skip — Use Current Time ]   [ Confirm ]              │
+      └──────────────────────────────────────────────────────────────────┘
+      ```
+    - "Confirm" button: combine `saleStatusChangeDate + 'T' + saleStatusChangeTime` into a full ISO string if both are filled; store in state as `saleStatusChangeDate` (the combined ISO string). Close modal.
+    - "Skip — Use Current Time" button: clear `saleStatusChangeDate` (empty string). Close modal. The service will default to `new Date()`.
+    - In `handleSubmit` payload: add `saleStatusChangeDate: saleStatusChangeDate || null`. (If empty, service defaults to current time.)
+    - The modal must appear **immediately when the dropdown changes**, not on form submit, so the user knows they need to enter the date before submitting.
+
+  - [ ] [Page] `src/app/orders/[id]/page.tsx`:
+    - If user has `orders:view-sale-status-history`: fetch `/api/orders/:id/sale-status-history` server-side. Render `<SaleStatusTimeline entries={saleHistory} />`.
+    - If user has `orders:view-workflow-history`: fetch `/api/orders/:id/workflow-history` server-side. Render `<WorkflowStatusTimeline entries={workflowHistory} />`.
+    - Render both timeline components at the bottom of the page, after the Comments section, in two separate labeled cards:
+      ```
+      ┌──────────────────────────────────────────────┐
+      │  Sale Status History                         │
+      │  [SaleStatusTimeline]                        │
+      └──────────────────────────────────────────────┘
+      ┌──────────────────────────────────────────────┐
+      │  Order Workflow History                      │
+      │  [WorkflowStatusTimeline]                    │
+      └──────────────────────────────────────────────┘
+      ```
+    - If user lacks a permission, the corresponding card is completely hidden (no placeholder, no error).
+
+  - [ ] Run unit tests — **confirm GREEN** (both `SaleStatusTimeline.test.tsx` and `WorkflowStatusTimeline.test.tsx`).
+
+- [ ] **Verification chain:**
+  - [ ] **Refund with custom date:** Admin opens an order (currently `saleStatus = '1'` Sold) → selects `"Refunded"` from the `saleStatus` dropdown → modal immediately appears → Admin enters date `2026-01-10` and time `14:30` → clicks `"Confirm"` → form submits → `SELECT * FROM crm_sale_status_history WHERE order_id = :id` shows 1 row: `old_value='1'`, `new_value='7'`, `changed_at='2026-01-10 14:30:00'`, `changed_by_name='Admin Name'` → Order detail page loads → "Sale Status History" card at bottom shows `"Sold → Refunded"`, `"Admin Name"`, `"10/01/2026 14:30"` ✅
+  - [ ] **Refund skipping date (defaults to current time):** Agent selects `"Chargebacked"` from dropdown → modal appears → Agent clicks `"Skip — Use Current Time"` → form submits → `SELECT changed_at FROM crm_sale_status_history ORDER BY id DESC LIMIT 1` → timestamp is within 10 seconds of `NOW()` → detail page shows current date/time for that entry ✅
+  - [ ] **Workflow status change:** Admin changes `orderCurrentStatus` to `"Completed Orders"` → `crm_order_current_status_history` gets a row with `old_value = 'Pending Feedback'`, `new_value = 'Completed Orders'`, `changed_at` = current time, `changed_by_name = 'Admin Name'` → "Order Workflow History" card on detail page shows the transition ✅
+  - [ ] **Auto-advance transition is attributed correctly:** Agent assigns a vendor to a `"Pending Booking"` order → the state machine auto-advances `orderCurrentStatus` to `"Pending Shipment"` → `crm_order_current_status_history` records the workflow change with the **agent's name** (not "System"), `old_value = 'Pending Booking'`, `new_value = 'Pending Shipment'` ✅
+  - [ ] **RBAC:** User without `orders:view-sale-status-history` opens an order → "Sale Status History" card is completely absent from the page → direct `GET /api/orders/:id/sale-status-history` returns `403 Forbidden` ✅
+  - [ ] **Cascade delete:** Order is deleted via W-1603 flow → both `crm_sale_status_history` and `crm_order_current_status_history` rows for that `order_id` are gone (CASCADE confirmed) ✅
+
+---
+
+**Migration name:** `create_order_status_history_table`
+**New RBAC permission:** `orders:view-status-history`
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "7", statusChangeDate: "2026-01-15T10:30:00" }`. Assert `200 OK`. Assert `SELECT id, old_value, new_value, changed_at, changed_by_name FROM crm_order_status_history WHERE order_id = :id AND status_type = 'sale_status'` returns exactly 1 row with `new_value = '7'` and `changed_at = '2026-01-15 10:30:00'`.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "8" }` (no `statusChangeDate`). Assert a history row is created with `new_value = '8'` and `changed_at` within 5 seconds of `NOW()`.
+  - [ ] Test: `PATCH /api/orders/:id` updating `orderCurrentStatus` from `"Pending Booking"` to `"Pending Shipment"`. Assert a history row exists with `status_type = 'order_current_status'`, `old_value = 'Pending Booking'`, `new_value = 'Pending Shipment'`, and `changed_by_name` equal to the seeded test user's `nickname || name`.
+  - [ ] Test: `GET /api/orders/:id/status-history` with a session that has `orders:view-status-history`. Assert `200 OK` and response is an array where each entry has `{ id, statusType, oldValue, newValue, changedByName, changedAt }` keys.
+  - [ ] Test: `GET /api/orders/:id/status-history` **without** `orders:view-status-history`. Assert `403 Forbidden`.
+  - [ ] Test: Make 3 status changes to an order. Assert `GET /api/orders/:id/status-history` returns an array of exactly 3 entries, ordered by `changedAt ASC`.
+  - [ ] **Run — confirm RED** (table does not exist; PATCH handler does not write history; GET endpoint does not exist).
+
+- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Controller):**
+  - [ ] [Migration] Create and apply migration `create_order_status_history_table`:
+    ```sql
+    CREATE TABLE crm_order_status_history (
+      id              INT          NOT NULL AUTO_INCREMENT,
+      order_id        INT          NOT NULL,
+      status_type     VARCHAR(25)  NOT NULL COMMENT 'sale_status or order_current_status',
+      old_value       VARCHAR(55)  NULL,
+      new_value       VARCHAR(55)  NOT NULL,
+      changed_by_id   INT          NOT NULL,
+      changed_by_name VARCHAR(55)  NOT NULL,
+      changed_at      DATETIME     NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (id),
+      INDEX idx_order_status_history_order_id (order_id),
+      CONSTRAINT fk_osh_order
+        FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
+      CONSTRAINT fk_osh_user
+        FOREIGN KEY (changed_by_id) REFERENCES users(uid) ON DELETE RESTRICT
+    );
+    ```
+    Apply via: `npx prisma migrate dev --name create_order_status_history_table`.
+  - [ ] [Schema] Add model `CrmOrderStatusHistory` to `prisma/schema.prisma`:
+    ```prisma
+    model CrmOrderStatusHistory {
+      id            Int       @id @default(autoincrement())
+      orderId       Int       @map("order_id")
+      statusType    String    @map("status_type") @db.VarChar(25)
+      oldValue      String?   @map("old_value")   @db.VarChar(55)
+      newValue      String    @map("new_value")    @db.VarChar(55)
+      changedById   Int       @map("changed_by_id")
+      changedByName String    @map("changed_by_name") @db.VarChar(55)
+      changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+      order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+      changedBy     Users     @relation(fields: [changedById], references: [uid])
+
+      @@index([orderId])
+      @@map("crm_order_status_history")
+    }
+    ```
+    Add `statusHistory CrmOrderStatusHistory[]` to `CrmOrders`. Add `statusChanges CrmOrderStatusHistory[]` to `Users`. Run `npx prisma generate`.
+  - [ ] [Repository] Add to `src/repository/order.repository.ts`:
+    ```typescript
+    export async function createStatusHistoryEntry(data: {
+      orderId: number;
+      statusType: 'sale_status' | 'order_current_status';
+      oldValue: string | null;
+      newValue: string;
+      changedById: number;
+      changedByName: string;
+      changedAt?: Date;
+    }) {
+      return await prisma.crmOrderStatusHistory.create({
+        data: {
+          orderId:       data.orderId,
+          statusType:    data.statusType,
+          oldValue:      data.oldValue ?? null,
+          newValue:      data.newValue,
+          changedById:   data.changedById,
+          changedByName: data.changedByName,
+          changedAt:     data.changedAt ?? new Date(),
+        },
+      });
+    }
+
+    export async function getStatusHistoryByOrderId(orderId: number) {
+      return await prisma.crmOrderStatusHistory.findMany({
+        where: { orderId },
+        orderBy: { changedAt: 'asc' },
+      });
+    }
+    ```
+  - [ ] [Service] `src/service/order.service.ts`, update `updateOrder()` signature to `updateOrder(crmOrderId, data, changedByUserId: number, changedByName: string)`. After `orderRepository.update(crmOrderId, updatedData)` (line 141), add:
+    ```typescript
+    // Write sale_status history entry if value changed
+    if (data.saleStatus && data.saleStatus !== existingOrder.saleStatus) {
+      await orderRepository.createStatusHistoryEntry({
+        orderId:       crmOrderId,
+        statusType:    'sale_status',
+        oldValue:      existingOrder.saleStatus ?? null,
+        newValue:      data.saleStatus,
+        changedById:   changedByUserId,
+        changedByName: changedByName,
+        changedAt:     data.statusChangeDate ? new Date(data.statusChangeDate) : new Date(),
+      });
+    }
+    // Write order_current_status history entry if value changed
+    if (updatedData.orderCurrentStatus && updatedData.orderCurrentStatus !== existingOrder.orderCurrentStatus) {
+      await orderRepository.createStatusHistoryEntry({
+        orderId:       crmOrderId,
+        statusType:    'order_current_status',
+        oldValue:      existingOrder.orderCurrentStatus ?? null,
+        newValue:      updatedData.orderCurrentStatus,
+        changedById:   changedByUserId,
+        changedByName: changedByName,
+        changedAt:     new Date(), // workflow status changes always use current time
+      });
+    }
+    ```
+  - [ ] [Types] `src/types/order.ts` — `OrderUpdateInput`: add `statusChangeDate?: string | null;` (used only for Refund/Chargeback date override; not persisted on `crm_orders`).
+  - [ ] [Controller] `src/app/api/orders/[id]/route.ts`, `PATCH` handler: extract `session.user.uid` and `session.user.nickname || session.user.name` and pass them as the 3rd and 4th arguments to `orderService.updateOrder(id, body, uid, name)`. Pass `statusChangeDate` through the body (it will be in `data` as `OrderUpdateInput.statusChangeDate` and picked up by the service).
+  - [ ] [Controller] Create `src/app/api/orders/[id]/status-history/route.ts`:
+    ```typescript
+    export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+      const session = await getServerSession(authOptions);
+      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'orders:view-status-history')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const id = Number((await params).id);
+      const history = await orderRepository.getStatusHistoryByOrderId(id);
+      return NextResponse.json(history);
+    }
+    ```
+  - [ ] [RBAC/Seed] Add `orders:view-status-history` to `crm_permissions` in `seed.sql`. Assign to super-admin and manager-level roles in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/OrderStatusTimeline.test.tsx` — new file):**
+  - [ ] Test: Given 3 mock history entries `[{ statusType: 'sale_status', oldValue: '1', newValue: '7', changedByName: 'Alice', changedAt: '2026-01-15T10:30:00Z' }, { statusType: 'order_current_status', oldValue: 'Pending Booking', newValue: 'Pending Shipment', changedByName: 'Bob', changedAt: '2026-01-16T09:00:00Z' }, { statusType: 'sale_status', oldValue: '7', newValue: '1', changedByName: 'Carol', changedAt: '2026-01-17T11:00:00Z' }]`, render `<OrderStatusTimeline entries={mockEntries} />`. Assert the component renders 3 timeline nodes.
+  - [ ] Test: Assert the node for `newValue = '7'` displays the label `"Refunded"` (not `"7"`).
+  - [ ] Test: Assert the node for `newValue = '8'` (if present) displays `"Chargebacked"` (not `"8"`).
+  - [ ] Test: Assert each node shows `changedByName` and `changedAt` formatted as `"15/01/2026 10:30"`.
+  - [ ] Test: Assert `sale_status` nodes and `order_current_status` nodes render with visually distinct colors (one has CSS class `timeline-node--sale` and the other `timeline-node--workflow`).
+  - [ ] **Run — confirm RED** (component does not exist).
+
+- [ ] **GREEN — Frontend (Types → Component → EditOrderForm modal → Page integration):**
+  - [ ] [Types] Create `src/types/orderStatus.ts`:
+    ```typescript
+    export interface OrderStatusHistoryEntry {
+      id: number;
+      orderId: number;
+      statusType: 'sale_status' | 'order_current_status';
+      oldValue: string | null;
+      newValue: string;
+      changedById: number;
+      changedByName: string;
+      changedAt: string; // ISO string from API
+    }
+    ```
+  - [ ] [Component] Create `src/components/OrderStatusTimeline.tsx`: renders a vertical timeline from `entries: OrderStatusHistoryEntry[]`. Maps numeric `saleStatus` codes: `'1'` → `'Sold'`, `'7'` → `'Refunded'`, `'8'` → `'Chargebacked'`. Applies CSS class `timeline-node--sale` for `statusType === 'sale_status'` (amber dot) and `timeline-node--workflow` for `statusType === 'order_current_status'` (blue dot). Shows `old_value → new_value`, agent name, and formatted date. Groups entries into two sections: "Sale Status History" and "Order Workflow History".
+  - [ ] [Component] `src/components/EditOrderForm.tsx`: When the `saleStatus` dropdown value changes to `"7"` or `"8"`, render an inline modal prompt:
+    ```
+    ┌────────────────────────────────────────────────────────────┐
+    │ ⚠️  Record Refund / Chargeback Date                         │
+    │                                                            │
+    │ When did this refund/chargeback occur?                     │
+    │ [Date input: __________]  [Time input: __:__]              │
+    │                                                            │
+    │ ⓘ If left blank, the current date and time will be         │
+    │    recorded automatically in the status history.           │
+    │                                                            │
+    │             [ Skip ]     [ Confirm & Continue ]            │
+    └────────────────────────────────────────────────────────────┘
+    ```
+    Store the result in `statusChangeDate` state. Include in the PATCH payload. The modal appears when the dropdown changes, not on form submit. The modal is dismissible (Skip = use current time).
+  - [ ] [Page] `src/app/orders/[id]/page.tsx`: If session user has `orders:view-status-history`, fetch from `/api/orders/:id/status-history` (server-side). Render `<OrderStatusTimeline entries={history} />` at the bottom of the page, after the Comments section. If user lacks the permission, render nothing.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin opens an order detail → edits `saleStatus` to `"Refunded"` → modal appears asking for the date → Admin enters `2026-01-10` → clicks "Confirm & Continue" → form submits → `SELECT * FROM crm_order_status_history WHERE order_id = :id` shows 1 row with `status_type='sale_status'`, `new_value='7'`, `changed_at='2026-01-10 ...'`, `changed_by_name='Admin Name'` → Admin opens the order detail page → Bottom of page shows "Sale Status History" timeline section with the Refunded entry dated `10/01/2026` → Admin changes `orderCurrentStatus` to `"Pending Shipment"` → A second history entry appears in "Order Workflow History" with current timestamp → User without `orders:view-status-history` opens the order → timeline section is completely hidden → ✅ Done.
+
+---
+
+#### W-1603 — Order Delete with Full Cascade + RBAC
+
+**Root cause / Goal:**
+No delete functionality is exposed in the UI. `order.repository.ts` line 236 already has `remove()` which calls `prisma.crmOrders.delete()`, and `order.service.ts` line 183 has `deleteOrder()`. However, there is no `DELETE /api/orders/:id` handler in the route file, no permission guard, no UI button, and — critically — the `ON DELETE CASCADE` behavior on child tables (`crm_comments`, `crm_order_status_history`, `crm_order_views`) must be verified before any delete is attempted, or the DB will throw an FK constraint violation.
+
+**Approach:**
+Verify FK CASCADE on all child tables. Wire the existing `deleteOrder()` service function to a guarded `DELETE` route. Add `orders:delete` permission (super-admin only). Add a confirmation-modal delete button to the order detail page.
+
+**New RBAC permission:** `orders:delete`
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: Create an order. Post a comment to it (`POST /api/orders/:id/comments`). Change its `saleStatus` to `'7'` (generates a `crm_order_status_history` row). Then call `DELETE /api/orders/:id` with a super-admin session. Assert `200 OK`. Immediately after: assert `SELECT * FROM crm_orders WHERE crm_order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_comments WHERE order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_order_status_history WHERE order_id = :id` returns 0 rows.
+  - [ ] Test: `DELETE /api/orders/:id` **without** `orders:delete` permission. Assert `403 Forbidden`. Assert the order still exists: `SELECT COUNT(*) FROM crm_orders WHERE crm_order_id = :id` returns `1`.
+  - [ ] Test: `DELETE /api/orders/:id` with no session. Assert `401 Unauthorized`.
+  - [ ] **Run — confirm RED** (`DELETE` handler does not exist in `src/app/api/orders/[id]/route.ts`; cascade may or may not work).
+
+- [ ] **GREEN — Backend (Migration → Controller):**
+  - [ ] [Migration] Create migration `verify_order_cascade_constraints`. Inspect each FK constraint:
+    - `crm_comments.order_id → crm_orders.crm_order_id`: Verify `ON DELETE CASCADE` exists. If not, run: `ALTER TABLE crm_comments DROP FOREIGN KEY <fk_name>; ALTER TABLE crm_comments ADD CONSTRAINT fk_comments_order FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE;`
+    - `crm_order_status_history.order_id`: Created in W-1602 with `ON DELETE CASCADE`. ✅
+    - `crm_order_views.order_id`: Will be created in W-1604 with `ON DELETE CASCADE`. ✅
+    Apply via: `npx prisma migrate dev --name verify_order_cascade_constraints`.
+  - [ ] [Controller] In `src/app/api/orders/[id]/route.ts`, add the `DELETE` handler:
+    ```typescript
+    export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+      const session = await getServerSession(authOptions);
+      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'orders:delete')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const id = Number((await params).id);
+      await orderService.deleteOrder(id);
+      return NextResponse.json({ success: true });
+    }
+    ```
+  - [ ] [RBAC/Seed] Add `orders:delete` to `crm_permissions` in `seed.sql`. Assign **only** to the super-admin role in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (order detail component test):**
+  - [ ] Test: Render order detail component with a session that **has** `orders:delete`. Assert a button with accessible text containing `"Delete"` is present in the DOM.
+  - [ ] Test: Render with a session that does **not** have `orders:delete`. Assert no such button is present.
+  - [ ] Test: Click the delete button → assert a confirmation modal appears with text `"This action is permanent and cannot be undone."`.
+  - [ ] Test: Click `"Delete Permanently"` in the modal → assert `fetch` is called with method `"DELETE"` and URL `/api/orders/<id>` → assert `router.push` is called with `"/orders"` on success.
+  - [ ] **Run — confirm RED** (no delete button exists in the current order detail UI).
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] In the order detail page (`src/app/orders/[id]/page.tsx` or a client component it wraps): Add a `"Delete Order"` button visible only when `hasPermission(permissions, 'orders:delete')`. Style it with a red destructive style (`background: #b25353`, white text, border-radius matching other buttons). Position it at the bottom of the page header actions row (alongside Edit button).
+  - [ ] On click, show a confirmation modal:
+    ```
+    ┌──────────────────────────────────────────────────────────────┐
+    │ ⚠️  Delete Order #<orderId> Permanently?                       │
+    │                                                              │
+    │ This will permanently delete this order and ALL related      │
+    │ data, including comments, status history, and view logs.     │
+    │                                                              │
+    │ This action is permanent and cannot be undone.               │
+    │                                                              │
+    │             [ Cancel ]     [ Delete Permanently ]            │
+    └──────────────────────────────────────────────────────────────┘
+    ```
+  - [ ] On `"Delete Permanently"` click: call `fetch(`/api/orders/${id}`, { method: 'DELETE' })`. On `200 OK`: `router.push('/orders')`. On error: display the error message inside the modal (do not close).
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Super-admin opens order detail page → sees red `"Delete Order"` button → clicks it → confirmation modal appears with exact warning text → clicks `"Delete Permanently"` → page redirects to `/orders` → deleted order does not appear in list → Direct `GET /api/orders/<deletedId>` returns `404 Not Found` → DB: all rows in `crm_orders`, `crm_comments`, and `crm_order_status_history` for that order_id are gone (CASCADE confirmed) → Regular agent logs in → order detail page has no delete button → ✅ Done.
+
+---
+
+#### W-1604 — Order View Log: Track Who Opened Each Order + RBAC
+
+**Root cause / Goal:**
+When any user opens an order's detail page, there is no audit record of the access. The client wants a log of every view event (who opened it, when) displayed at the bottom of the order detail. A new table `crm_order_views` is required. A new RBAC permission `orders:view-log` controls who can see the log section on the detail page.
+
+**Important:** The view log must not break the order fetch. `logOrderView()` is a fire-and-forget write — if the insert fails (e.g. user is deleted), the order detail page must still render successfully.
+
+**Migration name:** `create_order_views_table`
+**New RBAC permission:** `orders:view-log`
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: Call `GET /api/orders/:id` with an authenticated session for a user with `uid = <testUserId>`. Assert `200 OK`. Assert `SELECT * FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns exactly 1 row with `viewed_at` within 5 seconds of `NOW()`.
+  - [ ] Test: Call `GET /api/orders/:id` 3 times with the same session. Assert `SELECT COUNT(*) FROM crm_order_views WHERE order_id = :id AND viewer_id = <testUserId>` returns `3` (all access events logged, no deduplication).
+  - [ ] Test: `GET /api/orders/:id/views` with a session that **has** `orders:view-log`. Assert `200 OK` and returns an array where each entry has `{ id, orderId, viewerId, viewerName, viewedAt }` keys.
+  - [ ] Test: `GET /api/orders/:id/views` **without** `orders:view-log` permission. Assert `403 Forbidden`.
+  - [ ] Test: Confirm that if `logOrderView` fails (e.g. by temporarily making the `crm_order_views` table not writable in the test), `GET /api/orders/:id` still returns `200 OK` with the order data (the view log failure must be silently swallowed).
+  - [ ] **Run — confirm RED** (table does not exist; `GET /api/orders/:id` does not write to it; `/views` endpoint does not exist).
+
+- [ ] **GREEN — Backend (Migration → Schema → Repository → Controller):**
+  - [ ] [Migration] Create and apply migration `create_order_views_table`:
+    ```sql
+    CREATE TABLE crm_order_views (
+      id           INT          NOT NULL AUTO_INCREMENT,
+      order_id     INT          NOT NULL,
+      viewer_id    INT          NOT NULL,
+      viewer_name  VARCHAR(55)  NOT NULL,
+      viewed_at    DATETIME     NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (id),
+      INDEX idx_order_views_order_id (order_id),
+      INDEX idx_order_views_viewer_id (viewer_id),
+      CONSTRAINT fk_order_views_order
+        FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
+      CONSTRAINT fk_order_views_user
+        FOREIGN KEY (viewer_id) REFERENCES users(uid) ON DELETE RESTRICT
+    );
+    ```
+    Apply via: `npx prisma migrate dev --name create_order_views_table`.
+  - [ ] [Schema] Add model `CrmOrderViews` to `prisma/schema.prisma`:
+    ```prisma
+    model CrmOrderViews {
+      id         Int       @id @default(autoincrement())
+      orderId    Int       @map("order_id")
+      viewerId   Int       @map("viewer_id")
+      viewerName String    @map("viewer_name") @db.VarChar(55)
+      viewedAt   DateTime  @default(now()) @map("viewed_at") @db.DateTime(0)
+      order      CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+      viewer     Users     @relation(fields: [viewerId], references: [uid])
+
+      @@index([orderId])
+      @@index([viewerId])
+      @@map("crm_order_views")
+    }
+    ```
+    Add `viewLogs CrmOrderViews[]` to `CrmOrders`. Add `orderViews CrmOrderViews[]` to `Users`. Run `npx prisma generate`.
+  - [ ] [Repository] Add to `src/repository/order.repository.ts`:
+    ```typescript
+    export async function logOrderView(orderId: number, viewerId: number, viewerName: string) {
+      return await prisma.crmOrderViews.create({
+        data: { orderId, viewerId, viewerName, viewedAt: new Date() },
+      });
+    }
+
+    export async function getOrderViews(orderId: number) {
+      return await prisma.crmOrderViews.findMany({
+        where: { orderId },
+        orderBy: { viewedAt: 'desc' },
+        take: 100, // cap at last 100 view events
+      });
+    }
+    ```
+  - [ ] [Controller] `src/app/api/orders/[id]/route.ts`, `GET` handler: After successfully fetching and building the response, add a fire-and-forget view log write **before** `return NextResponse.json(...)`:
+    ```typescript
+    // Fire-and-forget: log the view. Failure must NOT affect the response.
+    orderRepository.logOrderView(
+      id,
+      session.user.uid,
+      session.user.nickname || session.user.name
+    ).catch((err) => console.error('[OrderView] Failed to log view:', err));
+    ```
+  - [ ] [Controller] Create `src/app/api/orders/[id]/views/route.ts`:
+    ```typescript
+    export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+      const session = await getServerSession(authOptions);
+      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'orders:view-log')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const id = Number((await params).id);
+      const views = await orderRepository.getOrderViews(id);
+      return NextResponse.json(views);
+    }
+    ```
+  - [ ] [RBAC/Seed] Add `orders:view-log` to `crm_permissions` in `seed.sql`. Assign to super-admin and manager-level roles in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/OrderViewLog.test.tsx` — new file):**
+  - [ ] Test: Given mock entries `[{ id: 1, orderId: 5, viewerId: 10, viewerName: 'Alice', viewedAt: '2026-06-30T10:00:00Z' }, { id: 2, orderId: 5, viewerId: 11, viewerName: 'Bob', viewedAt: '2026-06-30T11:30:00Z' }]`, render `<OrderViewLog entries={mockEntries} />`. Assert both `"Alice"` and `"Bob"` appear in the rendered output.
+  - [ ] Test: Assert `"Alice"` appears **below** `"Bob"` in the DOM (descending order — most recent first: Bob at `11:30` is above Alice at `10:00`).
+  - [ ] Test: Assert each entry shows `viewerName` and a formatted date string `"30/06/2026 10:00"` for the `10:00` entry.
+  - [ ] Test: Render `<OrderViewLog entries={[]} />`. Assert the text `"No view history available."` is displayed.
+  - [ ] **Run — confirm RED** (component does not exist).
+
+- [ ] **GREEN — Frontend (Types → Component → Page integration):**
+  - [ ] [Types] Add to `src/types/order.ts` (or a new `src/types/orderView.ts`):
+    ```typescript
+    export interface OrderViewEntry {
+      id: number;
+      orderId: number;
+      viewerId: number;
+      viewerName: string;
+      viewedAt: string; // ISO string from API
+    }
+    ```
+  - [ ] [Component] Create `src/components/OrderViewLog.tsx`:
+    - Accepts `entries: OrderViewEntry[]` prop.
+    - Renders a compact table with columns: `"Agent"` (viewerName) and `"Opened At"` (formatted `DD/MM/YYYY HH:MM`).
+    - Title: `"Access History — Who Has Viewed This Order"`.
+    - If `entries.length === 0`: display `"No view history available."`.
+    - Entries are already sorted descending from the API (most recent first).
+  - [ ] [Page] `src/app/orders/[id]/page.tsx`: If session user has `orders:view-log` permission, fetch `/api/orders/:id/views` server-side (pass the session cookie via `headers`). Pass result to `<OrderViewLog entries={views} />`. Render the component at the very bottom of the page, after `<OrderStatusTimeline />`. If user lacks the permission, render nothing (no placeholder, no error message).
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin opens order #42 → `crm_order_views` gets a row: `order_id=42, viewer_id=<adminUid>, viewer_name='Admin Name'` → Agent also opens order #42 → a second row added → Admin re-opens order #42 → a third row added → Admin scrolls to the bottom of the order detail page → "Access History" section shows 3 entries sorted most-recent-first → Regular user without `orders:view-log` opens the same order → view is still logged in DB (their open is recorded), but the "Access History" section is completely hidden from their view → ✅ Done.
