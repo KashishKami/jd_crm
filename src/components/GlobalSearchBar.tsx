@@ -52,10 +52,7 @@ export default function GlobalSearchBar() {
           if (data.orders) {
             for (const order of data.orders) {
               if (order.customer) {
-                let name = `${order.customer.firstName} ${order.customer.lastName}`;
-                if (order.customer.firstName === order.customer.lastName) {
-                  name = order.customer.firstName;
-                }
+                const name = order.customer.customerName;
                 const phone = order.customer.customerPhone || 'No Phone';
                 const key = `${name}-${phone}`.toLowerCase();
                 if (!seen.has(key)) {
@@ -73,10 +70,7 @@ export default function GlobalSearchBar() {
 
           if (data.customers) {
             for (const customer of data.customers) {
-              let name = `${customer.firstName} ${customer.lastName}`;
-              if (customer.firstName === customer.lastName) {
-                name = customer.firstName;
-              }
+              const name = customer.customerName;
               const phone = customer.customerPhone || 'No Phone';
               const key = `${name}-${phone}`.toLowerCase();
               if (!seen.has(key)) {

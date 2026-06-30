@@ -27,7 +27,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 12**| Attendance Logging System | **[ ] SKIPPED** | Mark attendance sheet, historical attendance view |
 | **Phase 13**| global Full-Text Search | **[x] COMPLETED** | Unified global search bar, order filters |
 | **Phase 14**| Admin Settings & RBAC Permissions | **[x] COMPLETED** | Role settings page, permission matrices |
-| **Phase 15**| Sprint 1 — Critical Schema Surgery (P0) | **[ ] PENDING** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
+| **Phase 15**| Sprint 1 — Critical Schema Surgery (P0) | **[/] IN PROGRESS** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
 | **Phase 16**| Sprint 2 — Pre-Go-Live Features (P1) | **[ ] PENDING** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
 
 ---
@@ -1059,15 +1059,15 @@ Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`,
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`, `src/tests/customers.test.ts`):**
-  - [ ] `orders.test.ts` Test: `POST /api/orders` with payload `{ customerName: "Jane Doe", customerEmail: "jane@test.com", /* no firstName or lastName */ }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_id = <newCustomerId>` returns `"Jane Doe"`.
-  - [ ] `orders.test.ts` Test: `GET /api/orders/:id` — assert the nested `customer` object in the response has a `customerName` field with value `"Jane Doe"` and does **not** contain `firstName` or `lastName` properties.
-  - [ ] `customers.test.ts` Test: `GET /api/customers` — assert each customer object has a `customerName` string field and does **not** have `firstName` or `lastName` fields.
-  - [ ] `customers.test.ts` Test: `POST /api/customers` with `{ customerName: "John Smith", customerEmail: "j@test.com", customerPhone: "555-1234" }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_email = 'j@test.com'` returns `"John Smith"`.
-  - [ ] **Run — confirm RED** (`firstName`/`lastName` columns still exist; `customerName` field does not exist on the model; POST with `customerName` is silently ignored; GET response has no `customerName`).
+- [x] **RED ─ Integration (`src/tests/orders.test.ts`, `src/tests/customers.test.ts`):**
+  - [x] `orders.test.ts` Test: `POST /api/orders` with payload `{ customerName: "Jane Doe", customerEmail: "jane@test.com", /* no firstName or lastName */ }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_id = <newCustomerId>` returns `"Jane Doe"`.
+  - [x] `orders.test.ts` Test: `GET /api/orders/:id` ─ assert the nested `customer` object in the response has a `customerName` field with value `"Jane Doe"` and does **not** contain `firstName` or `lastName` properties.
+  - [x] `customers.test.ts` Test: `GET /api/customers` ─ assert each customer object has a `customerName` string field and does **not** have `firstName` or `lastName` fields.
+  - [x] `customers.test.ts` Test: `POST /api/customers` with `{ customerName: "John Smith", customerEmail: "j@test.com", customerPhone: "555-1234" }`. Assert `201 Created`. Assert `SELECT customer_name FROM crm_customers WHERE customer_email = 'j@test.com'` returns `"John Smith"`.
+  - [x] **Run ─ confirm RED** (`firstName`/`lastName` columns still exist; `customerName` field does not exist on the model; POST with `customerName` is silently ignored; GET response has no `customerName`).
 
-- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Types → Controller):**
-  - [ ] [Migration] Create and apply migration `merge_customer_first_last_name`. The raw SQL:
+- [x] **GREEN ─ Backend (Migration → Schema → Repository → Service → Types → Controller):**
+  - [x] [Migration] Create and apply migration `merge_customer_first_last_name`. The raw SQL:
     ```sql
     -- Step 1: Add the new combined column (nullable initially for safe back-fill)
     ALTER TABLE crm_customers
@@ -1099,33 +1099,33 @@ Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`,
       DROP COLUMN last_name;
     ```
     Apply via: `npx prisma migrate dev --name merge_customer_first_last_name`.
-  - [ ] [Schema] In `prisma/schema.prisma`, model `CrmCustomers`:
+  - [x] [Schema] In `prisma/schema.prisma`, model `CrmCustomers`:
     - Remove: `firstName String @map("first_name") @db.VarChar(255)`
     - Remove: `lastName  String @map("last_name")  @db.VarChar(255)`
     - Add: `customerName String @map("customer_name") @db.VarChar(511)`
     - Run `npx prisma generate`.
-  - [ ] [Repository] `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (lines 49–50):
+  - [x] [Repository] `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (lines 49─50):
     - Remove: `firstName: data.firstName,` and `lastName: data.lastName,`
     - Add: `customerName: data.customerName,`
-  - [ ] [Repository] `src/repository/search.repository.ts`, `searchCustomers(query)` — update the LIKE clause from two separate `first_name LIKE` / `last_name LIKE` conditions to a single `customer_name LIKE '%${query}%'` condition.
-  - [ ] [Service] `src/service/order.service.ts`:
-    - Line 6–7: Change `if (!data.firstName || !data.lastName)` to `if (!data.customerName)`; change error message to `'Customer name is required'`.
-    - Lines 43–46 destructure: Replace `firstName,` and `lastName,` with `customerName,`.
-    - Lines 145–146 customer update block: Replace `if (firstName !== undefined) customerUpdate.firstName = firstName;` and `if (lastName !== undefined) customerUpdate.lastName = lastName;` with `if (customerName !== undefined) customerUpdate.customerName = customerName;`.
-  - [ ] [Types] `src/types/order.ts`:
-    - `OrderCreateInput` (lines 3–4): Remove `firstName: string;` and `lastName: string;`. Add `customerName: string;`.
-    - `OrderUpdateInput` (lines 70–71): Remove `firstName?: string;` and `lastName?: string;`. Add `customerName?: string;`.
-  - [ ] [Types] `src/types/customer.ts`: In every type that includes customer name fields (`Customer`, `CustomerCreateInput`, `CustomerUpdateInput`), replace `firstName: string` / `lastName: string` with `customerName: string`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Repository] `src/repository/search.repository.ts`, `searchCustomers(query)` — update the LIKE clause from two separate `first_name LIKE` / `last_name LIKE` conditions to a single `customer_name LIKE '%${query}%'` condition.
+  - [x] [Service] `src/service/order.service.ts`:
+    - Line 6─7: Change `if (!data.firstName || !data.lastName)` to `if (!data.customerName)`; change error message to `'Customer name is required'`.
+    - Lines 43─46 destructure: Replace `firstName,` and `lastName,` with `customerName,`.
+    - Lines 145─146 customer update block: Replace `if (firstName !== undefined) customerUpdate.firstName = firstName;` and `if (lastName !== undefined) customerUpdate.lastName = lastName;` with `if (customerName !== undefined) customerUpdate.customerName = customerName;`.
+  - [x] [Types] `src/types/order.ts`:
+    - `OrderCreateInput` (lines 3─4): Remove `firstName: string;` and `lastName: string;`. Add `customerName: string;`.
+    - `OrderUpdateInput` (lines 70─71): Remove `firstName?: string;` and `lastName?: string;`. Add `customerName?: string;`.
+  - [x] [Types] `src/types/customer.ts`: In every type that includes customer name fields (`Customer`, `CustomerCreateInput`, `CustomerUpdateInput`), replace `firstName: string` / `lastName: string` with `customerName: string`.
+  - [x] Run integration test ─ **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/CustomerList.test.tsx`):**
-  - [ ] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM contains a single input with `id="customerName"` and its label text is `"Customer Name *"`. Assert the DOM does **not** contain any element with `id="firstName"` or `id="lastName"`.
-  - [ ] `AddOrderForm.test.tsx` Test: Submit form with `customerName = "Mary Johnson"`. Assert `JSON.parse(fetchArgs[1].body)` contains `customerName: "Mary Johnson"` and does **not** contain `firstName` or `lastName` keys.
-  - [ ] `CustomerList.test.tsx` Test: Given mocked customer `{ customerName: "John Doe", customerId: 1, customerEmail: "j@e.com" }`, assert the rendered list row displays `"John Doe"` in the Name column.
-  - [ ] **Run — confirm RED** (current form has `id="firstName"` and `id="lastName"` inputs; POST body contains `firstName`/`lastName`; customer list renders individual first/last columns or concat).
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/CustomerList.test.tsx`):**
+  - [x] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM contains a single input with `id="customerName"` and its label text is `"Customer Name *"`. Assert the DOM does **not** contain any element with `id="firstName"` or `id="lastName"`.
+  - [x] `AddOrderForm.test.tsx` Test: Submit form with `customerName = "Mary Johnson"`. Assert `JSON.parse(fetchArgs[1].body)` contains `customerName: "Mary Johnson"` and does **not** contain `firstName` or `lastName` keys.
+  - [x] `CustomerList.test.tsx` Test: Given mocked customer `{ customerName: "John Doe", customerId: 1, customerEmail: "j@e.com" }`, assert the rendered list row displays `"John Doe"` in the Name column.
+  - [x] **Run — confirm RED** (current form has `id="firstName"` and `id="lastName"` inputs; POST body contains `firstName`/`lastName`; customer list renders individual first/last columns or concat).
 
-- [ ] **GREEN — Frontend (Types → Components):**
-  - [ ] [Component] `src/components/AddOrderForm.tsx`:
+- [x] **GREEN — Frontend (Types → Components):**
+  - [x] [Component] `src/components/AddOrderForm.tsx`:
     - Remove state: `const [firstName, setFirstName] = useState('')` and `const [lastName, setLastName] = useState('')`.
     - Add state: `const [customerName, setCustomerName] = useState('')`.
     - In the Customer Info section: remove the "First Name" `<div className="form-group">` block and the "Last Name" `<div className="form-group">` block.
@@ -1146,15 +1146,15 @@ Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`,
       ```
     - In `handleSubmit`: remove `firstName` and `lastName` from the payload; add `customerName`.
     - In validation: change `if (!firstName || !lastName || ...)` to `if (!customerName || ...)`.
-  - [ ] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes. Pre-populate `customerName` state from `order.customer.customerName`.
-  - [ ] [Component] `src/components/CustomerList.tsx`: Update column header from split name columns to `"Customer Name"`. Update cell to render `customer.customerName`.
-  - [ ] [Component] `src/components/OrderList.tsx`: Update any inline `` `${order.customer?.firstName} ${order.customer?.lastName}` `` patterns to `order.customer?.customerName`.
-  - [ ] [Component] `src/components/GlobalSearchBar.tsx`: Update customer result rendering from `customer.firstName + ' ' + customer.lastName` to `customer.customerName`.
-  - [ ] [Component] `src/components/SearchResults.tsx`: Apply same customer name render update.
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes. Pre-populate `customerName` state from `order.customer.customerName`.
+  - [x] [Component] `src/components/CustomerList.tsx`: Update column header from split name columns to `"Customer Name"`. Update cell to render `customer.customerName`.
+  - [x] [Component] `src/components/OrderList.tsx`: Update any inline `` `${order.customer?.firstName} ${order.customer?.lastName}` `` patterns to `order.customer?.customerName`.
+  - [x] [Component] `src/components/GlobalSearchBar.tsx`: Update customer result rendering from `customer.firstName + ' ' + customer.lastName` to `customer.customerName`.
+  - [x] [Component] `src/components/SearchResults.tsx`: Apply same customer name render update.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Developer runs migration → `DESCRIBE crm_customers` shows `customer_name` column and no `first_name`/`last_name` columns → `SELECT customer_name FROM crm_customers LIMIT 3` shows full names (e.g. `"Timothy Manuli"`) → App restarts — no crash → Agent navigates to `/orders/new` → Customer section shows single `"Customer Name *"` input → Agent types `"Sarah Connor"` → submits → order detail shows `"Sarah Connor"` under Customer section → Customer list shows `"Sarah Connor"` in Name column → Global search for `"Sarah"` returns the customer result → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Developer runs migration → `DESCRIBE crm_customers` shows `customer_name` column and no `first_name`/`last_name` columns → `SELECT customer_name FROM crm_customers LIMIT 3` shows full names (e.g. `"Timothy Manuli"`) → App restarts — no crash → Agent navigates to `/orders/new` → Customer section shows single `"Customer Name *"` input → Agent types `"Sarah Connor"` → submits → order detail shows `"Sarah Connor"` under Customer section → Customer list shows `"Sarah Connor"` in Name column → Global search for `"Sarah"` returns the customer result → ✅ Done.
 
 ---
 
@@ -1174,18 +1174,18 @@ Three pure UI changes bundled into one work item. Zero migration risk. Intended 
 
 ---
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Sub-A Test: Render `<AddOrderForm />`. Assert the DOM contains `<input type="date" id="orderDate" />`.
-  - [ ] Sub-A Test: Assert the default value of `id="orderDate"` equals today's date in `YYYY-MM-DD` format (e.g. `new Date().toISOString().split('T')[0]`).
-  - [ ] Sub-A Test: Submit form with `orderDate` input set to `"2025-06-15"`. Assert `JSON.parse(fetchArgs[1].body).orderDate === "2025-06-15"`.
-  - [ ] Sub-B Test: Render `<AdvancedChartWidget />`. Assert the range `<select>` does **not** contain `<option value="7d">` or `<option value="30d">`.
-  - [ ] Sub-B Test: Assert the range `<select>` **does** contain `<option value="this-week">` and `<option value="this-month">`.
-  - [ ] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Quotes Miles"` (not `"Quoted Mileage"`).
-  - [ ] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Vendor Miles"` (not `"Vendor Mileage"`).
-  - [ ] **Run — confirm RED** (no `id="orderDate"` input; chart has `value="7d"` / `value="30d"`; labels say `"Mileage"`).
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [x] Sub-A Test: Render `<AddOrderForm />`. Assert the DOM contains `<input type="date" id="orderDate" />`.
+  - [x] Sub-A Test: Assert the default value of `id="orderDate"` equals today's date in `YYYY-MM-DD` format (e.g. `new Date().toISOString().split('T')[0]`).
+  - [x] Sub-A Test: Submit form with `orderDate` input set to `"2025-06-15"`. Assert `JSON.parse(fetchArgs[1].body).orderDate === "2025-06-15"`.
+  - [x] Sub-B Test: Render `<AdvancedChartWidget />`. Assert the range `<select>` does **not** contain `<option value="7d">` or `<option value="30d">`.
+  - [x] Sub-B Test: Assert the range `<select>` **does** contain `<option value="this-week">` and `<option value="this-month">`.
+  - [x] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Quotes Miles"` (not `"Quoted Mileage"`).
+  - [x] Sub-C Test: Assert the rendered form contains a `<label>` with exact text `"Vendor Miles"` (not `"Vendor Mileage"`).
+  - [x] **Run — confirm RED** (no `id="orderDate"` input; chart has `value="7d"` / `value="30d"`; labels say `"Mileage"`).
 
-- [ ] **GREEN — Frontend (Components only — no backend, no migration):**
-  - [ ] [Sub-A] `src/components/AddOrderForm.tsx`:
+- [x] **GREEN — Frontend (Components only — no backend, no migration):**
+  - [x] [Sub-A] `src/components/AddOrderForm.tsx`:
     - Add state: `const [orderDate, setOrderDate] = useState(() => new Date().toISOString().split('T')[0])`.
     - In Section 4 (Pricing & Allocation), add a new `<div className="form-group">` **before** the shipping type field:
       ```jsx
@@ -1206,23 +1206,23 @@ Three pure UI changes bundled into one work item. Zero migration risk. Intended 
       </div>
       ```
     - In `handleSubmit` payload: add `orderDate: orderDate`.
-  - [ ] [Sub-A] `src/components/EditOrderForm.tsx`:
+  - [x] [Sub-A] `src/components/EditOrderForm.tsx`:
     - Add state initialized from order: `const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])`.
     - Add the identical Sale Date input block in the appropriate section.
     - Include `orderDate` in the submit payload.
-  - [ ] [Sub-B] `src/components/dashboard/AdvancedChartWidget.tsx`:
+  - [x] [Sub-B] `src/components/dashboard/AdvancedChartWidget.tsx`:
     - Remove the line `<option value="7d">Last 7 days</option>`.
     - Remove the line `<option value="30d">Last 30 days</option>`.
     - Change `useState<string>('7d')` to `useState<string>('this-week')`.
     - In `handleCancelCustom()`: change `setRange('7d')` to `setRange('this-week')`.
-  - [ ] [Sub-C] `src/components/AddOrderForm.tsx`: Change label text `"Quoted Mileage"` → `"Quotes Miles"` and `"Vendor Mileage"` → `"Vendor Miles"`.
-  - [ ] [Sub-C] `src/components/EditOrderForm.tsx`: Apply identical label text changes.
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Sub-C] `src/components/AddOrderForm.tsx`: Change label text `"Quoted Mileage"` → `"Quotes Miles"` and `"Vendor Mileage"` → `"Vendor Miles"`.
+  - [x] [Sub-C] `src/components/EditOrderForm.tsx`: Apply identical label text changes.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] [A] Agent opens `/orders/new` → "Sale Date" field shows today's date pre-filled → Agent changes date to `2025-06-15` → submits → `GET /api/orders/<newId>` returns `orderDate: "2025-06-15"` → Order appears correctly in date-range filters for June 2025 → ✅ Done.
-  - [ ] [B] Admin opens dashboard Advanced Chart → range dropdown shows `This week`, `This month`, `This year`, `All time` only — no `Last 7 days` or `Last 30 days` → ✅ Done.
-  - [ ] [C] Agent opens `/orders/new` → Vehicle info section shows labels `"Quotes Miles"` and `"Vendor Miles"` → ✅ Done.
+- [x] **Verification chain:**
+  - [x] [A] Agent opens `/orders/new` → "Sale Date" field shows today's date pre-filled → Agent changes date to `2025-06-15` → submits → `GET /api/orders/<newId>` returns `orderDate: "2025-06-15"` → Order appears correctly in date-range filters for June 2025 → ✅ Done.
+  - [x] [B] Admin opens dashboard Advanced Chart → range dropdown shows `This week`, `This month`, `This year`, `All time` only — no `Last 7 days` or `Last 30 days` → ✅ Done.
+  - [x] [C] Agent opens `/orders/new` → Vehicle info section shows labels `"Quotes Miles"` and `"Vendor Miles"` → ✅ Done.
 
 ---
 
@@ -2311,3 +2311,29 @@ When any user opens an order's detail page, there is no audit record of the acce
   - Created a robust integration test verifying performer net scoring, negative rankings, and nickname use, and unit tests validating negative amount format rendering.
   - Verified all 134 integration and unit test suites pass successfully.
 
+### Session 22 — June 30, 2026
+  **Phase 15 — W-1502: Merge `order_year` into `order_make_model` [IMPLEMENTATION] & Schema Surgery**
+  - Created and applied custom database migration `20260630153900_merge_order_year_into_make_model` to prepend `order_year` to `order_make_model`, drop `order_year` column, and map deprecated `sale_status` codes to the new 3-status schema (Sold, Refunded, Chargebacked).
+  - Regenerated Prisma Client and removed `orderYear` from database repository (`src/repository/order.repository.ts`) and type definitions (`src/types/order.ts`).
+  - Unified the split Year and Make/Model fields on `AddOrderForm.tsx` and `EditOrderForm.tsx` into a single "Year, Make & Model" input, and updated order list, search, and detail page layouts to match.
+  - Resolved build and TypeScript compiler errors in CSV/dummy seeding scripts (`import-csv-data.ts`, `seed-dummy-orders.ts`), `settings.test.ts` GET mock arguments, and `AddOrderForm.test.tsx` fetch options typing.
+  - Cleared Node/Next.js dev cache in `src/lib/db.ts` to reload schema definitions dynamically in active dev server memory.
+  - Verified all 141 unit, integration, and typecheck test suites compile and pass successfully.
+
+### Session 23 — June 30, 2026
+  **Phase 15 — W-1503: Customer Name Consolidation [IMPLEMENTATION] & Seeding Alignment**
+  - **Consolidated UI Components**: Completed the migration of all frontend pages and React components to support `customerName` directly, replacing separate first and last name inputs/fields. Updated `AddOrderForm.tsx`, `EditOrderForm.tsx`, `CustomerList.tsx`, `OrderList.tsx`, `GlobalSearchBar.tsx`, `SearchResults.tsx`, and detail pages.
+  - **Accessibility & Test Support**: Added `id="customerName"` and `htmlFor="customerName"` attributes to the Customer Name input in `EditOrderForm.tsx` to enable robust label-based DOM querying in component tests.
+  - **Green Component Tests**: Updated and corrected all unit test assertions in `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, `SearchResults.test.tsx`, and created `CustomerList.test.tsx` to verify clean frontend data handling and form submittals under the unified customerName field. All 13 component tests pass cleanly.
+  - **Status Dropdowns Limit**: Restricted sale status dropdown controls in `AddOrderForm.tsx` and `EditOrderForm.tsx` to only render Sold (1), Refunded (2), and Chargebacked (3). Also updated the `getStatusBadge` map in `RecentOrdersTable.tsx` to align with the new 3-status database schema.
+  - **Seeding and CSV Import Alignment**: Refactored the CSV data import script (`import-csv-data.ts`) and the dummy orders seeder script (`seed-dummy-orders.ts`) to map all status values to the restricted 3-status schema (re-mapping legacy prospect, callback, callback options into Sold).
+  - **Verification**: Verified that all backend integration tests, frontend component tests, and typechecks build and pass successfully.
+### Session 24 — June 30, 2026
+  **Phase 15 — W-1504: Quick UI Wins & Advanced Chart Filter Refinement**
+  - **Exposed Sale Date Picker**: Mounted a date selection input (`orderDate`) on `AddOrderForm.tsx` (defaulting to today's date) and `EditOrderForm.tsx` (defaulting to the existing order date), and included `orderDate` in client-side form submittal payloads to allow backdating sales.
+  - **Mileage Input Rename**: Renamed Quoted Mileage and Vendor Mileage form labels to `"Quotes Miles"` and `"Vendor Miles"`.
+  - **Chart Filter Options Cleaned**: Removed rolling window ranges (`7d`, `30d`, and `2d`) from `AdvancedChartWidget.tsx`. Replaced `"This month"`, `"Last month"`, `"Last 6 months"`, and `"This year"` options with a simplified `"Monthly"` (covering all months of current year) and `"Yearly"` (covering the last 5 years) structure.
+  - **Monday-to-Sunday Week Bounds**: Refactored `"This week"` and `"Last week"` range boundaries in `dashboard.service.ts` to begin on Monday and end on Sunday (UTC-based).
+  - **Daily Weekday Acronym Labels**: Formatted X-axis daily labels to print the weekday abbreviation space-separated after the date (e.g. `"Jun 25 Thu"`).
+  - **Role Settings Re-render Loop Fix**: Fixed a test suite timeout in `RoleSettings.test.tsx` by using a functional state setter (`setSelectedRoleId(prev => ...)`) inside the stable `fetchData` `useCallback` helper.
+  - **Verification**: Verified Next.js ESLint passes cleanly, and all 145 integration and unit tests compile and run green.

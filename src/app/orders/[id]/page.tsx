@@ -119,7 +119,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </span>
           </div>
           <h1 className="page-title mt-2">
-            {order.customer.firstName} {order.customer.lastName}
+            {order.customer.customerName}
           </h1>
           <p className="page-subtitle">
             Registered on {formatDateDDMMYYYY(order.orderCreatedDate)}
@@ -147,13 +147,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               Customer Details
             </h3>
             <div className="info-grid">
-              <div className="info-group">
-                <span className="info-label">First Name</span>
-                <span className="info-value">{order.customer.firstName}</span>
-              </div>
-              <div className="info-group">
-                <span className="info-label">Last Name</span>
-                <span className="info-value">{order.customer.lastName}</span>
+              <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                <span className="info-label">Customer Name</span>
+                <span className="info-value">{order.customer.customerName}</span>
               </div>
               <div className="info-group">
                 <span className="info-label">Email Address</span>

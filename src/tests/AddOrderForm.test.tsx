@@ -27,8 +27,9 @@ describe('AddOrderForm Unit Tests', () => {
   it('should render all form sections', () => {
     render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
 
-    expect(screen.getByLabelText(/first name/i)).toBeDefined();
-    expect(screen.getByLabelText(/last name/i)).toBeDefined();
+    expect(screen.getByLabelText(/customer name/i)).toBeDefined();
+    expect(screen.queryByLabelText(/first name/i)).toBeNull();
+    expect(screen.queryByLabelText(/last name/i)).toBeNull();
     expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/name on card/i)).toBeDefined();
     expect(screen.getByLabelText(/card number/i)).toBeDefined();
@@ -66,8 +67,7 @@ describe('AddOrderForm Unit Tests', () => {
 
     render(<AddOrderForm vendors={mockVendors} gateways={mockGateways} agents={mockAgents} />);
 
-    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Alice' } });
-    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Smith' } });
+    fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Alice Smith' } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
     fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
     fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
@@ -113,8 +113,7 @@ describe('AddOrderForm Unit Tests', () => {
       render(<AddOrderForm vendors={mockVendors} gateways={[]} agents={[]} />);
 
       // Fill out required fields
-      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Alice' } });
-      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Smith' } });
+      fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
@@ -140,6 +139,60 @@ describe('AddOrderForm Unit Tests', () => {
 
       expect(sentBody).toHaveProperty('orderMakeModel', '2022 Honda Civic');
       expect(sentBody).not.toHaveProperty('orderYear');
+    });
+  });
+
+  describe('W-1504: Quick UI Wins', () => {
+    it('should expose orderDate input pre-filled with today\'s date and send it in payload', async () => {
+      const mockVendors = [{ vendorId: 1, vendorName: 'Test Vendor' }];
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ orderId: 10, customerId: 20, cardId: 30 }),
+      } as Response);
+
+      render(<AddOrderForm vendors={mockVendors} gateways={[]} agents={[]} />);
+
+      // Assert orderDate input exists
+      const dateInput = document.getElementById('orderDate') as HTMLInputElement;
+      expect(dateInput).not.toBeNull();
+      expect(dateInput.type).toBe('date');
+
+      // Assert default value is today's date
+      const todayStr = new Date().toISOString().split('T')[0];
+      expect(dateInput.value).toBe(todayStr);
+
+      // Change date
+      fireEvent.change(dateInput, { target: { value: '2025-06-15' } });
+
+      // Fill out required fields
+      fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+      fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
+      fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
+      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
+      fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
+
+      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalled();
+      });
+
+      const [, fetchOptions] = vi.mocked(fetch).mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions?.body as string);
+      expect(sentBody).toHaveProperty('orderDate', '2025-06-15');
+    });
+
+    it('should render mileage fields with labels "Quotes Miles" and "Vendor Miles"', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      expect(screen.getByText('Quotes Miles')).toBeDefined();
+      expect(screen.getByText('Vendor Miles')).toBeDefined();
+      expect(screen.queryByText('Quoted Mileage')).toBeNull();
+      expect(screen.queryByText('Vendor Mileage')).toBeNull();
     });
   });
 });

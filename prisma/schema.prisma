@@ -163,8 +163,7 @@ model CrmVendors {
 
 model CrmCustomers {
   customerId              Int                @id @default(autoincrement()) @map("customer_id")
-  firstName               String             @map("first_name") @db.VarChar(255)
-  lastName                String             @map("last_name") @db.VarChar(255)
+  customerName            String             @map("customer_name") @db.VarChar(511)
   customerPhone           String?            @map("customer_phone") @db.VarChar(25)
   customerEmail           String             @map("customer_email") @db.VarChar(255)
   customerBillingAddress  String?            @map("customer_billing_address") @db.VarChar(255)
@@ -198,6 +197,7 @@ model CrmCustomerCards {
 model CrmOrders {
   crmOrderId                    Int           @id @default(autoincrement()) @map("crm_order_id")
   orderCustomerId               Int           @map("order_customer_id")
+  /// Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderMakeModel                String?       @map("order_make_model") @db.VarChar(255)
   orderPart                     String?       @map("order_part") @db.VarChar(255)
   orderPartSize                 String?       @map("order_part_size") @db.VarChar(255)

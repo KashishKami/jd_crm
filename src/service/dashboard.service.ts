@@ -92,7 +92,7 @@ export async function getMetricsForUser(session: any) {
     const rawOrders = await dashboardRepository.getRecentOrders();
     metrics.recentOrders = rawOrders.map(o => ({
       crmOrderId: o.crmOrderId,
-      customerName: o.customer ? (((o.customer as any).customerName || `${(o.customer as any).firstName || ''} ${(o.customer as any).lastName || ''}`).trim()) : 'Unknown Customer',
+      customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
       salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : 'Unknown Agent',
       saleStatus: o.saleStatus,
       orderMarkup: o.orderMarkup,
@@ -174,30 +174,24 @@ export async function getAdvancedChartMetrics(
     dateFrom = startOfDay(yest);
     dateTo = endOfDay(yest);
     granularity = 'daily';
-  } else if (range === '2d') {
-    const yest = new Date(now);
-    yest.setUTCDate(now.getUTCDate() - 1);
-    dateFrom = startOfDay(yest);
-    dateTo = endOfDay(now);
-    granularity = 'daily';
-  } else if (range === '7d') {
-    const start = new Date(now);
-    start.setUTCDate(now.getUTCDate() - 6);
-    dateFrom = startOfDay(start);
-    dateTo = endOfDay(now);
-    granularity = 'daily';
   } else if (range === 'this-week') {
+    const day = now.getUTCDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
     const start = new Date(now);
-    start.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    start.setUTCDate(now.getUTCDate() - diffToMonday);
     dateFrom = startOfDay(start);
-    dateTo = endOfDay(now);
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+    dateTo = endOfDay(end);
     granularity = 'daily';
   } else if (range === 'last-week') {
+    const day = now.getUTCDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
     const start = new Date(now);
-    start.setUTCDate(now.getUTCDate() - now.getUTCDay() - 7);
-    const end = new Date(now);
-    end.setUTCDate(now.getUTCDate() - now.getUTCDay() - 1);
+    start.setUTCDate(now.getUTCDate() - diffToMonday - 7);
     dateFrom = startOfDay(start);
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
     dateTo = endOfDay(end);
     granularity = 'daily';
   } else if (range === '30d') {
@@ -206,22 +200,14 @@ export async function getAdvancedChartMetrics(
     dateFrom = startOfDay(start);
     dateTo = endOfDay(now);
     granularity = 'daily';
-  } else if (range === 'this-month') {
-    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-    dateTo = endOfDay(now);
-    granularity = 'daily';
-  } else if (range === 'last-month') {
-    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0));
-    dateTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-    granularity = 'daily';
-  } else if (range === '6m') {
-    dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1, 0, 0, 0, 0));
-    dateTo = endOfDay(now);
-    granularity = 'monthly';
-  } else if (range === 'this-year' || range === 'year') {
+  } else if (range === 'monthly' || range === 'this-year' || range === 'year') {
     dateFrom = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
     dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
     granularity = 'monthly';
+  } else if (range === 'yearly') {
+    dateFrom = new Date(Date.UTC(now.getUTCFullYear() - 4, 0, 1, 0, 0, 0, 0));
+    dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
+    granularity = 'yearly';
   } else if (range === 'custom' && startDateStr && endDateStr) {
     dateFrom = startOfDay(new Date(startDateStr));
     dateTo = endOfDay(new Date(endDateStr));

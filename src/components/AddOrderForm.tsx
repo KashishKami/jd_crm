@@ -15,8 +15,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Form states
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerBillingAddress, setCustomerBillingAddress] = useState('');
@@ -44,6 +43,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderSalesAgentId, setOrderSalesAgentId] = useState('');
   const [orderVerifierId, setOrderVerifierId] = useState('');
   const [saleStatus, setSaleStatus] = useState('1'); // Default Sold
+  const [orderDate, setOrderDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Validation & Submission States
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
     setSubmitting(true);
 
     // Simple frontend validation validation
-    if (!firstName || !lastName || !customerEmail) {
+    if (!customerName || !customerEmail) {
       setError('Please fill in customer name and email.');
       setSubmitting(false);
       return;
@@ -83,8 +83,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
     }
 
     const payload = {
-      firstName,
-      lastName,
+      customerName,
       customerPhone,
       customerEmail,
       customerBillingAddress,
@@ -109,6 +108,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderSalesAgentId: orderSalesAgentId ? Number(orderSalesAgentId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
+      orderDate,
     };
 
     try {
@@ -158,26 +158,16 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         <div className="form-section">
           <h3 className="form-section-title">1. Customer Information</h3>
           <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="firstName" className="form-label">First Name *</label>
+            <div className="form-group form-grid-full">
+              <label htmlFor="customerName" className="form-label">Customer Name *</label>
               <input
                 type="text"
-                id="firstName"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                id="customerName"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
                 required
                 className="form-input"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="lastName" className="form-label">Last Name *</label>
-              <input
-                type="text"
-                id="lastName"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                required
-                className="form-input"
+                placeholder="e.g. Jane Doe"
               />
             </div>
             <div className="form-group">
@@ -334,7 +324,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMiles" className="form-label">Quoted Mileage</label>
+              <label htmlFor="orderQuotedMiles" className="form-label">Quotes Miles</label>
               <input
                 type="text"
                 id="orderQuotedMiles"
@@ -344,7 +334,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderGivenMiles" className="form-label">Vendor Mileage</label>
+              <label htmlFor="orderGivenMiles" className="form-label">Vendor Miles</label>
               <input
                 type="text"
                 id="orderGivenMiles"
@@ -402,6 +392,21 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               >
                 ${markup.toFixed(2)}
               </span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderDate" className="form-label">
+                Sale Date
+                <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '6px' }}>
+                  (defaults to today)
+                </span>
+              </label>
+              <input
+                type="date"
+                id="orderDate"
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
+                className="form-input"
+              />
             </div>
             <div className="form-group">
               <label htmlFor="orderShippingType" className="form-label">Shipping Type</label>
@@ -483,13 +488,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 className="form-select"
               >
                 <option value="1">Sold</option>
-                <option value="2">Prospect</option>
-                <option value="3">Call Back</option>
-                <option value="4">Not Interested</option>
-                <option value="5">Out Of Scope</option>
-                <option value="6">Enquiry</option>
-                <option value="7">Refunded</option>
-                <option value="8">Chargebacked</option>
+                <option value="2">Refunded</option>
+                <option value="3">Chargebacked</option>
               </select>
             </div>
           </div>

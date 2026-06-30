@@ -134,8 +134,7 @@ describe('Dashboard Integration Tests', () => {
 
       const testCustomer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'Dashboard',
-          lastName: 'Customer',
+          customerName: 'Dashboard Customer',
           customerEmail: 'dash_cust@example.com',
         },
       });
@@ -252,8 +251,7 @@ describe('Dashboard Integration Tests', () => {
 
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'Team',
-          lastName: 'Customer',
+          customerName: 'Team Customer',
           customerEmail: 'team_cust@example.com',
         },
       });
@@ -380,8 +378,7 @@ describe('Dashboard Integration Tests', () => {
 
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'Team',
-          lastName: 'Customer',
+          customerName: 'Team Customer',
           customerEmail: 'team_cust@example.com',
         },
       });
@@ -544,8 +541,7 @@ describe('Dashboard Integration Tests', () => {
 
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'Team',
-          lastName: 'Customer',
+          customerName: 'Team Customer',
           customerEmail: 'team_cust@example.com',
         },
       });

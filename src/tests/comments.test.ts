@@ -30,8 +30,7 @@ describe('Order Comments Integration Tests', () => {
 
     testCustomer = await prisma.crmCustomers.create({
       data: {
-        firstName: 'Comment',
-        lastName: 'Customer',
+        customerName: 'Comment Customer',
         customerEmail: 'comment_cust@example.com',
       },
     });

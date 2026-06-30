@@ -76,8 +76,7 @@ async function main() {
   if (!customer) {
     customer = await prisma.crmCustomers.create({
       data: {
-        firstName: 'Filter',
-        lastName: 'Test',
+        customerName: 'Filter Test',
         customerPhone: '9876543210',
         customerEmail: 'filtertest@example.com',
         customerBillingAddress: '123 Test St, Test City',
@@ -116,16 +115,11 @@ async function main() {
 
   const today = new Date();
   
-  // Create orders for each sale status '1' to '8'
+  // Create orders for each sale status '1' to '3'
   const statuses = [
     { saleStatus: '1', markup: '500.00', currentStatus: 'Completed Orders', name: 'Sold Order' },
-    { saleStatus: '2', markup: '200.00', currentStatus: 'Pending Booking', name: 'Prospect Order' },
-    { saleStatus: '3', markup: '300.00', currentStatus: 'Pending Shipment', name: 'CallBack Order' },
-    { saleStatus: '4', markup: '400.00', currentStatus: 'Pending Delivery', name: 'NotInterested Order' },
-    { saleStatus: '5', markup: '150.00', currentStatus: 'Pending Feedback', name: 'OutOfScope Order' },
-    { saleStatus: '6', markup: '250.00', currentStatus: 'Pending Resolutions', name: 'Enquiry Order' },
-    { saleStatus: '7', markup: '100.00', currentStatus: 'Completed Orders', name: 'Refunded Order' },
-    { saleStatus: '8', markup: '150.00', currentStatus: 'Completed Orders', name: 'Chargebacked Order' },
+    { saleStatus: '2', markup: '100.00', currentStatus: 'Completed Orders', name: 'Refunded Order' },
+    { saleStatus: '3', markup: '150.00', currentStatus: 'Completed Orders', name: 'Chargebacked Order' },
   ];
 
   for (const s of statuses) {
@@ -152,7 +146,7 @@ async function main() {
     });
   }
 
-  console.log('Seeded 8 orders successfully for saleStatus 1 to 8!');
+  console.log('Seeded 3 orders successfully for saleStatus 1 to 3!');
 }
 
 main()

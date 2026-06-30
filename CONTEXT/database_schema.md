@@ -192,8 +192,7 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
 | Column | Type | Null | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `customer_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
-| `first_name` | `varchar(255)` | NO | *None* | First Name |
-| `last_name` | `varchar(255)` | NO | *None* | Last Name |
+| `customer_name` | `varchar(511)` | NO | *None* | Consolidated Customer Full Name |
 | `customer_phone` | `varchar(25)` | YES | `NULL` | Phone number (guarded by permission `201`) |
 | `customer_email` | `varchar(255)` | NO | *None* | Email address (guarded by permission `202`) |
 | `customer_billing_address` | `varchar(255)` | YES | `NULL` | Billing Address |
@@ -298,7 +297,6 @@ The following standard permissions are seeded in the system:
 | :--- | :--- | :--- | :--- | :--- |
 | `crm_order_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
 | `order_customer_id` | `varchar(55)` | NO | *None* | Logical FK to `crm_customers.customer_id` (stored as string) |
-| `order_year` | `varchar(255)` | YES | `NULL` | Vehicle Year |
 | `order_make_model` | `varchar(255)` | YES | `NULL` | Vehicle Make & Model |
 | `order_part` | `varchar(255)` | YES | `NULL` | Part requested |
 | `order_part_size` | `varchar(255)` | YES | `NULL` | Dimensions or specifications |
@@ -761,7 +759,6 @@ model CrmOrders {
   crmOrderId                    Int          @id @default(autoincrement()) @map("crm_order_id")
   // FK is now a proper Int — no more varchar(55) mismatch
   orderCustomerId               Int          @map("order_customer_id")
-  orderYear                     String?      @map("order_year") @db.VarChar(255)
   orderMakeModel                String?      @map("order_make_model") @db.VarChar(255)
   orderPart                     String?      @map("order_part") @db.VarChar(255)
   orderPartSize                 String?      @map("order_part_size") @db.VarChar(255)

@@ -131,9 +131,9 @@ export default function CustomerList() {
     }
   }, [cards]);
 
-  const selectCustomer = (customerId: number, firstName: string, lastName: string) => {
+  const selectCustomer = (customerId: number, customerName: string) => {
     setSelectedCustomerId(customerId);
-    setSelectedCustomerName(`${firstName} ${lastName}`);
+    setSelectedCustomerName(customerName);
     setCards([]);
   };
 
@@ -178,7 +178,7 @@ export default function CustomerList() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                      <th className="py-4 px-6">Name</th>
+                      <th className="py-4 px-6">Customer Name</th>
                       <th className="py-4 px-6">Email</th>
                       <th className="py-4 px-6">Phone</th>
                       <th className="py-4 px-6 text-right">Actions</th>
@@ -192,15 +192,15 @@ export default function CustomerList() {
                         className={`border-b last:border-0 border-slate-100/80 hover:bg-slate-50/50 transition-colors cursor-pointer ${
                           selectedCustomerId === customer.customerId ? 'bg-blue-50/20' : ''
                         }`}
-                        onClick={() => selectCustomer(customer.customerId, customer.firstName, customer.lastName)}
+                        onClick={() => selectCustomer(customer.customerId, customer.customerName)}
                       >
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-700 text-sm border border-slate-200/50">
-                              {customer.firstName[0]?.toUpperCase()}{customer.lastName[0]?.toUpperCase()}
+                              {customer.customerName[0]?.toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-semibold text-slate-900">{customer.firstName} {customer.lastName}</div>
+                              <div className="font-semibold text-slate-900">{customer.customerName}</div>
                               <div className="text-xs text-slate-400">ID: {customer.customerId}</div>
                             </div>
                           </div>
@@ -215,7 +215,7 @@ export default function CustomerList() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              selectCustomer(customer.customerId, customer.firstName, customer.lastName);
+                              selectCustomer(customer.customerId, customer.customerName);
                             }}
                             className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${
                               selectedCustomerId === customer.customerId

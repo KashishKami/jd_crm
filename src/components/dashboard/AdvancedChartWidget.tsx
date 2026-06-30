@@ -20,7 +20,7 @@ export default function AdvancedChartWidget() {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   // selectedAgent is stored as raw user choice; effectiveAgent is derived (cleared when filtered out)
   const [selectedAgent, setSelectedAgent] = useState<string>('');
-  const [range, setRange] = useState<string>('7d');
+  const [range, setRange] = useState<string>('this-week');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [appliedStartDate, setAppliedStartDate] = useState<string>('');
@@ -123,7 +123,7 @@ export default function AdvancedChartWidget() {
   };
 
   const handleCancelCustom = () => {
-    setRange('7d');
+    setRange('this-week');
     setCustomStartDate('');
     setCustomEndDate('');
     setAppliedStartDate('');
@@ -139,8 +139,11 @@ export default function AdvancedChartWidget() {
       if (diffDays <= 365) return 'monthly';
       return 'yearly';
     }
-    if (range === '6m' || range === 'this-year') {
+    if (range === 'monthly') {
       return 'monthly';
+    }
+    if (range === 'yearly') {
+      return 'yearly';
     }
     return 'daily';
   };
@@ -291,15 +294,10 @@ export default function AdvancedChartWidget() {
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
-            <option value="2d">Last 2 days</option>
-            <option value="7d">Last 7 days</option>
             <option value="this-week">This week</option>
             <option value="last-week">Last week</option>
-            <option value="30d">Last 30 days</option>
-            <option value="this-month">This month</option>
-            <option value="last-month">Last month</option>
-            <option value="6m">Last 6 months</option>
-            <option value="this-year">This year</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
             <option value="custom">Custom Range</option>
           </select>
         </div>
@@ -471,7 +469,9 @@ export default function AdvancedChartWidget() {
                 if (granularity === 'daily' && d.label.length === 10) {
                   const dateObj = new Date(d.label);
                   if (!isNaN(dateObj.getTime())) {
-                    labelText = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                    const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+                    labelText = `${formattedDate} ${weekday}`;
                   }
                 } else if (granularity === 'monthly' && d.label.length === 7) {
                   const [yPart, mPart] = d.label.split('-');

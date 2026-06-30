@@ -17,8 +17,7 @@ interface OrderListProps {
     orderMarkup: string | null;
     orderCurrentStatus: string | null;
     customer: {
-      firstName: string;
-      lastName: string;
+      customerName: string;
       customerEmail: string;
     };
     salesAgent?: {
@@ -109,7 +108,7 @@ export default function OrderList({ orders }: OrderListProps) {
                   <td>
                     <div>
                       <div className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
-                        {order.customer.firstName} {order.customer.lastName}
+                        {order.customer.customerName}
                       </div>
                       <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
                         {order.customer.customerEmail}

@@ -16,8 +16,7 @@ interface LinkedOrder {
   orderCreatedDate: string;
   orderDate: string;
   customer: {
-    firstName: string;
-    lastName: string;
+    customerName: string;
     customerPhone: string;
   };
   orderMarkup: string;
@@ -354,7 +353,7 @@ export default function VendorDetailPage() {
                           </Link>
                         </td>
                         <td>
-                          {order.customer?.firstName} {order.customer?.lastName}
+                          {order.customer?.customerName}
                         </td>
                         <td className="font-mono text-slate-500">
                           {order.customer?.customerPhone || '—'}

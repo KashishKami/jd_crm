@@ -1,7 +1,6 @@
 export interface OrderCreateInput {
   // Customer Info
-  firstName: string;
-  lastName: string;
+  customerName: string;
   customerPhone?: string;
   customerEmail: string;
   customerBillingAddress?: string;
@@ -16,7 +15,7 @@ export interface OrderCreateInput {
   customerCardPhotoStatus?: string;
 
   // Order Details
-  orderMakeModel?: string;
+  orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderPart?: string;
   orderPartSize?: string;
   orderQuotedMiles?: string;
@@ -35,7 +34,7 @@ export interface OrderCreateInput {
 
 export interface OrderUpdateInput {
   // --- Order-level fields (written to crm_orders) ---
-  orderMakeModel?: string;
+  orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderPart?: string;
   orderPartSize?: string;
   orderQuotedMiles?: string;
@@ -65,8 +64,7 @@ export interface OrderUpdateInput {
   orderCurrentStatusUpdateDate?: Date | null;
 
   // --- Customer fields (written to crm_customers via separate update) ---
-  firstName?: string;
-  lastName?: string;
+  customerName?: string;
   customerPhone?: string | null;
   customerEmail?: string;
   customerBillingAddress?: string | null;

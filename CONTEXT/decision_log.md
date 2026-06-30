@@ -325,3 +325,47 @@ To create a clean mobile layout and display logical pairings of metric states:
 - Dropdowns contain only the active operational options for agents.
 - Existing databases can safely migrate without data conflicts.
 
+---
+
+### Decision 16: Consolidation of Vehicle Year and Make/Model into a Single Column
+
+**Date:** 2026-06-30  
+**Status:** Approved
+
+#### Context
+The legacy database schema stored the vehicle year in `order_year` and the make/model in `order_make_model`. Having two separate fields for basic vehicle descriptions introduced unnecessary redundancy in schema structure, required duplicate input fields on the intake and edit forms, and complicated search queries since the frontend had to search, map, and display two separate values.
+
+#### Decision
+We consolidated both fields into the single, existing `order_make_model` column:
+1. **Migration & Data Preservation:** Wrote and applied a database migration `20260630153900_merge_order_year_into_make_model` to prepend the non-empty values of `order_year` onto `order_make_model` (separated by a space) for all existing orders, and then dropped the `order_year` column.
+2. **Schema & Code Cleanups:** Removed the `orderYear` property from the Prisma schema (`schema.prisma`), database repository (`order.repository.ts`), type definitions (`src/types/order.ts`), and CSV/dummy seeding scripts (`import-csv-data.ts`, `seed-dummy-orders.ts`).
+3. **UI Consolidation:** Replaced the split "Year" and "Make & Model" input elements on both `AddOrderForm.tsx` and `EditOrderForm.tsx` with a single unified "Year, Make & Model" field mapping directly to `orderMakeModel`. Updated the detail view to remove the standalone "Year" label and display the full merged value across 3 columns.
+
+#### Consequences
+- Simplifies type definitions and database queries across the monolith codebase.
+- Reduces UI density by removing a redundant text field, improving form completion flow.
+- Seamlessly back-fills all legacy records by prepending the year data into the model description, preserving historical accuracy.
+
+---
+
+### Decision 17: Consolidation of Customer First and Last Name into Customer Name
+
+**Date:** 2026-06-30  
+**Status:** Approved
+
+#### Context
+The legacy database schema stored customer names across two columns: `first_name` and `last_name`. Splitting the name introduced redundant coding patterns, required duplicate input fields on the intake and edit forms, and complicated search queries since the frontend had to search, map, and display two separate values. A single unified naming field was required to simplify data structures and improve developer ergonomics.
+
+#### Decision
+We consolidated both fields into a single, unified `customer_name` column on the `crm_customers` table:
+1. **Migration & Data Preservation:** Wrote and applied a database migration `20260630161909_merge_customer_first_last_name` that created a new `customer_name` column, back-filled it by concatenating non-empty values of `first_name` and `last_name` (separated by a space), altered the column constraint to `NOT NULL`, and then permanently dropped the redundant `first_name` and `last_name` columns.
+2. **Schema & Code Cleanups:** Updated the Prisma schema (`schema.prisma`) to replace `firstName`/`lastName` fields with `customerName`. Refactored repositories (`order.repository.ts`, `search.repository.ts`, `dashboard.repository.ts`), services (`order.service.ts`, `dashboard.service.ts`), type definitions (`src/types/order.ts`, `src/types/customer.ts`), and dummy seeding/CSV import scripts.
+3. **UI Consolidation:** Replaced the separate first and last name input elements on both `AddOrderForm.tsx` and `EditOrderForm.tsx` with a single unified "Customer Name" field mapping directly to `customerName`. Updated customer list directory, order list cards, search recommendations, and search results view components to display `customerName` directly.
+
+#### Consequences
+- Simplifies type definitions and database queries across the monolith codebase.
+- Reduces UI density by removing redundant text fields, improving form completion flow.
+- Seamlessly back-fills all legacy records by concatenating first name and last name, preserving historical accuracy.
+
+
+

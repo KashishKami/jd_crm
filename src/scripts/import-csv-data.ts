@@ -74,13 +74,13 @@ function parseCSV(content: string): string[][] {
 function mapSaleStatus(status: string): string {
   const lower = status.toLowerCase().trim();
   if (lower === 'sold') return '1';
-  if (lower === 'prospect') return '2';
-  if (lower === 'call back' || lower === 'callback') return '3';
-  if (lower === 'not interested') return '4';
-  if (lower === 'out of scope') return '5';
-  if (lower === 'enquiry') return '6';
-  if (lower === 'refunded') return '7';
-  if (lower === 'chargedback' || lower === 'chargebacked') return '8';
+  if (lower === 'prospect') return '1';
+  if (lower === 'call back' || lower === 'callback') return '1';
+  if (lower === 'not interested') return '1';
+  if (lower === 'out of scope') return '1';
+  if (lower === 'enquiry') return '1';
+  if (lower === 'refunded') return '2';
+  if (lower === 'chargedback' || lower === 'chargebacked') return '3';
   return '1'; // Default fallback is Sold
 }
 
@@ -304,8 +304,7 @@ async function main() {
       const customerNameClean = customerName || 'Unknown Customer';
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: customerNameClean,
-          lastName: customerNameClean,
+          customerName: customerNameClean,
           customerEmail: emailAddress && emailAddress !== 'NA' && emailAddress !== ''
             ? emailAddress
             : `${customerNameClean.replace(/\s+/g, '').toLowerCase()}@example.com`,

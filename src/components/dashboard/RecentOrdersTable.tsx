@@ -12,13 +12,8 @@ interface RecentOrdersTableProps {
 export function getStatusBadge(status: string) {
   const map: Record<string, { label: string; className: string; bg?: string; color?: string }> = {
     '1': { label: 'Sold', className: 'status-active' },
-    '2': { label: 'Prospect', className: '', bg: '#f1f5f9', color: '#475569' },
-    '3': { label: 'Call Back', className: '', bg: '#faf5eb', color: '#a47c5c' },
-    '4': { label: 'Not Interested', className: 'status-inactive' },
-    '5': { label: 'Out Of Scope', className: 'status-inactive' },
-    '6': { label: 'Enquiry', className: '', bg: '#f0f5fa', color: '#5f758d' },
-    '7': { label: 'Refunded', className: 'status-inactive', bg: '#faf2f2', color: '#b25353' },
-    '8': { label: 'Chargebacked', className: 'status-inactive', bg: '#f5e6e6', color: '#8a3d3d' },
+    '2': { label: 'Refunded', className: 'status-inactive', bg: '#faf2f2', color: '#b25353' },
+    '3': { label: 'Chargebacked', className: 'status-inactive', bg: '#f5e6e6', color: '#8a3d3d' },
   };
 
   const current = map[status] || { label: status, className: '', bg: '#f1f5f9', color: '#475569' };

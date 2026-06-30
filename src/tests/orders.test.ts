@@ -91,8 +91,7 @@ describe('Order Management Integration Tests', () => {
 
     testCustomer = await prisma.crmCustomers.create({
       data: {
-        firstName: 'Initial',
-        lastName: 'Customer',
+        customerName: 'Initial Customer',
         customerEmail: 'initial.cust@example.com',
       },
     });
@@ -247,8 +246,7 @@ describe('Order Management Integration Tests', () => {
 
   describe('POST /api/orders', () => {
     const validPayload = {
-      firstName: 'New',
-      lastName: 'Buyer',
+      customerName: 'New Buyer',
       customerPhone: '9876543210',
       customerEmail: 'new.buyer@example.com',
       customerBillingAddress: '123 Billing Rd',
@@ -512,7 +510,7 @@ describe('Order Management Integration Tests', () => {
     });
 
     // ─── RED: Customer & Card update tests ───────────────────────────────────────
-    it('[RED] should persist updated firstName and lastName to crm_customers when PATCH includes customer fields', async () => {
+    it('[RED] should persist updated customerName to crm_customers when PATCH includes customer fields', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: {
           id: '1',
@@ -526,8 +524,7 @@ describe('Order Management Integration Tests', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: 'UpdatedFirst',
-          lastName: 'UpdatedLast',
+          customerName: 'Updated Customer Name',
           customerEmail: 'initial.cust@example.com',
         }),
       });
@@ -539,8 +536,7 @@ describe('Order Management Integration Tests', () => {
       const dbCustomer = await prisma.crmCustomers.findUnique({
         where: { customerId: testCustomer.customerId },
       });
-      expect(dbCustomer?.firstName).toBe('UpdatedFirst');
-      expect(dbCustomer?.lastName).toBe('UpdatedLast');
+      expect(dbCustomer?.customerName).toBe('Updated Customer Name');
     });
 
     it('[RED] should persist updated customerPhone and customerEmail to crm_customers when PATCH includes those fields', async () => {
@@ -579,8 +575,7 @@ describe('Order Management Integration Tests', () => {
 
   describe('W-1502: Merge orderYear into orderMakeModel', () => {
     const validPayloadBase = {
-      firstName: 'New',
-      lastName: 'Buyer',
+      customerName: 'New Buyer',
       customerPhone: '9876543210',
       customerEmail: 'new.buyer@example.com',
       customerBillingAddress: '123 Billing Rd',

@@ -28,8 +28,7 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
     // Create a test customer and associated card
     testCustomer = await prisma.crmCustomers.create({
       data: {
-        firstName: 'Test',
-        lastName: 'Customer',
+        customerName: 'Test Customer',
         customerPhone: '1234567890',
         customerEmail: 'test_customer@example.com',
         customerBillingAddress: '123 Billing St',
@@ -168,8 +167,7 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
       const req = new Request('http://localhost/api/customers', {
         method: 'POST',
         body: JSON.stringify({
-          firstName: 'New',
-          lastName: 'Guy',
+          customerName: 'New Guy',
           customerPhone: '9876543210',
           customerEmail: 'new_guy@example.com',
         }),
@@ -179,7 +177,7 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
       expect(res.status).toBe(201);
       const data = await res.json();
       expect(data).toHaveProperty('customerId');
-      expect(data.firstName).toBe('New');
+      expect(data.customerName).toBe('New Guy');
 
       // Cleanup
       await prisma.crmCustomers.deleteMany({

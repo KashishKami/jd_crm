@@ -29,8 +29,7 @@ const mockResults = {
       orderMarkup: '300',
       orderCurrentStatus: 'Pending Booking',
       customer: {
-        firstName: 'John',
-        lastName: 'Doe',
+        customerName: 'John Doe',
         customerEmail: 'john@example.com',
         customerPhone: '9999999999',
       },
@@ -45,8 +44,7 @@ const mockResults = {
       orderMarkup: '200',
       orderCurrentStatus: 'Pending Shipment',
       customer: {
-        firstName: 'Jane',
-        lastName: 'Smith',
+        customerName: 'Jane Smith',
         customerEmail: 'jane@example.com',
         customerPhone: '8888888888',
       },

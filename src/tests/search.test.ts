@@ -25,8 +25,7 @@ describe('Unified Search API Integration Tests', () => {
     // Create a customer with zipcode in address
     testCustomer = await prisma.crmCustomers.create({
       data: {
-        firstName: 'JohnTest',
-        lastName: 'SearchDoe',
+        customerName: 'JohnTest SearchDoe',
         customerPhone: '9999999999',
         customerEmail: 'search_test_customer@example.com',
         customerBillingAddress: '123 Billing St, 90210',
@@ -128,7 +127,7 @@ describe('Unified Search API Integration Tests', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.customers.some((c: any) => c.firstName === 'JohnTest')).toBe(true);
+    expect(body.customers.some((c: any) => c.customerName.includes('JohnTest'))).toBe(true);
   });
 
   it('should return results when matching zipcode 90210', async () => {

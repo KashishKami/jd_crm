@@ -83,4 +83,16 @@ describe('Debug AdvancedChartWidget', () => {
       expect(el).toBeDefined();
     });
   });
+
+  it('does not contain rolling window options in range select but contains calendar-aligned options', async () => {
+    render(<AdvancedChartWidget />);
+    await waitFor(() => {
+      expect(screen.queryByText(/Last 7 days/i)).toBeNull();
+      expect(screen.queryByText(/Last 30 days/i)).toBeNull();
+      expect(screen.queryByText(/Last 2 days/i)).toBeNull();
+      expect(screen.getByText(/This week/i)).toBeDefined();
+      expect(screen.getByText(/Monthly/i)).toBeDefined();
+      expect(screen.getByText(/Yearly/i)).toBeDefined();
+    });
+  });
 });

@@ -56,7 +56,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
           {orders.map((order) => {
             const markupVal = parseFloat(order.orderMarkup || '0');
             const customerName = order.customer
-              ? `${order.customer.firstName} ${order.customer.lastName}`
+              ? order.customer.customerName
               : 'Unknown Customer';
             const customerEmail = order.customer?.customerEmail || '—';
             const customerPhone = order.customer?.customerPhone || '—';

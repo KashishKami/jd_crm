@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -44,19 +45,22 @@ export default function RoleSettingsPage() {
       const [rolesData, permsData] = await Promise.all([rolesRes.json(), permsRes.json()]);
       setRoles(rolesData);
       setPermissions(permsData);
-      if (rolesData.length > 0 && selectedRoleId === null) {
-        setSelectedRoleId(rolesData[0].roleId);
-      }
+      setSelectedRoleId(prev => {
+        if (prev === null && rolesData.length > 0) {
+          return rolesData[0].roleId;
+        }
+        return prev;
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [selectedRoleId]);
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const selectedRole = roles.find(r => r.roleId === selectedRoleId) ?? null;
 

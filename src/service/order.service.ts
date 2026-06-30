@@ -3,8 +3,8 @@ import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order
 
 export async function createOrder(data: OrderCreateInput) {
   // Input validations
-  if (!data.firstName || !data.lastName) {
-    throw new Error('Customer first name and last name are required');
+  if (!data.customerName) {
+    throw new Error('Customer name is required');
   }
   if (!data.customerEmail) {
     throw new Error('Customer email is required');
@@ -40,8 +40,7 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
   // ─── Separate customer & card fields from the order-level payload ───────────
   const {
     // Customer fields
-    firstName,
-    lastName,
+    customerName,
     customerPhone,
     customerEmail,
     customerBillingAddress,
@@ -142,8 +141,7 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
 
   // ─── Persist customer fields ──────────────────────────────────────────────────
   const customerUpdate: Record<string, unknown> = {};
-  if (firstName !== undefined) customerUpdate.firstName = firstName;
-  if (lastName !== undefined) customerUpdate.lastName = lastName;
+  if (customerName !== undefined) customerUpdate.customerName = customerName;
   if (customerPhone !== undefined) customerUpdate.customerPhone = customerPhone;
   if (customerEmail !== undefined) customerUpdate.customerEmail = customerEmail;
   if (customerBillingAddress !== undefined) customerUpdate.customerBillingAddress = customerBillingAddress;

@@ -18,8 +18,7 @@ afterEach(() => {
 const getMockOrder = (status: string) => ({
   crmOrderId: 1,
   customer: {
-    firstName: 'John',
-    lastName: 'Doe',
+    customerName: 'John Doe',
     customerPhone: '1234567890',
     customerEmail: 'john@example.com',
     customerBillingAddress: '123 Street',
@@ -112,13 +111,9 @@ describe('EditOrderForm Unit Tests', () => {
       />
     );
 
-    // Change the customer first name
-    const firstNameInput = screen.getByDisplayValue('John') as HTMLInputElement;
-    fireEvent.change(firstNameInput, { target: { value: 'UpdatedFirst' } });
-
-    // Change the customer last name
-    const lastNameInput = screen.getByDisplayValue('Doe') as HTMLInputElement;
-    fireEvent.change(lastNameInput, { target: { value: 'UpdatedLast' } });
+    // Change the customer name
+    const customerNameInput = screen.getByLabelText(/customer name/i) as HTMLInputElement;
+    fireEvent.change(customerNameInput, { target: { value: 'Updated Customer Name' } });
 
     // Submit the form
     const saveButton = screen.getByText('Save Changes');
@@ -130,8 +125,7 @@ describe('EditOrderForm Unit Tests', () => {
     const sentBody = JSON.parse(fetchOptions.body);
 
     // Customer fields MUST be present in the sent payload
-    expect(sentBody).toHaveProperty('firstName', 'UpdatedFirst');
-    expect(sentBody).toHaveProperty('lastName', 'UpdatedLast');
+    expect(sentBody).toHaveProperty('customerName', 'Updated Customer Name');
     expect(sentBody).toHaveProperty('customerPhone', '1234567890');
     expect(sentBody).toHaveProperty('customerEmail', 'john@example.com');
     expect(sentBody).toHaveProperty('customerBillingAddress', '123 Street');

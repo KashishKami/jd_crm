@@ -111,8 +111,7 @@ describe('Gateway Management Integration Tests', () => {
       });
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'GW',
-          lastName: 'Customer',
+          customerName: 'GW Customer',
           customerEmail: 'gw_cust_phase8@example.com',
         },
       });

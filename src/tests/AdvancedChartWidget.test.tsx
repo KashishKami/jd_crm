@@ -116,9 +116,9 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
     expect(applyBtn).toBeDefined();
     expect(cancelBtn).toBeDefined();
 
-    // Click cancel should revert selection to default (7d)
+    // Click cancel should revert selection to default (this-week)
     fireEvent.click(cancelBtn);
-    expect(rangeSelect.value).toBe('7d');
+    expect(rangeSelect.value).toBe('this-week');
     expect(screen.queryByLabelText(/start date/i)).toBeNull();
   });
 

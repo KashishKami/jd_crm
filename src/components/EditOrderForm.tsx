@@ -16,8 +16,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Form states initialized with existing order info
-  const [firstName, setFirstName] = useState(order.customer.firstName || '');
-  const [lastName, setLastName] = useState(order.customer.lastName || '');
+  const [customerName, setCustomerName] = useState(order.customer.customerName || '');
   const [customerPhone, setCustomerPhone] = useState(order.customer.customerPhone || '');
   const [customerEmail, setCustomerEmail] = useState(order.customer.customerEmail || '');
   const [customerBillingAddress, setCustomerBillingAddress] = useState(order.customer.customerBillingAddress || '');
@@ -49,6 +48,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
+  const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -68,7 +68,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
     setError(null);
     setSubmitting(true);
 
-    if (!firstName || !lastName || !customerEmail) {
+    if (!customerName || !customerEmail) {
       setError('Please fill in customer name and email.');
       setSubmitting(false);
       return;
@@ -81,8 +81,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
 
     const payload = {
       // Customer fields — sent to the service to update crm_customers
-      firstName,
-      lastName,
+      customerName,
       customerPhone,
       customerEmail,
       customerBillingAddress,
@@ -111,6 +110,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
       orderCurrentStatus,
+      orderDate,
     };
 
     try {
@@ -160,21 +160,13 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
         <div className="form-section">
           <h3 className="form-section-title">1. Customer Information</h3>
           <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">First Name</label>
+            <div className="form-group form-grid-full">
+              <label htmlFor="customerName" className="form-label">Customer Name</label>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="form-input"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Last Name</label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                id="customerName"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
                 className="form-input"
               />
             </div>
@@ -314,8 +306,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Quoted Mileage</label>
+              <label htmlFor="orderQuotedMiles" className="form-label">Quotes Miles</label>
               <input
+                id="orderQuotedMiles"
                 type="text"
                 value={orderQuotedMiles}
                 onChange={(e) => setOrderQuotedMiles(e.target.value)}
@@ -323,7 +316,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Vendor Mileage</label>
+              <label htmlFor="orderGivenMiles" className="form-label">Vendor Miles</label>
               <input
                 type="text"
                 value={orderGivenMiles}
@@ -372,6 +365,21 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               <span className={`text-lg font-bold mt-1 ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 ${markup.toFixed(2)}
               </span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderDate" className="form-label">
+                Sale Date
+                <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '6px' }}>
+                  (defaults to today)
+                </span>
+              </label>
+              <input
+                type="date"
+                id="orderDate"
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
+                className="form-input"
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Shipping Type</label>
@@ -425,20 +433,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Sale Classification</label>
+              <label className="form-label">Sale Status</label>
               <select
                 value={saleStatus}
                 onChange={(e) => setSaleStatus(e.target.value)}
                 className="form-select"
               >
                 <option value="1">Sold</option>
-                <option value="2">Prospect</option>
-                <option value="3">Call Back</option>
-                <option value="4">Not Interested</option>
-                <option value="5">Out Of Scope</option>
-                <option value="6">Enquiry</option>
-                <option value="7">Refunded</option>
-                <option value="8">Chargebacked</option>
+                <option value="2">Refunded</option>
+                <option value="3">Chargebacked</option>
               </select>
             </div>
 

@@ -156,8 +156,7 @@ describe('Vendor Management Integration Tests', () => {
       // Create a customer
       const customer = await prisma.crmCustomers.create({
         data: {
-          firstName: 'Vendor',
-          lastName: 'Customer',
+          customerName: 'Vendor Customer',
           customerEmail: 'vendor_cust@example.com',
         },
       });

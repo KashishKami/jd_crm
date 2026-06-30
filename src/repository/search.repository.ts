@@ -11,8 +11,7 @@ export async function searchOrders(query: string) {
 
   // Match by linked customer fields: Name, Phone, Email
   const customerOr: any[] = [
-    { firstName: { contains: query } },
-    { lastName: { contains: query } },
+    { customerName: { contains: query } },
     { customerEmail: { contains: query } },
     { customerPhone: { contains: query } }
   ];
@@ -41,8 +40,7 @@ export async function searchOrders(query: string) {
 
 export async function searchCustomers(query: string) {
   const orConditions: any[] = [
-    { firstName: { contains: query } },
-    { lastName: { contains: query } },
+    { customerName: { contains: query } },
     { customerEmail: { contains: query } },
     { customerPhone: { contains: query } }
   ];

@@ -46,8 +46,7 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
     // 1. Create customer
     const customer = await tx.crmCustomers.create({
       data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
+        customerName: data.customerName,
         customerPhone: data.customerPhone || null,
         customerEmail: data.customerEmail,
         customerBillingAddress: data.customerBillingAddress || null,
