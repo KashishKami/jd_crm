@@ -46,18 +46,33 @@ export default function DashboardPage({
   // Grid cards configuration based on permissions
   const cards = [];
   const now = new Date();
-  const formatLocalDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  
+  const getEstParts = (d: Date) => {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    });
+    const parts = formatter.formatToParts(d);
+    const map: Record<string, string> = {};
+    for (const p of parts) {
+      map[p.type] = p.value;
+    }
+    return {
+      year: parseInt(map.year),
+      month: parseInt(map.month), // 1-indexed
+      day: parseInt(map.day)
+    };
   };
 
-  const startOfMonth = formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  const endOfMonth = formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  const todayStr = formatLocalDate(now);
-  const startOfYear = `${now.getFullYear()}-01-01`;
-  const endOfYear = `${now.getFullYear()}-12-31`;
+  const estNow = getEstParts(now);
+  const todayStr = `${estNow.year}-${String(estNow.month).padStart(2, '0')}-${String(estNow.day).padStart(2, '0')}`;
+  const startOfMonth = `${estNow.year}-${String(estNow.month).padStart(2, '0')}-01`;
+  const lastDay = new Date(estNow.year, estNow.month, 0).getDate();
+  const endOfMonth = `${estNow.year}-${String(estNow.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  const startOfYear = `${estNow.year}-01-01`;
+  const endOfYear = `${estNow.year}-12-31`;
 
   // 1. This Year Sales
   if (hasPermission(permissions, 'dashboard:total-sales') && initialMetrics.thisYearSales !== undefined) {

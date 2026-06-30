@@ -1239,23 +1239,23 @@ After W-1502 and W-1503, two schema-breaking changes have occurred: `order_year`
 
 ---
 
-- [ ] **RED — Integration (`src/tests/db_connection.test.ts`):**
-  - [ ] Test: Drop and recreate `jd_crm_test` database. Apply all Prisma migrations (`npx prisma migrate deploy`). Run the updated `seed.sql` via `mysql jd_crm_test < seed.sql` (or equivalent programmatic execution). Assert `SELECT COUNT(*) FROM crm_customers` > 0.
-  - [ ] Test: `SELECT customer_name FROM crm_customers LIMIT 1` — assert the result is a non-null, non-empty string.
-  - [ ] Test: `SELECT first_name FROM crm_customers LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'first_name'` error (column was dropped by migration).
-  - [ ] Test: `SELECT order_year FROM crm_orders LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'order_year'` error.
-  - [ ] Test: `SELECT order_make_model FROM crm_orders WHERE order_make_model IS NOT NULL LIMIT 1` — assert the result contains a space character (confirming year + make/model are combined, e.g. `"2019 Jeep Grand Cherokee"`).
-  - [ ] **Run — confirm RED** (seed.sql still has `first_name`/`last_name` and `order_year` columns; the seed will fail after migrations run).
+- [x] **RED — Integration (`src/tests/db_connection.test.ts`):**
+  - [x] Test: Drop and recreate `jd_crm_test` database. Apply all Prisma migrations (`npx prisma migrate deploy`). Run the updated `seed.sql` via `mysql jd_crm_test < seed.sql` (or equivalent programmatic execution). Assert `SELECT COUNT(*) FROM crm_customers` > 0.
+  - [x] Test: `SELECT customer_name FROM crm_customers LIMIT 1` — assert the result is a non-null, non-empty string.
+  - [x] Test: `SELECT first_name FROM crm_customers LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'first_name'` error (column was dropped by migration).
+  - [x] Test: `SELECT order_year FROM crm_orders LIMIT 1` via `$queryRaw` — assert this throws an `Unknown column 'order_year'` error.
+  - [x] Test: `SELECT order_make_model FROM crm_orders WHERE order_make_model IS NOT NULL LIMIT 1` — assert the result contains a space character (confirming year + make/model are combined, e.g. `"2019 Jeep Grand Cherokee"`).
+  - [x] **Run — confirm RED** (seed.sql still has `first_name`/`last_name` and `order_year` columns; the seed will fail after migrations run).
 
-- [ ] **GREEN — Backend (Seed file only):**
-  - [ ] [Seed] Open `seed.sql`. For every `INSERT INTO crm_customers (...)` statement:
+- [x] **GREEN — Backend (Seed file only):**
+  - [x] [Seed] Open `seed.sql`. For every `INSERT INTO crm_customers (...)` statement:
     - Remove `first_name` and `last_name` from the column list.
     - Add `customer_name` in their place.
     - For every row's `VALUES (...)`: replace the two separate name values with a single concatenated string (e.g. `'John', 'Smith'` → `'John Smith'`).
-  - [ ] [Seed] For every `INSERT INTO crm_orders (...)` statement:
+  - [x] [Seed] For every `INSERT INTO crm_orders (...)` statement:
     - Remove `order_year` from the column list.
     - In each row's `VALUES (...)`: prepend the year value to the `order_make_model` value (e.g. column was `'2021', 'Jeep Grand Cherokee'` → now just `'2021 Jeep Grand Cherokee'` in the `order_make_model` position).
-  - [ ] [Seed] Convert each table's individual `INSERT` statements to multi-row batch format:
+  - [x] [Seed] Convert each table's individual `INSERT` statements to multi-row batch format:
     ```sql
     START TRANSACTION;
     INSERT INTO crm_customers (customer_name, customer_email, customer_phone, ...) VALUES
@@ -1265,11 +1265,11 @@ After W-1502 and W-1503, two schema-breaking changes have occurred: `order_year`
     COMMIT;
     ```
     Batch maximum 500 rows per `INSERT` statement.
-  - [ ] [Import Script] If `seed_from_json.js` (or equivalent CSV import script) exists, update all column references: `firstName`/`lastName` → `customerName`; `orderYear`/`orderMakeModel` → combined `orderMakeModel`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Import Script] If `seed_from_json.js` (or equivalent CSV import script) exists, update all column references: `firstName`/`lastName` → `customerName`; `orderYear`/`orderMakeModel` → combined `orderMakeModel`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Developer drops and recreates local `jd_crm` database → runs `npx prisma migrate deploy` → runs `mysql jd_crm < seed.sql` → zero SQL errors → app restarts and connects → Dashboard loads with metrics → Customer list shows full names (e.g. `"Timothy Manuli"`) → Order list shows combined make/model strings → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Developer drops and recreates local `jd_crm` database → runs `npx prisma migrate deploy` → runs `mysql jd_crm < seed.sql` → zero SQL errors → app restarts and connects → Dashboard loads with metrics → Customer list shows full names (e.g. `"Timothy Manuli"`) → Order list shows combined make/model strings → ✅ Done.
 
 ---
 
@@ -2335,7 +2335,16 @@ When any user opens an order's detail page, there is no audit record of the acce
   - **Chart Filter Options Cleaned**: Removed rolling window ranges (`7d`, `30d`, and `2d`) from `AdvancedChartWidget.tsx`. Replaced `"This month"`, `"Last month"`, `"Last 6 months"`, and `"This year"` options with a simplified `"Monthly"` (covering all months of current year) and `"Yearly"` (covering the last 5 years) structure.
   - **Monday-to-Sunday Week Bounds**: Refactored `"This week"` and `"Last week"` range boundaries in `dashboard.service.ts` to begin on Monday and end on Sunday (UTC-based).
   - **Daily X-Axis Labels Format**: Formatted X-axis daily labels to print in the requested `DD-MM-YYYY` structure (e.g. `"25-06-2026"`).
-  - **EST Timezone Realignment**: Shifted client form defaults and backend dashboard/metrics range calculations to match EST (`America/New_York`) wall-clock date boundaries instead of local server system or UTC time.
-  - **Edit Order Date Field Parsing**: Resolved a Prisma runtime validation error on order updates by adding `orderDate` to the `OrderUpdateInput` type and parsing the string date into a standard JS `Date` object in `order.repository.ts`.
-  - **Exposed Sale Date on Details Page**: Displayed the custom `orderDate` (labelled "Sale Date") next to the database registration date in the subtitle of the Order Details page ([page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/orders/[id]/page.tsx)).
+  - **EST Timezone Realignment**: Shifted client form defaults, client dashboard card range parameters ([dashboard_client_page.tsx](src/app/dashboard_client_page.tsx)), and backend dashboard/metrics range calculations to match EST (`America/New_York`) wall-clock date boundaries instead of local server system or UTC time.
+  - **Timezone Offset Bug Fixes**: Fixed the 1-day date-shifting discrepancy when editing or searching orders by reading and formatting date-only DB fields (which Prisma returns as UTC midnight) using UTC timezone settings in `EditOrderForm.tsx`, `date.ts`, and `SearchResults.tsx` instead of client-local timezone conversions.
+  - **Exposed Sale Date on Details Page**: Displayed the custom `orderDate` (labelled "Sale Date") next to the database registration date in the subtitle of the Order Details page ([page.tsx](src/app/orders/[id]/page.tsx)).
   - **Verification**: Verified Next.js ESLint and typechecks pass cleanly, and all 145 integration and unit tests compile and run green.
+
+### Session 25 — June 30, 2026
+  **Phase 15 — W-1505: Database Seeder Realignment to Post-Sprint-1 Schema**
+  - **Database Seeder Realignment**: Updated [seed.sql](seed.sql) to append mock inserts for `crm_customers` (using the unified `customer_name` column) and `crm_orders` (using the combined `order_make_model` string and removing `order_year`).
+  - **Prisma Raw Execution Compatibility**: Removed `START TRANSACTION` and `COMMIT` boundaries from `seed.sql` to avoid prepared statement protocol errors during raw script execution.
+  - **Seeder Integration Tests**: Appended integration tests to [db_connection.test.ts](src/tests/db_connection.test.ts) to verify seeded data counts, assert that querying dropped columns (`first_name`, `order_year`) throws database errors, and check `order_make_model` formatting.
+  - **CSV Import Validation**: Checked [import-csv-data.ts](src/scripts/import-csv-data.ts) and confirmed it is fully compliant with the updated schema columns and status constraints.
+  - **Verification**: Ran all 149 integration and unit tests and confirmed 100% green status.
+

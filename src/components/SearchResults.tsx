@@ -32,7 +32,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
     if (!dateInput) return '—';
     try {
       const date = new Date(dateInput);
-      return date.toLocaleDateString('en-GB'); // DD/MM/YYYY
+      return date.toLocaleDateString('en-GB', { timeZone: 'UTC' }); // DD/MM/YYYY
     } catch {
       return '—';
     }
