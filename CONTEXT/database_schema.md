@@ -324,7 +324,7 @@ The following standard permissions are seeded in the system:
 | `order_qualified_incentive_status`| `varchar(55)`| YES | `NULL` | Incentive approval status for agents |
 | `order_qualified_incentive_amount`| `varchar(55)`| YES | `NULL` | Commission payout value |
 | `order_status` | `varchar(55)` | YES | `NULL` | Vendor invoice / status flag |
-| `sale_status` | `varchar(55)` | YES | `NULL` | Status code: `1` (Sold) through `8` (Chargeback) |
+| `sale_status` | `varchar(55)` | YES | `NULL` | Status code: `1` (Sold), `2` (Refunded), `3` (Chargebacked). Other legacy codes (2-6) mapped to 1, 7 mapped to 2, 8 mapped to 3, all deprecated. |
 | `order_current_status` | `varchar(25)` | YES | `NULL` | Pipeline stage queue name |
 | `order_current_status_update_date`| `datetime`| YES | `NULL` | Date workflow stage changed |
 | `order_date` | `varchar(25)` | YES | `NULL` | Sale date (as string) |

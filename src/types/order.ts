@@ -16,7 +16,6 @@ export interface OrderCreateInput {
   customerCardPhotoStatus?: string;
 
   // Order Details
-  orderYear?: string;
   orderMakeModel?: string;
   orderPart?: string;
   orderPartSize?: string;
@@ -36,7 +35,6 @@ export interface OrderCreateInput {
 
 export interface OrderUpdateInput {
   // --- Order-level fields (written to crm_orders) ---
-  orderYear?: string;
   orderMakeModel?: string;
   orderPart?: string;
   orderPartSize?: string;

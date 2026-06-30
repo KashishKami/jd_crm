@@ -22,8 +22,7 @@ const mockResults = {
     {
       crmOrderId: 101,
       orderDate: '2026-06-25',
-      orderYear: '2022',
-      orderMakeModel: 'Toyota Camry',
+      orderMakeModel: '2022 Toyota Camry',
       orderPart: 'Alternator',
       orderTotalPitched: '1000',
       orderVendorPrice: '700',
@@ -39,8 +38,7 @@ const mockResults = {
     {
       crmOrderId: 102,
       orderDate: '2026-06-26',
-      orderYear: '2020',
-      orderMakeModel: 'Honda Civic',
+      orderMakeModel: '2020 Honda Civic',
       orderPart: 'Brake Pads',
       orderTotalPitched: '500',
       orderVendorPrice: '300',

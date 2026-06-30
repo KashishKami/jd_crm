@@ -76,7 +76,6 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
     const order = await tx.crmOrders.create({
       data: {
         orderCustomerId: customer.customerId,
-        orderYear: data.orderYear || null,
         orderMakeModel: data.orderMakeModel || null,
         orderPart: data.orderPart || null,
         orderPartSize: data.orderPartSize || null,

@@ -134,13 +134,18 @@ Mapped in `dashboard.php` and `orders.php` to define the order status logic:
 | Code | Value Name | Meaning / Visual State |
 | :--- | :--- | :--- |
 | **`1`** | `Sold` | Normal completed sale. |
-| **`2`** | `Prospect` | Potential lead. |
-| **`3`** | `Call Back` | Requires agent callback. |
-| **`4`** | `Not Interested` | User declined. |
-| **`5`** | `Out Of Scope` | Not serviceable. |
-| **`6`** | `Enquiry` | Basic information request. |
-| **`7`** | `Refunded` | Payment returned (affects Monthly metrics). |
-| **`8`** | `Chargebacked` | Dispute initiated (subtracted from Net Sales). |
+| **`2`** | `Refunded` | Payment returned (New active code). |
+| **`3`** | `Chargebacked` | Dispute initiated (New active code). |
+| ~~**`2`**~~ | ~~`Prospect`~~ | ~~Potential lead (Deprecated / Removed from DB).~~ |
+| ~~**`3`**~~ | ~~`Call Back`~~ | ~~Requires agent callback (Deprecated / Removed from DB).~~ |
+| ~~**`4`**~~ | ~~`Not Interested`~~ | ~~User declined (Deprecated / Removed from DB).~~ |
+| ~~**`5`**~~ | ~~`Out Of Scope`~~ | ~~Not serviceable (Deprecated / Removed from DB).~~ |
+| ~~**`6`**~~ | ~~`Enquiry`~~ | ~~Basic information request (Deprecated / Removed from DB).~~ |
+| ~~**`7`**~~ | ~~`Refunded`~~ | ~~Payment returned (Legacy code — replaced by 2).~~ |
+| ~~**`8`**~~ | ~~`Chargebacked`~~ | ~~Dispute initiated (Legacy code — replaced by 3).~~ |
+
+
+
 
 ### Order Workflow Status (`order_current_status`)
 Determines which queue the order sits in (from `class/orderClass.php` pending reports):

@@ -198,7 +198,6 @@ model CrmCustomerCards {
 model CrmOrders {
   crmOrderId                    Int           @id @default(autoincrement()) @map("crm_order_id")
   orderCustomerId               Int           @map("order_customer_id")
-  orderYear                     String?       @map("order_year") @db.VarChar(255)
   orderMakeModel                String?       @map("order_make_model") @db.VarChar(255)
   orderPart                     String?       @map("order_part") @db.VarChar(255)
   orderPartSize                 String?       @map("order_part_size") @db.VarChar(255)

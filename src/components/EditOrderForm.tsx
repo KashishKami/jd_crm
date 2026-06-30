@@ -31,7 +31,6 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [customerCardCopyStatus, setCustomerCardCopyStatus] = useState(firstCard.customerCardCopyStatus || 'No');
   const [customerCardPhotoStatus, setCustomerCardPhotoStatus] = useState(firstCard.customerCardPhotoStatus || 'No');
 
-  const [orderYear, setOrderYear] = useState(order.orderYear || '');
   const [orderMakeModel, setOrderMakeModel] = useState(order.orderMakeModel || '');
   const [orderPart, setOrderPart] = useState(order.orderPart || '');
   const [orderPartSize, setOrderPartSize] = useState(order.orderPartSize || '');
@@ -95,8 +94,6 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       customerCardCvv,
       customerCardCopyStatus,
       customerCardPhotoStatus,
-      // Order direct updates
-      orderYear,
       orderMakeModel,
       orderPart,
       orderPartSize,
@@ -287,18 +284,10 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
         <div className="form-section">
           <h3 className="form-section-title">3. Vehicle & Part Specifications</h3>
           <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Year</label>
+            <div className="form-group form-grid-full">
+              <label className="form-label">Year, Make & Model</label>
               <input
-                type="text"
-                value={orderYear}
-                onChange={(e) => setOrderYear(e.target.value)}
-                className="form-input font-mono"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Make & Model</label>
-              <input
+                id="orderMakeModel"
                 type="text"
                 value={orderMakeModel}
                 onChange={(e) => setOrderMakeModel(e.target.value)}

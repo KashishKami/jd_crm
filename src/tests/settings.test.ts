@@ -81,8 +81,7 @@ describe('Settings & RBAC Permissions Integration Tests', () => {
       });
 
       const { GET } = await import('../app/api/settings/roles/route');
-      const req = new Request('http://localhost/api/settings/roles');
-      const res = await GET(req);
+      const res = await GET();
 
       expect(res.status).toBe(403);
       const data = await res.json();
@@ -99,8 +98,7 @@ describe('Settings & RBAC Permissions Integration Tests', () => {
       });
 
       const { GET } = await import('../app/api/settings/roles/route');
-      const req = new Request('http://localhost/api/settings/roles');
-      const res = await GET(req);
+      const res = await GET();
 
       expect(res.status).toBe(200);
       const data = await res.json();
@@ -303,8 +301,7 @@ describe('Settings & RBAC Permissions Integration Tests', () => {
       });
 
       const { GET } = await import('../app/api/settings/permissions/route');
-      const req = new Request('http://localhost/api/settings/permissions');
-      const res = await GET(req);
+      const res = await GET();
 
       expect(res.status).toBe(200);
       const data = await res.json();

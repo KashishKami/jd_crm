@@ -338,8 +338,7 @@ async function main() {
       const order = await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
-          orderYear: year || null,
-          orderMakeModel: makeAndModel || null,
+          orderMakeModel: makeModel || null,
           orderPart: partDescription || null,
           orderPartSize: specifications || null,
           orderQuotedMiles: quotedMiles || null,

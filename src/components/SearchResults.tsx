@@ -84,7 +84,6 @@ export default function SearchResults({ results }: SearchResultsProps) {
                 <td>
                   <div>
                     <div className="text-xs font-medium text-slate-800">
-                      {order.orderYear ? `${order.orderYear} ` : ''}
                       {order.orderMakeModel || 'Unknown Vehicle'}
                     </div>
                     <div className="text-[10px] text-slate-500 font-semibold italic mt-0.5">

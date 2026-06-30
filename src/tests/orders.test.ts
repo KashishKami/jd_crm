@@ -576,5 +576,111 @@ describe('Order Management Integration Tests', () => {
       expect(dbCustomer?.customerShippingAddress).toBe('888 New Shipping Ave');
     });
   });
+
+  describe('W-1502: Merge orderYear into orderMakeModel', () => {
+    const validPayloadBase = {
+      firstName: 'New',
+      lastName: 'Buyer',
+      customerPhone: '9876543210',
+      customerEmail: 'new.buyer@example.com',
+      customerBillingAddress: '123 Billing Rd',
+      customerShippingAddress: '456 Shipping Rd',
+      customerNameOncard: 'New Buyer',
+      customerCardNumber: '4111222233334444',
+      customerCardExpDate: '10/30',
+      customerCardCvv: '999',
+      customerCardCopyStatus: 'No',
+      customerCardPhotoStatus: 'No',
+      orderMakeModel: '2021 Jeep Grand Cherokee',
+      orderPart: 'Alternator',
+      orderPartSize: 'Standard',
+      orderQuotedMiles: '50',
+      orderGivenMiles: '55',
+      orderVin: 'VIN789XYZ',
+      orderTotalPitched: '500',
+      orderVendorPrice: '300',
+      orderVendorId: 9999, // Will be set to testVendor.vendorId below
+      orderShippingType: 'Express',
+      orderPaymentGatewayId: 9999, // Will be set to testGateway.gatewayId below
+      orderSalesAgentId: 9999, // Will be set to testUser.uid below
+      orderVerifierId: null,
+      saleStatus: '1',
+    };
+
+    it('should create order with orderMakeModel and no orderYear field', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Creator', userPermissions: 'orders:create' },
+      });
+
+      const payload = {
+        ...validPayloadBase,
+        orderVendorId: testVendor.vendorId,
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: data.orderId },
+      });
+      expect(dbOrder).not.toBeNull();
+      expect(dbOrder?.orderMakeModel).toBe('2021 Jeep Grand Cherokee');
+
+      // GET the order and verify orderYear is completely absent
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Viewer', userPermissions: 'orders:view' },
+      });
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const getReq = new Request(`http://localhost/api/orders/${data.orderId}`);
+      const getRes = await GET(getReq, { params: Promise.resolve({ id: String(data.orderId) }) });
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson).not.toHaveProperty('orderYear');
+    });
+
+    it('should update orderMakeModel via PATCH', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Editor', userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderMakeModel: '2019 Ford F-150',
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderMakeModel).toBe('2019 Ford F-150');
+    });
+
+    it('should verify order_year column is dropped from crm_orders table', async () => {
+      // Direct raw query to select order_year. This should throw an error since the column is dropped.
+      let threwError = false;
+      try {
+        await prisma.$queryRawUnsafe(`SELECT order_year FROM crm_orders LIMIT 1`);
+      } catch (err: any) {
+        threwError = true;
+        expect(err.message).toContain("Unknown column 'order_year'");
+      }
+      expect(threwError).toBe(true);
+    });
+  });
 });
 

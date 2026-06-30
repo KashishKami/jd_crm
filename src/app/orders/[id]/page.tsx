@@ -180,12 +180,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               Vehicle & Part Specifications
             </h3>
             <div className="info-grid">
-              <div className="info-group">
-                <span className="info-label">Year</span>
-                <span className="info-value font-mono">{order.orderYear || '—'}</span>
-              </div>
-              <div className="info-group" style={{ gridColumn: 'span 2' }}>
-                <span className="info-label">Make & Model</span>
+              <div className="info-group" style={{ gridColumn: 'span 3' }}>
+                <span className="info-label">Year, Make & Model</span>
                 <span className="info-value">{order.orderMakeModel || '—'}</span>
               </div>
               <div className="info-group" style={{ gridColumn: 'span 2' }}>

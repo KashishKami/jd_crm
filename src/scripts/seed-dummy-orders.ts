@@ -132,8 +132,7 @@ async function main() {
     await prisma.crmOrders.create({
       data: {
         orderCustomerId: customer.customerId,
-        orderYear: today.getFullYear().toString(),
-        orderMakeModel: s.name,
+        orderMakeModel: `${today.getFullYear()} ${s.name}`,
         orderPart: 'Test Part',
         orderTotalPitched: (parseFloat(s.markup) + 100).toString(),
         orderVendorPrice: '100.00',

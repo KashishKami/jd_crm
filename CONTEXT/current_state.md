@@ -948,23 +948,24 @@ Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`,
 
 **Approach:**
 1. Write and apply a Prisma migration that back-fills `order_make_model` with the concatenation of `order_year + ' ' + order_make_model`, then drops `order_year`.
-2. Remove `orderYear` from `schema.prisma`, regenerate the client.
-3. Remove `orderYear` from `order.repository.ts` (line 79), `src/types/order.ts` (lines 19, 39), and `order.service.ts` (if referenced).
-4. Merge the two form inputs into a single "Year, Make & Model" input in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+2. Within the same migration, perform the database sale status code migration: map legacy codes `2` through `6` to `1` (Sold), map `7` (Refunded) to `2`, and map `8` (Chargebacked) to `3`. This establishes the strict 3-status schema at the database layer.
+3. Remove `orderYear` from `schema.prisma`, regenerate the client.
+4. Remove `orderYear` from `order.repository.ts` (line 79), `src/types/order.ts` (lines 19, 39), and `order.service.ts` (if referenced).
+5. Merge the two form inputs into a single "Year, Make & Model" input in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
 
 **Migration name:** `merge_order_year_into_make_model`
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: `POST /api/orders` with payload `{ orderMakeModel: "2021 Jeep Grand Cherokee", /* no orderYear field */ }`. Assert `201 Created`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = <newId>` returns exactly `"2021 Jeep Grand Cherokee"`.
-  - [ ] Test: `GET /api/orders/:id` — assert the returned order object does **not** contain an `orderYear` property at all (field must be absent from the JSON response, not just `null`).
-  - [ ] Test: `PATCH /api/orders/:id` with `{ orderMakeModel: "2019 Ford F-150" }`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = :id` returns `"2019 Ford F-150"`.
-  - [ ] Test: `SELECT order_year FROM crm_orders LIMIT 1` via a direct Prisma `$queryRaw` — assert it throws an `Unknown column 'order_year'` error, confirming the column was dropped by the migration.
-  - [ ] **Run — confirm RED** (`orderYear` column still exists; GET response includes `orderYear`; the raw column-not-found query passes today because the column still exists).
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: `POST /api/orders` with payload `{ orderMakeModel: "2021 Jeep Grand Cherokee", /* no orderYear field */ }`. Assert `201 Created`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = <newId>` returns exactly `"2021 Jeep Grand Cherokee"`.
+  - [x] Test: `GET /api/orders/:id` — assert the returned order object does **not** contain an `orderYear` property at all (field must be absent from the JSON response, not just `null`).
+  - [x] Test: `PATCH /api/orders/:id` with `{ orderMakeModel: "2019 Ford F-150" }`. Assert `SELECT order_make_model FROM crm_orders WHERE crm_order_id = :id` returns `"2019 Ford F-150"`.
+  - [x] Test: `SELECT order_year FROM crm_orders LIMIT 1` via a direct Prisma `$queryRaw` — assert it throws an `Unknown column 'order_year'` error, confirming the column was dropped by the migration.
+  - [x] **Run — confirm RED** (`orderYear` column still exists; GET response includes `orderYear`; the raw column-not-found query passes today because the column still exists).
 
-- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Types):**
-  - [ ] [Migration] Create and apply migration `merge_order_year_into_make_model`. The raw SQL steps must be:
+- [x] **GREEN — Backend (Migration → Schema → Repository → Service → Types):**
+  - [x] [Migration] Create and apply migration `merge_order_year_into_make_model`. The raw SQL steps must be:
     ```sql
     -- Step 1: Back-fill: prepend year to make_model for all rows that have a non-null, non-empty order_year
     UPDATE crm_orders
@@ -984,36 +985,44 @@ Rewrite both performer functions to fetch all qualifying orders (saleStatus `1`,
 
     -- Step 2: Drop the now-redundant column
     ALTER TABLE crm_orders DROP COLUMN order_year;
+
+    -- Step 3: Migrate sale_status codes to the new 1 (Sold), 2 (Refunded), 3 (Chargebacked) schema
+    -- Map legacy deprecated codes (2, 3, 4, 5, 6) to 1 (Sold) first
+    UPDATE crm_orders SET sale_status = '1' WHERE sale_status IN ('2', '3', '4', '5', '6');
+    -- Map legacy Refunded (7) to the new code (2)
+    UPDATE crm_orders SET sale_status = '2' WHERE sale_status = '7';
+    -- Map legacy Chargebacked (8) to the new code (3)
+    UPDATE crm_orders SET sale_status = '3' WHERE sale_status = '8';
     ```
     Apply via: `npx prisma migrate dev --name merge_order_year_into_make_model`.
-  - [ ] [Schema] In `prisma/schema.prisma`, model `CrmOrders`: remove the line `orderYear String? @map("order_year") @db.VarChar(255)`. Run `npx prisma generate`.
-  - [ ] [Repository] In `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (line 79): remove the line `orderYear: data.orderYear || null,`.
-  - [ ] [Service] In `src/service/order.service.ts`: confirm no reference to `orderYear` or `data.orderYear` remains. (Currently the service does not explicitly reference it — verify with a project-wide grep: `grep -r "orderYear" src/`)
-  - [ ] [Types] In `src/types/order.ts`:
+  - [x] [Schema] In `prisma/schema.prisma`, model `CrmOrders`: remove the line `orderYear String? @map("order_year") @db.VarChar(255)`. Run `npx prisma generate`.
+  - [x] [Repository] In `src/repository/order.repository.ts`, `createWithCustomerAndCard()` (line 79): remove the line `orderYear: data.orderYear || null,`.
+  - [x] [Service] In `src/service/order.service.ts`: confirm no reference to `orderYear` or `data.orderYear` remains. (Currently the service does not explicitly reference it — verify with a project-wide grep: `grep -r "orderYear" src/`)
+  - [x] [Types] In `src/types/order.ts`:
     - Remove line 19: `orderYear?: string;` from `OrderCreateInput`.
     - Remove line 39: `orderYear?: string;` from `OrderUpdateInput`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx`):**
-  - [ ] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM does **not** contain any element with `id="orderYear"`.
-  - [ ] `AddOrderForm.test.tsx` Test: Assert the DOM contains an element with `id="orderMakeModel"` and its associated label text is `"Year, Make & Model"`.
-  - [ ] `AddOrderForm.test.tsx` Test: Submit form with `orderMakeModel = "2022 Honda Civic"`. Assert the `fetch` POST body (`JSON.parse(fetchArgs[1].body)`) contains `orderMakeModel: "2022 Honda Civic"` and does **not** contain an `orderYear` key.
-  - [ ] `EditOrderForm.test.tsx` Test: Render `<EditOrderForm order={{ orderMakeModel: "2020 BMW 3 Series", ...otherFields }} />`. Assert the `id="orderMakeModel"` input has `value="2020 BMW 3 Series"`.
-  - [ ] `EditOrderForm.test.tsx` Test: Assert the DOM does **not** contain any element with `id="orderYear"`.
-  - [ ] **Run — confirm RED** (current forms have a separate `id="orderYear"` input; label says `"Make & Model"` not `"Year, Make & Model"`).
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx`):**
+  - [x] `AddOrderForm.test.tsx` Test: Render `<AddOrderForm />`. Assert the DOM does **not** contain any element with `id="orderYear"`.
+  - [x] `AddOrderForm.test.tsx` Test: Assert the DOM contains an element with `id="orderMakeModel"` and its associated label text is `"Year, Make & Model"`.
+  - [x] `AddOrderForm.test.tsx` Test: Submit form with `orderMakeModel = "2022 Honda Civic"`. Assert the `fetch` POST body (`JSON.parse(fetchArgs[1].body)`) contains `orderMakeModel: "2022 Honda Civic"` and does **not** contain an `orderYear` key.
+  - [x] `EditOrderForm.test.tsx` Test: Render `<EditOrderForm order={{ orderMakeModel: "2020 BMW 3 Series", ...otherFields }} />`. Assert the `id="orderMakeModel"` input has `value="2020 BMW 3 Series"`.
+  - [x] `EditOrderForm.test.tsx` Test: Assert the DOM does **not** contain any element with `id="orderYear"`.
+  - [x] **Run — confirm RED** (current forms have a separate `id="orderYear"` input; label says `"Make & Model"` not `"Year, Make & Model"`).
 
-- [ ] **GREEN — Frontend (Types → Components):**
-  - [ ] [Component] `src/components/AddOrderForm.tsx`:
+- [x] **GREEN — Frontend (Types → Components):**
+  - [x] [Component] `src/components/AddOrderForm.tsx`:
     - Remove state variable `const [orderYear, setOrderYear] = useState('')`.
     - Remove the entire `<div className="form-group">` block containing `<input id="orderYear" ...>` and its `<label>` (currently labeled "Year").
     - On the remaining `<input id="orderMakeModel" ...>`: change its `<label>` text to `"Year, Make & Model *"` and its `placeholder` to `"e.g. 2021 Jeep Grand Cherokee"`.
     - In `handleSubmit` `payload` object: remove the `orderYear` property. Confirm `orderMakeModel` is still included.
-  - [ ] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes — remove `orderYear` state, input, and label; update `orderMakeModel` label to `"Year, Make & Model"`; remove `orderYear` from the submit payload.
-  - [ ] [Search] In `src/repository/search.repository.ts`, confirm `searchOrders` LIKE clause does not reference `order_year` (it currently searches `order_make_model` which now includes year — no change needed, but grep to verify).
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Component] `src/components/EditOrderForm.tsx`: Apply identical changes — remove `orderYear` state, input, and label; update `orderMakeModel` label to `"Year, Make & Model"`; remove `orderYear` from the submit payload.
+  - [x] [Search] In `src/repository/search.repository.ts`, confirm `searchOrders` LIKE clause does not reference `order_year` (it currently searches `order_make_model` which now includes year — no change needed, but grep to verify).
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Developer runs `npx prisma migrate dev` → migration applies with zero errors → runs `DESCRIBE crm_orders` → confirms `order_year` column is absent → runs `SELECT order_make_model FROM crm_orders LIMIT 5` → rows show combined year+make+model strings (e.g. `"2019 Jeep Grand Cherokee"`) → Agent navigates to `/orders/new` → Vehicle section shows a single field labeled `"Year, Make & Model *"` with placeholder `"e.g. 2021 Jeep Grand Cherokee"` → Agent types `"2021 Honda Accord"` → submits → order detail page shows `"2021 Honda Accord"` → Global search for `"Honda"` returns the order → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Developer runs `npx prisma migrate dev` → migration applies with zero errors → runs `DESCRIBE crm_orders` → confirms `order_year` column is absent → runs `SELECT order_make_model FROM crm_orders LIMIT 5` → rows show combined year+make+model strings (e.g. `"2019 Jeep Grand Cherokee"`) → Agent navigates to `/orders/new` → Vehicle section shows a single field labeled `"Year, Make & Model *"` with placeholder `"e.g. 2021 Jeep Grand Cherokee"` → Agent types `"2021 Honda Accord"` → submits → order detail page shows `"2021 Honda Accord"` → Global search for `"Honda"` returns the order → ✅ Done.
 
 ---
 
@@ -1428,9 +1437,8 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
 - [ ] **RED — Integration (`src/tests/orders.test.ts`):**
 
   **Sale Status History:**
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "7", saleStatusChangeDate: "2026-01-15T10:30:00" }`. Assert `200 OK`. Assert `SELECT new_value, old_value, changed_at, changed_by_name FROM crm_sale_status_history WHERE order_id = :id ORDER BY id DESC LIMIT 1` returns: `new_value = '7'`, `old_value = '1'` (previous status), `changed_at = '2026-01-15 10:30:00'`, `changed_by_name` = test user's `nickname || name`.
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "8" }` (Chargeback, no date provided). Assert a `crm_sale_status_history` row is created with `new_value = '8'` and `changed_at` within 5 seconds of `NOW()` (confirming the default-to-current-time behaviour).
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "2" }` (a non-refund status change, no date prompt). Assert a `crm_sale_status_history` row is created with `new_value = '2'` and `changed_at` within 5 seconds of `NOW()`.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "2", saleStatusChangeDate: "2026-01-15T10:30:00" }` (Refunded). Assert `200 OK`. Assert `SELECT new_value, old_value, changed_at, changed_by_name FROM crm_sale_status_history WHERE order_id = :id ORDER BY id DESC LIMIT 1` returns: `new_value = '2'`, `old_value = '1'` (previous status), `changed_at = '2026-01-15 10:30:00'`, `changed_by_name` = test user's `nickname || name`.
+  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "3" }` (Chargebacked, no date provided). Assert a `crm_sale_status_history` row is created with `new_value = '3'` and `changed_at` within 5 seconds of `NOW()` (confirming the default-to-current-time behaviour).
   - [ ] Test: No history row is written if `saleStatus` in the PATCH body is **identical** to the existing `saleStatus` (same value — no actual change occurred).
   - [ ] Test: `GET /api/orders/:id/sale-status-history` with a session that has `orders:view-sale-status-history`. Assert `200 OK` and response is an array where each entry has `{ id, orderId, oldValue, newValue, changedById, changedByName, changedAt }` keys, ordered by `changedAt ASC`.
   - [ ] Test: `GET /api/orders/:id/sale-status-history` **without** `orders:view-sale-status-history`. Assert `403 Forbidden`.
@@ -1443,6 +1451,7 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
   - [ ] Test: `GET /api/orders/:id/workflow-history` **without** `orders:view-workflow-history`. Assert `403 Forbidden`.
 
   - [ ] **Run — confirm RED** (neither table exists; PATCH handler writes nothing; neither GET endpoint exists).
+
 
 - [ ] **GREEN — Backend (Migrations → Schema → Repository → Service → Controller):**
 
@@ -1607,7 +1616,7 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
     ```typescript
     // ── Sale Status History: write if value actually changed ──────────────────────
     if (data.saleStatus && data.saleStatus !== existingOrder.saleStatus) {
-      // For Refund ('7') and Chargeback ('8'), `data.saleStatusChangeDate` may carry
+      // For Refund ('2') and Chargeback ('3'), `data.saleStatusChangeDate` may carry
       // the actual event date entered by the user in the UI modal.
       // For all other transitions it will be undefined → defaults to new Date().
       const saleChangedAt = data.saleStatusChangeDate
@@ -1692,9 +1701,9 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
 - [ ] **RED — Unit (`src/tests/SaleStatusTimeline.test.tsx` and `src/tests/WorkflowStatusTimeline.test.tsx` — new files):**
 
   **SaleStatusTimeline:**
-  - [ ] Test: Given mocked sale status history entries `[{ id: 1, orderId: 5, oldValue: '1', newValue: '7', changedByName: 'Alice', changedAt: '2026-01-15T10:30:00Z' }, { id: 2, orderId: 5, oldValue: '7', newValue: '1', changedByName: 'Bob', changedAt: '2026-01-20T09:00:00Z' }]`, render `<SaleStatusTimeline entries={mockEntries} />`. Assert 2 timeline nodes are rendered.
-  - [ ] Test: Assert the node with `newValue = '7'` displays the label `"Refunded"` (not the raw code `"7"`).
-  - [ ] Test: Assert the node with `newValue = '8'` (if present) displays `"Chargebacked"` (not `"8"`).
+  - [ ] Test: Given mocked sale status history entries `[{ id: 1, orderId: 5, oldValue: '1', newValue: '2', changedByName: 'Alice', changedAt: '2026-01-15T10:30:00Z' }, { id: 2, orderId: 5, oldValue: '2', newValue: '1', changedByName: 'Bob', changedAt: '2026-01-20T09:00:00Z' }]`, render `<SaleStatusTimeline entries={mockEntries} />`. Assert 2 timeline nodes are rendered.
+  - [ ] Test: Assert the node with `newValue = '2'` displays the label `"Refunded"` (not the raw code `"2"`).
+  - [ ] Test: Assert the node with `newValue = '3'` (if present) displays `"Chargebacked"` (not `"3"`).
   - [ ] Test: Assert the node with `newValue = '1'` displays `"Sold"`.
   - [ ] Test: Assert each node displays `changedByName` and `changedAt` formatted as `"DD/MM/YYYY HH:MM"` (e.g. `"15/01/2026 10:30"`).
   - [ ] Test: Assert Refund and Chargeback nodes render with a red/amber color class (e.g. `timeline-node--refund`); Sold nodes render with a green class (e.g. `timeline-node--sold`).
@@ -1733,13 +1742,8 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
     // Human-readable label map for saleStatus codes
     export const SALE_STATUS_LABELS: Record<string, string> = {
       '1': 'Sold',
-      '2': 'Pending',
-      '3': 'Cancelled',
-      '4': 'Hold',
-      '5': 'Voided',
-      '6': 'Return',
-      '7': 'Refunded',
-      '8': 'Chargebacked',
+      '2': 'Refunded',
+      '3': 'Chargebacked',
     };
     ```
 
@@ -1749,7 +1753,7 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
       - **Agent name** (`changedByName`)
       - **Date/time** formatted as `DD/MM/YYYY HH:MM` using `changedAt`
       - **Transition** formatted as `"<oldLabel> → <newLabel>"` using `SALE_STATUS_LABELS` map. If `oldValue` is null, show `"— → <newLabel>"`.
-    - Color coding: `newValue === '7'` (Refunded) → amber/orange class `timeline-node--refund`; `newValue === '8'` (Chargebacked) → red class `timeline-node--chargeback`; `newValue === '1'` (Sold) → green class `timeline-node--sold`; all others → neutral grey class `timeline-node--neutral`.
+    - Color coding: `newValue === '2'` (Refunded) → amber/orange class `timeline-node--refund`; `newValue === '3'` (Chargebacked) → red class `timeline-node--chargeback`; `newValue === '1'` (Sold) → green class `timeline-node--sold`; all others → neutral grey class `timeline-node--neutral`.
     - If `entries.length === 0`: display `"No sale status history available."`.
     - Section title: `"Sale Status History"`.
 
@@ -1766,7 +1770,7 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
     - Add state: `const [saleStatusChangeTime, setSaleStatusChangeTime] = useState('')` (stores `HH:MM`).
     - In the `saleStatus` `<select>` `onChange` handler: after updating the `saleStatus` state, add:
       ```typescript
-      if (e.target.value === '7' || e.target.value === '8') {
+      if (e.target.value === '2' || e.target.value === '3') {
         setSaleStatusChangeDate(''); // reset date to blank (user must enter or skip)
         setSaleStatusChangeTime('');
         setShowStatusDateModal(true);
@@ -1815,190 +1819,14 @@ Both tables automatically record: the agent who made the change (`changed_by_id`
   - [ ] Run unit tests — **confirm GREEN** (both `SaleStatusTimeline.test.tsx` and `WorkflowStatusTimeline.test.tsx`).
 
 - [ ] **Verification chain:**
-  - [ ] **Refund with custom date:** Admin opens an order (currently `saleStatus = '1'` Sold) → selects `"Refunded"` from the `saleStatus` dropdown → modal immediately appears → Admin enters date `2026-01-10` and time `14:30` → clicks `"Confirm"` → form submits → `SELECT * FROM crm_sale_status_history WHERE order_id = :id` shows 1 row: `old_value='1'`, `new_value='7'`, `changed_at='2026-01-10 14:30:00'`, `changed_by_name='Admin Name'` → Order detail page loads → "Sale Status History" card at bottom shows `"Sold → Refunded"`, `"Admin Name"`, `"10/01/2026 14:30"` ✅
+  - [ ] **Refund with custom date:** Admin opens an order (currently `saleStatus = '1'` Sold) → selects `"Refunded"` from the `saleStatus` dropdown → modal immediately appears → Admin enters date `2026-01-10` and time `14:30` → clicks `"Confirm"` → form submits → `SELECT * FROM crm_sale_status_history WHERE order_id = :id` shows 1 row: `old_value='1'`, `new_value='2'`, `changed_at='2026-01-10 14:30:00'`, `changed_by_name='Admin Name'` → Order detail page loads → "Sale Status History" card at bottom shows `"Sold → Refunded"`, `"Admin Name"`, `"10/01/2026 14:30"` ✅
   - [ ] **Refund skipping date (defaults to current time):** Agent selects `"Chargebacked"` from dropdown → modal appears → Agent clicks `"Skip — Use Current Time"` → form submits → `SELECT changed_at FROM crm_sale_status_history ORDER BY id DESC LIMIT 1` → timestamp is within 10 seconds of `NOW()` → detail page shows current date/time for that entry ✅
   - [ ] **Workflow status change:** Admin changes `orderCurrentStatus` to `"Completed Orders"` → `crm_order_current_status_history` gets a row with `old_value = 'Pending Feedback'`, `new_value = 'Completed Orders'`, `changed_at` = current time, `changed_by_name = 'Admin Name'` → "Order Workflow History" card on detail page shows the transition ✅
   - [ ] **Auto-advance transition is attributed correctly:** Agent assigns a vendor to a `"Pending Booking"` order → the state machine auto-advances `orderCurrentStatus` to `"Pending Shipment"` → `crm_order_current_status_history` records the workflow change with the **agent's name** (not "System"), `old_value = 'Pending Booking'`, `new_value = 'Pending Shipment'` ✅
   - [ ] **RBAC:** User without `orders:view-sale-status-history` opens an order → "Sale Status History" card is completely absent from the page → direct `GET /api/orders/:id/sale-status-history` returns `403 Forbidden` ✅
   - [ ] **Cascade delete:** Order is deleted via W-1603 flow → both `crm_sale_status_history` and `crm_order_current_status_history` rows for that `order_id` are gone (CASCADE confirmed) ✅
 
----
 
-**Migration name:** `create_order_status_history_table`
-**New RBAC permission:** `orders:view-status-history`
-
----
-
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "7", statusChangeDate: "2026-01-15T10:30:00" }`. Assert `200 OK`. Assert `SELECT id, old_value, new_value, changed_at, changed_by_name FROM crm_order_status_history WHERE order_id = :id AND status_type = 'sale_status'` returns exactly 1 row with `new_value = '7'` and `changed_at = '2026-01-15 10:30:00'`.
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: "8" }` (no `statusChangeDate`). Assert a history row is created with `new_value = '8'` and `changed_at` within 5 seconds of `NOW()`.
-  - [ ] Test: `PATCH /api/orders/:id` updating `orderCurrentStatus` from `"Pending Booking"` to `"Pending Shipment"`. Assert a history row exists with `status_type = 'order_current_status'`, `old_value = 'Pending Booking'`, `new_value = 'Pending Shipment'`, and `changed_by_name` equal to the seeded test user's `nickname || name`.
-  - [ ] Test: `GET /api/orders/:id/status-history` with a session that has `orders:view-status-history`. Assert `200 OK` and response is an array where each entry has `{ id, statusType, oldValue, newValue, changedByName, changedAt }` keys.
-  - [ ] Test: `GET /api/orders/:id/status-history` **without** `orders:view-status-history`. Assert `403 Forbidden`.
-  - [ ] Test: Make 3 status changes to an order. Assert `GET /api/orders/:id/status-history` returns an array of exactly 3 entries, ordered by `changedAt ASC`.
-  - [ ] **Run — confirm RED** (table does not exist; PATCH handler does not write history; GET endpoint does not exist).
-
-- [ ] **GREEN — Backend (Migration → Schema → Repository → Service → Controller):**
-  - [ ] [Migration] Create and apply migration `create_order_status_history_table`:
-    ```sql
-    CREATE TABLE crm_order_status_history (
-      id              INT          NOT NULL AUTO_INCREMENT,
-      order_id        INT          NOT NULL,
-      status_type     VARCHAR(25)  NOT NULL COMMENT 'sale_status or order_current_status',
-      old_value       VARCHAR(55)  NULL,
-      new_value       VARCHAR(55)  NOT NULL,
-      changed_by_id   INT          NOT NULL,
-      changed_by_name VARCHAR(55)  NOT NULL,
-      changed_at      DATETIME     NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (id),
-      INDEX idx_order_status_history_order_id (order_id),
-      CONSTRAINT fk_osh_order
-        FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE,
-      CONSTRAINT fk_osh_user
-        FOREIGN KEY (changed_by_id) REFERENCES users(uid) ON DELETE RESTRICT
-    );
-    ```
-    Apply via: `npx prisma migrate dev --name create_order_status_history_table`.
-  - [ ] [Schema] Add model `CrmOrderStatusHistory` to `prisma/schema.prisma`:
-    ```prisma
-    model CrmOrderStatusHistory {
-      id            Int       @id @default(autoincrement())
-      orderId       Int       @map("order_id")
-      statusType    String    @map("status_type") @db.VarChar(25)
-      oldValue      String?   @map("old_value")   @db.VarChar(55)
-      newValue      String    @map("new_value")    @db.VarChar(55)
-      changedById   Int       @map("changed_by_id")
-      changedByName String    @map("changed_by_name") @db.VarChar(55)
-      changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
-      order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
-      changedBy     Users     @relation(fields: [changedById], references: [uid])
-
-      @@index([orderId])
-      @@map("crm_order_status_history")
-    }
-    ```
-    Add `statusHistory CrmOrderStatusHistory[]` to `CrmOrders`. Add `statusChanges CrmOrderStatusHistory[]` to `Users`. Run `npx prisma generate`.
-  - [ ] [Repository] Add to `src/repository/order.repository.ts`:
-    ```typescript
-    export async function createStatusHistoryEntry(data: {
-      orderId: number;
-      statusType: 'sale_status' | 'order_current_status';
-      oldValue: string | null;
-      newValue: string;
-      changedById: number;
-      changedByName: string;
-      changedAt?: Date;
-    }) {
-      return await prisma.crmOrderStatusHistory.create({
-        data: {
-          orderId:       data.orderId,
-          statusType:    data.statusType,
-          oldValue:      data.oldValue ?? null,
-          newValue:      data.newValue,
-          changedById:   data.changedById,
-          changedByName: data.changedByName,
-          changedAt:     data.changedAt ?? new Date(),
-        },
-      });
-    }
-
-    export async function getStatusHistoryByOrderId(orderId: number) {
-      return await prisma.crmOrderStatusHistory.findMany({
-        where: { orderId },
-        orderBy: { changedAt: 'asc' },
-      });
-    }
-    ```
-  - [ ] [Service] `src/service/order.service.ts`, update `updateOrder()` signature to `updateOrder(crmOrderId, data, changedByUserId: number, changedByName: string)`. After `orderRepository.update(crmOrderId, updatedData)` (line 141), add:
-    ```typescript
-    // Write sale_status history entry if value changed
-    if (data.saleStatus && data.saleStatus !== existingOrder.saleStatus) {
-      await orderRepository.createStatusHistoryEntry({
-        orderId:       crmOrderId,
-        statusType:    'sale_status',
-        oldValue:      existingOrder.saleStatus ?? null,
-        newValue:      data.saleStatus,
-        changedById:   changedByUserId,
-        changedByName: changedByName,
-        changedAt:     data.statusChangeDate ? new Date(data.statusChangeDate) : new Date(),
-      });
-    }
-    // Write order_current_status history entry if value changed
-    if (updatedData.orderCurrentStatus && updatedData.orderCurrentStatus !== existingOrder.orderCurrentStatus) {
-      await orderRepository.createStatusHistoryEntry({
-        orderId:       crmOrderId,
-        statusType:    'order_current_status',
-        oldValue:      existingOrder.orderCurrentStatus ?? null,
-        newValue:      updatedData.orderCurrentStatus,
-        changedById:   changedByUserId,
-        changedByName: changedByName,
-        changedAt:     new Date(), // workflow status changes always use current time
-      });
-    }
-    ```
-  - [ ] [Types] `src/types/order.ts` — `OrderUpdateInput`: add `statusChangeDate?: string | null;` (used only for Refund/Chargeback date override; not persisted on `crm_orders`).
-  - [ ] [Controller] `src/app/api/orders/[id]/route.ts`, `PATCH` handler: extract `session.user.uid` and `session.user.nickname || session.user.name` and pass them as the 3rd and 4th arguments to `orderService.updateOrder(id, body, uid, name)`. Pass `statusChangeDate` through the body (it will be in `data` as `OrderUpdateInput.statusChangeDate` and picked up by the service).
-  - [ ] [Controller] Create `src/app/api/orders/[id]/status-history/route.ts`:
-    ```typescript
-    export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-      const session = await getServerSession(authOptions);
-      if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      if (!hasPermission(session.user.userPermissions, 'orders:view-status-history')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-      const id = Number((await params).id);
-      const history = await orderRepository.getStatusHistoryByOrderId(id);
-      return NextResponse.json(history);
-    }
-    ```
-  - [ ] [RBAC/Seed] Add `orders:view-status-history` to `crm_permissions` in `seed.sql`. Assign to super-admin and manager-level roles in `crm_role_permissions`. Add to `project_data.md` permissions table under the `orders` resource.
-  - [ ] Run integration test — **confirm GREEN**.
-
-- [ ] **RED — Unit (`src/tests/OrderStatusTimeline.test.tsx` — new file):**
-  - [ ] Test: Given 3 mock history entries `[{ statusType: 'sale_status', oldValue: '1', newValue: '7', changedByName: 'Alice', changedAt: '2026-01-15T10:30:00Z' }, { statusType: 'order_current_status', oldValue: 'Pending Booking', newValue: 'Pending Shipment', changedByName: 'Bob', changedAt: '2026-01-16T09:00:00Z' }, { statusType: 'sale_status', oldValue: '7', newValue: '1', changedByName: 'Carol', changedAt: '2026-01-17T11:00:00Z' }]`, render `<OrderStatusTimeline entries={mockEntries} />`. Assert the component renders 3 timeline nodes.
-  - [ ] Test: Assert the node for `newValue = '7'` displays the label `"Refunded"` (not `"7"`).
-  - [ ] Test: Assert the node for `newValue = '8'` (if present) displays `"Chargebacked"` (not `"8"`).
-  - [ ] Test: Assert each node shows `changedByName` and `changedAt` formatted as `"15/01/2026 10:30"`.
-  - [ ] Test: Assert `sale_status` nodes and `order_current_status` nodes render with visually distinct colors (one has CSS class `timeline-node--sale` and the other `timeline-node--workflow`).
-  - [ ] **Run — confirm RED** (component does not exist).
-
-- [ ] **GREEN — Frontend (Types → Component → EditOrderForm modal → Page integration):**
-  - [ ] [Types] Create `src/types/orderStatus.ts`:
-    ```typescript
-    export interface OrderStatusHistoryEntry {
-      id: number;
-      orderId: number;
-      statusType: 'sale_status' | 'order_current_status';
-      oldValue: string | null;
-      newValue: string;
-      changedById: number;
-      changedByName: string;
-      changedAt: string; // ISO string from API
-    }
-    ```
-  - [ ] [Component] Create `src/components/OrderStatusTimeline.tsx`: renders a vertical timeline from `entries: OrderStatusHistoryEntry[]`. Maps numeric `saleStatus` codes: `'1'` → `'Sold'`, `'7'` → `'Refunded'`, `'8'` → `'Chargebacked'`. Applies CSS class `timeline-node--sale` for `statusType === 'sale_status'` (amber dot) and `timeline-node--workflow` for `statusType === 'order_current_status'` (blue dot). Shows `old_value → new_value`, agent name, and formatted date. Groups entries into two sections: "Sale Status History" and "Order Workflow History".
-  - [ ] [Component] `src/components/EditOrderForm.tsx`: When the `saleStatus` dropdown value changes to `"7"` or `"8"`, render an inline modal prompt:
-    ```
-    ┌────────────────────────────────────────────────────────────┐
-    │ ⚠️  Record Refund / Chargeback Date                         │
-    │                                                            │
-    │ When did this refund/chargeback occur?                     │
-    │ [Date input: __________]  [Time input: __:__]              │
-    │                                                            │
-    │ ⓘ If left blank, the current date and time will be         │
-    │    recorded automatically in the status history.           │
-    │                                                            │
-    │             [ Skip ]     [ Confirm & Continue ]            │
-    └────────────────────────────────────────────────────────────┘
-    ```
-    Store the result in `statusChangeDate` state. Include in the PATCH payload. The modal appears when the dropdown changes, not on form submit. The modal is dismissible (Skip = use current time).
-  - [ ] [Page] `src/app/orders/[id]/page.tsx`: If session user has `orders:view-status-history`, fetch from `/api/orders/:id/status-history` (server-side). Render `<OrderStatusTimeline entries={history} />` at the bottom of the page, after the Comments section. If user lacks the permission, render nothing.
-  - [ ] Run unit test — **confirm GREEN**.
-
-- [ ] **Verification chain:**
-  - [ ] Admin opens an order detail → edits `saleStatus` to `"Refunded"` → modal appears asking for the date → Admin enters `2026-01-10` → clicks "Confirm & Continue" → form submits → `SELECT * FROM crm_order_status_history WHERE order_id = :id` shows 1 row with `status_type='sale_status'`, `new_value='7'`, `changed_at='2026-01-10 ...'`, `changed_by_name='Admin Name'` → Admin opens the order detail page → Bottom of page shows "Sale Status History" timeline section with the Refunded entry dated `10/01/2026` → Admin changes `orderCurrentStatus` to `"Pending Shipment"` → A second history entry appears in "Order Workflow History" with current timestamp → User without `orders:view-status-history` opens the order → timeline section is completely hidden → ✅ Done.
-
----
 
 #### W-1603 — Order Delete with Full Cascade + RBAC
 
@@ -2013,7 +1841,7 @@ Verify FK CASCADE on all child tables. Wire the existing `deleteOrder()` service
 ---
 
 - [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: Create an order. Post a comment to it (`POST /api/orders/:id/comments`). Change its `saleStatus` to `'7'` (generates a `crm_order_status_history` row). Then call `DELETE /api/orders/:id` with a super-admin session. Assert `200 OK`. Immediately after: assert `SELECT * FROM crm_orders WHERE crm_order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_comments WHERE order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_order_status_history WHERE order_id = :id` returns 0 rows.
+  - [ ] Test: Create an order. Post a comment to it (`POST /api/orders/:id/comments`). Change its `saleStatus` to `'2'` (generates a `crm_sale_status_history` row). Then call `DELETE /api/orders/:id` with a super-admin session. Assert `200 OK`. Immediately after: assert `SELECT * FROM crm_orders WHERE crm_order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_comments WHERE order_id = :id` returns 0 rows. Assert `SELECT * FROM crm_sale_status_history WHERE order_id = :id` returns 0 rows.
   - [ ] Test: `DELETE /api/orders/:id` **without** `orders:delete` permission. Assert `403 Forbidden`. Assert the order still exists: `SELECT COUNT(*) FROM crm_orders WHERE crm_order_id = :id` returns `1`.
   - [ ] Test: `DELETE /api/orders/:id` with no session. Assert `401 Unauthorized`.
   - [ ] **Run — confirm RED** (`DELETE` handler does not exist in `src/app/api/orders/[id]/route.ts`; cascade may or may not work).
@@ -2021,7 +1849,7 @@ Verify FK CASCADE on all child tables. Wire the existing `deleteOrder()` service
 - [ ] **GREEN — Backend (Migration → Controller):**
   - [ ] [Migration] Create migration `verify_order_cascade_constraints`. Inspect each FK constraint:
     - `crm_comments.order_id → crm_orders.crm_order_id`: Verify `ON DELETE CASCADE` exists. If not, run: `ALTER TABLE crm_comments DROP FOREIGN KEY <fk_name>; ALTER TABLE crm_comments ADD CONSTRAINT fk_comments_order FOREIGN KEY (order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE;`
-    - `crm_order_status_history.order_id`: Created in W-1602 with `ON DELETE CASCADE`. ✅
+    - `crm_sale_status_history.order_id` and `crm_order_current_status_history.order_id`: Created in W-1602 with `ON DELETE CASCADE`. ✅
     - `crm_order_views.order_id`: Will be created in W-1604 with `ON DELETE CASCADE`. ✅
     Apply via: `npx prisma migrate dev --name verify_order_cascade_constraints`.
   - [ ] [Controller] In `src/app/api/orders/[id]/route.ts`, add the `DELETE` handler:
@@ -2066,7 +1894,7 @@ Verify FK CASCADE on all child tables. Wire the existing `deleteOrder()` service
   - [ ] Run unit test — **confirm GREEN**.
 
 - [ ] **Verification chain:**
-  - [ ] Super-admin opens order detail page → sees red `"Delete Order"` button → clicks it → confirmation modal appears with exact warning text → clicks `"Delete Permanently"` → page redirects to `/orders` → deleted order does not appear in list → Direct `GET /api/orders/<deletedId>` returns `404 Not Found` → DB: all rows in `crm_orders`, `crm_comments`, and `crm_order_status_history` for that order_id are gone (CASCADE confirmed) → Regular agent logs in → order detail page has no delete button → ✅ Done.
+  - [ ] Super-admin opens order detail page → sees red `"Delete Order"` button → clicks it → confirmation modal appears with exact warning text → clicks `"Delete Permanently"` → page redirects to `/orders` → deleted order does not appear in list → Direct `GET /api/orders/<deletedId>` returns `404 Not Found` → DB: all rows in `crm_orders`, `crm_comments`, `crm_sale_status_history`, and `crm_order_current_status_history` for that order_id are gone (CASCADE confirmed) → Regular agent logs in → order detail page has no delete button → ✅ Done.
 
 ---
 

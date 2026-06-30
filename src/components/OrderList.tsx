@@ -10,7 +10,6 @@ interface OrderListProps {
   orders: Array<{
     crmOrderId: number;
     orderDate: string | Date | null;
-    orderYear: string | null;
     orderMakeModel: string | null;
     orderPart: string | null;
     orderTotalPitched: string | null;
@@ -120,7 +119,6 @@ export default function OrderList({ orders }: OrderListProps) {
                   <td>
                     <div>
                       <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>
-                        {order.orderYear ? `${order.orderYear} ` : ''}
                         {order.orderMakeModel || 'Unknown Vehicle'}
                       </div>
                       <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em' }}>

@@ -86,4 +86,60 @@ describe('AddOrderForm Unit Tests', () => {
       }));
     });
   });
+
+  describe('W-1502: Year and Make & Model Field Merger', () => {
+    it('should not contain orderYear input but should contain orderMakeModel with correct label and value', async () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      
+      // Assert orderYear input does not exist
+      expect(screen.queryByLabelText(/^year$/i)).toBeNull();
+      expect(document.getElementById('orderYear')).toBeNull();
+
+      // Assert orderMakeModel input exists with label "Year, Make & Model"
+      const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
+      expect(makeModelInput).not.toBeNull();
+      const label = screen.getByText('Year, Make & Model');
+      expect(label).toBeDefined();
+    });
+
+    it('should submit form with orderMakeModel and not include orderYear', async () => {
+      const mockVendors = [{ vendorId: 1, vendorName: 'Test Vendor' }];
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ orderId: 10, customerId: 20, cardId: 30 }),
+      } as Response);
+
+      render(<AddOrderForm vendors={mockVendors} gateways={[]} agents={[]} />);
+
+      // Fill out required fields
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Alice' } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Smith' } });
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+      fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
+      fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
+      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
+      fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
+      
+      // Input into the new merged field
+      const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
+      fireEvent.change(makeModelInput, { target: { value: '2022 Honda Civic' } });
+
+      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalled();
+      });
+
+      const [, fetchOptions] = vi.mocked(fetch).mock.calls[0];
+      const bodyStr = fetchOptions?.body as string;
+      const sentBody = JSON.parse(bodyStr);
+
+      expect(sentBody).toHaveProperty('orderMakeModel', '2022 Honda Civic');
+      expect(sentBody).not.toHaveProperty('orderYear');
+    });
+  });
 });

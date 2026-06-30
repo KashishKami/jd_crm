@@ -100,14 +100,15 @@ These changes add new tables or columns. They won't destroy existing data, but t
 - **Repository:** Add `createSaleStatusHistoryEntry(...)`, `getSaleStatusHistoryByOrderId(...)`, `createWorkflowStatusHistoryEntry(...)`, and `getWorkflowStatusHistoryByOrderId(...)` functions.
 - **Service:** `order.service.ts` `updateOrder()` must detect changes to `saleStatus` or `orderCurrentStatus` separately and write to the respective history tables. Attribution details (agent UID/name) must be passed.
 - **Routes:** Create `GET /api/orders/:id/sale-status-history` and `GET /api/orders/:id/workflow-history` routes.
-- **UI:** Order detail page gets two distinct timeline widgets at the bottom (guarded by respective RBAC permissions: `orders:view-sale-status-history` and `orders:view-workflow-history`). When modifying `saleStatus` to Refund (`7`) or Chargeback (`8`), a modal dialog prompts the user for the actual date/time of the transaction. If skipped/not filled, the field defaults to the current system date/time (with clear messaging to the user).
+- **UI:** Order detail page gets two distinct timeline widgets at the bottom (guarded by respective RBAC permissions: `orders:view-sale-status-history` and `orders:view-workflow-history`). The UI dropdown menus for `saleStatus` (in Add and Edit forms) will only expose **three active options**: Sold (`1`), Refunded (`2`), and Chargebacked (`3`). All other legacy/deprecated statuses are removed from the interactive controls. When modifying `saleStatus` to Refund (`2`) or Chargeback (`3`), a modal dialog prompts the user for the actual date/time of the transaction. If skipped/not filled, the field defaults to the current system date/time (with clear messaging to the user).
 
-**Special sub-requirement:** When `saleStatus` is changed to `Refund (7)` or `Chargeback (8)`, a modal pops asking for the date of the refund/chargeback. If not filled, defaults to current date/time (note this in the UI).
+**Special sub-requirement:** When `saleStatus` is changed to `Refunded (2)` or `Chargebacked (3)`, a modal pops asking for the date of the refund/chargeback. If not filled, defaults to current date/time (note this in the UI).
 
 **Can it be done later without affecting existing data?**
-> ⚠️ **Partially.** The tables are additive — existing orders won't have history rows (history starts from go-live), but that's expected. However, every day without this table means lost audit data. Refund/chargeback dates for existing `saleStatus = 7/8` records will never be known unless manually entered. If production use has started, this gap is permanent.
+> ⚠️ **Partially.** The tables are additive — existing orders won't have history rows (history starts from go-live), but that's expected. However, every day without this table means lost audit data. Refund/chargeback dates for existing `saleStatus` records will never be known unless manually entered. If production use has started, this gap is permanent. Additionally, a database migration is required to map any legacy Refund/Chargeback codes (`7`/`8`) to their new values (`2`/`3`) to avoid broken reports.
 
 **Priority: P1**
+
 
 
 ---

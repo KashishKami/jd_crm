@@ -29,7 +29,6 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [customerCardCopyStatus, setCustomerCardCopyStatus] = useState('No');
   const [customerCardPhotoStatus, setCustomerCardPhotoStatus] = useState('No');
 
-  const [orderYear, setOrderYear] = useState('');
   const [orderMakeModel, setOrderMakeModel] = useState('');
   const [orderPart, setOrderPart] = useState('');
   const [orderPartSize, setOrderPartSize] = useState('');
@@ -96,7 +95,6 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       customerCardCvv,
       customerCardCopyStatus,
       customerCardPhotoStatus,
-      orderYear,
       orderMakeModel,
       orderPart,
       orderPartSize,
@@ -302,23 +300,12 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         <div className="form-section">
           <h3 className="form-section-title">3. Vehicle & Part Specifications</h3>
           <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="orderYear" className="form-label">Year</label>
-              <input
-                type="text"
-                id="orderYear"
-                placeholder="e.g. 2021"
-                value={orderYear}
-                onChange={(e) => setOrderYear(e.target.value)}
-                className="form-input font-mono"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="orderMakeModel" className="form-label">Make & Model</label>
+            <div className="form-group form-grid-full">
+              <label htmlFor="orderMakeModel" className="form-label">Year, Make & Model</label>
               <input
                 type="text"
                 id="orderMakeModel"
-                placeholder="e.g. Jeep Grand Cherokee"
+                placeholder="e.g. 2021 Jeep Grand Cherokee"
                 value={orderMakeModel}
                 onChange={(e) => setOrderMakeModel(e.target.value)}
                 className="form-input"

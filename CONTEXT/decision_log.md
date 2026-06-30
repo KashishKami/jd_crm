@@ -297,3 +297,31 @@ To create a clean mobile layout and display logical pairings of metric states:
 - Resolves all Next.js dev and production build compilation crashes.
 - Guarantees typesafe property indexing on `pendingCounts['Completed Orders']` across client components.
 - Dev server successfully renders pages on all paths.
+
+---
+
+### Decision 15: Restriction to Strict 3-Status saleStatus Schema (Sold=1, Refunded=2, Chargebacked=3)
+
+**Date:** 2026-06-30
+**Status:** Approved
+
+#### Context
+- The client requested that the application only support three active `saleStatus` types: Sold, Refunded, and Chargebacked.
+- Previously, the system used codes `1` (Sold), `7` (Refunded), and `8` (Chargebacked), alongside deprecated legacy values `2` (Prospect), `3` (Call Back), `4` (Not Interested), `5` (Out Of Scope), and `6` (Enquiry).
+- To prevent fragmentation and establish a clean, standard schema, the client requested that Refunded and Chargebacked be mapped to codes `2` and `3` respectively.
+
+#### Decision
+- **Active Codes**: Reassigned the codes as: Sold = `1`, Refunded = `2`, and Chargebacked = `3`.
+- **Deprecated Documentation**: Retained the documentation of the old deprecated codes in the documentation records (marked as crossed-out) to preserve history, but strictly removed them from active database tables and UI dropdown controls.
+- **Data Migration**: Added a migration step to:
+  1. Map legacy deprecated codes (`2`-`6`) to `1` (Sold).
+  2. Map legacy Refunded (`7`) to `2`.
+  3. Map legacy Chargebacked (`8`) to `3`.
+  This prevents any conflicting mapping or orphaned data during schema transition.
+- **UI Controls**: Configured form select elements to only render three options: Sold (`1`), Refunded (`2`), and Chargebacked (`3`).
+
+#### Consequences
+- Clean database schema with clear status mappings.
+- Dropdowns contain only the active operational options for agents.
+- Existing databases can safely migrate without data conflicts.
+

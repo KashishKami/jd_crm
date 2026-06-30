@@ -146,5 +146,63 @@ describe('EditOrderForm Unit Tests', () => {
 
     vi.unstubAllGlobals();
   });
+
+  describe('W-1502: Year and Make & Model Field Merger (Edit)', () => {
+    it('should pre-populate merged Year, Make & Model and not display orderYear input', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+
+      // Assert orderYear input does not exist
+      expect(screen.queryByLabelText(/^year$/i)).toBeNull();
+      expect(document.getElementById('orderYear')).toBeNull();
+
+      // Assert orderMakeModel exists and has value pre-populated
+      const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
+      expect(makeModelInput).not.toBeNull();
+      expect(makeModelInput.value).toBe('Ford Focus');
+      
+      const label = screen.getByText('Year, Make & Model');
+      expect(label).toBeDefined();
+    });
+
+    it('should submit updated orderMakeModel and not include orderYear', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', fetchSpy);
+
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+
+      const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
+      fireEvent.change(makeModelInput, { target: { value: '2018 Toyota RAV4' } });
+
+      const saveButton = screen.getByText('Save Changes');
+      fireEvent.click(saveButton);
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+      const [, fetchOptions] = fetchSpy.mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions.body);
+
+      expect(sentBody).toHaveProperty('orderMakeModel', '2018 Toyota RAV4');
+      expect(sentBody).not.toHaveProperty('orderYear');
+
+      vi.unstubAllGlobals();
+    });
+  });
 });
 
