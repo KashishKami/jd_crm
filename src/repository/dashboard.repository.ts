@@ -337,28 +337,42 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
     include: {
       salesOrders: {
         where: {
-          saleStatus: '1',
+          saleStatus: { in: ['1', '7', '8'] },
           orderDate: {
             gte: start,
             lt: end,
           },
         },
         select: {
+          saleStatus: true,
           orderMarkup: true,
         },
       },
     },
   });
 
-  let topAgent: { agentName: string; amount: number } | null = null;
+  if (agents.length === 0) {
+    return null;
+  }
+
+  let topAgent: { agentId: number; agentName: string; amount: number } | null = null;
 
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
-      total += parseFloat(order.orderMarkup || '0');
+      const val = parseFloat(order.orderMarkup || '0');
+      if (order.saleStatus === '1') {
+        total += val;
+      } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+        total -= val;
+      }
     }
-    if (total > 0 && (!topAgent || total > topAgent.amount)) {
-      topAgent = { agentName: agent.name, amount: total };
+    if (!topAgent || total > topAgent.amount) {
+      topAgent = {
+        agentId: agent.uid,
+        agentName: agent.nickname || agent.name,
+        amount: total,
+      };
     }
   }
 
@@ -374,28 +388,42 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
     include: {
       salesOrders: {
         where: {
-          saleStatus: '1',
+          saleStatus: { in: ['1', '7', '8'] },
           orderDate: {
             gte: start,
             lt: end,
           },
         },
         select: {
+          saleStatus: true,
           orderMarkup: true,
         },
       },
     },
   });
 
-  let bottomAgent: { agentName: string; amount: number } | null = null;
+  if (agents.length === 0) {
+    return null;
+  }
+
+  let bottomAgent: { agentId: number; agentName: string; amount: number } | null = null;
 
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
-      total += parseFloat(order.orderMarkup || '0');
+      const val = parseFloat(order.orderMarkup || '0');
+      if (order.saleStatus === '1') {
+        total += val;
+      } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+        total -= val;
+      }
     }
-    if (total > 0 && (!bottomAgent || total < bottomAgent.amount)) {
-      bottomAgent = { agentName: agent.name, amount: total };
+    if (!bottomAgent || total < bottomAgent.amount) {
+      bottomAgent = {
+        agentId: agent.uid,
+        agentName: agent.nickname || agent.name,
+        amount: total,
+      };
     }
   }
 

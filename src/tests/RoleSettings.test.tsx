@@ -94,7 +94,7 @@ describe('RoleSettings Page Unit Tests', () => {
     await waitFor(() => {
       expect(screen.queryByText('Super Admin')).not.toBeNull();
       expect(screen.queryByText('Agent')).not.toBeNull();
-      expect(screen.queryByText('super-admin')).not.toBeNull();
+      expect(screen.queryAllByText('super-admin').length).toBeGreaterThan(0);
       expect(screen.queryByText('vendors:view')).not.toBeNull();
       expect(screen.queryByText('orders:view')).not.toBeNull();
     });

@@ -56,6 +56,7 @@ export interface DashboardMetrics {
 }
 
 export interface TeamPerformerRow {
+  agentId: number;
   agentName: string;
   amount: number;
 }

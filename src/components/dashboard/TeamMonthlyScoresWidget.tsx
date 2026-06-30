@@ -197,12 +197,12 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
                 <div style={{ marginTop: '12px', background: 'white', borderRadius: '6px', padding: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {canShowTopPerformer && team.topPerformer && (
                     <div style={{ fontSize: '0.78rem', color: '#16a34a', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{`Top Performer: ${team.topPerformer.agentName} ($${team.topPerformer.amount.toLocaleString()})`}</span>
+                      <span>{`Top Performer: ${team.topPerformer.agentName} (${team.topPerformer.amount < 0 ? `-$${Math.abs(team.topPerformer.amount).toLocaleString()}` : `$${team.topPerformer.amount.toLocaleString()}`})`}</span>
                     </div>
                   )}
                   {canShowBottomPerformer && team.bottomPerformer && (
                     <div style={{ fontSize: '0.78rem', color: '#dc2626', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{`Bottom Performer: ${team.bottomPerformer.agentName} ($${team.bottomPerformer.amount.toLocaleString()})`}</span>
+                      <span>{`Bottom Performer: ${team.bottomPerformer.agentName} (${team.bottomPerformer.amount < 0 ? `-$${Math.abs(team.bottomPerformer.amount).toLocaleString()}` : `$${team.bottomPerformer.amount.toLocaleString()}`})`}</span>
                     </div>
                   )}
                 </div>

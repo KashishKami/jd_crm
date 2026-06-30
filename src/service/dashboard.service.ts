@@ -92,7 +92,7 @@ export async function getMetricsForUser(session: any) {
     const rawOrders = await dashboardRepository.getRecentOrders();
     metrics.recentOrders = rawOrders.map(o => ({
       crmOrderId: o.crmOrderId,
-      customerName: o.customer ? `${o.customer.firstName} ${o.customer.lastName}`.trim() : 'Unknown Customer',
+      customerName: o.customer ? (((o.customer as any).customerName || `${(o.customer as any).firstName || ''} ${(o.customer as any).lastName || ''}`).trim()) : 'Unknown Customer',
       salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : 'Unknown Agent',
       saleStatus: o.saleStatus,
       orderMarkup: o.orderMarkup,

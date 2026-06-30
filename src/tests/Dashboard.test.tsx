@@ -165,6 +165,7 @@ describe('Dashboard Component Unit Tests', () => {
         },
       },
       status: 'authenticated',
+      update: vi.fn(),
     } as any);
 
     render(
@@ -181,6 +182,48 @@ describe('Dashboard Component Unit Tests', () => {
       expect(screen.getByText('15 Sales')).toBeDefined();
       expect(screen.getByText('Top Performer: Alice ($2,000)')).toBeDefined();
       expect(screen.getByText('Bottom Performer: Dave ($500)')).toBeDefined();
+    });
+  });
+
+  it('should render TeamMonthlyScoresWidget with negative bottom performer scores formatted correctly', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin',
+          userPermissions: 'dashboard:team-monthly-scores,dashboard:team-top-performer,dashboard:team-bottom-performer',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const mockReportWithNegative = [
+      {
+        teamId: 1,
+        teamName: 'IT Park',
+        soldCount: 15,
+        refundCount: 1,
+        chargebackCount: 0,
+        netAmount: 3200,
+        topPerformer: { agentName: 'Alice', amount: 2000 },
+        bottomPerformer: { agentName: 'Dave', amount: -50 },
+      },
+    ];
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockReportWithNegative,
+    });
+
+    render(
+      <DashboardPage
+        initialMetrics={{}}
+        userPermissions="dashboard:team-monthly-scores,dashboard:team-top-performer,dashboard:team-bottom-performer"
+        userName="Admin"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Bottom Performer: Dave (-$50)')).toBeDefined();
     });
   });
 

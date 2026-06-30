@@ -24,7 +24,7 @@ describe('Dashboard Integration Tests', () => {
     });
     await prisma.users.deleteMany({
       where: {
-        username: { in: ['dashboard_test_agent_metrics', 'agent_a1_test', 'agent_a2_test', 'agent_b1_test'] }
+        username: { in: ['dashboard_test_agent_metrics', 'agent_a1_test', 'agent_a2_test', 'agent_b1_test', 'agent_alice_test', 'agent_bob_test', 'agent_carlos_test'] }
       }
     });
     await prisma.crmTeams.deleteMany({
@@ -342,6 +342,142 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmTeams.deleteMany({
         where: { teamId: { in: [teamA.teamId, teamB.teamId] } },
       });
+    });
+
+    it('should calculate top and bottom performers by net scores (deducting refunds/chargebacks) and use agent nicknames', async () => {
+      // Find or create test roles
+      const role = await prisma.crmRoles.findFirst();
+
+      // Create Team A
+      const teamA = await prisma.crmTeams.create({ data: { teamName: 'Test Team A' } });
+
+      // Create agents: Alice (no nickname), Bob (no nickname), Carlos (nickname: Carlo)
+      const agentAlice = await prisma.users.create({
+        data: {
+          name: 'Alice Agent',
+          username: 'agent_alice_test',
+          teamId: teamA.teamId,
+          roleId: role!.roleId,
+        },
+      });
+      const agentBob = await prisma.users.create({
+        data: {
+          name: 'Bob Agent',
+          username: 'agent_bob_test',
+          teamId: teamA.teamId,
+          roleId: role!.roleId,
+        },
+      });
+      const agentCarlos = await prisma.users.create({
+        data: {
+          name: 'Carlos Agent',
+          nickname: 'Carlo',
+          username: 'agent_carlos_test',
+          teamId: teamA.teamId,
+          roleId: role!.roleId,
+        },
+      });
+
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          firstName: 'Team',
+          lastName: 'Customer',
+          customerEmail: 'team_cust@example.com',
+        },
+      });
+
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const orderDate = new Date(currentYear, currentMonth - 1, 15, 12, 0, 0);
+
+      // Alice: 2 Sold orders (markup 200 each = 400) + 1 Refunded order (markup 150) -> net 250
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '200',
+          orderDate,
+          orderSalesAgentId: agentAlice.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '200',
+          orderDate,
+          orderSalesAgentId: agentAlice.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '7',
+          orderMarkup: '150',
+          orderDate,
+          orderSalesAgentId: agentAlice.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // Bob: 1 Sold order (markup 100) -> net 100
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '100',
+          orderDate,
+          orderSalesAgentId: agentBob.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // Carlos: 0 Sold + 1 Chargeback order (markup 50) -> net -50
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '8',
+          orderMarkup: '50',
+          orderDate,
+          orderSalesAgentId: agentCarlos.uid,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Manager', userPermissions: 'dashboard:team-monthly-scores,dashboard:team-top-performer,dashboard:team-bottom-performer' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/teams/monthly/route');
+      const req = new Request(`http://localhost/api/dashboard/teams/monthly?month=${currentMonth}&year=${currentYear}`);
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      const resTeamA = data.find((t: { teamId: number }) => t.teamId === teamA.teamId);
+      expect(resTeamA).toBeDefined();
+
+      // Alice should be Top Performer (net 250)
+      expect(resTeamA.topPerformer).toBeDefined();
+      expect(resTeamA.topPerformer.agentName).toBe('Alice Agent');
+      expect(resTeamA.topPerformer.amount).toBe(250);
+
+      // Carlos should be Bottom Performer (net -50) and use nickname 'Carlo'
+      expect(resTeamA.bottomPerformer).toBeDefined();
+      expect(resTeamA.bottomPerformer.agentName).toBe('Carlo');
+      expect(resTeamA.bottomPerformer.amount).toBe(-50);
+
+      // Cleanup
+      await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+      await prisma.users.deleteMany({
+        where: { uid: { in: [agentAlice.uid, agentBob.uid, agentCarlos.uid] } },
+      });
+      await prisma.crmTeams.delete({ where: { teamId: teamA.teamId } });
     });
   });
 
