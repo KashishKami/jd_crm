@@ -21,7 +21,7 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
 export async function getNetSalesBetweenDates(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: { in: ['1', '7', '8'] },
+      saleStatus: { in: ['1', '2', '3'] },
       orderDate: {
         gte: start,
         lt: end,
@@ -40,7 +40,7 @@ export async function getNetSalesBetweenDates(start: Date, end: Date) {
     if (order.saleStatus === '1') {
       amount += val;
       count += 1;
-    } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+    } else if (order.saleStatus === '2' || order.saleStatus === '3') {
       amount -= val;
       count -= 1;
     }
@@ -72,7 +72,7 @@ export async function getTodaySales() {
 export async function getChargebackThisMonth(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: '8',
+      saleStatus: '3',
       orderDate: {
         gte: start,
         lt: end,
@@ -90,7 +90,7 @@ export async function getChargebackThisMonth(start: Date, end: Date) {
 export async function getRefundThisMonth(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: '7',
+      saleStatus: '2',
       orderDate: {
         gte: start,
         lt: end,
@@ -108,7 +108,7 @@ export async function getRefundThisMonth(start: Date, end: Date) {
 export async function getNetSales() {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: { in: ['1', '7', '8'] },
+      saleStatus: { in: ['1', '2', '3'] },
     },
     select: {
       saleStatus: true,
@@ -123,7 +123,7 @@ export async function getNetSales() {
     if (order.saleStatus === '1') {
       amount += val;
       count += 1;
-    } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+    } else if (order.saleStatus === '2' || order.saleStatus === '3') {
       amount -= val;
       count -= 1;
     }
@@ -300,12 +300,12 @@ export async function getTeamMonthlyScores(month: number, year: number) {
       t.team_id AS teamId, 
       t.team_name AS teamName,
       SUM(CASE WHEN o.sale_status = '1' THEN 1 ELSE 0 END) AS soldCount,
-      SUM(CASE WHEN o.sale_status = '7' THEN 1 ELSE 0 END) AS refundCount,
-      SUM(CASE WHEN o.sale_status = '8' THEN 1 ELSE 0 END) AS chargebackCount,
+      SUM(CASE WHEN o.sale_status = '2' THEN 1 ELSE 0 END) AS refundCount,
+      SUM(CASE WHEN o.sale_status = '3' THEN 1 ELSE 0 END) AS chargebackCount,
       SUM(
         CASE 
           WHEN o.sale_status = '1' THEN CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2))
-          WHEN o.sale_status IN ('7', '8') THEN -CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2))
+          WHEN o.sale_status IN ('2', '3') THEN -CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2))
           ELSE 0 
         END
       ) AS netAmount
@@ -328,15 +328,16 @@ export async function getTeamMonthlyScores(month: number, year: number) {
 }
 
 export async function getTeamMonthlyTopPerformer(teamId: number, month: number, year: number) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  // Use UTC month boundaries to avoid machine-timezone drift
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
 
   const agents = await prisma.users.findMany({
     where: { teamId },
     include: {
       salesOrders: {
         where: {
-          saleStatus: { in: ['1', '7', '8'] },
+          saleStatus: { in: ['1', '2', '3'] },
           orderDate: {
             gte: start,
             lt: end,
@@ -362,7 +363,7 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
       const val = parseFloat(order.orderMarkup || '0');
       if (order.saleStatus === '1') {
         total += val;
-      } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+      } else if (order.saleStatus === '2' || order.saleStatus === '3') {
         total -= val;
       }
     }
@@ -379,15 +380,16 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
 }
 
 export async function getTeamMonthlyBottomPerformer(teamId: number, month: number, year: number) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  // Use UTC month boundaries to avoid machine-timezone drift
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
 
   const agents = await prisma.users.findMany({
     where: { teamId },
     include: {
       salesOrders: {
         where: {
-          saleStatus: { in: ['1', '7', '8'] },
+          saleStatus: { in: ['1', '2', '3'] },
           orderDate: {
             gte: start,
             lt: end,
@@ -413,7 +415,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
       const val = parseFloat(order.orderMarkup || '0');
       if (order.saleStatus === '1') {
         total += val;
-      } else if (order.saleStatus === '7' || order.saleStatus === '8') {
+      } else if (order.saleStatus === '2' || order.saleStatus === '3') {
         total -= val;
       }
     }
@@ -431,7 +433,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
 
 export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {
   const where: any = {
-    saleStatus: { in: ['1', '7', '8'] },
+    saleStatus: { in: ['1', '2', '3'] },
   };
 
   if (dateFrom || dateTo) {

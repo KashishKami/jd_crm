@@ -166,11 +166,15 @@ export async function findAll(filters: OrderFilters): Promise<any> {
   }
   if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
+    const { convertEstToUtc } = require('../lib/date');
     if (filters.dateFrom) {
-      dateFilter.gte = new Date(filters.dateFrom);
+      dateFilter.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
     }
     if (filters.dateTo) {
-      dateFilter.lte = new Date(filters.dateTo);
+      const endEstUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
+      endEstUtc.setSeconds(59);
+      endEstUtc.setMilliseconds(999);
+      dateFilter.lte = endEstUtc;
     }
     where.orderDate = dateFilter;
   }
@@ -270,5 +274,62 @@ export async function update(crmOrderId: number, data: OrderUpdateInput) {
 export async function remove(crmOrderId: number) {
   return await prisma.crmOrders.delete({
     where: { crmOrderId },
+  });
+}
+
+// ─── Sale Status History ──────────────────────────────────────────────────────
+
+export async function createSaleStatusHistoryEntry(data: {
+  orderId: number;
+  oldValue: string | null;
+  newValue: string;
+  changedById: number;
+  changedByName: string;
+  changedAt?: Date; // optional override — used for Refund/Chargeback event dates
+}) {
+  return await prisma.crmSaleStatusHistory.create({
+    data: {
+      orderId:       data.orderId,
+      oldValue:      data.oldValue ?? null,
+      newValue:      data.newValue,
+      changedById:   data.changedById,
+      changedByName: data.changedByName,
+      changedAt:     data.changedAt ?? new Date(), // defaults to NOW() if no override
+    },
+  });
+}
+
+export async function getSaleStatusHistoryByOrderId(orderId: number) {
+  return await prisma.crmSaleStatusHistory.findMany({
+    where: { orderId },
+    orderBy: { changedAt: 'asc' },
+  });
+}
+
+// ─── Order Workflow (Current Status) History ──────────────────────────────────
+
+export async function createWorkflowStatusHistoryEntry(data: {
+  orderId: number;
+  oldValue: string | null;
+  newValue: string;
+  changedById: number;
+  changedByName: string;
+}) {
+  return await prisma.crmOrderCurrentStatusHistory.create({
+    data: {
+      orderId:       data.orderId,
+      oldValue:      data.oldValue ?? null,
+      newValue:      data.newValue,
+      changedById:   data.changedById,
+      changedByName: data.changedByName,
+      changedAt:     new Date(), // always current time — no override possible
+    },
+  });
+}
+
+export async function getWorkflowStatusHistoryByOrderId(orderId: number) {
+  return await prisma.crmOrderCurrentStatusHistory.findMany({
+    where: { orderId },
+    orderBy: { changedAt: 'asc' },
   });
 }

@@ -155,11 +155,11 @@ describe('Dashboard Integration Tests', () => {
         });
       }
 
-      // Seed 1 Refunded order (saleStatus = '7', markup = 100)
+      // Seed 1 Refunded order (saleStatus = '2', markup = 100)
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: testCustomer.customerId,
-          saleStatus: '7',
+          saleStatus: '2',
           orderMarkup: '100',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
@@ -167,11 +167,11 @@ describe('Dashboard Integration Tests', () => {
         },
       });
 
-      // Seed 1 Chargebacked order (saleStatus = '8', markup = 100)
+      // Seed 1 Chargebacked order (saleStatus = '3', markup = 100)
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: testCustomer.customerId,
-          saleStatus: '8',
+          saleStatus: '3',
           orderMarkup: '100',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
@@ -412,7 +412,7 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
-          saleStatus: '7',
+          saleStatus: '2',
           orderMarkup: '150',
           orderDate,
           orderSalesAgentId: agentAlice.uid,
@@ -436,7 +436,7 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
-          saleStatus: '8',
+          saleStatus: '3',
           orderMarkup: '50',
           orderDate,
           orderSalesAgentId: agentCarlos.uid,
@@ -565,7 +565,7 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
-          saleStatus: '7',
+          saleStatus: '2',
           orderMarkup: '120',
           orderDate,
           orderSalesAgentId: agent.uid,

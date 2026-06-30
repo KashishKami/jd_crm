@@ -881,5 +881,251 @@ describe('Order Management Integration Tests', () => {
       expect(getJson).toHaveProperty('orderBackendExecutiveName');
     });
   });
+
+  describe('W-1602: Status History Timeline Auditing', () => {
+    it('should create a sale status history entry when saleStatus changes, using custom date if provided', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleStatus: '2', // Refunded
+          saleStatusChangeDate: '2026-01-15T10:30:00.000Z',
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // Verify DB entry using queryRawUnsafe to allow test compilation before schema update
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT old_value, new_value, changed_at, changed_by_name FROM crm_sale_status_history WHERE order_id = ? ORDER BY id DESC LIMIT 1`,
+        testOrder.crmOrderId
+      );
+
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].new_value).toBe('2');
+      expect(dbRows[0].old_value).toBe('1');
+      expect(new Date(dbRows[0].changed_at).toISOString()).toBe('2026-01-15T10:30:00.000Z');
+      expect(dbRows[0].changed_by_name).toBe(testUser.nickname);
+    });
+
+    it('should create a sale status history entry and default changed_at to current time when no date is provided', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleStatus: '3', // Chargebacked
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT old_value, new_value, changed_at FROM crm_sale_status_history WHERE order_id = ? ORDER BY id DESC LIMIT 1`,
+        testOrder.crmOrderId
+      );
+
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].new_value).toBe('3');
+      expect(dbRows[0].old_value).toBe('1');
+      const timeDiff = Math.abs(new Date(dbRows[0].changed_at).getTime() - Date.now());
+      expect(timeDiff).toBeLessThan(10000); // within 10 seconds
+    });
+
+    it('should NOT write a sale status history entry if saleStatus value is identical', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleStatus: '1', // identical to initial status
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM crm_sale_status_history WHERE order_id = ?`,
+        testOrder.crmOrderId
+      );
+      expect(dbRows.length).toBe(0);
+    });
+
+    it('should return 403 when retrieving sale status history without orders:view-sale-status-history permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view', // Lacks orders:view-sale-status-history
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/sale-status-history/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/sale-status-history`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 200 and list entries when retrieving sale status history with permission', async () => {
+      // Directly insert mock history rows
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_sale_status_history (order_id, old_value, new_value, changed_by_id, changed_by_name, changed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        testOrder.crmOrderId, '1', '2', testUser.uid, testUser.nickname || testUser.name, new Date('2026-01-15T10:30:00Z')
+      );
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view-sale-status-history',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/sale-status-history/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/sale-status-history`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.length).toBe(1);
+      expect(data[0].newValue).toBe('2');
+      expect(data[0].oldValue).toBe('1');
+    });
+
+    it('should create a workflow status history entry when orderCurrentStatus changes', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderCurrentStatus: 'Pending Delivery',
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT old_value, new_value, changed_at, changed_by_name FROM crm_order_current_status_history WHERE order_id = ? ORDER BY id DESC LIMIT 1`,
+        testOrder.crmOrderId
+      );
+
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].new_value).toBe('Pending Delivery');
+      expect(dbRows[0].old_value).toBe('Pending Shipment');
+      expect(dbRows[0].changed_by_name).toBe(testUser.nickname);
+    });
+
+    it('should NOT write a workflow status history entry if orderCurrentStatus value is identical', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderCurrentStatus: 'Pending Shipment', // identical
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM crm_order_current_status_history WHERE order_id = ?`,
+        testOrder.crmOrderId
+      );
+      expect(dbRows.length).toBe(0);
+    });
+
+    it('should return 403 when retrieving workflow history without orders:view-workflow-history permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/workflow-history/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/workflow-history`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 200 and list entries when retrieving workflow history with permission', async () => {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_order_current_status_history (order_id, old_value, new_value, changed_by_id, changed_by_name, changed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        testOrder.crmOrderId, 'Pending Booking', 'Pending Shipment', testUser.uid, testUser.nickname || testUser.name, new Date('2026-02-01T08:00:00Z')
+      );
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:view-workflow-history',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/workflow-history/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}/workflow-history`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.length).toBe(1);
+      expect(data[0].newValue).toBe('Pending Shipment');
+      expect(data[0].oldValue).toBe('Pending Booking');
+    });
+  });
 });
 

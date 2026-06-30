@@ -261,8 +261,12 @@ export async function getAdvancedChartMetrics(
     dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
     granularity = 'yearly';
   } else if (range === 'custom' && startDateStr && endDateStr) {
-    dateFrom = startOfDay(new Date(startDateStr));
-    dateTo = endOfDay(new Date(endDateStr));
+    const { convertEstToUtc } = require('../lib/date');
+    dateFrom = new Date(convertEstToUtc(startDateStr, '00:00'));
+    const endEstUtc = new Date(convertEstToUtc(endDateStr, '23:59'));
+    endEstUtc.setSeconds(59);
+    endEstUtc.setMilliseconds(999);
+    dateTo = endEstUtc;
     const diffTime = Math.abs(dateTo.getTime() - dateFrom.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays <= 31) {
@@ -360,10 +364,10 @@ export async function getAdvancedChartMetrics(
       if (o.saleStatus === '1') {
         bin.salesAmount += val;
         bin.salesCount += 1;
-      } else if (o.saleStatus === '7') {
+      } else if (o.saleStatus === '2') {
         bin.refundsAmount += val;
         bin.refundsCount += 1;
-      } else if (o.saleStatus === '8') {
+      } else if (o.saleStatus === '3') {
         bin.chargebacksAmount += val;
         bin.chargebacksCount += 1;
       }

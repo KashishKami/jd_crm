@@ -14,9 +14,22 @@ interface TeamMonthlyScoresWidgetProps {
 }
 
 export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScoresWidgetProps) {
-  const now = new Date();
-  const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1); // 1-indexed
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  // Derive current month/year from America/New_York timezone
+  const getEstMonthYear = () => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'numeric',
+    });
+    const parts = formatter.formatToParts(now);
+    const map: Record<string, string> = {};
+    for (const p of parts) map[p.type] = p.value;
+    return { month: parseInt(map.month), year: parseInt(map.year) };
+  };
+  const estNow = getEstMonthYear();
+  const [currentMonth, setCurrentMonth] = useState(estNow.month); // 1-indexed
+  const [currentYear, setCurrentYear] = useState(estNow.year);
   const [teams, setTeams] = useState<TeamMonthlyReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

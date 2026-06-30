@@ -282,17 +282,17 @@ These are fully additive feature changes. No existing data is at risk. Deferring
 
 ---
 
-### #25 — Order Pipeline Page: Count/Amount + Backend Team Member Filter
+### #25 — Order Pipeline Page: Count/Amount + Backend Executive Filter
 
 **Depth:** `Repository → Service → Routes → UI`
 
 **What changes:**
-- **DB:** No change (counts from existing data). Backend Team Member filter depends on #11 being done first.
+- **DB:** No change (counts from existing data). Backend Executive filter depends on #11 being done first.
 - **Repository:** `getPendingCounts()` in `dashboard.repository.ts` already returns `{ amount, count }` per status (lines 275-293). The pipeline page just needs to display these.
 - **Routes:** Possibly expose pending counts through the existing dashboard metrics endpoint or a new endpoint for the pipeline page.
-- **UI:** `OrderListContainer.tsx` — display order count + total amount in each tab. Add Backend Team Member filter dropdown (depends on #11).
+- **UI:** `OrderListContainer.tsx` — display order count + total amount in each tab. Add Backend Executive filter dropdown (depends on #11).
 
-**Dependencies:** #11 (Backend Team Member field) must be done first.
+**Dependencies:** #11 (Backend Executive field) must be done first.
 
 **Can it be done later?** ✅ Yes. Display-only change for counts. Backend filter depends on #11.
 
@@ -567,7 +567,7 @@ These are pure frontend changes. No schema, no migration, no data risk. They can
 | **12** | Status history timeline table | **P1** | New Table→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Partial (loses history) |
 | **17** | BUG: Team scores don't show refunds | **P1** | Service→UI | ❌ | ✅ No | ❌ Active bug |
 | **3** | Sale Date input field | **P1** | UI only (column exists) | ❌ | ✅ No | ⚠️ UX gap |
-| **11** | Sales Verifier + Backend Member fields | **P1** | DB→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Missing from future orders |
+| **11** | Sales Verifier + Backend Executive fields | **P1** | DB→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Missing from future orders |
 | **19** | Order view log / audit trail | **P1** | New Table→Repo→Routes→UI | ✅ Additive | ✅ No | ⚠️ Loses view history |
 | **32** | Order field change audit log | **P1** | New Table→Repo→Service→Routes→UI | ✅ Additive | ✅ No | ⚠️ Loses edit history |
 | **21** | Order delete with cascade | **P1** | DB FK check→Routes→UI | ✅ FK constraints | ✅ No | ✅ Yes |
@@ -602,7 +602,7 @@ Sprint 1 (Critical — Before Any Production Data):
 
 Sprint 2 (Before Go-Live):
   → #3 (sale date picker — UI, 30 min)
-  → #11 (sales verifier + backend member columns)
+  → #11 (sales verifier + backend executive columns)
   → #12 (status history table + refund/chargeback date modal)
   → #17 (fix team scores refund bug)
   → #21 (verify cascade FKs + delete button)
@@ -611,7 +611,7 @@ Sprint 2 (Before Go-Live):
 
 Sprint 3 (Post-Launch Features):
   → #13, #14 (dashboard filter/performer improvements)
-  → #25 (pipeline count + backend member filter)
+  → #25 (pipeline count + backend executive filter)
   → #27, #28 (vendor profile, agent permission split)
   → #29, #30 (rename page, query optimization)
   → #31 (finalize seed)

@@ -7,6 +7,8 @@ import { hasPermission } from '../../../service/permission.service';
 import { prisma } from '../../../lib/db';
 import OrderCommentsSection from '../../../components/OrderCommentsSection';
 import { formatDateDDMMYYYY } from '../../../lib/date';
+import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
+import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
 
 
 export const metadata = {
@@ -85,6 +87,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canViewEmail = hasPermission(permissions, 'customers:view-email');
   const canViewCards = hasPermission(permissions, 'customers:view-cards');
   const canEdit = hasPermission(permissions, 'orders:edit');
+  const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
+  const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
+
+  const saleHistory = canViewSaleHistory ? await prisma.crmSaleStatusHistory.findMany({
+    where: { orderId: crmOrderId },
+    orderBy: { changedAt: 'asc' },
+  }) : [];
+
+  const workflowHistory = canViewWorkflowHistory ? await prisma.crmOrderCurrentStatusHistory.findMany({
+    where: { orderId: crmOrderId },
+    orderBy: { changedAt: 'asc' },
+  }) : [];
 
   const customerPhoneDisplay = canViewPhone ? order.customer.customerPhone : maskPhone(order.customer.customerPhone);
   const customerEmailDisplay = canViewEmail ? order.customer.customerEmail : maskEmail(order.customer.customerEmail);
@@ -92,13 +106,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // Status labels
   const saleStatuses: Record<string, string> = {
     '1': 'Sold',
-    '2': 'Prospect',
-    '3': 'Call Back',
-    '4': 'Not Interested',
-    '5': 'Out Of Scope',
-    '6': 'Enquiry',
-    '7': 'Refunded',
-    '8': 'Chargebacked',
+    '2': 'Refunded',
+    '3': 'Chargebacked',
   };
 
   const currentStatusDisplay = order.orderCurrentStatus || 'Pending Booking';
@@ -207,6 +216,24 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
           {/* Section 3: Comments & Timeline */}
           <OrderCommentsSection orderId={order.crmOrderId} />
+
+          {canViewSaleHistory && (
+            <div className="profile-main" style={{ padding: '24px' }}>
+              <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+                Sale Status History
+              </h3>
+              <SaleStatusTimeline history={saleHistory} />
+            </div>
+          )}
+
+          {canViewWorkflowHistory && (
+            <div className="profile-main" style={{ padding: '24px' }}>
+              <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+                Order Workflow History
+              </h3>
+              <WorkflowStatusTimeline history={workflowHistory} />
+            </div>
+          )}
         </div>
 
         {/* Sidebar Info */}

@@ -298,7 +298,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
           {saleStatusFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '7' ? 'Refunded' : saleStatusFilter === '8' ? 'Chargebacked' : saleStatusFilter}
+              Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '2' ? 'Refunded' : saleStatusFilter === '3' ? 'Chargebacked' : saleStatusFilter}
               <button 
                 onClick={() => setSaleStatusFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}

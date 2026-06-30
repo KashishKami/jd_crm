@@ -41,6 +41,8 @@ model Users {
   verifiedOrders     CrmOrders[]                @relation("Verifier")
   salesVerifierOrders  CrmOrders[]              @relation("SalesVerifier")
   backendExecutiveOrders CrmOrders[]            @relation("BackendExecutive")
+  saleStatusChanges    CrmSaleStatusHistory[]          @relation("SaleStatusChanges")
+  workflowStatusChanges CrmOrderCurrentStatusHistory[] @relation("WorkflowStatusChanges")
   userchecks         Usercheck[]
   role               CrmRoles                   @relation(fields: [roleId], references: [roleId])
   team               CrmTeams                   @relation(fields: [teamId], references: [teamId])
@@ -239,6 +241,8 @@ model CrmOrders {
   orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
   orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
   comments                      CrmComments[]
+  saleStatusHistory             CrmSaleStatusHistory[]
+  workflowHistory               CrmOrderCurrentStatusHistory[]
   customer                      CrmCustomers  @relation(fields: [orderCustomerId], references: [customerId])
   gateway                       CrmGateway?   @relation(fields: [orderPaymentGatewayId], references: [gatewayId])
   salesAgent                    Users?        @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid])
@@ -337,3 +341,35 @@ model CrmRolePermissions {
   @@index([permissionId], map: "crm_role_permissions_permission_id_fkey")
   @@map("crm_role_permissions")
 }
+
+model CrmSaleStatusHistory {
+  id            Int       @id @default(autoincrement())
+  orderId       Int       @map("order_id")
+  oldValue      String?   @map("old_value")       @db.VarChar(10)
+  newValue      String    @map("new_value")        @db.VarChar(10)
+  changedById   Int       @map("changed_by_id")
+  changedByName String    @map("changed_by_name") @db.VarChar(55)
+  changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+  order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+  changedBy     Users     @relation("SaleStatusChanges", fields: [changedById], references: [uid])
+
+  @@index([orderId])
+  @@index([changedAt])
+  @@map("crm_sale_status_history")
+}
+
+model CrmOrderCurrentStatusHistory {
+  id            Int       @id @default(autoincrement())
+  orderId       Int       @map("order_id")
+  oldValue      String?   @map("old_value")       @db.VarChar(55)
+  newValue      String    @map("new_value")        @db.VarChar(55)
+  changedById   Int       @map("changed_by_id")
+  changedByName String    @map("changed_by_name") @db.VarChar(55)
+  changedAt     DateTime  @default(now()) @map("changed_at") @db.DateTime(0)
+  order         CrmOrders @relation(fields: [orderId], references: [crmOrderId], onDelete: Cascade)
+  changedBy     Users     @relation("WorkflowStatusChanges", fields: [changedById], references: [uid])
+
+  @@index([orderId])
+  @@map("crm_order_current_status_history")
+}
+

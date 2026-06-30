@@ -155,7 +155,7 @@ export default function VendorDetailPage() {
 
   // Compute metrics locally
   const validOrders = orders.filter(
-    (order) => order.saleStatus === '1' || order.saleStatus === '7' || order.saleStatus === '8'
+    (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
   );
   const totalOrders = validOrders.length;
   const negativeOrders = validOrders.filter(
@@ -166,13 +166,8 @@ export default function VendorDetailPage() {
   const getSaleStatusLabel = (code: string) => {
     switch (code) {
       case '1': return 'Sold';
-      case '2': return 'Prospect';
-      case '3': return 'Call Back';
-      case '4': return 'Not Interested';
-      case '5': return 'Out Of Scope';
-      case '6': return 'Enquiry';
-      case '7': return 'Refunded';
-      case '8': return 'Chargebacked';
+      case '2': return 'Refunded';
+      case '3': return 'Chargebacked';
       default: return 'Unknown';
     }
   };

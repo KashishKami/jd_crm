@@ -21,6 +21,7 @@ export default function CommentTimeline({ comments }: CommentTimelineProps) {
         const createdDate = new Date(comment.commentCreatedDate);
         const formattedDate = formatDateDDMMYYYY(createdDate);
         const formattedTime = createdDate.toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
           timeStyle: 'short',
         });
 

@@ -38,7 +38,7 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
 
     const mappedData = vendors.map((vendor) => {
       const validOrders = vendor.orders.filter(
-        (order) => order.saleStatus === '1' || order.saleStatus === '7' || order.saleStatus === '8'
+        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
       );
       const totalOrders = validOrders.length;
       const negativeOrders = validOrders.filter(
@@ -66,9 +66,9 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
   const vendors = await vendorRepository.findAll(status);
   
   return vendors.map((vendor) => {
-    // Filter and count orders where saleStatus is in ['1', '7', '8']
+    // Filter and count orders where saleStatus is in ['1', '2', '3']
     const validOrders = vendor.orders.filter(
-      (order) => order.saleStatus === '1' || order.saleStatus === '7' || order.saleStatus === '8'
+      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
     );
     const totalOrders = validOrders.length;
     

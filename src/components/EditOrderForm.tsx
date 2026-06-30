@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { fadeInPage } from '../lib/animations';
+import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 
 interface EditOrderFormProps {
   order: any;
@@ -49,6 +51,10 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState(order.orderBackendExecutiveId ? String(order.orderBackendExecutiveId) : '');
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
+  const [showStatusDateModal, setShowStatusDateModal] = useState(false);
+  const [saleStatusChangeDateInput, setSaleStatusChangeDateInput] = useState('');
+  const [saleStatusChangeTimeInput, setSaleStatusChangeTimeInput] = useState('');
+  const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
   const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toLocaleDateString('sv-SE', { timeZone: 'UTC' }) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
 
@@ -59,7 +65,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const vendorPriceVal = parseFloat(orderVendorPrice) || 0;
   const markup = totalPitchedVal - vendorPriceVal;
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
     if (containerRef.current) {
       fadeInPage(containerRef.current);
     }
@@ -115,6 +125,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       saleStatus,
       orderCurrentStatus,
       orderDate,
+      saleStatusChangeDate: saleStatusChangeDate || null,
     };
 
     try {
@@ -440,7 +451,18 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               <label className="form-label">Sale Status</label>
               <select
                 value={saleStatus}
-                onChange={(e) => setSaleStatus(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSaleStatus(val);
+                  if (val === '2' || val === '3') {
+                    const est = getCurrentEstDateTime();
+                    setSaleStatusChangeDateInput(est.date);
+                    setSaleStatusChangeTimeInput(est.time);
+                    setShowStatusDateModal(true);
+                  } else {
+                    setSaleStatusChangeDate('');
+                  }
+                }}
                 className="form-select"
               >
                 <option value="1">Sold</option>
@@ -552,6 +574,116 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
           </button>
         </div>
       </form>
+
+      {mounted && showStatusDateModal && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid rgba(226, 232, 240, 0.8)',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '450px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                Record {saleStatus === '2' ? 'Refund' : 'Chargeback'} Date & Time
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '0.9rem', color: '#475569', margin: 0 }}>
+              When did this refund/chargeback actually occur?
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Date:</label>
+                <input 
+                  type="date" 
+                  value={saleStatusChangeDateInput}
+                  onChange={(e) => setSaleStatusChangeDateInput(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Time:</label>
+                <input 
+                  type="time" 
+                  value={saleStatusChangeTimeInput}
+                  onChange={(e) => setSaleStatusChangeTimeInput(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: '1rem', color: '#64748b' }}>ⓘ</span>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
+                If left blank, the current date and time will be recorded automatically.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSaleStatusChangeDate('');
+                  setShowStatusDateModal(false);
+                }}
+                className="btn-secondary-custom"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Skip — Use Current Time
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saleStatusChangeDateInput && saleStatusChangeTimeInput) {
+                    const combined = convertEstToUtc(saleStatusChangeDateInput, saleStatusChangeTimeInput);
+                    setSaleStatusChangeDate(combined);
+                  } else {
+                    setSaleStatusChangeDate('');
+                  }
+                  setShowStatusDateModal(false);
+                }}
+                className="btn-primary-custom"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

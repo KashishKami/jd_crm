@@ -130,7 +130,7 @@ export default function DashboardPage({
       count: initialMetrics.netSales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1,7,8&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=1,2,3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.netSales.lastAmount,
       lastCount: initialMetrics.netSales.lastCount,
       percentageChange: initialMetrics.netSales.percentageChange,
@@ -146,7 +146,7 @@ export default function DashboardPage({
       count: initialMetrics.refundThisMonth.count,
       countLabel: 'Refunds',
       prefix: '$',
-      link: `/orders?saleStatus=7&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=2&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       description: 'Returned funds this month',
     });
   }
@@ -159,7 +159,7 @@ export default function DashboardPage({
       count: initialMetrics.chargebackThisMonth.count,
       countLabel: 'Chargebacks',
       prefix: '$',
-      link: `/orders?saleStatus=8&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       description: 'Disputed orders this month',
     });
   }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { hasPermission } from '../../../../service/permission.service';
 import * as orderService from '../../../../service/order.service';
+import { prisma } from '../../../../lib/db';
 
 export async function GET(
   request: Request,
@@ -63,10 +64,18 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const updatedOrder = await orderService.updateOrder(crmOrderId, body);
+    const user = await prisma.users.findUnique({
+      where: { uid: Number(session.user.id) },
+      select: { uid: true, name: true, nickname: true },
+    });
+    const uid = user?.uid || Number(session.user.id);
+    const name = user?.nickname || user?.name || session.user.name || 'Agent';
+
+    const updatedOrder = await orderService.updateOrder(crmOrderId, body, uid, name);
     return NextResponse.json(updatedOrder);
   } catch (error: unknown) {
     const err = error as Error;
+    console.error('PATCH error occurred:', err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

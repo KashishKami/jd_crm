@@ -31,7 +31,12 @@ export async function getAllOrders(filters: OrderFilters) {
   return await orderRepository.findAll(filters);
 }
 
-export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
+export async function updateOrder(
+  crmOrderId: number,
+  data: OrderUpdateInput,
+  changedByUserId: number,
+  changedByName: string,
+) {
   const existingOrder = await orderRepository.findById(crmOrderId);
   if (!existingOrder) {
     throw new Error('Order not found');
@@ -52,6 +57,8 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
     customerCardCvv,
     customerCardCopyStatus,
     customerCardPhotoStatus,
+    // Audit fields
+    saleStatusChangeDate,
     // Everything else belongs to the crm_orders row
     ...orderFields
   } = data;
@@ -170,6 +177,36 @@ export async function updateOrder(crmOrderId: number, data: OrderUpdateInput) {
 
   // ─── Persist the order row ────────────────────────────────────────────────────
   const updatedOrder = await orderRepository.update(crmOrderId, updatedData);
+
+  // ── Sale Status History: write if value actually changed ──────────────────────
+  if (data.saleStatus && data.saleStatus !== existingOrder.saleStatus) {
+    const saleChangedAt = data.saleStatusChangeDate
+      ? new Date(data.saleStatusChangeDate)
+      : new Date();
+
+    await orderRepository.createSaleStatusHistoryEntry({
+      orderId:       crmOrderId,
+      oldValue:      existingOrder.saleStatus ?? null,
+      newValue:      data.saleStatus,
+      changedById:   changedByUserId,
+      changedByName: changedByName,
+      changedAt:     saleChangedAt,
+    });
+  }
+
+  // ── Workflow Status History: write if value actually changed ──────────────────
+  if (
+    updatedData.orderCurrentStatus &&
+    updatedData.orderCurrentStatus !== existingOrder.orderCurrentStatus
+  ) {
+    await orderRepository.createWorkflowStatusHistoryEntry({
+      orderId:       crmOrderId,
+      oldValue:      existingOrder.orderCurrentStatus ?? null,
+      newValue:      updatedData.orderCurrentStatus,
+      changedById:   changedByUserId,
+      changedByName: changedByName,
+    });
+  }
 
   // ─── Persist customer fields ──────────────────────────────────────────────────
   const customerUpdate: Record<string, unknown> = {};
