@@ -84,13 +84,16 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | :--- | :--- | :--- |
 | `orders:view` | `172` | Access All Orders page |
 | `orders:create` | `171` | Access Add New Order page and POST endpoint |
-| `orders:edit` | `205` | Perform edit/delete actions on an existing order |
+| `orders:edit` | `205` | Perform edit actions on an existing order |
+| `orders:delete` | — | Permanently delete an order and all its child logs (super-admin only) |
 | `orders:view-completed` | `173` | Access Completed Orders filtered view |
 | `orders:view-pending-booking` | `174` | Access Pending Booking queue |
 | `orders:view-pending-shipment` | `175` | Access Pending Shipment queue |
 | `orders:view-pending-delivery` | `176` | Access Pending Delivery queue |
 | `orders:view-pending-feedback` | `177` | Access Pending Feedback queue |
 | `orders:view-pending-resolutions` | `178` | Access Pending Resolutions queue |
+| `orders:view-sale-status-history` | — | View sale status change history timeline |
+| `orders:view-workflow-history` | — | View order workflow status change timeline |
 
 ### Resource: `customers`
 | Permission Key | Legacy Code | Description |

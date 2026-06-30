@@ -9,6 +9,7 @@ import OrderCommentsSection from '../../../components/OrderCommentsSection';
 import { formatDateDDMMYYYY } from '../../../lib/date';
 import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
 import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
+import DeleteOrderButton from '../../../components/DeleteOrderButton';
 
 
 export const metadata = {
@@ -145,6 +146,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom">
               Edit Order
             </Link>
+          )}
+          {hasPermission(permissions, 'orders:delete') && (
+            <DeleteOrderButton orderId={order.crmOrderId} />
           )}
         </div>
       </div>

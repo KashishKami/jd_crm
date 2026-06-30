@@ -1127,5 +1127,93 @@ describe('Order Management Integration Tests', () => {
       expect(data[0].oldValue).toBe('Pending Booking');
     });
   });
+
+  describe('W-1603: Order Delete Cascade and RBAC', () => {
+    it('should successfully delete an order and cascade delete all its comments and status history when permitted', async () => {
+      // 1. Setup comments, sale status history, and workflow status history for the test order
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_comments (comment_id, customer_id, order_id, comment, comment_agent_id, comment_agent_name, comment_created_date) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        9999, testOrder.orderCustomerId, testOrder.crmOrderId, 'Test comment for cascade delete', testUser.uid, testUser.name, new Date()
+      );
+
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_sale_status_history (order_id, old_value, new_value, changed_by_id, changed_by_name) VALUES (?, ?, ?, ?, ?)`,
+        testOrder.crmOrderId, '1', '2', testUser.uid, testUser.name
+      );
+
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO crm_order_current_status_history (order_id, old_value, new_value, changed_by_id, changed_by_name) VALUES (?, ?, ?, ?, ?)`,
+        testOrder.crmOrderId, 'Pending Booking', 'Pending Shipment', testUser.uid, testUser.name
+      );
+
+      // 2. Perform DELETE request with orders:delete permission
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:delete',
+        },
+      });
+
+      const { DELETE } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // 3. Verify order and related children are completely deleted (cascade confirmed)
+      const orderCount = await prisma.crmOrders.count({ where: { crmOrderId: testOrder.crmOrderId } });
+      expect(orderCount).toBe(0);
+
+      const commentsCount = await prisma.crmComments.count({ where: { orderId: testOrder.crmOrderId } });
+      expect(commentsCount).toBe(0);
+
+      const saleHistoryCount = await prisma.crmSaleStatusHistory.count({ where: { orderId: testOrder.crmOrderId } });
+      expect(saleHistoryCount).toBe(0);
+
+      const workflowHistoryCount = await prisma.crmOrderCurrentStatusHistory.count({ where: { orderId: testOrder.crmOrderId } });
+      expect(workflowHistoryCount).toBe(0);
+    });
+
+    it('should return 403 Forbidden when deleting order without orders:delete permission', async () => {
+      // 1. Perform DELETE request with orders:edit permission (lacks orders:delete)
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          nickname: testUser.nickname,
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { DELETE } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(403);
+
+      // 2. Verify order still exists
+      const orderCount = await prisma.crmOrders.count({ where: { crmOrderId: testOrder.crmOrderId } });
+      expect(orderCount).toBe(1);
+    });
+
+    it('should return 401 Unauthorized when deleting order with no session', async () => {
+      vi.mocked(getServerSession).mockResolvedValue(null);
+
+      const { DELETE } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(401);
+    });
+  });
 });
+
 

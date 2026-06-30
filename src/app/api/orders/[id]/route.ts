@@ -90,7 +90,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'orders:edit');
+  const isPermitted = hasPermission(session.user.userPermissions, 'orders:delete');
   if (!isPermitted) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
