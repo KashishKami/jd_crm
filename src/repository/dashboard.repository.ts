@@ -10,13 +10,13 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
         lt: end,
       },
     },
-    select: { orderMarkup: true, orderRefundAmount: true },
+    select: { orderAmountCharged: true, orderRefundAmount: true },
   });
   let amount = 0;
   for (const order of orders) {
-    const markup = parseFloat(order.orderMarkup || '0');
+    const charged = parseFloat(order.orderAmountCharged || '0');
     const refund = parseFloat(order.orderRefundAmount || '0');
-    amount += (markup - refund);
+    amount += (charged - refund);
   }
   return { amount, count: orders.length };
 }
@@ -32,7 +32,7 @@ export async function getNetSalesBetweenDates(start: Date, end: Date) {
     },
     select: {
       saleStatus: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
@@ -41,9 +41,9 @@ export async function getNetSalesBetweenDates(start: Date, end: Date) {
   let count = 0;
   for (const order of orders) {
     if (order.saleStatus === '1' || order.saleStatus === '4') {
-      const markup = parseFloat(order.orderMarkup || '0');
+      const charged = parseFloat(order.orderAmountCharged || '0');
       const refund = parseFloat(order.orderRefundAmount || '0');
-      amount += (markup - refund);
+      amount += (charged - refund);
       count += 1;
     } else if (order.saleStatus === '2' || order.saleStatus === '3') {
       // Refunded/Chargebacked contribute 0 to net sales, count is not decremented
@@ -116,7 +116,7 @@ export async function getNetSales(whereClause?: any) {
     },
     select: {
       saleStatus: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
@@ -125,9 +125,9 @@ export async function getNetSales(whereClause?: any) {
   let count = 0;
   for (const order of orders) {
     if (order.saleStatus === '1' || order.saleStatus === '4') {
-      const markup = parseFloat(order.orderMarkup || '0');
+      const charged = parseFloat(order.orderAmountCharged || '0');
       const refund = parseFloat(order.orderRefundAmount || '0');
-      amount += (markup - refund);
+      amount += (charged - refund);
       count += 1;
     } else if (order.saleStatus === '2' || order.saleStatus === '3') {
       // Contribute 0, count is not decremented
@@ -168,7 +168,7 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
     select: {
       orderSalesAgentId: true,
       orderSalesAgentName: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
@@ -177,9 +177,9 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
   for (const order of orders) {
     const agentId = order.orderSalesAgentId!;
     const name = order.orderSalesAgentName || 'Unknown Agent';
-    const markup = parseFloat(order.orderMarkup || '0');
+    const charged = parseFloat(order.orderAmountCharged || '0');
     const refund = parseFloat(order.orderRefundAmount || '0');
-    const finalMargin = markup - refund;
+    const finalMargin = charged - refund;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, { agentName: name, amount: 0 });
@@ -224,7 +224,7 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
     select: {
       orderSalesAgentId: true,
       orderSalesAgentName: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
@@ -233,9 +233,9 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
   for (const order of orders) {
     const agentId = order.orderSalesAgentId!;
     const name = order.orderSalesAgentName || 'Unknown Agent';
-    const markup = parseFloat(order.orderMarkup || '0');
+    const charged = parseFloat(order.orderAmountCharged || '0');
     const refund = parseFloat(order.orderRefundAmount || '0');
-    const finalMargin = markup - refund;
+    const finalMargin = charged - refund;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, { agentName: name, amount: 0 });
@@ -258,7 +258,7 @@ export async function getRecentOrders(limit = 10) {
     select: {
       crmOrderId: true,
       orderDate: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
       saleStatus: true,
       customer: {
@@ -363,7 +363,7 @@ export async function getPendingCounts(filters?: {
     select: {
       orderCurrentStatus: true,
       saleStatus: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
@@ -380,9 +380,9 @@ export async function getPendingCounts(filters?: {
   };
 
   for (const order of orders) {
-    const markupVal = parseFloat(order.orderMarkup || '0');
+    const chargedAmountVal = parseFloat(order.orderAmountCharged || '0');
     const refundVal = parseFloat(order.orderRefundAmount || '0');
-    const finalMargin = markupVal - refundVal;
+    const finalMargin = chargedAmountVal - refundVal;
 
     // All Orders gets everything
     res['All Orders'].amount += finalMargin;
@@ -426,7 +426,7 @@ export async function getTeamMonthlyScores(month: number, year: number) {
       SUM(CASE WHEN o.sale_status = '3' THEN 1 ELSE 0 END) AS chargebackCount,
       SUM(
         CASE 
-          WHEN o.sale_status IN ('1', '4') THEN CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2)) - CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(10,2))
+          WHEN o.sale_status IN ('1', '4') THEN CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(10,2)) - CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(10,2))
           WHEN o.sale_status IN ('2', '3') THEN 0
           ELSE 0 
         END
@@ -467,7 +467,7 @@ export async function getTeamMonthlyTopPerformers(teamId: number, month: number,
         },
         select: {
           saleStatus: true,
-          orderMarkup: true,
+          orderAmountCharged: true,
           orderRefundAmount: true,
         },
       },
@@ -479,9 +479,9 @@ export async function getTeamMonthlyTopPerformers(teamId: number, month: number,
     let total = 0;
     for (const order of agent.salesOrders) {
       if (order.saleStatus === '1' || order.saleStatus === '4') {
-        const markup = parseFloat(order.orderMarkup || '0');
+        const chargedAmount = parseFloat(order.orderAmountCharged || '0');
         const refund = parseFloat(order.orderRefundAmount || '0');
-        total += (markup - refund);
+        total += (chargedAmount - refund);
       }
     }
     agentScores.push({
@@ -512,7 +512,7 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
         },
         select: {
           saleStatus: true,
-          orderMarkup: true,
+          orderAmountCharged: true,
           orderRefundAmount: true,
         },
       },
@@ -524,9 +524,9 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
     let total = 0;
     for (const order of agent.salesOrders) {
       if (order.saleStatus === '1' || order.saleStatus === '4') {
-        const markup = parseFloat(order.orderMarkup || '0');
+        const chargedAmount = parseFloat(order.orderAmountCharged || '0');
         const refund = parseFloat(order.orderRefundAmount || '0');
-        total += (markup - refund);
+        total += (chargedAmount - refund);
       }
     }
     agentScores.push({
@@ -566,7 +566,7 @@ export async function getAdvancedChartData(teamId?: number, agentId?: number, da
     where,
     select: {
       orderDate: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
       orderRefundAmount: true,
       saleStatus: true,
     },

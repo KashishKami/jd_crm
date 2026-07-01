@@ -44,6 +44,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
 
   const [orderTotalPitched, setOrderTotalPitched] = useState(order.orderTotalPitched || '');
   const [orderVendorPrice, setOrderVendorPrice] = useState(order.orderVendorPrice || '');
+  const [orderAmountCharged, setOrderAmountCharged] = useState(order.orderAmountCharged || '');
   const [orderVendorId, setOrderVendorId] = useState(order.orderVendorId ? String(order.orderVendorId) : '');
   const [orderPaymentGatewayId, setOrderPaymentGatewayId] = useState(order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '');
   const [orderSalesAgentId, setOrderSalesAgentId] = useState(order.orderSalesAgentId ? String(order.orderSalesAgentId) : '');
@@ -117,6 +118,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       orderDeliveryStatus: orderDeliveryStatus || null,
       orderTotalPitched,
       orderVendorPrice,
+      orderAmountCharged,
       orderVendorId: orderVendorId ? Number(orderVendorId) : null,
       orderPaymentGatewayId: orderPaymentGatewayId ? Number(orderPaymentGatewayId) : null,
       orderSalesAgentId: orderSalesAgentId ? Number(orderSalesAgentId) : null,
@@ -377,8 +379,17 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
                 className="form-input font-mono"
               />
             </div>
+            <div className="form-group">
+              <label className="form-label">Charged Amount</label>
+              <input
+                type="number"
+                value={orderAmountCharged}
+                onChange={(e) => setOrderAmountCharged(e.target.value)}
+                className="form-input font-mono"
+              />
+            </div>
             <div className="form-group" style={{ justifyContent: 'center' }}>
-              <span className="form-label">Computed Markup</span>
+              <span className="form-label">Computed Gross Spread</span>
               <span className={`text-lg font-bold mt-1 ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 ${markup.toFixed(2)}
               </span>

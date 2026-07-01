@@ -5,7 +5,7 @@ async function main() {
     select: {
       orderDate: true,
       saleStatus: true,
-      orderMarkup: true,
+      orderAmountCharged: true,
     }
   });
 
@@ -19,7 +19,7 @@ async function main() {
       months[month] = { count: 0, amount: 0, statuses: {} };
     }
     months[month].count++;
-    months[month].amount += parseFloat(o.orderMarkup || '0');
+    months[month].amount += parseFloat(o.orderAmountCharged || '0');
     
     const status = o.saleStatus || 'unknown';
     months[month].statuses[status] = (months[month].statuses[status] || 0) + 1;

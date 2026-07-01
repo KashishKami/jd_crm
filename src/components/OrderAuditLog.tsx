@@ -30,7 +30,7 @@ const fieldLabels: Record<string, string> = {
   orderVendorId: 'Vendor ID',
   orderVendorName: 'Vendor Name',
   orderShippingType: 'Shipping Type',
-  orderMarkup: 'Markup',
+  orderAmountCharged: 'Amount Charged',
   orderPaymentGatewayId: 'Payment Gateway',
   orderSalesAgentId: 'Sales Agent ID',
   orderSalesAgentName: 'Sales Representative',
@@ -61,7 +61,6 @@ const fieldLabels: Record<string, string> = {
   customerCardPhotoStatus: 'Card Photo Status',
   orderDocumentation: 'Documentation Status',
   orderBooked: 'Booking Status',
-  orderAmountCharged: 'Amount Charged',
   orderQualifiedIncentiveStatus: 'Incentive Eligibility',
   orderQualifiedIncentiveAmount: 'Incentive Amount',
   orderStatus: 'General Status'

@@ -61,11 +61,6 @@ export async function createWithCustomerAndCard(
     }
   }
 
-  // Calculate markup: Total Pitched - Vendor Price
-  const totalPitched = parseFloat(data.orderTotalPitched || '0');
-  const vendorPrice = parseFloat(data.orderVendorPrice || '0');
-  const markup = (totalPitched - vendorPrice).toString();
-
   // Perform database inserts in an atomic transaction
   return await prisma.$transaction(async (tx) => {
     // 1. Create customer
@@ -111,7 +106,7 @@ export async function createWithCustomerAndCard(
         orderVendorId: data.orderVendorId || null,
         orderVendorName: vendorName,
         orderShippingType: data.orderShippingType || null,
-        orderMarkup: markup,
+        orderAmountCharged: data.orderAmountCharged || null,
         orderPaymentGatewayId: data.orderPaymentGatewayId || null,
         orderSalesAgentId: data.orderSalesAgentId || null,
         orderSalesAgentName: salesAgentName,
@@ -128,7 +123,7 @@ export async function createWithCustomerAndCard(
             ? 'Returned Orders'
             : (data.orderVendorId ? 'Pending Shipment' : 'Pending Booking'), // Initial state
         orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3')
-          ? markup
+          ? (data.orderAmountCharged || null)
           : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
         orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),

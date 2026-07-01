@@ -14,7 +14,7 @@ describe('OrderList W-1601 Unit Tests', () => {
         orderPart: 'Engine',
         orderTotalPitched: '4000',
         orderVendorPrice: '3000',
-        orderMarkup: '1000',
+        orderAmountCharged: '1000',
         orderCurrentStatus: 'Pending Booking',
         customer: {
           customerName: 'John Doe',
@@ -72,7 +72,7 @@ describe('OrderList W-1601 Unit Tests', () => {
         orderPart: 'Bumper',
         orderTotalPitched: '1000',
         orderVendorPrice: '600',
-        orderMarkup: '400',
+        orderAmountCharged: '400',
         orderRefundAmount: '150', // finalMargin = 250
         orderCurrentStatus: 'Pending Booking',
         customer: {
@@ -87,7 +87,7 @@ describe('OrderList W-1601 Unit Tests', () => {
         orderPart: 'Hood',
         orderTotalPitched: '800',
         orderVendorPrice: '500',
-        orderMarkup: '300',
+        orderAmountCharged: '300',
         orderRefundAmount: null, // finalMargin = 300
         orderCurrentStatus: 'Pending Booking',
         customer: {
@@ -99,11 +99,11 @@ describe('OrderList W-1601 Unit Tests', () => {
 
     render(<OrderList orders={mockOrders as any} />);
 
-    // Order #46 has markup 400 and refund 150 -> finalMargin = $250
-    expect(screen.queryByText(/400\.00/)).toBeNull(); // Raw markup should not be shown
+    // Order #46 has amount charged 400 and refund 150 -> finalMargin = $250
+    expect(screen.queryByText(/400\.00/)).toBeNull(); // Raw amount charged should not be shown
     expect(screen.getByText(/250\.00/)).toBeDefined(); // finalMargin should be shown
 
-    // Order #47 has markup 300 and refund null -> finalMargin = $300
+    // Order #47 has amount charged 300 and refund null -> finalMargin = $300
     expect(screen.getByText(/300\.00/)).toBeDefined();
   });
 });

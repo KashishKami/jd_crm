@@ -59,11 +59,11 @@ export async function getMonthlyReport(gatewayId: number): Promise<MonthlyReport
       YEAR(order_date)  AS yr,
       MONTH(order_date) AS mo,
       SUM(CASE WHEN sale_status = '1' THEN 1 ELSE 0 END) AS completed_count,
-      SUM(CASE WHEN sale_status = '1' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS completed_amount,
+      SUM(CASE WHEN sale_status = '1' THEN CAST(order_amount_charged AS DECIMAL(10,2)) ELSE 0 END) AS completed_amount,
       SUM(CASE WHEN sale_status = '2' THEN 1 ELSE 0 END) AS refund_count,
-      SUM(CASE WHEN sale_status = '2' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS refund_amount,
+      SUM(CASE WHEN sale_status = '2' THEN CAST(order_amount_charged AS DECIMAL(10,2)) ELSE 0 END) AS refund_amount,
       SUM(CASE WHEN sale_status = '3' THEN 1 ELSE 0 END) AS chargeback_count,
-      SUM(CASE WHEN sale_status = '3' THEN CAST(order_markup AS DECIMAL(10,2)) ELSE 0 END) AS chargeback_amount
+      SUM(CASE WHEN sale_status = '3' THEN CAST(order_amount_charged AS DECIMAL(10,2)) ELSE 0 END) AS chargeback_amount
     FROM crm_orders
     WHERE
       order_payment_gateway = ${gatewayId}

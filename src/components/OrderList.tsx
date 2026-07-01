@@ -14,7 +14,7 @@ interface OrderListProps {
     orderPart: string | null;
     orderTotalPitched: string | null;
     orderVendorPrice: string | null;
-    orderMarkup: string | null;
+    orderAmountCharged: string | null;
     orderRefundAmount?: string | null;
     orderCurrentStatus: string | null;
     customer: {
@@ -113,9 +113,9 @@ export default function OrderList({ orders }: OrderListProps) {
           </thead>
           <tbody ref={tableRowsRef}>
             {orders.map((order) => {
-              const markupVal = parseFloat(order.orderMarkup || '0');
+              const chargedVal = parseFloat(order.orderAmountCharged || '0');
               const refundVal = parseFloat(order.orderRefundAmount || '0');
-              const finalMargin = markupVal - refundVal;
+              const finalMargin = chargedVal - refundVal;
               return (
                 <tr key={order.crmOrderId} style={{ opacity: 0 }}>
                   <td>

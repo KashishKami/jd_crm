@@ -19,7 +19,7 @@ interface LinkedOrder {
     customerName: string;
     customerPhone: string;
   };
-  orderMarkup: string;
+  orderAmountCharged: string;
   orderSalesAgentName: string;
   saleStatus: string;
   orderVendorFeedback: string;
@@ -330,7 +330,7 @@ export default function VendorDetailPage() {
                       <th>Order ID</th>
                       <th>Customer Name</th>
                       <th>Phone Number</th>
-                      <th>Markup Margin</th>
+                      <th>Amt. Charged</th>
                       <th>Agent</th>
                       <th>Sale Status</th>
                       <th>Feedback</th>
@@ -354,7 +354,7 @@ export default function VendorDetailPage() {
                           {order.customer?.customerPhone || '—'}
                         </td>
                         <td className="font-semibold text-slate-800 font-mono">
-                          ${order.orderMarkup}
+                          ${order.orderAmountCharged}
                         </td>
                         <td>{order.orderSalesAgentName}</td>
                         <td>

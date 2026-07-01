@@ -55,9 +55,9 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
             </thead>
             <tbody>
               {orders.map((order) => {
-                const markupVal = parseFloat(order.orderMarkup || '0');
+                const chargedVal = parseFloat(order.orderAmountCharged || '0');
                 const refundVal = parseFloat(order.orderRefundAmount || '0');
-                const finalMargin = markupVal - refundVal;
+                const finalMargin = chargedVal - refundVal;
                 return (
                   <tr key={order.crmOrderId}>
                     <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>

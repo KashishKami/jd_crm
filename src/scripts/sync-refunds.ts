@@ -19,11 +19,11 @@ async function main() {
 
   let updatedCount = 0;
   for (const order of orders) {
-    const markup = order.orderMarkup || '0';
+    const chargedAmount = order.orderAmountCharged || '0';
     await prisma.crmOrders.update({
       where: { crmOrderId: order.crmOrderId },
       data: {
-        orderRefundAmount: markup,
+        orderRefundAmount: chargedAmount,
       },
     });
     updatedCount++;

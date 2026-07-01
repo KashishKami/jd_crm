@@ -147,7 +147,7 @@ describe('Dashboard Integration Tests', () => {
           data: {
             orderCustomerId: testCustomer.customerId,
             saleStatus: '1',
-            orderMarkup: '100',
+            orderAmountCharged: '100',
             orderRefundAmount: '0',
             orderDate: now,
             orderSalesAgentId: testAgent.uid,
@@ -161,7 +161,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: testCustomer.customerId,
           saleStatus: '4',
-          orderMarkup: '100',
+          orderAmountCharged: '100',
           orderRefundAmount: '30.00',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
@@ -175,7 +175,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: testCustomer.customerId,
           saleStatus: '2',
-          orderMarkup: '120',
+          orderAmountCharged: '120',
           orderRefundAmount: '120.00',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
@@ -189,7 +189,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: testCustomer.customerId,
           saleStatus: '3',
-          orderMarkup: '150',
+          orderAmountCharged: '150',
           orderRefundAmount: '150.00',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
@@ -302,7 +302,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderDate,
           orderSalesAgentId: agentA1.uid,
           orderVendorName: 'TEAM_TEST',
@@ -312,7 +312,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderDate,
           orderSalesAgentId: agentA1.uid,
           orderVendorName: 'TEAM_TEST',
@@ -322,7 +322,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderDate,
           orderSalesAgentId: agentA2.uid,
           orderVendorName: 'TEAM_TEST',
@@ -334,7 +334,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '100',
+          orderAmountCharged: '100',
           orderDate,
           orderSalesAgentId: agentB.uid,
           orderVendorName: 'TEAM_TEST',
@@ -429,7 +429,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderDate,
           orderSalesAgentId: agentAlice.uid,
           orderVendorName: 'TEAM_TEST',
@@ -439,7 +439,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderDate,
           orderSalesAgentId: agentAlice.uid,
           orderVendorName: 'TEAM_TEST',
@@ -449,7 +449,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '2',
-          orderMarkup: '150',
+          orderAmountCharged: '150',
           orderDate,
           orderSalesAgentId: agentAlice.uid,
           orderVendorName: 'TEAM_TEST',
@@ -461,7 +461,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '100',
+          orderAmountCharged: '100',
           orderDate,
           orderSalesAgentId: agentBob.uid,
           orderVendorName: 'TEAM_TEST',
@@ -473,7 +473,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '3',
-          orderMarkup: '50',
+          orderAmountCharged: '50',
           orderDate,
           orderSalesAgentId: agentCarlos.uid,
           orderVendorName: 'TEAM_TEST',
@@ -590,7 +590,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '250',
+          orderAmountCharged: '250',
           orderDate,
           orderSalesAgentId: agent.uid,
           orderVendorName: 'TEAM_TEST',
@@ -602,7 +602,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '2',
-          orderMarkup: '120',
+          orderAmountCharged: '120',
           orderRefundAmount: '120',
           orderDate,
           orderSalesAgentId: agent.uid,
@@ -702,7 +702,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '4',
-          orderMarkup: '500',
+          orderAmountCharged: '500',
           orderRefundAmount: '100',
           orderDate: targetDate,
           orderSalesAgentId: agentAlice.uid,
@@ -716,7 +716,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '1000',
+          orderAmountCharged: '1000',
           orderDate: otherDate,
           orderSalesAgentId: agentAlice.uid,
           orderSalesAgentName: agentAlice.name,
@@ -729,7 +729,7 @@ describe('Dashboard Integration Tests', () => {
         data: {
           orderCustomerId: customer.customerId,
           saleStatus: '1',
-          orderMarkup: '200',
+          orderAmountCharged: '200',
           orderRefundAmount: '0',
           orderDate: targetDate,
           orderSalesAgentId: agentBob.uid,

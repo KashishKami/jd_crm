@@ -54,7 +54,9 @@ export default function SearchResults({ results }: SearchResultsProps) {
         </thead>
         <tbody>
           {orders.map((order) => {
-            const markupVal = parseFloat(order.orderMarkup || '0');
+            const chargedVal = parseFloat(order.orderAmountCharged || '0');
+            const refundVal = parseFloat(order.orderRefundAmount || '0');
+            const finalMargin = chargedVal - refundVal;
             const customerName = order.customer
               ? order.customer.customerName
               : 'Unknown Customer';
@@ -95,8 +97,8 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   <div className="flex flex-col text-[10px] font-mono">
                     <span className="text-slate-500">Pitch: ${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
                     <span className="text-slate-400">Buy: ${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
-                    <span className={`font-semibold mt-0.5 ${markupVal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      Margin: ${markupVal.toFixed(2)}
+                    <span className={`font-semibold mt-0.5 ${finalMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      Final Margin: ${finalMargin.toFixed(2)}
                     </span>
                   </div>
                 </td>

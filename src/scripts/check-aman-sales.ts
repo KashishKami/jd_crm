@@ -26,7 +26,7 @@ async function main() {
   let totalRefund = 0;
 
   for (const o of orders) {
-    totalMarkup += parseFloat(o.orderMarkup || '0');
+    totalMarkup += parseFloat(o.orderAmountCharged || '0');
     totalPitched += parseFloat(o.orderTotalPitched || '0');
     totalRefund += parseFloat(o.orderRefundAmount || '0');
   }

@@ -328,7 +328,7 @@ async function main() {
       orderVendorId: null,
       orderVendorName: null,
       orderShippingType: shippingType || null,
-      orderMarkup: markupVal,
+      orderAmountCharged: markupVal,
       orderRefundAmount: isReturned ? markupVal : null,
       orderPaymentGatewayId: gatewayId,
       orderSalesAgentId: agentId,

@@ -30,7 +30,7 @@ describe('Dashboard Component Unit Tests', () => {
       { agentName: 'Charlie', amount: 1000 },
     ],
     recentOrders: [
-      { crmOrderId: 1, customerName: 'John Doe', salesAgentName: 'Alice', saleStatus: '1', orderMarkup: '500', orderDate: '2026-06-20' },
+      { crmOrderId: 1, customerName: 'John Doe', salesAgentName: 'Alice', saleStatus: '1', orderAmountCharged: '500', orderDate: '2026-06-20' },
     ],
     attendanceSummary: {
       present: 10,
@@ -326,7 +326,7 @@ describe('Dashboard Component Unit Tests', () => {
             customerName: 'Refund Customer', 
             salesAgentName: 'Bob Agent', 
             saleStatus: '4', 
-            orderMarkup: '500', 
+            orderAmountCharged: '500', 
             orderRefundAmount: '150', // finalMargin = 350
             orderDate: '2026-06-20' 
           }

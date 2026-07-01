@@ -26,7 +26,7 @@ const mockResults = {
       orderPart: 'Alternator',
       orderTotalPitched: '1000',
       orderVendorPrice: '700',
-      orderMarkup: '300',
+      orderAmountCharged: '300',
       orderCurrentStatus: 'Pending Booking',
       customer: {
         customerName: 'John Doe',
@@ -41,7 +41,7 @@ const mockResults = {
       orderPart: 'Brake Pads',
       orderTotalPitched: '500',
       orderVendorPrice: '300',
-      orderMarkup: '200',
+      orderAmountCharged: '200',
       orderCurrentStatus: 'Pending Shipment',
       customer: {
         customerName: 'Jane Smith',

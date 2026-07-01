@@ -147,7 +147,7 @@ export async function getMetricsForUser(session: any) {
       customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
       salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : 'Unknown Agent',
       saleStatus: o.saleStatus,
-      orderMarkup: o.orderMarkup,
+      orderAmountCharged: o.orderAmountCharged,
       orderRefundAmount: o.orderRefundAmount,
       orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
     }));
@@ -374,10 +374,10 @@ export async function getAdvancedChartMetrics(
       bin = bins.find(b => b.label === label);
     }
     if (bin) {
-      const markup = parseFloat(o.orderMarkup || '0');
+      const charged = parseFloat(o.orderAmountCharged || '0');
       const refund = parseFloat(o.orderRefundAmount || '0');
       if (o.saleStatus === '1' || o.saleStatus === '4') {
-        bin.salesAmount += (markup - refund);
+        bin.salesAmount += (charged - refund);
         bin.salesCount += 1;
       } else if (o.saleStatus === '2') {
         bin.refundsAmount += refund;

@@ -34,6 +34,7 @@ export interface OrderCreateInput {
   orderDate?: string | Date;
   orderRefundAmount?: string | null;
   orderCurrentStatus?: string | null;
+  orderAmountCharged?: string | null;
   saleStatusChangeDate?: string | null;
 }
 
@@ -50,7 +51,6 @@ export interface OrderUpdateInput {
   orderVendorId?: number | null;
   orderVendorName?: string | null;
   orderShippingType?: string;
-  orderMarkup?: string;
   orderPaymentGatewayId?: number | null;
   orderSalesAgentId?: number | null;
   orderSalesAgentName?: string | null;

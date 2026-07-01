@@ -41,6 +41,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
 
   const [orderTotalPitched, setOrderTotalPitched] = useState('');
   const [orderVendorPrice, setOrderVendorPrice] = useState('');
+  const [orderAmountCharged, setOrderAmountCharged] = useState('');
   const [orderVendorId, setOrderVendorId] = useState('');
   const [orderPaymentGatewayId, setOrderPaymentGatewayId] = useState('');
   const [orderSalesAgentId, setOrderSalesAgentId] = useState('');
@@ -136,6 +137,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderShippingType,
       orderTotalPitched,
       orderVendorPrice,
+      orderAmountCharged,
       orderVendorId: orderVendorId ? Number(orderVendorId) : null,
       orderPaymentGatewayId: orderPaymentGatewayId ? Number(orderPaymentGatewayId) : null,
       orderSalesAgentId: orderSalesAgentId ? Number(orderSalesAgentId) : null,
@@ -422,8 +424,19 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 className="form-input font-mono"
               />
             </div>
+            <div className="form-group">
+              <label htmlFor="orderAmountCharged" className="form-label">Charged Amount</label>
+              <input
+                type="number"
+                id="orderAmountCharged"
+                placeholder="0.00"
+                value={orderAmountCharged}
+                onChange={(e) => setOrderAmountCharged(e.target.value)}
+                className="form-input font-mono"
+              />
+            </div>
             <div className="form-group" style={{ justifyContent: 'center' }}>
-              <span className="form-label">Computed Markup</span>
+              <span className="form-label">Computed Gross Spread</span>
               <span
                 data-testid="markup-display"
                 className={`text-lg font-bold mt-1 ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}

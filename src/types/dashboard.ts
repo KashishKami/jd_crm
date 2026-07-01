@@ -25,7 +25,7 @@ export interface RecentOrderRow {
   customerName: string;
   salesAgentName: string;
   saleStatus: string;
-  orderMarkup: string;
+  orderAmountCharged: string | null;
   orderRefundAmount?: string | null;
   orderDate: string;
 }

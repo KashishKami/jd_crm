@@ -59,7 +59,7 @@ async function main() {
       orderTotalPitched: '3500.00',
       orderVendorPrice: '2500.00',
       orderShippingType: 'Ground',
-      orderMarkup: '1000.00',
+      orderAmountCharged: '1000.00',
       orderSalesAgentId: 1,
       orderSalesAgentName: 'Admin',
       saleStatus: '1',

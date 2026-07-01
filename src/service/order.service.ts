@@ -74,20 +74,13 @@ export async function updateOrder(
 
   const updatedData: OrderUpdateInput = { ...orderFields };
 
-  // Calculate markup if pricing fields are updated
-  if (data.orderTotalPitched !== undefined || data.orderVendorPrice !== undefined) {
-    const totalPitched = parseFloat(data.orderTotalPitched ?? existingOrder.orderTotalPitched ?? '0');
-    const vendorPrice = parseFloat(data.orderVendorPrice ?? existingOrder.orderVendorPrice ?? '0');
-    updatedData.orderMarkup = (totalPitched - vendorPrice).toString();
-  }
-
   // ─── Sale Status & Refund Auto-Rules (Phase 17) ───
   if (data.saleStatus !== undefined) {
     if (data.saleStatus === '2' || data.saleStatus === '3') {
-      const markup = updatedData.orderMarkup !== undefined 
-        ? updatedData.orderMarkup 
-        : (existingOrder.orderMarkup ?? '0');
-      updatedData.orderRefundAmount = markup;
+      const chargedAmount = updatedData.orderAmountCharged !== undefined 
+        ? updatedData.orderAmountCharged 
+        : (existingOrder.orderAmountCharged ?? '0');
+      updatedData.orderRefundAmount = chargedAmount;
       updatedData.orderCurrentStatus = 'Returned Orders';
       updatedData.orderCurrentStatusUpdateDate = new Date();
     } else if (data.saleStatus === '1') {
@@ -240,7 +233,7 @@ export async function updateOrder(
   const orderKeysToAudit = [
     'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMiles', 'orderGivenMiles',
     'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName',
-    'orderShippingType', 'orderMarkup', 'orderRefundAmount',
+    'orderShippingType', 'orderRefundAmount',
     'orderSalesAgentName', 'orderVerifierName',
     'orderSalesVerifierName', 'orderBackendExecutiveName',
     'orderCurrentStatus', 'orderTrackingNumber', 'orderDeliveryStatus',

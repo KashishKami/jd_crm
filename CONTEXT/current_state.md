@@ -3621,7 +3621,12 @@ There is also a **backend auto-rule bug to fix in W-2001 that is made explicit h
   - **W-1803 Unit & Integration Tests**: Wrote frontend unit tests in `OrderListContainer.test.tsx` and backend integration tests in `orders.test.ts` to verify filtering and tab total rendering.
   - **Verification**: Verified that all 36 test files and all 207 unit and integration tests compile and run green (100% success). All typechecks and lint checks are 100% clean.
 
-
-
-
+### Session 39 — July 2, 2026
+  **Phase 20 — `orderMarkup` → `orderAmountCharged` Migration (W-2001 to W-2004)**
+  - **W-2001 Backend Migration**: Renamed `order_markup` → `order_amount_charged` in the database via Prisma migration `20260702_rename_order_markup_to_order_amount_charged`. Updated `schema.prisma`, `order.service.ts`, `order.repository.ts`, `dashboard.repository.ts`, and `gateway.repository.ts` to use the new field name. All raw SQL aggregations now cast `order_amount_charged` as `DECIMAL(10,2)`.
+  - **W-2002 Frontend — Forms & Lists**: Updated `AddOrderForm.tsx` and `EditOrderForm.tsx` to accept manual `orderAmountCharged` input. Updated `OrderList.tsx` and `SearchResults.tsx` to compute `finalMargin = orderAmountCharged - orderRefundAmount`. Updated `RecentOrdersTable.tsx` margin calculation from `orderMarkup` → `orderAmountCharged`. Updated the `OrderAuditLog.tsx` field-label map entry from `orderMarkup: 'Markup'` → `orderAmountCharged: 'Amount Charged'`.
+  - **W-2003 Order Details Page**: Updated the Financial Breakdown sidebar card in `src/app/orders/[id]/page.tsx` — renamed label "Markup Margin" → "Amt. Charged" and replaced all three `order.orderMarkup` references with `order.orderAmountCharged` (raw display + Final Margin color + Final Margin value).
+  - **W-2003 Vendor Detail Page**: Updated the `LinkedOrder` TypeScript interface in `src/app/vendors/[id]/page.tsx` (`orderMarkup` → `orderAmountCharged`), the table column header ("Markup Margin" → "Amt. Charged"), and the cell display value.
+  - **W-2004 Scripts Alignment**: Updated all seeder and utility scripts (`restore-admin.ts`, `seed-dummy-orders.ts`, `sync-refunds.ts`, `import-csv-data.ts`, `debug-db.ts`, `check-may-scores.ts`, `check-db.ts`, `check-aman-sales.ts`) to remove `orderMarkup` and use `orderAmountCharged` across create/upsert payloads.
+  - **Zero remaining `order.orderMarkup` property accesses** confirmed via project-wide search.
 

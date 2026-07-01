@@ -332,6 +332,7 @@ describe('Order Management Integration Tests', () => {
       orderVin: 'VIN789XYZ',
       orderTotalPitched: '500',
       orderVendorPrice: '300',
+      orderAmountCharged: '200',
       orderVendorId: 9999, // Will be set to testVendor.vendorId below
       orderShippingType: 'Express',
       orderPaymentGatewayId: 9999, // Will be set to testGateway.gatewayId below
@@ -380,8 +381,8 @@ describe('Order Management Integration Tests', () => {
       expect(dbOrder?.orderCustomerId).toBe(data.customerId);
       expect(dbOrder?.customer.customerEmail).toBe('new.buyer@example.com');
       expect(dbOrder?.customer.cards[0].customerCardNumber).toBe('4111222233334444');
-      // Markup should be computed: 500 - 300 = 200
-      expect(dbOrder?.orderMarkup).toBe('200');
+      // Amount charged should be equal to the passed payload value
+      expect(dbOrder?.orderAmountCharged).toBe('200');
       // Default order status should be Pending Shipment when vendor is assigned
       expect(dbOrder?.orderCurrentStatus).toBe('Pending Shipment');
     });
@@ -639,10 +640,10 @@ describe('Order Management Integration Tests', () => {
     });
 
     it('[RED] should automatically set orderRefundAmount to orderMarkup and orderCurrentStatus to Returned Orders when saleStatus is set to 2', async () => {
-      // Set testOrder markup
+      // Set testOrder amount charged
       await prisma.crmOrders.update({
         where: { crmOrderId: testOrder.crmOrderId },
-        data: { orderMarkup: '120.00' },
+        data: { orderAmountCharged: '120.00' },
       });
 
       vi.mocked(getServerSession).mockResolvedValueOnce({
@@ -670,10 +671,10 @@ describe('Order Management Integration Tests', () => {
     });
 
     it('[RED] should automatically set orderRefundAmount to orderMarkup and orderCurrentStatus to Returned Orders when saleStatus is set to 3', async () => {
-      // Set testOrder markup
+      // Set testOrder amount charged
       await prisma.crmOrders.update({
         where: { crmOrderId: testOrder.crmOrderId },
-        data: { orderMarkup: '150.00' },
+        data: { orderAmountCharged: '150.00' },
       });
 
       vi.mocked(getServerSession).mockResolvedValueOnce({
@@ -821,6 +822,7 @@ describe('Order Management Integration Tests', () => {
       orderVin: 'VIN789XYZ',
       orderTotalPitched: '500',
       orderVendorPrice: '300',
+      orderAmountCharged: '200',
       orderVendorId: 9999, // Will be set to testVendor.vendorId below
       orderShippingType: 'Express',
       orderPaymentGatewayId: 9999, // Will be set to testGateway.gatewayId below
@@ -1735,6 +1737,88 @@ describe('Order Management Integration Tests', () => {
       const cvvLog = logs.find((l: any) => l.fieldName === 'customerCardCvv');
       expect(cvvLog).toBeDefined();
       expect(cvvLog.newValue).toBe('987'); // Unmasked CVV
+    });
+  });
+
+  describe('W-2001: orderAmountCharged Migration & Manual Entry', () => {
+    it('[RED] should allow creating an order with manual orderAmountCharged and bypass auto-calculation', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Creator', userPermissions: 'orders:create' },
+      });
+
+      const payload = {
+        customerName: 'New Buyer Charged',
+        customerPhone: '9876543210',
+        customerEmail: 'new.buyer@example.com',
+        customerBillingAddress: '123 Billing Rd',
+        customerShippingAddress: '456 Shipping Rd',
+        customerNameOncard: 'New Buyer Charged',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2021 Jeep Grand Cherokee',
+        orderPart: 'Alternator',
+        orderPartSize: 'Standard',
+        orderQuotedMiles: '50',
+        orderGivenMiles: '55',
+        orderVin: 'VIN789XYZ',
+        orderTotalPitched: '500',
+        orderVendorPrice: '300',
+        orderAmountCharged: '350', // Manually entered!
+        orderVendorId: testVendor.vendorId,
+        orderShippingType: 'Express',
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        orderVerifierId: null,
+        saleStatus: '1',
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      // Query DB for renamed field
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_amount_charged FROM crm_orders WHERE crm_order_id = ?`,
+        data.orderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_amount_charged).toBe('350');
+    });
+
+    it('[RED] should allow updating orderAmountCharged via PATCH and not auto-calculate markup on price updates', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Editor', userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderAmountCharged: '250',
+          orderTotalPitched: '700',
+          orderVendorPrice: '400',
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_amount_charged FROM crm_orders WHERE crm_order_id = ?`,
+        testOrder.crmOrderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_amount_charged).toBe('250'); // manually set to 250, NOT auto-calculated (700-400=300)
     });
   });
 });

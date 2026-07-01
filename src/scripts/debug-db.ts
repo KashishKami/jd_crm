@@ -24,7 +24,7 @@ async function main() {
   let countRefunded = 0;
 
   for (const o of orders) {
-    const markup = parseFloat(o.orderMarkup || '0');
+    const markup = parseFloat(o.orderAmountCharged || '0');
     const refund = parseFloat(o.orderRefundAmount || '0');
 
     if (o.saleStatus === '1' || o.saleStatus === '4') {
