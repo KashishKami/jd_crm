@@ -360,8 +360,8 @@ describe('Dashboard Integration Tests', () => {
       expect(resTeamA).toBeDefined();
       expect(resTeamA.soldCount).toBe(3);
       expect(resTeamA.netAmount).toBe(600);
-      expect(resTeamA.topPerformer).toBeDefined();
-      expect(resTeamA.topPerformer.agentName).toBe(agentA1.name);
+      expect(resTeamA.topPerformers).toBeDefined();
+      expect(resTeamA.topPerformers[0].agentName).toBe(agentA1.name);
 
       expect(resTeamB).toBeDefined();
       expect(resTeamB.soldCount).toBe(1);
@@ -495,14 +495,14 @@ describe('Dashboard Integration Tests', () => {
       expect(resTeamA).toBeDefined();
 
       // Alice should be Top Performer (net 400 because refunded order contributes 0)
-      expect(resTeamA.topPerformer).toBeDefined();
-      expect(resTeamA.topPerformer.agentName).toBe('Alice Agent');
-      expect(resTeamA.topPerformer.amount).toBe(400);
+      expect(resTeamA.topPerformers).toBeDefined();
+      expect(resTeamA.topPerformers[0].agentName).toBe('Alice Agent');
+      expect(resTeamA.topPerformers[0].amount).toBe(400);
 
       // Carlos should be Bottom Performer (net 0 because chargeback order contributes 0) and use nickname 'Carlo'
-      expect(resTeamA.bottomPerformer).toBeDefined();
-      expect(resTeamA.bottomPerformer.agentName).toBe('Carlo');
-      expect(resTeamA.bottomPerformer.amount).toBe(0);
+      expect(resTeamA.bottomPerformers).toBeDefined();
+      expect(resTeamA.bottomPerformers[0].agentName).toBe('Carlo');
+      expect(resTeamA.bottomPerformers[0].amount).toBe(0);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
@@ -636,6 +636,135 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
       await prisma.users.delete({ where: { uid: agent.uid } });
       await prisma.crmTeams.delete({ where: { teamId: team.teamId } });
+  });
+  });
+
+  describe('GET /api/dashboard/champions-league', () => {
+    it('should return 401 Unauthorized if there is no session', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce(null);
+
+      const { GET } = await import('../app/api/dashboard/champions-league/route');
+      const req = new Request('http://localhost/api/dashboard/champions-league');
+      const res = await GET(req);
+
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe('Unauthorized');
+    });
+
+    it('should return 403 Forbidden if user lacks performer permissions', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Agent', userPermissions: 'dashboard:total-sales' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/champions-league/route');
+      const req = new Request('http://localhost/api/dashboard/champions-league?month=6&year=2026');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('[RED] should return top and bottom performers filtered by month and year and using finalMargin ranking', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const team = await prisma.crmTeams.findFirst();
+
+      const agentAlice = await prisma.users.create({
+        data: {
+          name: 'Alice Agent',
+          username: 'agent_alice_test',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+        },
+      });
+      const agentBob = await prisma.users.create({
+        data: {
+          name: 'Bob Agent',
+          username: 'agent_bob_test',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+        },
+      });
+
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Team Customer',
+          customerEmail: 'team_cust@example.com',
+        },
+      });
+
+      // Target: June 2026
+      const targetDate = new Date('2026-06-15T12:00:00Z');
+      // Other month: May 2026 (should not be included)
+      const otherDate = new Date('2026-05-15T12:00:00Z');
+
+      // Alice (June): markup 500, refund 100 -> finalMargin 400
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '4',
+          orderMarkup: '500',
+          orderRefundAmount: '100',
+          orderDate: targetDate,
+          orderSalesAgentId: agentAlice.uid,
+          orderSalesAgentName: agentAlice.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // Alice (May): markup 1000 -> should not count for June query
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '1000',
+          orderDate: otherDate,
+          orderSalesAgentId: agentAlice.uid,
+          orderSalesAgentName: agentAlice.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // Bob (June): markup 200 -> finalMargin 200
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderMarkup: '200',
+          orderRefundAmount: '0',
+          orderDate: targetDate,
+          orderSalesAgentId: agentBob.uid,
+          orderSalesAgentName: agentBob.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/champions-league/route');
+      const req = new Request('http://localhost/api/dashboard/champions-league?month=6&year=2026');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      expect(data).toHaveProperty('topPerformers');
+      expect(data).toHaveProperty('bottomPerformers');
+
+      // Top performers sort: Alice (400) first, Bob (200) second
+      expect(data.topPerformers.length).toBeGreaterThanOrEqual(2);
+      expect(data.topPerformers[0].agentName).toBe('Alice Agent');
+      expect(data.topPerformers[0].amount).toBe(400);
+      expect(data.topPerformers[1].agentName).toBe('Bob Agent');
+      expect(data.topPerformers[1].amount).toBe(200);
+
+      // Cleanup
+      await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+      await prisma.users.deleteMany({
+        where: { uid: { in: [agentAlice.uid, agentBob.uid] } },
+      });
     });
   });
 });

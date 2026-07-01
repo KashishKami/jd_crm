@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -66,7 +67,6 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const markup = totalPitchedVal - vendorPriceVal;
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     if (containerRef.current) {
       fadeInPage(containerRef.current);

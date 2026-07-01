@@ -188,6 +188,25 @@ export async function getTeamMonthlyReport(session: any, month: number, year: nu
   return enrichedReports;
 }
 
+export async function getChampionsLeague(session: any, month?: number, year?: number) {
+  const permissions = session?.user?.userPermissions || '';
+  if (!hasPermission(permissions, 'dashboard:top-performer') && !hasPermission(permissions, 'dashboard:bottom-performer')) {
+    throw new Error('Forbidden');
+  }
+
+  const result: { topPerformers?: any[]; bottomPerformers?: any[] } = {};
+
+  if (hasPermission(permissions, 'dashboard:top-performer')) {
+    result.topPerformers = await dashboardRepository.getTopPerformers(5, month, year);
+  }
+
+  if (hasPermission(permissions, 'dashboard:bottom-performer')) {
+    result.bottomPerformers = await dashboardRepository.getBottomPerformers(5, month, year);
+  }
+
+  return result;
+}
+
 export async function getAdvancedChartMetrics(
   session: any,
   teamId?: number,

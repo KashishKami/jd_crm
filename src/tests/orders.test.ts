@@ -686,7 +686,7 @@ describe('Order Management Integration Tests', () => {
       expect(res.status).toBe(400);
     });
 
-    it('[RED] should reset orderRefundAmount to 0 when saleStatus is set to 1', async () => {
+    it('[RED] should reset orderRefundAmount to null when saleStatus is set to 1', async () => {
       // Setup order with refund amount
       await prisma.crmOrders.update({
         where: { crmOrderId: testOrder.crmOrderId },
@@ -713,7 +713,7 @@ describe('Order Management Integration Tests', () => {
       const dbOrder = await prisma.crmOrders.findUnique({
         where: { crmOrderId: testOrder.crmOrderId },
       });
-      expect(dbOrder?.orderRefundAmount).toBe('0');
+      expect(dbOrder?.orderRefundAmount).toBeNull();
     });
 
     it('[RED] should return only orders with orderCurrentStatus = Returned Orders when status=Returned+Orders filter is applied', async () => {

@@ -135,11 +135,34 @@ export async function getNetSales(whereClause?: any) {
   return { amount, count };
 }
 
-export async function getTopPerformers(limit = 5) {
+export async function getTopPerformers(limit = 5, month?: number, year?: number) {
+  let targetMonth = month;
+  let targetYear = year;
+  if (targetMonth === undefined || targetYear === undefined) {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'numeric',
+    });
+    const parts = formatter.formatToParts(now);
+    const map: Record<string, string> = {};
+    for (const p of parts) map[p.type] = p.value;
+    targetMonth = targetMonth ?? parseInt(map.month);
+    targetYear = targetYear ?? parseInt(map.year);
+  }
+
+  const start = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
+
   const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: { in: ['1', '4'] },
       orderSalesAgentId: { not: null },
+      orderDate: {
+        gte: start,
+        lt: end,
+      },
     },
     select: {
       orderSalesAgentId: true,
@@ -168,11 +191,34 @@ export async function getTopPerformers(limit = 5) {
     .slice(0, limit);
 }
 
-export async function getBottomPerformers(limit = 5) {
+export async function getBottomPerformers(limit = 5, month?: number, year?: number) {
+  let targetMonth = month;
+  let targetYear = year;
+  if (targetMonth === undefined || targetYear === undefined) {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'numeric',
+    });
+    const parts = formatter.formatToParts(now);
+    const map: Record<string, string> = {};
+    for (const p of parts) map[p.type] = p.value;
+    targetMonth = targetMonth ?? parseInt(map.month);
+    targetYear = targetYear ?? parseInt(map.year);
+  }
+
+  const start = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
+
   const orders = await prisma.crmOrders.findMany({
     where: {
       saleStatus: { in: ['1', '4'] },
       orderSalesAgentId: { not: null },
+      orderDate: {
+        gte: start,
+        lt: end,
+      },
     },
     select: {
       orderSalesAgentId: true,

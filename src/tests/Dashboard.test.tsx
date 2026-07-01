@@ -55,8 +55,10 @@ describe('Dashboard Component Unit Tests', () => {
       refundCount: 1,
       chargebackCount: 0,
       netAmount: 3200,
-      topPerformer: { agentName: 'Alice', amount: 2000 },
-      bottomPerformer: { agentName: 'Dave', amount: 500 },
+      month: 7,
+      year: 2026,
+      topPerformers: [{ agentId: 101, agentName: 'Alice', amount: 2000 }],
+      bottomPerformers: [{ agentId: 102, agentName: 'Dave', amount: 500 }],
     },
   ];
 
@@ -180,8 +182,10 @@ describe('Dashboard Component Unit Tests', () => {
       expect(screen.getByText('Team Monthly Scores')).toBeDefined();
       expect(screen.getByText('IT Park')).toBeDefined();
       expect(screen.getByText('15 Sales')).toBeDefined();
-      expect(screen.getByText('Top Performer: Alice ($2,000)')).toBeDefined();
-      expect(screen.getByText('Bottom Performer: Dave ($500)')).toBeDefined();
+      expect(screen.getByText('1. Alice')).toBeDefined();
+      expect(screen.getByText('$2,000')).toBeDefined();
+      expect(screen.getByText('1. Dave')).toBeDefined();
+      expect(screen.getByText('$500')).toBeDefined();
     });
   });
 
@@ -204,8 +208,10 @@ describe('Dashboard Component Unit Tests', () => {
         refundCount: 1,
         chargebackCount: 0,
         netAmount: 3200,
-        topPerformer: { agentName: 'Alice', amount: 2000 },
-        bottomPerformer: { agentName: 'Dave', amount: -50 },
+        month: 7,
+        year: 2026,
+        topPerformers: [{ agentId: 101, agentName: 'Alice', amount: 2000 }],
+        bottomPerformers: [{ agentId: 102, agentName: 'Dave', amount: -50 }],
       },
     ];
 
@@ -223,7 +229,8 @@ describe('Dashboard Component Unit Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Bottom Performer: Dave (-$50)')).toBeDefined();
+      expect(screen.getByText('1. Dave')).toBeDefined();
+      expect(screen.getByText('-$50')).toBeDefined();
     });
   });
 
@@ -350,6 +357,56 @@ describe('Dashboard Component Unit Tests', () => {
       const chargebacksLink = screen.getByText('Chargebacks This Month').closest('a');
       expect(chargebacksLink?.getAttribute('href')).toContain('/pending/returned');
       expect(chargebacksLink?.getAttribute('href')).toContain('saleStatus=3');
+    });
+  });
+
+  describe('W-1801: ChampionsLeagueWidget navigation tests', () => {
+    it('should navigate months in ChampionsLeagueWidget and fetch new monthly data', async () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            name: 'Admin',
+            userPermissions: 'dashboard:top-performer,dashboard:bottom-performer',
+          },
+        },
+        status: 'authenticated',
+      } as any);
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          topPerformers: [{ agentId: 101, agentName: 'Alice', amount: 3000 }],
+          bottomPerformers: [{ agentId: 102, agentName: 'Dave', amount: 100 }],
+        }),
+      });
+
+      render(
+        <DashboardPage
+          initialMetrics={{
+            topPerformers: [{ agentId: 101, agentName: 'Alice', amount: 2000 }],
+            bottomPerformers: [{ agentId: 102, agentName: 'Dave', amount: 500 }],
+          }}
+          userPermissions="dashboard:top-performer,dashboard:bottom-performer"
+          userName="Admin"
+        />
+      );
+
+      // Initial values should be defined
+      await waitFor(() => {
+        expect(screen.getByText('Champions League')).toBeDefined();
+        expect(screen.getByText('Alice')).toBeDefined();
+        expect(screen.getByText('$2,000')).toBeDefined();
+      });
+
+      // Find and click previous month button to trigger fetch
+      const prevButton = screen.getByRole('button', { name: /previous month/i });
+      fireEvent.click(prevButton);
+
+      // Should fetch new data
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+        expect(screen.getByText('$3,000')).toBeDefined();
+      });
     });
   });
 });

@@ -9,6 +9,7 @@ import RecentOrdersTable from '../components/dashboard/RecentOrdersTable';
 import AttendanceSummaryRow from '../components/dashboard/AttendanceSummaryRow';
 import PendingCountsRow from '../components/dashboard/PendingCountsRow';
 import TeamMonthlyScoresWidget from '../components/dashboard/TeamMonthlyScoresWidget';
+import ChampionsLeagueWidget from '../components/dashboard/ChampionsLeagueWidget';
 import AdvancedChartWidget from '../components/dashboard/AdvancedChartWidget';
 
 interface DashboardPageProps {
@@ -240,16 +241,14 @@ export default function DashboardPage({
         hasPermission(permissions, 'dashboard:bottom-performer') || 
         hasPermission(permissions, 'dashboard:team-monthly-scores')) && (
           <>
-            <DashboardSectionHeader title="Champions League" />
-            
-            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-              {hasPermission(permissions, 'dashboard:top-performer') && initialMetrics.topPerformers && (
-                <PerformersTable title="Top Performers" performers={initialMetrics.topPerformers} isTop={true} />
-              )}
-              {hasPermission(permissions, 'dashboard:bottom-performer') && initialMetrics.bottomPerformers && (
-                <PerformersTable title="Bottom Performers" performers={initialMetrics.bottomPerformers} isTop={false} />
-              )}
-            </div>
+            {(hasPermission(permissions, 'dashboard:top-performer') || 
+              hasPermission(permissions, 'dashboard:bottom-performer')) && (
+                <ChampionsLeagueWidget 
+                  permissions={permissions}
+                  initialTopPerformers={initialMetrics.topPerformers}
+                  initialBottomPerformers={initialMetrics.bottomPerformers}
+                />
+            )}
 
             {hasPermission(permissions, 'dashboard:team-monthly-scores') && (
               <TeamMonthlyScoresWidget permissions={permissions} />

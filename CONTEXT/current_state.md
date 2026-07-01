@@ -30,6 +30,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 15** | Sprint 1 — Critical Schema Surgery (P0) | **[x] COMPLETED** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
 | **Phase 16** | Sprint 2 — Pre-Go-Live Features (P1) | **[x] COMPLETED** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
 | **Phase 17** | Sprint 3 — Sale Status Overhaul (Partial Refund, Final Margin & Returned Orders) | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.service.ts`, `EditOrderForm.tsx`, `OrderListContainer.tsx`, `OrderList.tsx`, `PendingCountsRow.tsx`, `dashboard_client_page.tsx`, `types/order.ts`, `types/dashboard.ts`, new page `pending/returned/page.tsx` |
+| **Phase 18** | Sprint 3 — Post-Launch Features | **[ ] NOT STARTED** | `dashboard.repository.ts`, `dashboard.service.ts`, `TeamMonthlyScoresWidget.tsx`, `OrderListContainer.tsx`, `vendor.repository.ts`, `vendor.service.ts`, settings/roles pages |
+| **Phase 19** | Sprint 4 — Polish & Table Column Additions | **[ ] NOT STARTED** | `AdvancedChartWidget.tsx`, `RecentOrdersTable.tsx`, `OrderList.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `seed.sql` |
 
 ---
 
@@ -2389,6 +2391,530 @@ The "Refunds This Month" and "Chargebacks This Month" metric cards link to `?sal
   - [x] Super Admin opens dashboard → clicks "Refunds This Month" card → navigates to `/pending/returned?dateFrom=<startOfMonth>&dateTo=<endOfMonth>` → only Refunded/Chargebacked orders for the current month are shown → ✅ Done.
   - [x] Super Admin opens dashboard → "Orders Journey" pipeline section → sees "Returned Orders" card alongside "Completed Orders" → "Returned Orders" card amount equals sum of `orderRefundAmount` for all Refunded/Chargebacked orders → clicks it → navigates to `/pending/returned` → ✅ Done.
   - [x] Recent Orders table on dashboard shows `finalMargin` (not raw `orderMarkup`) for each order → Partial Refund orders display reduced margin correctly → ✅ Done.
+
+---
+
+## Phase 18 — Sprint 3: Post-Launch Features
+
+### Context & Goals
+Sprint 3 focuses on features that enrich dashboard metrics, vendor insights, and security configurations, adjusting all financial calculations to respect the `finalMargin` (`orderMarkup - orderRefundAmount`) metric introduced in Phase 17.
+
+---
+
+### W-1801 — Champions League Widget: Monthly Filter & finalMargin Ranking
+
+**Root cause / Goal:**
+The Champions League dashboard widget ranks sales agents but lacks monthly navigation controls or filters. Furthermore, it must rank agents using the `finalMargin` (`orderMarkup - orderRefundAmount`) metric to avoid inflated rankings from refunded/partially refunded orders.
+
+**Approach:**
+- Update `dashboard.repository.ts` to accept `month` and `year` params for the Champions League query, defaulting to the current month/year.
+- Ensure the query groups by sales agent and sums `finalMargin`.
+- Expose query arguments in `/api/dashboard/metrics` or a separate `/api/dashboard/champions-league` endpoint.
+- In `ChampionsLeagueWidget.tsx`, add previous/next month navigation arrows that trigger a reload of the component using a lightweight state trigger.
+
+---
+
+- [x] **RED — Integration (`src/tests/dashboard.test.ts`):**
+  - [x] Test: `GET /api/dashboard/champions-league?month=6&year=2026` returns agents ranked by sum of `finalMargin` for orders in June 2026.
+  - [x] Test: Seed Agent A with an order (markup $100, refund $20, final margin $80) and Agent B with an order (markup $90, final margin $90). Agent B must rank higher than Agent A.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service → Route):**
+  - [x] [Repository] Add/update method in `dashboard.repository.ts` to filter by date/month and sum `finalMargin` per agent.
+  - [x] [Service] Validate permissions (`dashboard:champions-league` or admin).
+  - [x] [Route] Expose filters on the API route.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit (`src/tests/ChampionsLeagueWidget.test.tsx`):**
+  - [x] Test: Given ranked mock data, render agent positions, names (using nicknames/aliases), and net scores.
+  - [x] Test: Clicking month change triggers the reload fetch handler with the new dates.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Implement selector elements and API trigger in `ChampionsLeagueWidget.tsx`.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Admin views Champions League card on dashboard → sees current month's top agents ranked by final margin → clicks previous arrow → card contents reload showing last month's top agents → ✅ Done.
+
+---
+
+### W-1802 — Team Monthly Scores Widget: Top 3 & Bottom 3 Per Team
+
+**Root cause / Goal:**
+The team scorecard on the dashboard displays only a single top performer and a single bottom performer per team. The sales team requires seeing the top 3 and bottom 3 agents to evaluate team performance distributions.
+
+**Approach:**
+- Update `getTeamMonthlyTopPerformer` and `getTeamMonthlyBottomPerformer` in `dashboard.repository.ts` to return up to 3 agents sorted by their team-specific accumulated `finalMargin`.
+- Update `dashboard.service.ts` to package top/bottom performers as serialized arrays.
+- In `TeamMonthlyScoresWidget.tsx`, render a list layout mapping these arrays instead of a single agent slot.
+
+---
+
+- [x] **RED — Integration (`src/tests/dashboard.test.ts`):**
+  - [x] Test: `GET /api/dashboard/teams/monthly?month=6&year=2026` returns `topPerformers` and `bottomPerformers` as arrays of up to 3 elements.
+  - [x] Test: Performer arrays are correctly sorted by `finalMargin` (descending for top, ascending for bottom).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service):**
+  - [x] [Repository] Modify methods in `dashboard.repository.ts` to return up to 3 results.
+  - [x] [Service] Update type mappings and response fields.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit (`src/tests/TeamMonthlyScoresWidget.test.tsx`):**
+  - [x] Test: Verify widget renders 3 rows in top performers and 3 rows in bottom performers sections for a team card.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Update `TeamMonthlyReport` interfaces in `src/types/dashboard.ts`.
+  - [x] [Component] Refactor `TeamMonthlyScoresWidget.tsx` layout to iterate and print arrays.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Manager views team scoreboard card on dashboard → sees a list of top 3 performers and bottom 3 performers for that team → ✅ Done.
+
+---
+
+### W-1803 — Order Pipeline: Tab Totals (Counts & Final Margin) & Backend Executive Filter
+
+**Root cause / Goal:**
+The pipeline page lacks summaries of count and dollar volume (using final margins) for each status tab, forcing manual list calculation. Furthermore, managers cannot filter orders by their assigned Backend Executive.
+
+**Approach:**
+- In `dashboard.repository.ts` `getPendingCounts()`, calculate both `count` and sum of `finalMargin` for each order status, including `'Returned Orders'`.
+- In `order.repository.ts` `findAll()`, support filtering lists by `backendExecutiveId`.
+- In `OrderListContainer.tsx`, retrieve and display tab statistics in format `Status Name (Count - $Margin)`. Add Backend Executive filter dropdown to the filter row.
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `GET /api/orders?backendExecutiveId=4` returns only orders where `orderBackendExecutiveId = 4`.
+  - [ ] Test: `GET /api/orders/pending-counts` returns both counts and amounts (accumulating `finalMargin`) for all statuses.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Routes):**
+  - [ ] [Repository] Add filter query in `order.repository.ts`. Update `getPendingCounts` in `dashboard.repository.ts` to return sums of `finalMargin`.
+  - [ ] [Route] Expose filters on `GET /api/orders`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/OrderListContainer.test.tsx`):**
+  - [ ] Test: Tab headers render `Completed Orders (Count - $Margin)` dynamically.
+  - [ ] Test: Selecting a Backend Executive triggers a state reload query.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Component] Add the select dropdown list filter in `OrderListContainer.tsx`. Update tab title parsing to print stats.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Manager views orders page → clicks "Backend Executive" dropdown → selects an executive → the list filters to show only their orders → tabs display the count and final margin sum of the filtered orders in each queue → ✅ Done.
+
+---
+
+### W-1804 — Vendor Profile: Clickable Order Lists & Performance History Graph
+
+**Root cause / Goal:**
+The vendor detail view displays basic aggregate counts but does not provide drill-down listings of those orders or visual performance metrics over time.
+
+**Approach:**
+- Update vendor endpoints to return filtered orders lists (`GET /api/vendors/:id/orders`) and monthly metrics history (`GET /api/vendors/:id/performance-history`).
+- In the frontend vendor detail view, make count cards interactive. Clicking them reveals a modal or drawer containing the order details.
+- Integrate a line/bar chart displaying monthly volumes.
+
+---
+
+- [ ] **RED — Integration (`src/tests/vendors.test.ts`):**
+  - [ ] Test: `GET /api/vendors/:id/orders?rating=positive` returns orders associated with the vendor.
+  - [ ] Test: `GET /api/vendors/:id/performance-history` returns aggregates grouped by month.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Routes):**
+  - [ ] [Repository] Add queries in `vendor.repository.ts`.
+  - [ ] [Route] Expose endpoints.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/VendorDetail.test.tsx`):**
+  - [ ] Test: Clicking count metric displays a list modal containing orders.
+  - [ ] Test: Chart element renders with historical values.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Implement click handlers and chart rendering on `VendorDetailPage`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Manager opens vendor page → clicks "Negative Orders (2)" card → list opens showing the 2 negative orders → scrolls down and views the monthly performance chart → ✅ Done.
+
+---
+
+### W-1805 — RBAC: Split agents:view into List vs Sensitive Details Permissions
+
+**Root cause / Goal:**
+The `agents:view` permission grants users visibility to both agent lists and highly sensitive personal documents (bank info, emergency contacts, academic records). These must be split into `agents:view` (lists and basic info) and `agents:view-details` (sensitive tabs/attributes).
+
+**Approach:**
+- Define `agents:view-details` permission. Generate a Prisma schema migration to insert this into permissions.
+- In `GET /api/agents/:id`, strip personal and bank structures if session has only `agents:view`.
+- In `AgentProfileView.tsx`, disable sensitive tabs and display restricted warning alerts when permission is absent.
+
+---
+
+- [ ] **RED — Integration (`src/tests/agents.test.ts`):**
+  - [ ] Test: `GET /api/agents/:id` with only `agents:view` returns basic info but sets personal structures to null.
+  - [ ] Test: `GET /api/agents/:id` with `agents:view-details` returns the full payload.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Schema → Migration → Service → Route):**
+  - [ ] [Schema/Migration] Create schema migration to add `agents:view-details` permission.
+  - [ ] [Service] Enforce sanitization logic in agent service.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AgentProfileView.test.tsx`):**
+  - [ ] Test: Sensitive tabs (Bank emergency, Academic) render lock placeholders if permission is missing.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update `AgentProfileView.tsx` and sub-profile components to check permissions and disable/blur tabs.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent Alice (without `agents:view-details`) opens Agent Bob's profile → views basic workspace details → clicks "Bank Details" tab → sees "Access Restricted" banner → Admin opens profile → views full bank details → ✅ Done.
+
+---
+
+### W-1806 — UI: Rename Settings Page Title to "Roles and Permissions"
+
+**Root cause / Goal:**
+The settings page link reads "Roles", which is incomplete as the page manages both roles and permission grids. Renaming it ensures clarity.
+
+**Approach:**
+- Update text strings in sidebar links and page header containers.
+
+---
+
+- [ ] **RED — Unit (`src/tests/Sidebar.test.tsx`):**
+  - [ ] Test: Sidebar navigation list item contains label `"Roles and Permissions"`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Rename label in `Sidebar.tsx` and settings page containers.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User opens sidebar or settings page → title and link read "Roles and Permissions" → ✅ Done.
+
+---
+
+### W-1807 — Database Query Optimizations & Caching
+
+**Root cause / Goal:**
+Aggregating thousands of orders in-memory causes request delays and server stress. Composite fields need indexes, and aggregate operations must run in the database.
+
+**Approach:**
+- Add database indexes on composite filter fields: `order_date`, `sale_status`, `order_current_status` in `schema.prisma`.
+- Refactor `getTopPerformers` / `getBottomPerformers` to use Prisma `groupBy` or raw SQL aggregations.
+- Set cache headers for dashboard aggregate outputs.
+
+---
+
+- [ ] **RED — Integration (`src/tests/performance.test.ts`):**
+  - [ ] Test: Verify index definitions exist on `crm_orders`.
+  - [ ] Test: Database aggregation query functions return correct mathematical output.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository):**
+  - [ ] [Schema] Add index entries on `CrmOrders` model in `schema.prisma`. Run migration.
+  - [ ] [Repository] Refactor aggregated calculations to run database-side.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Database migrations execute → indexes applied → dashboard load speeds verify lower database execution latency → ✅ Done.
+
+---
+
+### W-1808 — Update Baseline seed.sql and CSV Importer
+
+**Root cause / Goal:**
+Database schema changes (customer name merge, vehicle year merge, status history tables, backend executive, refund amount, audit logs, new permissions) have broken the `seed.sql` and the raw data CSV importer, blocking clean deployments.
+
+**Approach:**
+- Update `seed.sql` to include correct columns, map legacy status codes, and register new permissions.
+- Update `src/scripts/import-csv-data.ts` to merge columns and write to the correct fields.
+
+---
+
+- [ ] **RED — Integration (`src/tests/seed.test.ts`):**
+  - [ ] Test: Running the importer script parses CSV records and populates tables without SQL syntax or validation failures.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Seed SQL → Importer Script):**
+  - [ ] [Seed] Update `seed.sql`.
+  - [ ] [Importer] Refactor column mappings and batch/transaction inserts in `import-csv-data.ts`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin runs `npm run db-seed` or import script on a fresh database → database is successfully populated with clean, structured records and new permissions → ✅ Done.
+
+---
+
+## Phase 19 — Sprint 4: Polish & Table Column Additions
+
+### Context & Goals
+Sprint 4 completes the remaining cosmetic changes, table structures, and input validations requested to finalize the CRM user experience, adjusting columns and aging logic for the `Returned Orders` terminal pipeline status.
+
+---
+
+### W-1901 — Remove Redundant Advanced Chart Graph Filters
+
+**Root cause / Goal:**
+`AdvancedChartWidget.tsx` contains rolling range parameters (`Last 7 Days` / `Last 30 Days`) that overlap and conflict with calendar selections, causing layout choices to be confusing.
+
+**Approach:**
+- Remove the redundant select options from `AdvancedChartWidget.tsx`.
+
+---
+
+- [ ] **RED — Unit (`src/tests/AdvancedChartWidget.test.tsx`):**
+  - [ ] Test: Chart filter selector element does not contain options with value `7d` or `30d`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update select structure in `AdvancedChartWidget.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User opens dashboard chart page → dropdown contains only clean, non-overlapping date options → ✅ Done.
+
+---
+
+### W-1902 — Alias Name Visible Everywhere, Real Name Only on Profile
+
+**Root cause / Goal:**
+For privacy, agents' real names should not be exposed in order records lists or logs. Lists must show nicknames/aliases, reserving real names only for their specific profile dashboard details.
+
+**Approach:**
+- Audit and modify user name display hooks across `OrderList.tsx`, `RecentOrdersTable.tsx`, and detail headers to resolve `nickname || name`.
+
+---
+
+- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [ ] Test: Sales Rep column renders the agent's nickname/alias instead of the real name.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Apply names mapping logic to tables.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Manager views orders table → columns show agents' aliases → views agent profile → real name is visible in header details → ✅ Done.
+
+---
+
+### W-1903 — Shipping Type Dropdown: Residential and Commercial Only
+
+**Root cause / Goal:**
+Shipping types currently capture transit modes (Ground, Express, etc.), whereas the business requires classifying deliveries as either Residential or Commercial to optimize route rates.
+
+**Approach:**
+- Swap existing options in forms with Residential and Commercial.
+
+---
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Test: Shipping Type select dropdown contains only `Residential` and `Commercial` options.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update form inputs in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → select dropdown shows only "Residential" and "Commercial" → selections save correctly → ✅ Done.
+
+---
+
+### W-1904 — Card Number & Expiry Date Formatting (UI Masks)
+
+**Root cause / Goal:**
+Card details entered in raw text are prone to input errors. Masks must format digits dynamically as agents type.
+
+**Approach:**
+- Wire mask events to format Card Number (spaced groups of 4) and Expiry (MMYY digits validation).
+
+---
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Test: Typing card numbers adds space formatting (e.g. `4111 2222 3333 4444`).
+  - [ ] Test: Expiry field automatically reformats inputs to matching expiration structure.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Bind mask state triggers to form inputs.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent types card digits → input format updates dynamically → form submits standardized strings → ✅ Done.
+
+---
+
+### W-1905 — Rename Mileage Labels to "Quotes Miles" and "Vendor Miles"
+
+**Root cause / Goal:**
+Form fields must follow vocabulary standards: rename Quoted Mileage and Vendor Mileage to "Quotes Miles" and "Vendor Miles".
+
+**Approach:**
+- Update text label strings in form templates.
+
+---
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Test: Form text labels display `"Quotes Miles"` and `"Vendor Miles"`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update text attributes in forms.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent edits or creates order → views input labels displaying "Quotes Miles" and "Vendor Miles" → ✅ Done.
+
+---
+
+### W-1906 — Recent Orders: Add Customer Phone, Edit Button, and Vendor Name
+
+**Root cause / Goal:**
+The dashboard's recent orders table lacks telephone contacts, vendor associations, or direct editing shortcuts, slowing down coordinator triage.
+
+**Adjustment for Phase 17:**
+The margin column in the Recent Orders table must continue to display the `finalMargin` (`orderMarkup - orderRefundAmount`) rather than raw `orderMarkup`.
+
+**Approach:**
+- Include phone and vendor name in dashboard metric selects. Add columns and direct edit links to table.
+
+---
+
+- [ ] **RED — Integration (`src/tests/dashboard.test.ts`):**
+  - [ ] Test: Recent orders payload contains customer phone, vendor name, and `orderRefundAmount` to support `finalMargin` calculations.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service):**
+  - [ ] [Repository] Fetch phone and vendor details in dashboard select.
+  - [ ] [Service] Map variables into dashboard payload.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/RecentOrdersTable.test.tsx`):**
+  - [ ] Test: Renders column values for Phone and Vendor. Verify edit button links to `/orders/:id/edit`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Expand table layout in `RecentOrdersTable.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent views dashboard recent table → inspects phone numbers and vendor names directly → clicks "Edit" → navigates directly to edit order → ✅ Done.
+
+---
+
+### W-1907 — Order Page Table: Replace Email with Customer Phone Number
+
+**Root cause / Goal:**
+Sales agents rarely email customers from list pages; telephone numbers are much more useful for active operations.
+
+**Approach:**
+- Swap customer email attribute for customer phone number in the list row layout.
+
+---
+
+- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [ ] Test: Order list rows render customer phone numbers instead of email addresses.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update rendering cells in `OrderList.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User views orders list → column shows phone numbers instead of email → ✅ Done.
+
+---
+
+### W-1908 — Date and Customer ID as First Columns in All Lists
+
+**Root cause / Goal:**
+Standardize list tables to ensure a cohesive look. Date and Customer ID must consistently occupy column positions 1 and 2.
+
+**Adjustment for Phase 17:**
+Ensure this column ordering applies to all pipeline tabs in `OrderListContainer.tsx`, including the newly added "Returned Orders" tab.
+
+**Approach:**
+- Rearrange column headers and row mapping cells.
+
+---
+
+- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [ ] Test: Table headers at index 0 and 1 correspond to "Date" and "Customer ID".
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Adjust header grid mappings in `OrderList.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User opens any orders list tab (including Returned Orders) → columns start with Date and Customer ID → ✅ Done.
+
+---
+
+### W-1909 — Time in Pending State Column (Except Completed/Returned Orders)
+
+**Root cause / Goal:**
+Operations must track how long orders sit in pending states to address bottlenecks. Terminal states (Completed and Returned) do not require aging indicators.
+
+**Adjustment for Phase 17:**
+The "Returned Orders" status represents a terminal state (full reversal of sale), so aging timers must be excluded from this tab along with Completed.
+
+**Approach:**
+- Calculate and display duration using `orderCurrentStatusUpdateDate` for active statuses; render blank/hyphen for Completed and Returned.
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: Orders query returns the last status modification timestamp.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [ ] Test: "Time in Status" column renders formatted days for active statuses, but is empty/hyphen for Completed and Returned statuses.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Render duration metric columns in `OrderList.tsx`.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent views Pending Shipment queue → sees "Aging: 4 days" in column → switches to Completed or Returned tab → column is blank → ✅ Done.
+
+---
+
+### W-1910 — Blacklisted Vendor Alert Red Flag in Dropdowns
+
+**Root cause / Goal:**
+Ensure agents do not accidentally place new orders with blacklisted suppliers. Dropdown listings should display clear warnings for blacklisted vendors.
+
+**Approach:**
+- Prepend `[BLACKLISTED] 🚩` text prefix and apply red CSS formatting to option elements matching inactive status.
+
+---
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Test: Dropdown options representing blacklisted vendors are styled red and prefixed with warning flags.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Component):**
+  - [ ] [Component] Update select option mapping inside forms.
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → vendor list shows warning flag on blacklisted options → avoids selection → ✅ Done.
+
 ---
 
 ## 3. Session Notes
@@ -2829,6 +3355,18 @@ The "Refunds This Month" and "Chargebacks This Month" metric cards link to `?sal
   - **Dismiss Modals & Close Button**: Added backdrop click dismiss handlers and a dedicated top-right close cross button (`&times;`) on both `AddOrderForm.tsx` and `EditOrderForm.tsx` for Refunded, Chargebacked, and Partial Refund date modal cards, allowing easy closing/dismissal.
   - **Skip Vendor Import**: Removed vendor data parsing and creation steps inside the CSV import script `import-csv-data.ts`, setting `orderVendorId` and `orderVendorName` to `null` during ingestion.
   - **Audit Log Bug Fix**: Fixed a bug where updating unrelated order fields (e.g. vendor information) on `Sold` orders automatically triggered a spurious edit log showing the `Order Refund Amount` changed from empty to `0`. Resolved this by setting `updatedData.orderRefundAmount` to `null` instead of `'0'` in `order.service.ts` to correctly align with database defaults.
+
+### Session 38 — July 2, 2026
+  **Phase 18 — Champions League Widget: Monthly Filter & finalMargin Ranking (W-1801) & Team Monthly Scores Widget: Top 3 & Bottom 3 Per Team (W-1802)**
+  - **Pre-Existing Test Fixes**: Resolved assertions in `src/tests/orders.test.ts` and `src/tests/dashboard.test.ts`/`src/tests/Dashboard.test.tsx` that failed due to database `orderRefundAmount` default values (`null` vs `'0'`) and multi-agent array structures introduced in prior sessions.
+  - **W-1801 Integration Tests**: Wrote RED integration tests in `dashboard.test.ts` verifying that `GET /api/dashboard/champions-league` correctly filters by month/year and ranks agents using the `finalMargin` (`orderMarkup - orderRefundAmount`) metric.
+  - **W-1801 Repository & Service**: Updated `getTopPerformers` and `getBottomPerformers` in `dashboard.repository.ts` to filter by EST month and year, grouping and summing `finalMargin`. Guarded the service methods with `dashboard:top-performer` and `dashboard:bottom-performer` permissions.
+  - **W-1801 API Route**: Created the `/api/dashboard/champions-league` route to parse parameters and serve rankings.
+  - **W-1801 Frontend Widget Navigation**: Added previous and next month navigation arrows to the `ChampionsLeagueWidget.tsx` component, updating its state to fetch rankings dynamically.
+  - **W-1801 Unit Tests**: Wrote React Testing Library assertions in `Dashboard.test.tsx` verifying that month navigation buttons trigger network fetches.
+  - **W-1802 Verification**: Confirmed that the top 3 and bottom 3 performer arrays per team are fully operational, styled, and verified by the integration and unit tests.
+  - **Verification**: Verified that all 35 test files and all 203 unit and integration tests compile and run green (100% success). All typechecks are clean.
+
 
 
 
