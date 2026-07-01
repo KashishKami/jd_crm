@@ -776,6 +776,10 @@ model CrmOrders {
   orderVendorName               String?      @map("order_vendor_name") @db.VarChar(255)
   orderShippingType             String?      @map("order_shipping_type") @db.VarChar(255)
   orderMarkup                   String?      @map("order_markup") @db.VarChar(255)
+  // Stores the dollar amount returned to the customer (Phase 17).
+  // Sold: '0'. Refunded/Chargebacked: auto-set to orderMarkup by order.service.ts.
+  // Partial Refund ('4'): user-entered amount. finalMargin = orderMarkup − orderRefundAmount.
+  orderRefundAmount             String?      @map("order_refund_amount") @db.VarChar(25)
   // FK is now a proper Int — no more varchar(55) mismatch
   orderPaymentGatewayId         Int?         @map("order_payment_gateway")
   orderSalesAgentId             Int?         @map("order_sales_agent_id")

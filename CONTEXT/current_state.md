@@ -29,6 +29,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 14**| Admin Settings & RBAC Permissions | **[x] COMPLETED** | Role settings page, permission matrices |
 | **Phase 15** | Sprint 1 — Critical Schema Surgery (P0) | **[x] COMPLETED** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
 | **Phase 16** | Sprint 2 — Pre-Go-Live Features (P1) | **[x] COMPLETED** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
+| **Phase 17** | Sprint 3 — Sale Status Overhaul (Partial Refund, Final Margin & Returned Orders) | **[ ] PLANNED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.service.ts`, `EditOrderForm.tsx`, `OrderListContainer.tsx`, `OrderList.tsx`, `PendingCountsRow.tsx`, `dashboard_client_page.tsx`, `types/order.ts`, `types/dashboard.ts`, new page `pending/returned/page.tsx` |
 
 ---
 
@@ -2249,6 +2250,145 @@ Every `PATCH /api/orders/:id` overwrites the current field values with no record
   - [ ] **RBAC:** User without `orders:view-audit-log` opens the order detail page → "Change History" card is completely absent → direct `GET /api/orders/:id/audit-log` returns `403 Forbidden` ✅
   - [ ] **Cascade delete:** Order is deleted (W-1603 flow) → `SELECT * FROM crm_order_audit_log WHERE order_id = :id` returns 0 rows (CASCADE confirmed) ✅
 
+
+---
+
+## Phase 17 — Sprint 3: Sale Status Overhaul (Partial Refund, Final Margin & Returned Orders)
+
+### Context & Goals
+
+The current system treats `saleStatus` as a 3-value enum (Sold / Refunded / Chargebacked) and uses raw `orderMarkup` as the primary financial metric everywhere. This phase introduces four coordinated changes:
+
+1. **New `saleStatus = '4'` (Partial Refund):** An order where the customer received a partial refund — we still earned money, but less than the full markup. Partial Refund orders are "completed" (money was received) and belong in the `Completed Orders` workflow queue.
+2. **New `orderRefundAmount` column:** Stores the dollar amount actually returned to the customer. For Sold: `0`. For Refunded/Chargebacked: auto-set to `orderMarkup` (entire margin forfeited). For Partial Refund: user-entered amount.
+3. **`finalMargin` as the key metric everywhere:** Computed at query time as `orderMarkup − orderRefundAmount`. Replaces raw `orderMarkup` in all dashboard aggregates.
+4. **New `orderCurrentStatus = 'Returned Orders'`:** A new terminal workflow queue. When `saleStatus` changes to `'2'` or `'3'`, the service auto-sets `orderCurrentStatus = 'Returned Orders'`. Gets its own pipeline page at `/pending/returned` and filter tab in `OrderListContainer`.
+5. **`Completed Orders` includes Partial Refund:** The `findAll` filter expands to `saleStatus IN ('1', '4')`.
+6. **Info banners** on Completed and Returned Orders queue pages clarify which sale statuses each queue displays.
+7. **Dashboard metric card link updates:** Refund and Chargeback metric cards link to `/pending/returned` filtered by current month.
+
+---
+
+### W-1701 — Schema + Backend: `orderRefundAmount` Column, Status Auto-Rules & finalMargin Repository
+
+**Goal:**
+The database has no column to track partial or full refund amounts. All dashboard queries use raw `orderMarkup` without accounting for refunds, causing: (a) partially-refunded orders show inflated margin; (b) Refunded/Chargebacked orders incorrectly subtract from Net Sales instead of contributing zero; (c) there is no automatic mechanism to move orders to a `Returned Orders` workflow queue when marked as Refunded or Chargebacked.
+
+**Approach:**
+- Add `order_refund_amount VARCHAR(25) NULL DEFAULT NULL` to `crm_orders` via Prisma migration.
+- Update `OrderUpdateInput` type to include `orderRefundAmount`.
+- In `order.service.ts` `updateOrder()`: when `saleStatus → '2'` or `'3'`, auto-set `orderRefundAmount = orderMarkup` and `orderCurrentStatus = 'Returned Orders'`. When `saleStatus → '1'`, reset `orderRefundAmount = '0'`. When `saleStatus → '4'`, throw `400` if `orderRefundAmount` is absent or empty.
+- Rewrite all dashboard repository aggregation functions to use `finalMargin = orderMarkup − orderRefundAmount`.
+- Fix `getChargebackThisMonth`/`getRefundThisMonth` to sum `orderRefundAmount` (actual money returned) instead of `orderMarkup`.
+- `getSalesBetweenDates` now filters `saleStatus IN ('1', '4')` and uses `finalMargin`.
+- `getNetSalesBetweenDates` sums `finalMargin` for `'1'` and `'4'` — Refunded/Chargebacked contribute `0` (not a negative subtraction).
+- Add `'Returned Orders'` to `getPendingCounts`.
+- Update `findAll` in `order.repository.ts` to expand `Completed Orders` filter and add `Returned Orders` filter path.
+- Update `mapSaleStatus()` in `order.service.ts` to map `'4'` → `'Partial Refund'`.
+- Add `'orderRefundAmount'` to the `orderKeysToAudit` list.
+
+---
+
+- [ ] **RED — Integration (`orders.test.ts` + `dashboard.test.ts`):**
+  - [ ] Test (`orders.test.ts`): `PATCH /api/orders/:id` with `{ saleStatus: '2' }`. Assert `200 OK`. Assert `SELECT order_refund_amount, order_current_status FROM crm_orders WHERE crm_order_id = :id` returns `order_refund_amount = <existingOrderMarkup>` AND `order_current_status = 'Returned Orders'`.
+  - [ ] Test (`orders.test.ts`): `PATCH /api/orders/:id` with `{ saleStatus: '3' }` (Chargebacked). Assert same outcome as above.
+  - [ ] Test (`orders.test.ts`): `PATCH /api/orders/:id` with `{ saleStatus: '4', orderRefundAmount: '50.00' }`. Assert `200 OK`. Assert `SELECT order_refund_amount FROM crm_orders WHERE crm_order_id = :id` returns `'50.00'`. Assert `order_current_status` is **not** `'Returned Orders'`.
+  - [ ] Test (`orders.test.ts`): `PATCH /api/orders/:id` with `{ saleStatus: '4' }` and no `orderRefundAmount` in body. Assert `400 Bad Request`.
+  - [ ] Test (`orders.test.ts`): `PATCH /api/orders/:id` with `{ saleStatus: '1' }` on a previously-Returned order. Assert `order_refund_amount = '0'`.
+  - [ ] Test (`orders.test.ts`): `GET /api/orders?status=Returned+Orders`. Assert only orders with `order_current_status = 'Returned Orders'` are returned.
+  - [ ] Test (`dashboard.test.ts`): Seed 3 Sold orders (markup `$100` each) and 1 Partial Refund order (markup `$100`, `orderRefundAmount = '30'`). Assert `GET /api/dashboard/metrics` `thisYearSales.amount = 370` (3×100 + 70 finalMargin).
+  - [ ] Test (`dashboard.test.ts`): Seed 2 Refunded orders (markup `$100` each, so `orderRefundAmount` = `$100` each). Assert `refundThisMonth.amount = 200`.
+  - [ ] **Run — confirm RED (column does not exist, auto-rules not in service, finalMargin formula not applied).**
+
+- [ ] **GREEN — Backend (Schema → Repository → Service):**
+  - [ ] [Schema] Add `orderRefundAmount String? @map("order_refund_amount") @db.VarChar(25)` to `CrmOrders` in `schema.prisma` (after `orderMarkup` line).
+  - [ ] [Migration] Run `pnpm prisma migrate dev --name add_refund_amount_to_orders`. Verify `DESCRIBE crm_orders` shows `order_refund_amount VARCHAR(25) NULL DEFAULT NULL`.
+  - [ ] [Type] Add `orderRefundAmount?: string | null` to `OrderUpdateInput` in `src/types/order.ts`.
+  - [ ] [Repository — Orders] In `order.repository.ts` `findAll()`: Change the `Completed Orders` block from `where.saleStatus = '1'` to `where.saleStatus = { in: ['1', '4'] }`. Add `else if (filters.status === 'Returned Orders') { where.orderCurrentStatus = 'Returned Orders'; }`.
+  - [ ] [Service — Orders] In `order.service.ts` `updateOrder()`: (a) When `data.saleStatus === '2' || data.saleStatus === '3'` → set `updatedData.orderRefundAmount = existingOrder.orderMarkup ?? '0'` and `updatedData.orderCurrentStatus = 'Returned Orders'`. (b) When `data.saleStatus === '1'` → set `updatedData.orderRefundAmount = '0'`. (c) When `data.saleStatus === '4'` → if `!data.orderRefundAmount` throw `new Error('Refund amount is required for Partial Refund status')`. (d) Update `mapSaleStatus()` to add `if (status === '4') return 'Partial Refund'`. (e) Add `'orderRefundAmount'` to `orderKeysToAudit` array.
+  - [ ] [Repository — Dashboard] In `dashboard.repository.ts`:
+    - `getSalesBetweenDates`: filter `saleStatus: { in: ['1', '4'] }`. Select `orderMarkup` + `orderRefundAmount`. Accumulate `finalMargin = parseFloat(orderMarkup) - parseFloat(orderRefundAmount || '0')`.
+    - `getNetSalesBetweenDates`: filter `saleStatus: { in: ['1', '2', '3', '4'] }`. For `'1'`/`'4'` → add `finalMargin` to amount, increment count. For `'2'`/`'3'` → contribute `0` to amount, do NOT decrement count.
+    - `getChargebackThisMonth`: select `orderRefundAmount`. Sum `orderRefundAmount` values.
+    - `getRefundThisMonth`: same — sum `orderRefundAmount`.
+    - `getTopPerformers` / `getBottomPerformers`: filter `saleStatus: { in: ['1', '4'] }`. Select `orderRefundAmount`. Compute `finalMargin` per order in agentMap accumulation.
+    - `getTeamMonthlyScores` raw SQL: replace the CASE expression value for `saleStatus = '1'` with `CAST(COALESCE(o.order_markup,'0') AS DECIMAL(10,2)) - CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(10,2))`. Add `WHEN o.sale_status = '4' THEN CAST(COALESCE(o.order_markup,'0') AS DECIMAL(10,2)) - CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(10,2))` to the CASE. Remove subtraction for `'2'`/`'3'` (they contribute `0`).
+    - `getTeamMonthlyTopPerformers` / `getTeamMonthlyBottomPerformers`: select `orderRefundAmount`. Compute `finalMargin` per order in the `total` accumulation.
+    - `getPendingCounts`: add `'Returned Orders'` to `where.orderCurrentStatus.in` array and to the `res` default object.
+    - `getAdvancedChartData`: change filter to `saleStatus: { in: ['1', '2', '3', '4'] }`. Select `orderRefundAmount`.
+  - [ ] [Service — Dashboard] In `dashboard.service.ts` advanced chart fill-bins loop: for `saleStatus === '4'`, compute `finalMargin` and add to `bin.salesAmount`. Update `recentOrders` map to serialize `orderRefundAmount: o.orderRefundAmount`.
+  - [ ] Run integration tests — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Manager opens an order and changes Sale Status to Refunded → saves → DB: `order_refund_amount = <order_markup>` AND `order_current_status = 'Returned Orders'` → Dashboard `refundThisMonth.amount` increases by the full markup amount → `netSales.amount` is unchanged (refunded orders contribute `0`, not a negative) → `GET /api/orders?status=Returned+Orders` includes the order → ✅ Done.
+
+---
+
+### W-1702 — Order UI: Partial Refund Form, finalMargin Display, Returned Orders Page & Info Banners
+
+**Goal:**
+The `EditOrderForm` has no `'4'` (Partial Refund) option in the Sale Status dropdown. `OrderList` displays raw `orderMarkup` as "Margin" without accounting for refund amounts. There is no dedicated pipeline page or tab for Returned Orders. The Completed Orders and Returned Orders pages have no banners explaining what sale statuses they contain.
+
+**Approach:**
+- Add `'4'` option to the Sale Status dropdown in `EditOrderForm.tsx`. When selected, show a Refund Amount modal (mirroring the existing date modal pattern). Submit `orderRefundAmount` in the form payload.
+- In `OrderList.tsx`, rename "Margin" to "Final Margin" and compute `finalMargin = orderMarkup − orderRefundAmount`.
+- In `OrderListContainer.tsx`: add "Returned Orders" tab; add info banners for Completed/Returned queues; add `'4'` → `'Partial Refund'` to active filter chip.
+- Create `src/app/pending/returned/page.tsx`.
+
+---
+
+- [ ] **RED — Unit (`EditOrderForm.test.tsx` + `OrderList.test.tsx`):**
+  - [ ] Test (`EditOrderForm.test.tsx`): Render the form. Assert the Sale Status `<select>` contains `<option value="4">Partial Refund</option>`.
+  - [ ] Test (`EditOrderForm.test.tsx`): Simulate selecting `value='4'`. Assert a modal with a refund amount numeric input is rendered.
+  - [ ] Test (`EditOrderForm.test.tsx`): Type `'50.00'` in the refund amount input and click Confirm. Assert `orderRefundAmount: '50.00'` is in the submitted `fetch` body payload.
+  - [ ] Test (`OrderList.test.tsx`): Render with order `{ orderMarkup: '100', orderRefundAmount: '30' }`. Assert the Pricing cell shows `Final Margin: $70.00`.
+  - [ ] **Run — confirm RED (option '4' is absent; OrderList shows raw `orderMarkup` without subtracting `orderRefundAmount`).**
+
+- [ ] **GREEN — Frontend (Types → Components → New Page):**
+  - [ ] [Types] In `src/types/order.ts`, add `orderRefundAmount?: string | null` to `OrderUpdateInput`.
+  - [ ] [Component — EditOrderForm] Add state `const [orderRefundAmount, setOrderRefundAmount] = useState(order.orderRefundAmount || '')` and `const [showRefundAmountModal, setShowRefundAmountModal] = useState(false)`. In the Sale Status `<select>` `onChange` handler: when `val === '4'`, call `setShowRefundAmountModal(true)`. Add `<option value="4">Partial Refund</option>`. Build the refund amount modal portal (style matches the existing date modal) containing a `<input type="number" />` for the refund amount, a Confirm button (`setOrderRefundAmount(inputVal); setShowRefundAmountModal(false)`), and a Skip/Cancel button. Include `orderRefundAmount` in the `payload` sent to `PATCH /api/orders/:id`.
+  - [ ] [Component — OrderList] Add `orderRefundAmount?: string | null` to the `orders` array item type in `OrderListProps`. In the Pricing `<td>`, rename "Margin" label to "Final Margin". Compute `const finalMargin = parseFloat(order.orderMarkup || '0') - parseFloat(order.orderRefundAmount || '0')`. Display `finalMargin.toFixed(2)` with the same green/red colour logic as before.
+  - [ ] [Component — OrderListContainer] Add `<button onClick={() => setStatusFilter('Returned Orders')} className={tab-btn ...}>Returned Orders</button>` after the Completed Orders tab. Update the page `<h1>` text and `<p>` subtitle for `statusFilter === 'Returned Orders'`. Add an amber/rose info banner `<div>` rendered when `statusFilter === 'Completed Orders'` (text: *"This queue shows orders with Sale Status: Sold or Partial Refund — orders where money was received."*) or when `statusFilter === 'Returned Orders'` (text: *"This queue shows orders with Sale Status: Refunded or Chargebacked — orders where the full sale was reversed."*). Add `'4'` → `'Partial Refund'` label to the `saleStatusFilter` chip display.
+  - [ ] [Page — NEW] Create `src/app/pending/returned/page.tsx` exporting `PendingReturnedPage` that renders `<OrderListContainer initialStatus="Returned Orders" />`. Add `metadata` with title `'Returned Orders — JD CRM'`.
+  - [ ] Run unit tests — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Edit Order → Sale Status dropdown shows 4 options (Sold, Refunded, Chargebacked, Partial Refund) → selects "Partial Refund" → refund amount modal appears → enters `$50` → confirms → submits form → Order detail shows `Refund Amount: $50.00`, `Final Margin: $50.00` (if full markup was `$100`) → Order appears in "Completed Orders" tab → Completed Orders page shows info banner: "This queue shows orders with Sale Status: Sold or Partial Refund" → ✅ Done.
+  - [ ] Agent navigates to `/pending/returned` → "Returned Orders" page renders → info banner: "This queue shows orders with Sale Status: Refunded or Chargebacked" → only Refunded/Chargebacked orders appear → ✅ Done.
+
+---
+
+### W-1703 — Dashboard UI: finalMargin Metric Cards, Returned Orders Links & PendingCountsRow
+
+**Goal:**
+The "Refunds This Month" and "Chargebacks This Month" metric cards link to `?saleStatus=2` and `?saleStatus=3` (raw order list filtered by sale status). They should instead navigate to `/pending/returned` filtered by the current month, since that is the dedicated Returned Orders queue. The `PendingCountsRow` "Completed Orders" card hard-codes `saleStatus=1` in its link, excluding Partial Refund orders. A new "Returned Orders" card is missing from the pipeline row.
+
+**Approach:**
+- In `dashboard_client_page.tsx`: update Refund and Chargeback card links to `/pending/returned?dateFrom=...&dateTo=...`. Update "This Year Sales", "Sales This Month", "Today's Sales" links to `saleStatus=1,4`. Update "Net Sales This Month" link to `saleStatus=1,2,3,4`.
+- In `PendingCountsRow.tsx`: change Completed Orders route to `'/orders?status=Completed+Orders'`. Add a new "Returned Orders" step entry with route `'/pending/returned'` and a distinct rose color scheme.
+- In `RecentOrdersTable.tsx`: compute and display `finalMargin` instead of raw `orderMarkup`.
+- In `dashboard.service.ts` `getMetricsForUser()`: serialize `orderRefundAmount` in the `recentOrders` map.
+
+---
+
+- [ ] **RED — Unit (`Dashboard.test.tsx`):**
+  - [ ] Test: Render `DashboardPage` with `initialMetrics.refundThisMonth` mocked. Assert the rendered Refunds card `<Link>` `href` attribute contains `/pending/returned` (not `saleStatus=2`).
+  - [ ] Test: Render `DashboardPage` with `initialMetrics.chargebackThisMonth` mocked. Assert the Chargebacks card `<Link>` `href` attribute contains `/pending/returned` (not `saleStatus=3`).
+  - [ ] Test: Render `PendingCountsRow` with mock `pendingCounts` containing `'Returned Orders': { amount: 500, count: 3 }`. Assert a card element with text "Returned Orders" is rendered.
+  - [ ] **Run — confirm RED (cards link to `saleStatus=2`/`saleStatus=3`; no Returned Orders card exists in PendingCountsRow).**
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Types — Dashboard] In `src/types/dashboard.ts`, add `orderRefundAmount?: string | null` to the `DashboardRecentOrder` interface. Add `'Returned Orders': { amount: number; count: number }` to the `PendingCounts` type.
+  - [ ] [Component — dashboard_client_page.tsx] Update "Refunds This Month" card `link` to `` `/pending/returned?dateFrom=${startOfMonth}&dateTo=${endOfMonth}` ``. Update "Chargebacks This Month" card `link` to the same route. Update "This Year Sales" `link` to `` `/orders?saleStatus=1,4&dateFrom=${startOfYear}&dateTo=${endOfYear}` ``. Update "Sales This Month" `link` to `` `/orders?saleStatus=1,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}` ``. Update "Today's Sales" `link` to `` `/orders?saleStatus=1,4&dateFrom=${todayStr}&dateTo=${todayStr}` ``. Update "Net Sales This Month" `link` to `` `/orders?saleStatus=1,2,3,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}` ``.
+  - [ ] [Component — PendingCountsRow.tsx] Change the "Completed Orders" step `route` from `'/orders?saleStatus=1&status=Completed+Orders'` to `'/orders?status=Completed+Orders'`. Add a new step object: `{ label: 'Returned Orders', amount: pendingCounts['Returned Orders']?.amount || 0, count: pendingCounts['Returned Orders']?.count || 0, route: '/pending/returned', color: '#b25353', bg: '#faf2f2', icon: <returnedIcon /> }`. Add it to the `combos` array (as the bottom of the third combo column, paired with "Pending Resolutions").
+  - [ ] [Component — RecentOrdersTable.tsx] Add `orderRefundAmount?: string | null` to the local order prop type. Compute `const finalMargin = parseFloat(orderMarkup || '0') - parseFloat(orderRefundAmount || '0')`. Display `$${finalMargin.toFixed(2)}` in the margin column.
+  - [ ] [Service — Dashboard] In `dashboard.service.ts` `getMetricsForUser()`, in the `recentOrders` `.map()`, add `orderRefundAmount: o.orderRefundAmount` to the serialized object.
+  - [ ] Run unit tests — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Super Admin opens dashboard → clicks "Refunds This Month" card → navigates to `/pending/returned?dateFrom=<startOfMonth>&dateTo=<endOfMonth>` → only Refunded/Chargebacked orders for the current month are shown → ✅ Done.
+  - [ ] Super Admin opens dashboard → "Orders Journey" pipeline section → sees "Returned Orders" card alongside "Completed Orders" → "Returned Orders" card amount equals sum of `orderRefundAmount` for all Refunded/Chargebacked orders → clicks it → navigates to `/pending/returned` → ✅ Done.
+  - [ ] Recent Orders table on dashboard shows `finalMargin` (not raw `orderMarkup`) for each order → Partial Refund orders display reduced margin correctly → ✅ Done.
 ---
 
 ## 3. Session Notes
@@ -2665,3 +2805,5 @@ Every `PATCH /api/orders/:id` overwrites the current field values with no record
   - **Prefetch Tuning**: Added `prefetch={false}` to all navigation links in `Sidebar.tsx` and `Navbar.tsx`, list-page detail/edit links in `AgentList.tsx`, `OrderList.tsx`, `RecentOrdersTable.tsx`, `GatewayList.tsx`, and `VendorList.tsx`, and dynamic widgets (`PendingCountsRow.tsx`, `MetricCard.tsx`). This disables automatic background prefetching of dynamic database-heavy pages, avoiding connection pool saturation on load.
   - **Connection Limit Optimization**: Configured the database pool `connectionLimit` in `src/lib/db.ts` to `5` to balance individual page-load concurrency speeds against GoDaddy's strict user cap (`max_user_connections = 30`) under multi-instance deployments.
   - **Verification**: Verified that all systems compile and run cleanly, ensuring the dashboard loads instantly without database contention under concurrent visitor load.
+
+

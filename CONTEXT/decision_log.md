@@ -394,3 +394,55 @@ To maintain parity with other agent assignments (Sales Agent and QA Verifier) an
 - Comprehensive audit trails for order handling.
 - Clear structural layout displaying processing responsibility sequence.
 - Full type safety and test coverage across repository, routes, and UI components.
+
+---
+
+### Decision 19: Sale Status Overhaul — Partial Refund, finalMargin Metric & Returned Orders Queue
+
+**Date:** 2026-07-02
+**Status:** Approved
+
+#### Context
+Three related problems were identified with the pre-Phase-17 system:
+
+1. **Missing sale outcome:** The system only had three `saleStatus` values (Sold / Refunded / Chargebacked). Partial refunds — where a customer gets some money back but we still earned a reduced margin — had no representation, forcing agents to choose between misrepresenting the sale as Sold or fully writing it off as Refunded.
+
+2. **Wrong financial metric on dashboards:** All dashboard aggregations used raw `orderMarkup` (the gross margin before any refunds). This inflated reported margins for partially-refunded orders and caused the Net Sales formula to double-penalize Refunded/Chargebacked orders (they were already excluded from "Sold" totals, then their markup was subtracted a second time). The Refund and Chargeback metric widgets showed the *margin lost*, not the *amount returned to the customer* — a conceptually wrong figure.
+
+3. **No dedicated Returned Orders queue:** Refunded and Chargebacked orders had no distinct workflow queue — they stayed wherever they were in the pipeline. Managers could not quickly see or report on reversed orders.
+
+#### Decisions
+
+**D19.1 — New `saleStatus = '4'` (Partial Refund)**
+Added as the fourth active sale status code. Partial Refund orders have money received (positive `finalMargin`) and belong in the `Completed Orders` workflow queue alongside Sold orders.
+
+**D19.2 — `orderRefundAmount` column (not a computed `finalMargin` column)**
+Chose to store only the raw refund amount, **not** a pre-computed `finalMargin`, to avoid derived-value staleness. `finalMargin` is always computed inline at query time as `orderMarkup − orderRefundAmount`. This is the single source of truth for profitability everywhere in the system.
+
+Auto-population rules enforced by `order.service.ts`:
+- `saleStatus → '1'` (Sold): `orderRefundAmount = '0'`
+- `saleStatus → '2'` (Refunded) or `'3'` (Chargebacked): `orderRefundAmount = orderMarkup` (full margin forfeited, auto-set by service)
+- `saleStatus → '4'` (Partial Refund): `orderRefundAmount` = user-provided amount (required; service throws `400` if absent)
+
+**D19.3 — New `orderCurrentStatus = 'Returned Orders'` workflow queue**
+A new terminal queue for reversed orders. The service layer auto-transitions any order to `Returned Orders` when `saleStatus` is changed to `'2'` or `'3'`. This makes reversed orders instantly visible in their own pipeline page (`/pending/returned`) and tab.
+
+**D19.4 — `Completed Orders` expands to include Partial Refund**
+`findAll()` filter for `Completed Orders` status now applies `saleStatus IN ('1', '4')` — both Sold and Partial Refund orders "completed" with money received.
+
+**D19.5 — Net Sales formula correction**
+Old formula: `Σ(Sold markups) − Σ(Refunded markups) − Σ(Chargebacked markups)`
+New formula: `Σ(finalMargin) WHERE saleStatus IN ('1', '4')`
+Refunded and Chargebacked orders contribute **zero**, not a subtraction. They are already excluded from the "money received" pool; subtracting them again was double-counting the loss.
+
+**D19.6 — Refund/Chargeback metric widgets show `orderRefundAmount`, not `orderMarkup`**
+The dashboard Refund and Chargeback cards now display the sum of `orderRefundAmount` — the actual cash returned to customers. This is the semantically correct figure for "how much did we pay back this month." These cards now link to `/pending/returned` (current month date filter) rather than a raw `saleStatus` filter.
+
+#### Consequences
+- **One new DB column** (`order_refund_amount VARCHAR(25) NULL DEFAULT NULL`) via migration `add_refund_amount_to_orders`.
+- All dashboard, performer, and team report queries updated to use `finalMargin`.
+- `OrderList`, `RecentOrdersTable`, and order detail page updated to show `finalMargin`.
+- `EditOrderForm` gains a "Partial Refund" option with a refund amount modal.
+- New page at `/pending/returned`, new tab in `OrderListContainer`, new card in `PendingCountsRow`.
+- Info banners on Completed and Returned Orders queue pages explain which sale statuses each contains.
+- Audit log captures `orderRefundAmount` changes as a field-level diff entry.

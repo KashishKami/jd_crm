@@ -132,13 +132,14 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 ## 4. Database Lookup Enums
 
 ### Sale Status (`sale_status`)
-Mapped in `dashboard.php` and `orders.php` to define the order status logic:
+Stored as a string in the `crm_orders` table. Controls margin accounting and dashboard metrics:
 
-| Code | Value Name | Meaning / Visual State |
+| Code | Status | Description |
 | :--- | :--- | :--- |
-| **`1`** | `Sold` | Normal completed sale. |
-| **`2`** | `Refunded` | Payment returned (New active code). |
-| **`3`** | `Chargebacked` | Dispute initiated (New active code). |
+| **`1`** | `Sold` | Full sale completed — no refund. `finalMargin = orderMarkup`. Order belongs in `Completed Orders` workflow queue. |
+| **`2`** | `Refunded` | Full refund issued to customer. `orderRefundAmount` auto-set to full `orderMarkup`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. |
+| **`3`** | `Chargebacked` | Customer disputed charge. `orderRefundAmount` auto-set to full `orderMarkup`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. |
+| **`4`** | `Partial Refund` | Partial amount returned to customer. `orderRefundAmount` = user-entered amount. `finalMargin = orderMarkup − orderRefundAmount`. Order remains in `Completed Orders` workflow queue (money was still received). |
 | ~~**`2`**~~ | ~~`Prospect`~~ | ~~Potential lead (Deprecated / Removed from DB).~~ |
 | ~~**`3`**~~ | ~~`Call Back`~~ | ~~Requires agent callback (Deprecated / Removed from DB).~~ |
 | ~~**`4`**~~ | ~~`Not Interested`~~ | ~~User declined (Deprecated / Removed from DB).~~ |
@@ -146,6 +147,8 @@ Mapped in `dashboard.php` and `orders.php` to define the order status logic:
 | ~~**`6`**~~ | ~~`Enquiry`~~ | ~~Basic information request (Deprecated / Removed from DB).~~ |
 | ~~**`7`**~~ | ~~`Refunded`~~ | ~~Payment returned (Legacy code — replaced by 2).~~ |
 | ~~**`8`**~~ | ~~`Chargebacked`~~ | ~~Dispute initiated (Legacy code — replaced by 3).~~ |
+
+> **Key metric:** `finalMargin = orderMarkup − orderRefundAmount`. This is the authoritative profitability figure used across all dashboard aggregations, performer rankings, and chart widgets. Raw `orderMarkup` alone is never used as a dashboard metric.
 
 
 
@@ -157,7 +160,8 @@ Determines which queue the order sits in (from `class/orderClass.php` pending re
 *   `Pending Delivery`: Out for delivery but not confirmed (corrects legacy misspelling `Pending Delievery`).
 *   `Pending Feedback`: Delivered, awaiting customer/vendor review.
 *   `Pending Resolutions`: Under dispute or issue tracking.
-*   `Completed Orders`: Final successful workflow state.
+*   `Completed Orders`: Final successful workflow state. Contains orders with `saleStatus IN ('1', '4')` — Sold and Partial Refund. Both received money.
+*   `Returned Orders`: Terminal failure workflow state. Contains orders with `saleStatus IN ('2', '3')` — Refunded and Chargebacked. The full sale was reversed. Auto-set by the service layer when `saleStatus` is changed to `'2'` or `'3'`.
 
 ### Attendance Status (`attendance_status_id` / `attendance_status_name`)
 Mapped during daily marking (`mark-attendance.php`):
