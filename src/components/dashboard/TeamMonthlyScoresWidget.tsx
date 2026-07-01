@@ -207,15 +207,31 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
 
               {/* Performers Block */}
               {(canShowTopPerformer || canShowBottomPerformer) && (
-                <div style={{ marginTop: '12px', background: 'white', borderRadius: '6px', padding: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {canShowTopPerformer && team.topPerformer && (
-                    <div style={{ fontSize: '0.78rem', color: '#16a34a', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{`Top Performer: ${team.topPerformer.agentName} (${team.topPerformer.amount < 0 ? `-$${Math.abs(team.topPerformer.amount).toLocaleString('en-US')}` : `$${team.topPerformer.amount.toLocaleString('en-US')}`})`}</span>
+                <div style={{ marginTop: '12px', background: 'white', borderRadius: '6px', padding: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {canShowTopPerformer && team.topPerformers && team.topPerformers.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Performers</span>
+                      {team.topPerformers.map((agent, index) => (
+                        <div key={agent.agentId} style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{`${index + 1}. ${agent.agentName}`}</span>
+                          <span style={{ fontWeight: 600, color: '#16a34a' }}>
+                            {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
-                  {canShowBottomPerformer && team.bottomPerformer && (
-                    <div style={{ fontSize: '0.78rem', color: '#dc2626', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{`Bottom Performer: ${team.bottomPerformer.agentName} (${team.bottomPerformer.amount < 0 ? `-$${Math.abs(team.bottomPerformer.amount).toLocaleString('en-US')}` : `$${team.bottomPerformer.amount.toLocaleString('en-US')}`})`}</span>
+                  {canShowBottomPerformer && team.bottomPerformers && team.bottomPerformers.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: team.topPerformers && team.topPerformers.length > 0 ? '6px' : '0' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bottom Performers</span>
+                      {team.bottomPerformers.map((agent, index) => (
+                        <div key={agent.agentId} style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{`${index + 1}. ${agent.agentName}`}</span>
+                          <span style={{ fontWeight: 600, color: '#dc2626' }}>
+                            {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

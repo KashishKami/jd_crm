@@ -199,46 +199,8 @@ async function main() {
   }
   console.log(`Created and cached ${gatewayCache.size} unique gateways.`);
 
-  // 2. Resolve/create unique Vendors (prevent duplication of vendor names)
-  console.log('Processing unique vendors...');
-  const uniqueVendorsMap = new Map<string, { vName: string; vContact: string; rawKeys: string[] }>();
-  for (const row of dataRows) {
-    const supplierVendor = row[20];
-    if (supplierVendor && supplierVendor !== 'NA' && supplierVendor !== '') {
-      const parts = supplierVendor.split('/');
-      const vName = parts[0].trim();
-      const vContact = parts[1]?.trim() || 'Unknown';
-      const vNameKey = vName.toLowerCase();
-
-      if (!uniqueVendorsMap.has(vNameKey)) {
-        uniqueVendorsMap.set(vNameKey, {
-          vName,
-          vContact,
-          rawKeys: [supplierVendor.toLowerCase().trim()],
-        });
-      } else {
-        uniqueVendorsMap.get(vNameKey)!.rawKeys.push(supplierVendor.toLowerCase().trim());
-      }
-    }
-  }
-
-  for (const [vNameKey, vendorInfo] of uniqueVendorsMap.entries()) {
-    const newVendor = await prisma.crmVendors.create({
-      data: {
-        vendorName: vendorInfo.vName,
-        vendorContactPerson: vendorInfo.vContact,
-        vendorPhone: '000-000-0000',
-        vendorStatus: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-    for (const rawKey of vendorInfo.rawKeys) {
-      vendorCache.set(rawKey, newVendor.vendorId);
-    }
-    vendorCache.set(vNameKey, newVendor.vendorId);
-  }
-  console.log(`Created and cached unique vendors (Cache size: ${vendorCache.size}).`);
+  // 2. Resolve/create unique Vendors (Skipped - No vendor information)
+  console.log('Skipping vendor processing...');
 
   // Prepare arrays for batch insertion of main transaction tables
   const customerData: any[] = [];
@@ -363,8 +325,8 @@ async function main() {
       orderVin: vinNumber || null,
       orderTotalPitched: pricePitched || '0',
       orderVendorPrice: buyingPrice || '0',
-      orderVendorId: vendorId,
-      orderVendorName: supplierVendor || null,
+      orderVendorId: null,
+      orderVendorName: null,
       orderShippingType: shippingType || null,
       orderMarkup: markupVal,
       orderRefundAmount: isReturned ? markupVal : null,

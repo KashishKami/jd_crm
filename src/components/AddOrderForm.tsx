@@ -610,19 +610,31 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       </form>
 
       {mounted && showStatusDateModal && createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.4)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              if (saleStatus === '4') {
+                setSaleStatus('1');
+                setOrderRefundAmount('');
+              }
+              setSaleStatusChangeDate('');
+              setShowStatusDateModal(false);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: '16px',
@@ -633,8 +645,52 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
             maxWidth: '450px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px'
+            gap: '16px',
+            position: 'relative'
           }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (saleStatus === '4') {
+                  setSaleStatus('1');
+                  setOrderRefundAmount('');
+                }
+                setSaleStatusChangeDate('');
+                setShowStatusDateModal(false);
+              }}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                transition: 'all 0.2s',
+                padding: 0,
+                lineHeight: 1
+              }}
+              title="Close"
+              aria-label="Close"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f1f5f9';
+                e.currentTarget.style.color = '#475569';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#94a3b8';
+              }}
+            >
+              &times;
+            </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <span style={{ fontSize: '1.5rem' }}>⚠️</span>
               <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>

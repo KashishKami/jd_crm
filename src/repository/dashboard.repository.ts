@@ -343,7 +343,7 @@ export async function getTeamMonthlyScores(month: number, year: number) {
   }));
 }
 
-export async function getTeamMonthlyTopPerformer(teamId: number, month: number, year: number) {
+export async function getTeamMonthlyTopPerformers(teamId: number, month: number, year: number, limit = 3) {
   // Use UTC month boundaries to avoid machine-timezone drift
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
@@ -368,12 +368,7 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
     },
   });
 
-  if (agents.length === 0) {
-    return null;
-  }
-
-  let topAgent: { agentId: number; agentName: string; amount: number } | null = null;
-
+  const agentScores = [];
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
@@ -381,23 +376,19 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
         const markup = parseFloat(order.orderMarkup || '0');
         const refund = parseFloat(order.orderRefundAmount || '0');
         total += (markup - refund);
-      } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-        // Contribute 0
       }
     }
-    if (!topAgent || total > topAgent.amount) {
-      topAgent = {
-        agentId: agent.uid,
-        agentName: agent.nickname || agent.name,
-        amount: total,
-      };
-    }
+    agentScores.push({
+      agentId: agent.uid,
+      agentName: agent.nickname || agent.name,
+      amount: total,
+    });
   }
 
-  return topAgent;
+  return agentScores.sort((a, b) => b.amount - a.amount).slice(0, limit);
 }
 
-export async function getTeamMonthlyBottomPerformer(teamId: number, month: number, year: number) {
+export async function getTeamMonthlyBottomPerformers(teamId: number, month: number, year: number, limit = 3) {
   // Use UTC month boundaries to avoid machine-timezone drift
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
@@ -422,12 +413,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
     },
   });
 
-  if (agents.length === 0) {
-    return null;
-  }
-
-  let bottomAgent: { agentId: number; agentName: string; amount: number } | null = null;
-
+  const agentScores = [];
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
@@ -435,20 +421,16 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
         const markup = parseFloat(order.orderMarkup || '0');
         const refund = parseFloat(order.orderRefundAmount || '0');
         total += (markup - refund);
-      } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-        // Contribute 0
       }
     }
-    if (!bottomAgent || total < bottomAgent.amount) {
-      bottomAgent = {
-        agentId: agent.uid,
-        agentName: agent.nickname || agent.name,
-        amount: total,
-      };
-    }
+    agentScores.push({
+      agentId: agent.uid,
+      agentName: agent.nickname || agent.name,
+      amount: total,
+    });
   }
 
-  return bottomAgent;
+  return agentScores.sort((a, b) => a.amount - b.amount).slice(0, limit);
 }
 
 export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {

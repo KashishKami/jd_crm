@@ -163,7 +163,7 @@ INSERT IGNORE INTO users (
 ('Amit Srivastav', 'Adam Thomas', 'adam_thomas', 'Amit@jdfusion.in', NULL, '0', '4ed2bc9745dec2665bd497e5d6e2688debd8e91989e13fcc1f5c7658bb0eb91b', 1, NULL, 'Business Head', NULL, 1, 1),
 ('Vijay Bobal', 'Garry', 'garry', 'Garry@jdfusion.in', NULL, '0', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Sr. Manager', NULL, 3, 2),
 ('Aanchal Rawat', 'Ana', 'ana', 'Ana@jdfusion.in', NULL, '1', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Operations Manager', NULL, 3, 2),
-('Aman Goel', 'Alex', 'alex', 'Alex@jdfusion.in', NULL, '0', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Sales Supervisor', NULL, 4, 2),
+('Aman Goel', 'Alex', 'alex', 'Alex@jdfusion.in', NULL, '0', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Sales Supervisor', NULL, 4, 3),
 ('Priyansh Sharma', 'Bruce', 'bruce', 'Bruce@jdfusion.in', NULL, '0', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Sales Team Lead', NULL, 4, 2),
 ('Akansha Bisht', 'Sarah', 'sarah', 'Sarah@jdfusion.in', NULL, '1', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Sales Associate', NULL, 8, 2),
 ('Priyanshu Bisht', 'Keith', 'keith', 'keithsmith@tagoreautoparts.com', NULL, '0', '960e2519ecd69e6c121c03d8cdc9aeb1880346b9e3be5fd1ffaef045a2f3c09e', 1, NULL, 'Backend Specialist', NULL, 6, 2),

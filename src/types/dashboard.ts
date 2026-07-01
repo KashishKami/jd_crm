@@ -72,8 +72,8 @@ export interface TeamMonthlyReport {
   netAmount: number;
   month: number;
   year: number;
-  topPerformer?: TeamPerformerRow;
-  bottomPerformer?: TeamPerformerRow;
+  topPerformers?: TeamPerformerRow[];
+  bottomPerformers?: TeamPerformerRow[];
 }
 
 export interface AdvancedChartDataPoint {

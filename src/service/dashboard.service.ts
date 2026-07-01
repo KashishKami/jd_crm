@@ -168,23 +168,17 @@ export async function getTeamMonthlyReport(session: any, month: number, year: nu
   // Fetch the aggregate team scores
   const teamsReport = await dashboardRepository.getTeamMonthlyScores(month, year);
 
-  // Enrich each team with top and bottom performer if permitted
+  // Enrich each team with top and bottom performers if permitted
   const enrichedReports = await Promise.all(
     teamsReport.map(async (team) => {
       const result: any = { ...team };
 
       if (hasPermission(permissions, 'dashboard:team-top-performer')) {
-        const top = await dashboardRepository.getTeamMonthlyTopPerformer(team.teamId, month, year);
-        if (top) {
-          result.topPerformer = top;
-        }
+        result.topPerformers = await dashboardRepository.getTeamMonthlyTopPerformers(team.teamId, month, year);
       }
 
       if (hasPermission(permissions, 'dashboard:team-bottom-performer')) {
-        const bottom = await dashboardRepository.getTeamMonthlyBottomPerformer(team.teamId, month, year);
-        if (bottom) {
-          result.bottomPerformer = bottom;
-        }
+        result.bottomPerformers = await dashboardRepository.getTeamMonthlyBottomPerformers(team.teamId, month, year);
       }
 
       return result;

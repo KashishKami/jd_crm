@@ -91,7 +91,7 @@ export async function updateOrder(
       updatedData.orderCurrentStatus = 'Returned Orders';
       updatedData.orderCurrentStatusUpdateDate = new Date();
     } else if (data.saleStatus === '1') {
-      updatedData.orderRefundAmount = '0';
+      updatedData.orderRefundAmount = null;
     } else if (data.saleStatus === '4') {
       if (!data.orderRefundAmount) {
         throw new Error('Refund amount is required for Partial Refund status');

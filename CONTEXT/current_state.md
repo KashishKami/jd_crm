@@ -2816,4 +2816,19 @@ The "Refunds This Month" and "Chargebacks This Month" metric cards link to `?sal
   - **Test Suite Alignment**: Isolated dashboard metrics test cases by passing vendor filters to `getNetSales` to avoid database transaction concurrency conflicts during parallel vitest runs.
   - **Verification**: Verified that all 35 test files and all 203 unit and integration tests compile and run green (100% success). All typescript compilation and lint checks are green.
 
+### Session 36 — July 1, 2026
+  **RBAC Queue Guards & Upgraded Add Order Intake Pipeline**
+  - **Permission Re-Sequencing**: Cleaned up and re-sequenced database permission IDs sequentially from 1 to 51 in `seed.sql` to avoid ID fragmentation, mapping `orders:view-returned` to ID 38.
+  - **Middleware Route Guards**: Enforced role-based access control inside `middleware.ts` by mapping all pipeline status-based queues (`/pending/booking`, `/pending/shipment`, `/pending/delivery`, `/pending/feedback`, `/pending/resolutions`, `/pending/returned`) to their respective view permissions.
+  - **Guarded UI Tabs**: Conditioned the rendering of individual workflow tabs in `OrderListContainer.tsx` with user-specific `hasPermission` checks.
+  - **Add Order Pipeline Upgrade**: Upgraded `AddOrderForm.tsx` to include the `Partial Refund` option, a Workflow Queue selector dropdown, and a Date/Time/Refund modal overlay (using React portal) matching the Edit Order page flow. Supported saving these fields and writing initial status histories inside the database transaction of `order.repository.ts`.
+### Session 37 — July 1, 2026
+  **Team Scores Alignment, Performers List Expansion, Modal Backdrop Dismissal, Close Button, Vendor Skip & Audit Fix**
+  - **Alex Team Allocation**: Fixed the zero-score bug for the team "Alex" by assigning `Aman Goel` (Alex) to `team_id = 3` (Alex) in `seed.sql` (keeping only him on his own team). Re-seeded the database and verified sales calculate correctly.
+  - **Expand Performers List**: Upgraded `TeamMonthlyScoresWidget.tsx` and database repositories/services to compute and display up to 3 top and 3 bottom performers per team. If a team has fewer than 3 agents, the agents correctly overlap on both lists as requested.
+  - **Dismiss Modals & Close Button**: Added backdrop click dismiss handlers and a dedicated top-right close cross button (`&times;`) on both `AddOrderForm.tsx` and `EditOrderForm.tsx` for Refunded, Chargebacked, and Partial Refund date modal cards, allowing easy closing/dismissal.
+  - **Skip Vendor Import**: Removed vendor data parsing and creation steps inside the CSV import script `import-csv-data.ts`, setting `orderVendorId` and `orderVendorName` to `null` during ingestion.
+  - **Audit Log Bug Fix**: Fixed a bug where updating unrelated order fields (e.g. vendor information) on `Sold` orders automatically triggered a spurious edit log showing the `Order Refund Amount` changed from empty to `0`. Resolved this by setting `updatedData.orderRefundAmount` to `null` instead of `'0'` in `order.service.ts` to correctly align with database defaults.
+
+
 
