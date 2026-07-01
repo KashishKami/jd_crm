@@ -207,6 +207,9 @@ export async function findAll(filters: OrderFilters): Promise<any> {
       teamId: filters.teamId,
     };
   }
+  if (filters.backendExecutiveId) {
+    where.orderBackendExecutiveId = filters.backendExecutiveId;
+  }
   if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
     const { convertEstToUtc } = require('../lib/date');

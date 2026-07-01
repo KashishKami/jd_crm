@@ -27,6 +27,8 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   const [agentFilter, setAgentFilter] = useState<string>('');
   const [teams, setTeams] = useState<any[]>([]);
   const [teamFilter, setTeamFilter] = useState<string>('');
+  const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>('');
+  const [pendingCounts, setPendingCounts] = useState<Record<string, { amount: number; count: number }>>({});
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
@@ -44,18 +46,20 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, dateFrom, dateTo]);
+  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo]);
 
   // Synchronize URL search parameters with filter states
   useEffect(() => {
     if (!searchParams) return;
     const statusParam = searchParams.get('status');
     const saleStatusParam = searchParams.get('saleStatus');
+    const backendExecutiveParam = searchParams.get('backendExecutiveId');
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
 
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
+    if (backendExecutiveParam !== null) setBackendExecutiveFilter(backendExecutiveParam);
     if (fromParam !== null) setDateFrom(fromParam);
     if (toParam !== null) setDateTo(toParam);
   }, [searchParams]);
@@ -94,6 +98,40 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     fetchTeams();
   }, [status]);
 
+  // Fetch pending counts when filters change
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    let active = true;
+    const fetchPendingCounts = async () => {
+      const params = new URLSearchParams();
+      if (saleStatusFilter) params.append('saleStatus', saleStatusFilter);
+      if (agentFilter) params.append('agentId', agentFilter);
+      if (teamFilter) params.append('teamId', teamFilter);
+      if (backendExecutiveFilter) params.append('backendExecutiveId', backendExecutiveFilter);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
+
+      try {
+        const res = await fetch(`/api/orders/pending-counts?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            setPendingCounts(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching pending counts:', err);
+      }
+    };
+
+    fetchPendingCounts();
+
+    return () => {
+      active = false;
+    };
+  }, [status, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo]);
+
   // Fetch orders when filters or page changes
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -108,6 +146,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       if (saleStatusFilter) params.append('saleStatus', saleStatusFilter);
       if (agentFilter) params.append('agentId', agentFilter);
       if (teamFilter) params.append('teamId', teamFilter);
+      if (backendExecutiveFilter) params.append('backendExecutiveId', backendExecutiveFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
       params.append('page', String(page));
@@ -147,7 +186,16 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     return () => {
       active = false;
     };
-  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, dateFrom, dateTo, page]);
+  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo, page]);
+
+  const formatTabLabel = (statusName: string) => {
+    const stats = pendingCounts[statusName];
+    if (!stats) return statusName;
+    const formattedAmount = stats.amount < 0 
+      ? `-$${Math.abs(stats.amount).toLocaleString('en-US')}` 
+      : `$${stats.amount.toLocaleString('en-US')}`;
+    return `${statusName} (${stats.count} - ${formattedAmount})`;
+  };
 
   // Page entrance animation
   useEffect(() => {
@@ -298,6 +346,22 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
             </select>
           </div>
           <div className="filter-select-wrapper">
+            <label htmlFor="backendExecutiveFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Backend Executive</label>
+            <select
+              id="backendExecutiveFilter"
+              value={backendExecutiveFilter}
+              onChange={(e) => setBackendExecutiveFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="">All Backend Executives</option>
+              {agents
+                .filter((a) => a.designation?.toLowerCase().includes('backend'))
+                .map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+            </select>
+          </div>
+          <div className="filter-select-wrapper">
             <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Start Date</label>
             <input
               type="date"
@@ -319,7 +383,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       </div>
 
       {/* Active filters display */}
-      {(saleStatusFilter || dateFrom || dateTo) && (
+      {(saleStatusFilter || backendExecutiveFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
           {saleStatusFilter && (
@@ -327,6 +391,18 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '2' ? 'Refunded' : saleStatusFilter === '3' ? 'Chargebacked' : saleStatusFilter === '4' ? 'Partial Refund' : saleStatusFilter}
               <button 
                 onClick={() => setSaleStatusFilter('')} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {backendExecutiveFilter && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
+              BE: {agents.find(a => String(a.uid) === backendExecutiveFilter)?.nickname || agents.find(a => String(a.uid) === backendExecutiveFilter)?.name || backendExecutiveFilter}
+              <button 
+                onClick={() => setBackendExecutiveFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
                 title="Clear filter"
               >
@@ -408,6 +484,49 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               </div>
             </div>
           )}
+          {/* Stats summary above the table */}
+          {(() => {
+            const currentTab = statusFilter || 'All Orders';
+            const stats = pendingCounts[currentTab];
+            if (!stats) return null;
+            const formattedAmount = stats.amount < 0 
+              ? `-$${Math.abs(stats.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+              : `$${stats.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            return (
+              <div 
+                data-testid="tab-totals-summary"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.75)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  padding: '12px 20px',
+                  marginBottom: '16px',
+                  boxShadow: 'var(--card-shadow)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    {currentTab} Summary:
+                  </span>
+                  <span className="status-badge" style={{ backgroundColor: 'var(--bg-accent)', color: 'var(--accent-color)', fontWeight: 600, fontSize: '0.82rem' }}>
+                    {stats.count} Orders
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>
+                    Total {currentTab === 'Returned Orders' ? 'Refunded' : 'Margin'}:
+                  </span>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 700, color: stats.amount >= 0 ? '#16a34a' : '#dc2626' }}>
+                    {formattedAmount}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           <OrderList orders={orders} />
           {totalPages > 1 && (
             <div className="pagination-bar">

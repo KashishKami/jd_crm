@@ -235,20 +235,22 @@ export default function AgentList() {
           </div>
 
           {/* Role Dropdown Select */}
-          <div className="filter-select-wrapper">
-            <select
-              data-testid="role-select"
-              aria-label="Role"
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="filter-select-custom"
-            >
-              <option value="all">All Roles</option>
-              {roles.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+          {hasPermission(permissions, 'agents:view-roles') && (
+            <div className="filter-select-wrapper">
+              <select
+                data-testid="role-select"
+                aria-label="Role"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="filter-select-custom"
+              >
+                <option value="all">All Roles</option>
+                {roles.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Status Dropdown Select */}
           <div className="filter-select-wrapper">
@@ -297,7 +299,7 @@ export default function AgentList() {
                 <th>Email</th>
                 <th>Designation</th>
                 <th>Team</th>
-                <th>Role</th>
+                {hasPermission(permissions, 'agents:view-roles') && <th>Role</th>}
                 <th>Status</th>
                 <th className="actions-cell">Actions</th>
               </tr>
@@ -328,11 +330,13 @@ export default function AgentList() {
                       {agent.team?.teamName || 'Unassigned'}
                     </span>
                   </td>
-                  <td>
-                    <span className="badge-role">
-                      {agent.role?.roleName || 'No Role'}
-                    </span>
-                  </td>
+                  {hasPermission(permissions, 'agents:view-roles') && (
+                    <td>
+                      <span className="badge-role">
+                        {agent.role?.roleName || 'No Role'}
+                      </span>
+                    </td>
+                  )}
                   <td>
                     <span className={`status-dot-badge ${agent.status === 1 ? 'status-active' : 'status-inactive'}`}>
                       {agent.status === 1 ? 'Active' : 'Inactive'}

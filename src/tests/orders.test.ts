@@ -250,6 +250,64 @@ describe('Order Management Integration Tests', () => {
       expect(data.length).toBeGreaterThan(0);
       expect(data.every((o: any) => o.salesAgent?.teamId === testTeam.teamId)).toBe(true);
     });
+
+    describe('W-1803: Backend Executive Filter and Pending Counts', () => {
+      it('[RED] should filter orders by backendExecutiveId', async () => {
+        // Create a test user for backend executive
+        const beUser = await prisma.users.create({
+          data: {
+            name: 'BE User Test',
+            username: 'be_user_test_filters',
+            teamId: testTeam.teamId,
+            roleId: testRole.roleId,
+          },
+        });
+
+        // Set backendExecutiveId on testOrder
+        await prisma.crmOrders.update({
+          where: { crmOrderId: testOrder.crmOrderId },
+          data: { orderBackendExecutiveId: beUser.uid },
+        });
+
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: { id: '1', name: 'Authorized User', userPermissions: 'orders:view' },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request(`http://localhost/api/orders?backendExecutiveId=${beUser.uid}`);
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const results = data.data || data;
+        expect(results.length).toBe(1);
+        expect(results[0].orderBackendExecutiveId).toBe(beUser.uid);
+
+        // Cleanup
+        await prisma.crmOrders.update({
+          where: { crmOrderId: testOrder.crmOrderId },
+          data: { orderBackendExecutiveId: null },
+        });
+        await prisma.users.delete({ where: { uid: beUser.uid } });
+      });
+
+      it('[RED] should return correct pending-counts with counts and finalMargin amounts', async () => {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: { id: '1', name: 'Authorized User', userPermissions: 'orders:view' },
+        });
+
+        // Since the route does not exist, we try to import it, which will fail or return 404/throw error.
+        const { GET } = await import('../app/api/orders/pending-counts/route');
+        const req = new Request('http://localhost/api/orders/pending-counts');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data).toHaveProperty('Pending Booking');
+        expect(data['Pending Booking']).toHaveProperty('count');
+        expect(data['Pending Booking']).toHaveProperty('amount');
+      });
+    });
   });
 
   describe('POST /api/orders', () => {

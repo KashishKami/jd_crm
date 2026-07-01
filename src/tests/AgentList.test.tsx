@@ -68,7 +68,7 @@ describe('AgentList Component Unit Tests', () => {
       data: {
         user: {
           name: 'Admin User',
-          userPermissions: 'agents:view',
+          userPermissions: 'agents:view,agents:view-roles',
         },
       },
       status: 'authenticated',
@@ -200,7 +200,7 @@ describe('AgentList Component Unit Tests', () => {
       data: {
         user: {
           name: 'Admin User',
-          userPermissions: 'agents:view',
+          userPermissions: 'agents:view,agents:view-roles',
         },
       },
       status: 'authenticated',
@@ -225,6 +225,50 @@ describe('AgentList Component Unit Tests', () => {
     await waitFor(() => {
       expect(screen.queryByText('Agent Ten')).toBeNull();
       expect(screen.queryByText('Agent Eleven')).not.toBeNull();
+    });
+  });
+
+  it('should show/hide role column and filter based on agents:view-roles permission', async () => {
+    // Case 1: Lacking agents:view-roles
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Regular Agent',
+          userPermissions: 'agents:view',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    const { rerender } = render(<AgentList />);
+    await waitFor(() => {
+      // Check that role dropdown is NOT rendered
+      expect(screen.queryByTestId('role-select')).toBeNull();
+      // Check that role column header is NOT rendered
+      expect(screen.queryByText('Role')).toBeNull();
+    });
+
+    cleanup();
+
+    // Case 2: Having agents:view-roles
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Authorized Admin',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList />);
+    await waitFor(() => {
+      // Check that role dropdown IS rendered
+      expect(screen.getByTestId('role-select')).toBeDefined();
+      // Check that role column header IS rendered
+      expect(screen.getByText('Role')).toBeDefined();
     });
   });
 });

@@ -26,6 +26,8 @@ export async function GET(request: Request) {
   const agentId = agentIdStr ? Number(agentIdStr) : undefined;
   const teamIdStr = searchParams.get('teamId');
   const teamId = teamIdStr ? Number(teamIdStr) : undefined;
+  const backendExecutiveIdStr = searchParams.get('backendExecutiveId');
+  const backendExecutiveId = backendExecutiveIdStr ? Number(backendExecutiveIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
   const pageStr = searchParams.get('page');
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
       saleStatus,
       agentId,
       teamId,
+      backendExecutiveId,
       dateFrom,
       dateTo,
       page,

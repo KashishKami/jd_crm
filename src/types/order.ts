@@ -96,6 +96,7 @@ export interface OrderFilters {
   saleStatus?: string;
   agentId?: number;
   teamId?: number;
+  backendExecutiveId?: number;
   dateFrom?: string;
   dateTo?: string;
   page?: number;

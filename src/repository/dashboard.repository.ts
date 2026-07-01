@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 
 export async function getSalesBetweenDates(start: Date, end: Date) {
@@ -308,29 +309,67 @@ export async function getAttendanceSummary(date: Date) {
   return summary;
 }
 
-export async function getPendingCounts() {
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      orderCurrentStatus: {
-        in: [
-          'Pending Booking',
-          'Pending Shipment',
-          'Pending Delivery',
-          'Pending Feedback',
-          'Pending Resolutions',
-          'Completed Orders',
-          'Returned Orders',
-        ],
-      },
+export async function getPendingCounts(filters?: {
+  agentId?: number;
+  teamId?: number;
+  backendExecutiveId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const where: Prisma.CrmOrdersWhereInput = {
+    orderCurrentStatus: {
+      in: [
+        'Pending Booking',
+        'Pending Shipment',
+        'Pending Delivery',
+        'Pending Feedback',
+        'Pending Resolutions',
+        'Completed Orders',
+        'Returned Orders',
+      ],
     },
+  };
+
+  if (filters) {
+    if (filters.agentId) {
+      where.orderSalesAgentId = filters.agentId;
+    }
+    if (filters.teamId) {
+      where.salesAgent = {
+        teamId: filters.teamId,
+      };
+    }
+    if (filters.backendExecutiveId) {
+      where.orderBackendExecutiveId = filters.backendExecutiveId;
+    }
+    if (filters.dateFrom || filters.dateTo) {
+      const dateFilter: Prisma.DateTimeNullableFilter = {};
+      const { convertEstToUtc } = require('../lib/date');
+      if (filters.dateFrom) {
+        dateFilter.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
+      }
+      if (filters.dateTo) {
+        const endEstUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
+        endEstUtc.setSeconds(59);
+        endEstUtc.setMilliseconds(999);
+        dateFilter.lte = endEstUtc;
+      }
+      where.orderDate = dateFilter;
+    }
+  }
+
+  const orders = await prisma.crmOrders.findMany({
+    where,
     select: {
       orderCurrentStatus: true,
+      saleStatus: true,
       orderMarkup: true,
       orderRefundAmount: true,
     },
   });
 
   const res: Record<string, { amount: number; count: number }> = {
+    'All Orders': { amount: 0, count: 0 },
     'Pending Booking': { amount: 0, count: 0 },
     'Pending Shipment': { amount: 0, count: 0 },
     'Pending Delivery': { amount: 0, count: 0 },
@@ -341,11 +380,32 @@ export async function getPendingCounts() {
   };
 
   for (const order of orders) {
+    const markupVal = parseFloat(order.orderMarkup || '0');
+    const refundVal = parseFloat(order.orderRefundAmount || '0');
+    const finalMargin = markupVal - refundVal;
+
+    // All Orders gets everything
+    res['All Orders'].amount += finalMargin;
+    res['All Orders'].count += 1;
+
+    // Returned Orders logic (same as findAll/status queues):
+    const isReturned = order.orderCurrentStatus === 'Returned Orders' || order.saleStatus === '2' || order.saleStatus === '3';
+    if (isReturned) {
+      res['Returned Orders'].amount += refundVal;
+      res['Returned Orders'].count += 1;
+      continue; // Exclude from other statuses in tabs
+    }
+
+    // Completed Orders logic:
+    const isCompleted = order.orderCurrentStatus === 'Completed Orders' && (order.saleStatus === '1' || order.saleStatus === '4');
+    if (isCompleted) {
+      res['Completed Orders'].amount += finalMargin;
+      res['Completed Orders'].count += 1;
+      continue; // Exclude from other statuses in tabs
+    }
+
     const status = order.orderCurrentStatus;
     if (status && status in res) {
-      const markupVal = parseFloat(order.orderMarkup || '0');
-      const refundVal = parseFloat(order.orderRefundAmount || '0');
-      const finalMargin = markupVal - refundVal;
       res[status].amount += finalMargin;
       res[status].count += 1;
     }

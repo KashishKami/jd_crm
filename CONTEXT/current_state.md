@@ -2487,27 +2487,27 @@ The pipeline page lacks summaries of count and dollar volume (using final margin
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: `GET /api/orders?backendExecutiveId=4` returns only orders where `orderBackendExecutiveId = 4`.
-  - [ ] Test: `GET /api/orders/pending-counts` returns both counts and amounts (accumulating `finalMargin`) for all statuses.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: `GET /api/orders?backendExecutiveId=4` returns only orders where `orderBackendExecutiveId = 4`.
+  - [x] Test: `GET /api/orders/pending-counts` returns both counts and amounts (accumulating `finalMargin`) for all statuses.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Repository → Routes):**
-  - [ ] [Repository] Add filter query in `order.repository.ts`. Update `getPendingCounts` in `dashboard.repository.ts` to return sums of `finalMargin`.
-  - [ ] [Route] Expose filters on `GET /api/orders`.
-  - [ ] Run integration test — **confirm GREEN**.
+- [x] **GREEN — Backend (Repository → Routes):**
+  - [x] [Repository] Add filter query in `order.repository.ts`. Update `getPendingCounts` in `dashboard.repository.ts` to return sums of `finalMargin`.
+  - [x] [Route] Expose filters on `GET /api/orders`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/tests/OrderListContainer.test.tsx`):**
-  - [ ] Test: Tab headers render `Completed Orders (Count - $Margin)` dynamically.
-  - [ ] Test: Selecting a Backend Executive triggers a state reload query.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: Tab headers render `Completed Orders (Count - $Margin)` dynamically.
+  - [x] Test: Selecting a Backend Executive triggers a state reload query.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Component] Add the select dropdown list filter in `OrderListContainer.tsx`. Update tab title parsing to print stats.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Component] Add the select dropdown list filter in `OrderListContainer.tsx`. Update tab title parsing to print stats.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Manager views orders page → clicks "Backend Executive" dropdown → selects an executive → the list filters to show only their orders → tabs display the count and final margin sum of the filtered orders in each queue → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Manager views orders page → clicks "Backend Executive" dropdown → selects an executive → the list filters to show only their orders → tabs display the count and final margin sum of the filtered orders in each queue → ✅ Done.
 
 ---
 
@@ -2914,6 +2914,254 @@ Ensure agents do not accidentally place new orders with blacklisted suppliers. D
 
 - [ ] **Verification chain:**
   - [ ] Agent opens Add Order form → vendor list shows warning flag on blacklisted options → avoids selection → ✅ Done.
+
+---
+
+## Phase 20 — orderMarkup → orderAmountCharged: Schema Rename, Auto-Calc Removal & Manual Input
+
+### Context & Goals
+
+Currently, `orderMarkup` is auto-calculated on every save as `orderTotalPitched - orderVendorPrice` and stored in the `order_markup` database column. The business process has changed: agents do **not** necessarily charge the customer the full pitched price upfront. Instead, they charge a partial "Amount Charged" which represents the company's retained margin. This charged amount must be **manually entered by the agent** and stored as the authoritative margin figure. The downstream `finalMargin = amountCharged - refundAmount` pipeline is otherwise unchanged.
+
+Additionally, the dormant `order_amount_charged` column (mapped to `orderAmountCharged` in Prisma) was added previously but was never wired up. This phase:
+1. Drops the dormant `order_amount_charged` column.
+2. Renames `order_markup` → `order_amount_charged` at the database and Prisma layer.
+3. Removes the auto-calculation logic from `order.service.ts`.
+4. Replaces every `orderMarkup` code reference with `orderAmountCharged` across the entire codebase.
+5. Updates `AddOrderForm.tsx` and `EditOrderForm.tsx` to expose a manual text input for `orderAmountCharged` (labelled **"Amount Charged (Net Margin)"**) and retains the existing `Total Price Pitched` and `Vendor Buying Price` inputs as reference-only fields (the gross spread can still be shown as a computed read-only display for agent guidance).
+
+---
+
+### W-2001 — Schema Migration: Drop Dormant Column & Rename order_markup → order_amount_charged
+
+**Root cause / Goal:**
+Two columns currently exist in `crm_orders` that relate to margin: `order_markup` (active, auto-calculated) and `order_amount_charged` (dormant, never used). Keeping both creates naming confusion. The rename makes the schema self-documenting: `order_amount_charged` is the single source of truth for the amount the company retains from each deal. The Prisma field `orderMarkup` must be renamed to `orderAmountCharged` to match.
+
+**Approach:**
+- Write a raw SQL Prisma migration that: (1) drops the dormant `order_amount_charged` column, then (2) renames `order_markup` to `order_amount_charged`.
+- Update `schema.prisma`: remove the old `orderMarkup` field and the old dormant `orderAmountCharged` field; add one unified `orderAmountCharged String? @map("order_amount_charged") @db.VarChar(25)` field.
+- Run `npx prisma migrate dev --name rename_order_markup_to_order_amount_charged` to apply and generate the new Prisma client.
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with payload `{ ..., orderAmountCharged: '350' }` (and no `orderMarkup` key) returns a `201` response where `body.orderAmountCharged === '350'`.
+  - [ ] Test: After the above `POST`, query the database directly via Prisma — `prisma.crmOrders.findFirst({ where: { orderAmountCharged: '350' } })` — and assert the returned row is not `null` and its `orderAmountCharged` field equals `'350'`. Assert there is no `orderMarkup` key on the returned row (TypeScript compilation alone validates this if the field is renamed in the Prisma client).
+  - [ ] Test: `PATCH /api/orders/:id` with payload `{ orderAmountCharged: '200' }` returns a `200` response where `body.orderAmountCharged === '200'`, and the database row confirms the updated value.
+  - [ ] Test: `PATCH /api/orders/:id` with **both** `orderTotalPitched` and `orderVendorPrice` updated (e.g. `{ orderTotalPitched: '800', orderVendorPrice: '500' }`) does **NOT** auto-update `orderAmountCharged` — the `orderAmountCharged` value in the database must remain whatever it was before the PATCH (confirming the auto-calculation is gone).
+  - [ ] Test: `GET /api/orders/:id` response body contains the key `orderAmountCharged` with the correct stored value, and does **not** contain the key `orderMarkup`.
+  - [ ] **Run — confirm RED (the field is named `orderMarkup` in the DB/Prisma client today; the test references `orderAmountCharged`, so all assertions will fail).**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [ ] [Schema/Migration] Create a new migration file under `prisma/migrations/` with the following raw SQL body:
+    ```sql
+    ALTER TABLE `crm_orders` DROP COLUMN `order_amount_charged`;
+    ALTER TABLE `crm_orders` RENAME COLUMN `order_markup` TO `order_amount_charged`;
+    ```
+    Name the migration `rename_order_markup_to_order_amount_charged`. Apply it with `npx prisma migrate dev`.
+  - [ ] [Schema — `prisma/schema.prisma`] In the `CrmOrders` model: delete the line `orderMarkup String? @map("order_markup") @db.VarChar(255)` and delete the dormant `orderAmountCharged String? @map("order_amount_charged") @db.VarChar(25)` line. Add one new line: `orderAmountCharged String? @map("order_amount_charged") @db.VarChar(25)`. Regenerate the Prisma client with `npx prisma generate`.
+  - [ ] [Service — `src/service/order.service.ts`] Remove the entire auto-calculation block (lines that read `if (data.orderTotalPitched !== undefined || data.orderVendorPrice !== undefined)` and set `updatedData.orderMarkup = (totalPitched - vendorPrice).toString()`). After removal, `orderAmountCharged` is treated as a plain passthrough field — if the agent sends it in the payload, it is stored; if not sent, it remains unchanged.
+  - [ ] [Service — `src/service/order.service.ts`] In the Sale Status auto-rules block (saleStatus `'2'` and `'3'`), the line that reads `const markup = updatedData.orderMarkup !== undefined ? updatedData.orderMarkup : (existingOrder.orderMarkup ?? '0')` must be updated to: `const chargedAmount = updatedData.orderAmountCharged !== undefined ? updatedData.orderAmountCharged : (existingOrder.orderAmountCharged ?? '0')`. The line `updatedData.orderRefundAmount = markup` becomes `updatedData.orderRefundAmount = chargedAmount`. This ensures that when an order is fully Refunded or Chargebacked, the refund amount is set to the manually-entered charged amount (not the old auto-calculated markup).
+  - [ ] [Service — `src/service/order.service.ts`] In the `orderKeysToAudit` array, replace the string `'orderMarkup'` with `'orderAmountCharged'`. This ensures the audit log records changes to the renamed field correctly.
+  - [ ] [Repository — `src/repository/order.repository.ts`] Search for every occurrence of `orderMarkup` in `findById`, `findAll`, the `select` clauses, and any `createWithCustomerAndCard` method. Replace every occurrence with `orderAmountCharged`. No query logic changes — only the field name changes.
+  - [ ] [Repository — `src/repository/dashboard.repository.ts`] In every method that reads the margin value from an order row (e.g. `getNetSales`, `getTopPerformers`, `getBottomPerformers`, `getPendingCounts`, chart data aggregators), replace `o.orderMarkup` / `order.orderMarkup` / `markup` variable assignments sourced from `orderMarkup` with `o.orderAmountCharged` / `order.orderAmountCharged`. The formula `const finalMargin = markup - refund` becomes `const finalMargin = chargedAmount - refund` (rename the local variable too for clarity). Ensure that the Prisma `select` clauses in these methods select `orderAmountCharged` instead of `orderMarkup`.
+  - [ ] [Service — `src/service/dashboard.service.ts`] In `getMetricsForUser()` and any other serializer, replace `orderMarkup: o.orderMarkup` with `orderAmountCharged: o.orderAmountCharged`. If the `DashboardRecentOrder` type in `src/types/dashboard.ts` still references `orderMarkup`, update it (see W-2002 Frontend Types step).
+  - [ ] [Scripts — `src/scripts/debug-db.ts`, `src/scripts/check-may-scores.ts`, `src/scripts/sync-refunds.ts`] Replace every `orderMarkup` / `order.orderMarkup` reference with `orderAmountCharged` / `order.orderAmountCharged` in these utility scripts. These are not tested but must compile cleanly.
+  - [ ] Run integration tests — **confirm GREEN (`npm run test -- orders.test.ts`)**.
+
+- [ ] **Verification chain (backend):**
+  - [ ] Agent sends `POST /api/orders` with `orderAmountCharged: '350'` → database row has `order_amount_charged = '350'` and `order_markup` column no longer exists → `GET /api/orders/:id` returns `orderAmountCharged: '350'` with no `orderMarkup` key → ✅ Done.
+
+---
+
+### W-2002 — Frontend: Types, Forms & Display Components Update
+
+**Root cause / Goal:**
+After the backend rename, every frontend TypeScript type, form component, and display component that references `orderMarkup` will produce TypeScript compilation errors or silently display incorrect data. This item resolves all frontend-side references, adds a real manual input for `orderAmountCharged` in `AddOrderForm.tsx` and `EditOrderForm.tsx`, and updates the `finalMargin` computation in `OrderList.tsx` and `RecentOrdersTable.tsx` to use `orderAmountCharged`.
+
+**Approach:**
+- Update TypeScript types in `src/types/order.ts` and `src/types/dashboard.ts`.
+- In `AddOrderForm.tsx` and `EditOrderForm.tsx`: replace the read-only "Computed Markup" display block with a live editable number input labelled **"Amount Charged (Net Margin)"** bound to a new `orderAmountCharged` state variable. Keep the gross spread indicator (i.e. `Pitched - Vendor Price = $X`) as a small read-only reference below the two price fields so agents still see the raw spread for guidance.
+- In `OrderList.tsx` and `RecentOrdersTable.tsx`: rename `markupVal` to `chargedVal`, source it from `order.orderAmountCharged`, and keep the same `finalMargin = chargedVal - refundVal` formula.
+- In `SearchResults.tsx`: if `orderMarkup` is rendered, rename it to `orderAmountCharged`.
+
+---
+
+- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [ ] Test: Render `OrderList` with a mock order containing `orderAmountCharged: '400'` and `orderRefundAmount: '150'`. Assert the rendered Pricing cell displays `Final Margin: $250.00` (i.e. `400 - 150 = 250`).
+  - [ ] Test: Render `OrderList` with a mock order containing `orderAmountCharged: '300'` and `orderRefundAmount: null`. Assert the rendered Pricing cell displays `Final Margin: $300.00`.
+  - [ ] Test: The rendered table **does not contain** the text `"orderMarkup"` anywhere in its output (regression guard).
+  - [ ] **Run — confirm RED (the component currently reads `order.orderMarkup`, so with `orderMarkup` absent from the mock and `orderAmountCharged` present, the margin will display `$0.00` or throw a TypeScript error).**
+
+- [ ] **RED — Unit (`src/tests/orders.test.ts` — form submission test):**
+  - [ ] Test: Simulate submitting `AddOrderForm` with `orderAmountCharged` field filled in as `'350'`. Assert the `fetch` call payload includes `{ orderAmountCharged: '350' }` and does **not** include an `orderMarkup` key.
+  - [ ] Test: Simulate submitting `EditOrderForm` with the `orderAmountCharged` field changed to `'200'`. Assert the `PATCH` payload includes `{ orderAmountCharged: '200' }`.
+  - [ ] **Run — confirm RED (both forms currently have no `orderAmountCharged` state variable or input, so the payload will not include the key).**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] [Types — `src/types/order.ts`] In the `OrderUpdateInput` and `OrderCreateInput` interfaces: remove the `orderMarkup?: string` field. Add `orderAmountCharged?: string`. In the `Order` display type (if present): remove `orderMarkup` and add `orderAmountCharged?: string | null`.
+  - [ ] [Types — `src/types/dashboard.ts`] In the `DashboardRecentOrder` interface: replace `orderMarkup: string` with `orderAmountCharged: string`. In any other dashboard type that references `orderMarkup`, rename accordingly.
+  - [ ] [Component — `src/components/OrderList.tsx`] In the `OrderListProps` interface, replace `orderMarkup: string | null` with `orderAmountCharged: string | null`. Inside the `orders.map()` render block, rename `const markupVal = parseFloat(order.orderMarkup || '0')` to `const chargedVal = parseFloat(order.orderAmountCharged || '0')` and update `const finalMargin = markupVal - refundVal` to `const finalMargin = chargedVal - refundVal`. The JSX display string `Final Margin: $${finalMargin.toFixed(2)}` remains unchanged.
+  - [ ] [Component — `src/components/dashboard/RecentOrdersTable.tsx`] In the local order prop type, replace `orderMarkup: string` with `orderAmountCharged: string`. Rename `const markupVal = parseFloat(orderMarkup || '0')` to `const chargedVal = parseFloat(orderAmountCharged || '0')` and update the `finalMargin` computation accordingly. Update the JSX that accesses this value.
+  - [ ] [Component — `src/components/SearchResults.tsx`] If `orderMarkup` is destructured from the order prop or displayed, rename to `orderAmountCharged`. Update the prop type interface.
+  - [ ] [Component — `src/components/AddOrderForm.tsx`] Add a new state variable: `const [orderAmountCharged, setOrderAmountCharged] = useState('')`. In Section 4 (Pricing), **replace** the existing read-only "Computed Markup" display block (the `<span>` showing `${markup.toFixed(2)}`) with a proper labelled number input:
+    ```tsx
+    <div className="form-group">
+      <label className="form-label">Amount Charged (Net Margin) *</label>
+      <input
+        id="orderAmountCharged"
+        type="number"
+        step="0.01"
+        placeholder="e.g. 350.00"
+        value={orderAmountCharged}
+        onChange={(e) => setOrderAmountCharged(e.target.value)}
+        required
+        className="form-input font-mono"
+      />
+    </div>
+    ```
+    Below the `orderVendorPrice` input, add a small read-only gross spread indicator (a `<span>` element, not a stored field) that computes and displays `Gross Spread: $${(parseFloat(orderTotalPitched || '0') - parseFloat(orderVendorPrice || '0')).toFixed(2)}` in muted text so agents have a reference figure. Include `orderAmountCharged: orderAmountCharged || null` in the `payload` object sent to `POST /api/orders`. Remove `orderMarkup` from the payload entirely.
+  - [ ] [Component — `src/components/EditOrderForm.tsx`] Add a new state variable: `const [orderAmountCharged, setOrderAmountCharged] = useState(order.orderAmountCharged || '')`. In Section 4 (Pricing), **replace** the existing read-only `<span>` "Computed Markup" display block with the same labelled number input as above (id=`"orderAmountCharged"`, bound to `orderAmountCharged` / `setOrderAmountCharged`). Add the same gross spread read-only indicator below the `orderVendorPrice` input. Include `orderAmountCharged: orderAmountCharged || null` in the `payload` object sent to `PATCH /api/orders/:id`. Remove `orderMarkup` from the payload entirely. Remove the `const markup = totalPitchedVal - vendorPriceVal` computed variable (it was only used for the now-removed Computed Markup display).
+  - [ ] [Container — `src/components/OrderListContainer.tsx`] In any place where `orderMarkup` is destructured from order objects or passed down as a prop, rename to `orderAmountCharged`. Ensure the `select` or query parameters passed to the API or the prop types of child components are updated accordingly.
+  - [ ] Run unit tests — **confirm GREEN (`npm run test -- OrderList.test.tsx`)**.
+
+- [ ] **GREEN — Test Fixtures (All test files that seed `orderMarkup`):**
+  - [ ] In `src/tests/orders.test.ts`: replace every fixture object property `orderMarkup: '...'` with `orderAmountCharged: '...'` and every assertion `expect(dbOrder?.orderMarkup)` with `expect(dbOrder?.orderAmountCharged)`.
+  - [ ] In `src/tests/OrderList.test.tsx`: replace every mock order property `orderMarkup: '...'` with `orderAmountCharged: '...'`.
+  - [ ] In `src/tests/Dashboard.test.tsx`: replace every mock order property `orderMarkup: '...'` with `orderAmountCharged: '...'`.
+  - [ ] In `src/tests/dashboard.test.ts`: replace every mock order property `orderMarkup: '...'` with `orderAmountCharged: '...'` and every inline comment that references `markup` as the margin base (e.g. `// markup 500, refund 100 -> finalMargin 400`) to use `chargedAmount` terminology.
+  - [ ] In `src/tests/vendors.test.ts`: replace every `orderMarkup: '...'` fixture property with `orderAmountCharged: '...'`.
+  - [ ] In `src/tests/VendorDetail.test.tsx`: replace every `orderMarkup: '...'` fixture property with `orderAmountCharged: '...'`.
+  - [ ] In `src/tests/SearchResults.test.tsx`: replace every `orderMarkup: '...'` fixture property with `orderAmountCharged: '...'`.
+  - [ ] In `src/tests/gateways.test.ts`: replace every `orderMarkup: '...'` fixture property with `orderAmountCharged: '...'`.
+  - [ ] Run the **full test suite** — `npm run test` — confirm **all tests GREEN** with zero TypeScript compilation errors and zero ESLint warnings.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens **Add Order** form → fills in Total Price Pitched (`$800`), Vendor Buying Price (`$500`) → sees read-only **Gross Spread: $300.00** below the price fields for reference → fills in **Amount Charged (Net Margin)** field manually with `$350` → submits form → new order is created in the database with `order_amount_charged = '350'` → ✅ Done.
+  - [ ] Agent opens **Edit Order** form for an existing order → the **Amount Charged** field is pre-populated with the stored value → agent changes it to `$200` → saves → `GET /api/orders/:id` confirms `orderAmountCharged === '200'` → audit log shows `orderAmountCharged` changed from old value to `200` → ✅ Done.
+  - [ ] Manager views the **Orders List** table → Pricing column shows correct `Final Margin: $X.XX` computed as `orderAmountCharged - orderRefundAmount` for each row → a Partial Refund order correctly shows a reduced margin → ✅ Done.
+  - [ ] Manager views **Dashboard** → Recent Orders table, KPI metric totals, Champions League widget, and Team Scores widget all compute `finalMargin` from `orderAmountCharged - orderRefundAmount`, matching the manually-entered values → ✅ Done.
+  - [ ] `npm run typecheck` passes with **0 errors**. `npm run lint` passes with **0 errors / 0 warnings**. `npm run test` passes with **all tests GREEN**. → ✅ Done.
+
+---
+
+### W-2003 — Order Details Page: Expanded Financial Breakdown UI & Refund Auto-Rule Fix
+
+**Root cause / Goal:**
+The current Financial Breakdown card in `src/app/orders/[id]/page.tsx` (lines 362–396) displays only four rows: Selling Price, Buying Price, Markup Margin, and Final Margin. After Phase 20's rename, the business needs two new computed rows to be visible on this card:
+
+1. **Net Margin** — computed display only, never stored: `orderTotalPitched - orderVendorPrice`. This shows the agent the gross theoretical margin before the charged amount is considered.
+2. **Remaining to Be Charged** — computed display only, never stored: `Net Margin - orderAmountCharged`. This tells the agent how much of the gross margin has not yet been collected.
+
+The full intended layout (top to bottom, separated by dividers) is:
+
+```
+Selling Price            $X.XX
+Buying Price             $X.XX
+─────────────────────────────
+Net Margin               $X.XX   (= Selling - Buying, computed)
+Charged Amount           $X.XX   (= orderAmountCharged, stored)
+─────────────────────────────
+Remaining to Be Charged  $X.XX   (= Net Margin - Charged, computed)
+─────────────────────────────
+Refund Amount           -$X.XX   (only shown when > 0)
+─────────────────────────────
+Final Margin             $X.XX   (= Charged - Refund, green/red)
+```
+
+Additionally, the existing **Final Margin** formula on this page currently reads `order.orderMarkup - order.orderRefundAmount`. After Phase 20's rename this must become `order.orderAmountCharged - order.orderRefundAmount`.
+
+There is also a **backend auto-rule bug to fix in W-2001 that is made explicit here**: when `saleStatus` is set to `'2'` (Refunded) or `'3'` (Chargebacked), the service currently auto-sets `orderRefundAmount = orderMarkup` (which will become `= orderAmountCharged` after the rename). This is correct — the full refund on a hard reversal must equal exactly the **Charged Amount**, not the gross Net Margin. W-2001 already captures this rename; this work item calls it out explicitly so there is zero ambiguity.
+
+**Approach:**
+- Compute `netMargin`, `chargedAmount`, `remainingToCharge`, `refundAmount`, and `finalMargin` as JavaScript constants at the top of the Financial Breakdown JSX block in `src/app/orders/[id]/page.tsx`, sourcing values from the Prisma order object.
+- Replace the existing 4-row info-grid block with the new 7-row (conditional Refund row) layout following the dark card styling already in place.
+- All new rows use display-only computed values — no new database fields, no API changes, no new types. This is a pure UI change on a single server component file.
+
+---
+
+- [ ] **RED — Unit (`src/tests/OrderDetail.test.tsx` — create this file if it does not exist):**
+  - [ ] Test: Render the Financial Breakdown section with a mock order `{ orderTotalPitched: '1000', orderVendorPrice: '600', orderAmountCharged: '350', orderRefundAmount: null }`. Assert all of the following text nodes are present in the rendered output:
+    - `"Net Margin"` label and value `"$400.00"` (= 1000 - 600)
+    - `"Charged Amount"` label and value `"$350.00"` (= orderAmountCharged)
+    - `"Remaining to Be Charged"` label and value `"$50.00"` (= 400 - 350)
+    - `"Final Margin"` label and value `"$350.00"` (= 350 - 0, since refund is null)
+    - The `"Refund Amount"` row is **not rendered** (refund is null/zero).
+  - [ ] Test: Render with `{ orderTotalPitched: '1000', orderVendorPrice: '600', orderAmountCharged: '350', orderRefundAmount: '150' }`. Assert:
+    - `"Net Margin"` value = `"$400.00"`
+    - `"Charged Amount"` value = `"$350.00"`
+    - `"Remaining to Be Charged"` value = `"$50.00"`
+    - `"Refund Amount"` row **is rendered** and shows `"-$150.00"` in red
+    - `"Final Margin"` value = `"$200.00"` (= 350 - 150)
+  - [ ] Test: Render with `{ orderTotalPitched: '1000', orderVendorPrice: '600', orderAmountCharged: null, orderRefundAmount: null }`. Assert:
+    - `"Net Margin"` value = `"$400.00"`
+    - `"Charged Amount"` value = `"$0.00"` (graceful null fallback)
+    - `"Remaining to Be Charged"` value = `"$400.00"` (full net margin uncollected)
+    - `"Final Margin"` value = `"$0.00"`
+  - [ ] **Run — confirm RED (the component currently renders only "Markup Margin" and "Final Margin" with no "Net Margin", "Charged Amount", or "Remaining to Be Charged" rows).**
+
+- [ ] **GREEN — Frontend (Component — `src/app/orders/[id]/page.tsx`):**
+  - [ ] At the top of the Financial Breakdown JSX block (just before the opening `<div className="info-grid">` of the pricing card), define these five constants:
+    ```tsx
+    const netMargin        = parseFloat(order.orderTotalPitched || '0') - parseFloat(order.orderVendorPrice || '0');
+    const chargedAmount    = parseFloat(order.orderAmountCharged || '0');
+    const remainingCharge  = netMargin - chargedAmount;
+    const refundAmount     = parseFloat(order.orderRefundAmount || '0');
+    const finalMargin      = chargedAmount - refundAmount;
+    ```
+  - [ ] Replace the entire existing 4-row `<div className="info-grid">` pricing block (from line 366 to line 395 in the current file) with the following new 7-row layout (preserve all existing dark card `style` props and class names):
+    ```tsx
+    <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '12px' }}>
+      {/* Row 1 — Selling Price */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Selling Price</span>
+        <span className="info-value font-mono" style={{ color: 'white' }}>${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
+      </div>
+      {/* Row 2 — Buying Price */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Buying Price</span>
+        <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
+      </div>
+      {/* Divider + Row 3 — Net Margin (computed, display only) */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Net Margin</span>
+        <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${netMargin.toFixed(2)}</span>
+      </div>
+      {/* Row 4 — Charged Amount (stored) */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Charged Amount</span>
+        <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${chargedAmount.toFixed(2)}</span>
+      </div>
+      {/* Divider + Row 5 — Remaining to Be Charged (computed, display only) */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Remaining to Be Charged</span>
+        <span className="info-value font-mono" style={{ color: remainingCharge > 0 ? '#fbbf24' : 'rgba(255,255,255,0.6)' }}>${remainingCharge.toFixed(2)}</span>
+      </div>
+      {/* Divider + Row 6 — Refund Amount (only rendered when > 0) */}
+      {refundAmount > 0 && (
+        <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+          <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Refund Amount</span>
+          <span className="info-value font-mono" style={{ color: '#f87171' }}>-${refundAmount.toFixed(2)}</span>
+        </div>
+      )}
+      {/* Divider + Row 7 — Final Margin */}
+      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+        <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Final Margin</span>
+        <span className="info-value font-mono" style={{ fontWeight: 'bold', color: finalMargin >= 0 ? '#10b981' : '#ef4444' }}>
+          ${finalMargin.toFixed(2)}
+        </span>
+      </div>
+    </div>
+    ```
+  - [ ] Confirm the heading label `"Markup Margin"` (now row 3's `"Net Margin"` label) is **not present** anywhere in the final JSX — do a text search in the file for `"Markup Margin"` to confirm zero matches.
+  - [ ] Confirm the file no longer references `order.orderMarkup` anywhere — do a text search in the file for `orderMarkup` to confirm zero matches (they are all replaced by the `netMargin` / `chargedAmount` constants sourced from `order.orderAmountCharged`).
+  - [ ] Run unit test — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens the Order Details page for an order with Selling Price `$1000`, Buying Price `$600`, Charged Amount `$350`, and no refund → Financial Breakdown card shows exactly: Selling Price `$1000.00` / Buying Price `$600.00` / Net Margin `$400.00` / Charged Amount `$350.00` / Remaining to Be Charged `$50.00` (in amber) / Final Margin `$350.00` (in green) — Refund Amount row is **absent** → ✅ Done.
+  - [ ] Agent opens the Order Details page for a Partial Refund order with `orderAmountCharged: '350'` and `orderRefundAmount: '150'` → card shows Refund Amount row `-$150.00` (in red) and Final Margin `$200.00` (in green) → ✅ Done.
+  - [ ] Agent opens the Order Details page for a fully Refunded order (saleStatus `'2'`) → `orderRefundAmount` was auto-set by the service to equal `orderAmountCharged` → Refund Amount row equals Charged Amount → Final Margin is `$0.00` → ✅ Done.
+  - [ ] `npm run typecheck` passes with **0 errors** after this change — no new type imports are required since all values are computed inline from the existing Prisma `order` object → ✅ Done.
 
 ---
 
@@ -3357,7 +3605,8 @@ Ensure agents do not accidentally place new orders with blacklisted suppliers. D
   - **Audit Log Bug Fix**: Fixed a bug where updating unrelated order fields (e.g. vendor information) on `Sold` orders automatically triggered a spurious edit log showing the `Order Refund Amount` changed from empty to `0`. Resolved this by setting `updatedData.orderRefundAmount` to `null` instead of `'0'` in `order.service.ts` to correctly align with database defaults.
 
 ### Session 38 — July 2, 2026
-  **Phase 18 — Champions League Widget: Monthly Filter & finalMargin Ranking (W-1801) & Team Monthly Scores Widget: Top 3 & Bottom 3 Per Team (W-1802)**
+### Session 38 — July 2, 2026
+  **Phase 18 — Champions League Widget: Monthly Filter & finalMargin Ranking (W-1801), Team Monthly Scores Widget: Top 3 & Bottom 3 Per Team (W-1802) & Order Pipeline: Tab Totals (Counts & Final Margin) & Backend Executive Filter (W-1803)**
   - **Pre-Existing Test Fixes**: Resolved assertions in `src/tests/orders.test.ts` and `src/tests/dashboard.test.ts`/`src/tests/Dashboard.test.tsx` that failed due to database `orderRefundAmount` default values (`null` vs `'0'`) and multi-agent array structures introduced in prior sessions.
   - **W-1801 Integration Tests**: Wrote RED integration tests in `dashboard.test.ts` verifying that `GET /api/dashboard/champions-league` correctly filters by month/year and ranks agents using the `finalMargin` (`orderMarkup - orderRefundAmount`) metric.
   - **W-1801 Repository & Service**: Updated `getTopPerformers` and `getBottomPerformers` in `dashboard.repository.ts` to filter by EST month and year, grouping and summing `finalMargin`. Guarded the service methods with `dashboard:top-performer` and `dashboard:bottom-performer` permissions.
@@ -3365,7 +3614,13 @@ Ensure agents do not accidentally place new orders with blacklisted suppliers. D
   - **W-1801 Frontend Widget Navigation**: Added previous and next month navigation arrows to the `ChampionsLeagueWidget.tsx` component, updating its state to fetch rankings dynamically.
   - **W-1801 Unit Tests**: Wrote React Testing Library assertions in `Dashboard.test.tsx` verifying that month navigation buttons trigger network fetches.
   - **W-1802 Verification**: Confirmed that the top 3 and bottom 3 performer arrays per team are fully operational, styled, and verified by the integration and unit tests.
-  - **Verification**: Verified that all 35 test files and all 203 unit and integration tests compile and run green (100% success). All typechecks are clean.
+  - **W-1803 Query Filters**: Added support for filtering order lists by `backendExecutiveId` in repository method `findAll` and exposed it on `/api/orders` route.
+  - **W-1803 Filter-Aware Pending Counts**: Updated `getPendingCounts()` in `dashboard.repository.ts` to support optional query filters (agent, team, date, backend executive) and return counts and final margin sums for each status tab.
+  - **W-1803 API Endpoint**: Exposed `GET /api/orders/pending-counts` route to serve count and margin metrics.
+  - **W-1803 Pipeline UI Integration**: Added a "Backend Executive" filter dropdown selector to `OrderListContainer.tsx` and modified status tab headers to dynamically display counts and margin totals in the format `Status Name (Count - $Margin)`.
+  - **W-1803 Unit & Integration Tests**: Wrote frontend unit tests in `OrderListContainer.test.tsx` and backend integration tests in `orders.test.ts` to verify filtering and tab total rendering.
+  - **Verification**: Verified that all 36 test files and all 207 unit and integration tests compile and run green (100% success). All typechecks and lint checks are 100% clean.
+
 
 
 
