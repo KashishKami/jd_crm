@@ -44,6 +44,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
           <li className="nav-item">
             <Link
               href="/"
+              prefetch={false}
               className={`nav-link ${isActive('/') ? 'active' : ''}`}
               onClick={handleLinkClick}
               style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -63,6 +64,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
             <li className="nav-item">
               <Link
                 href="/orders"
+                prefetch={false}
                 className={`nav-link ${isActive('/orders') ? 'active' : ''}`}
                 onClick={handleLinkClick}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -80,6 +82,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
             <li className="nav-item">
               <Link
                 href="/vendors"
+                prefetch={false}
                 className={`nav-link ${isActive('/vendors') ? 'active' : ''}`}
                 onClick={handleLinkClick}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -97,6 +100,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
             <li className="nav-item">
               <Link
                 href="/agents"
+                prefetch={false}
                 className={`nav-link ${isActive('/agents') ? 'active' : ''}`}
                 onClick={handleLinkClick}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -114,6 +118,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
             <li className="nav-item">
               <Link
                 href="/gateways"
+                prefetch={false}
                 className={`nav-link ${isActive('/gateways') ? 'active' : ''}`}
                 onClick={handleLinkClick}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -132,6 +137,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
             <li className="nav-item">
               <Link
                 href="/settings/roles"
+                prefetch={false}
                 className={`nav-link ${pathname?.startsWith('/settings') ? 'active' : ''}`}
                 onClick={handleLinkClick}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}

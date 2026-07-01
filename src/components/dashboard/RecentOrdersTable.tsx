@@ -67,12 +67,12 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                     </div>
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                    ${parseFloat(order.orderMarkup || '0').toLocaleString()}
+                    ${parseFloat(order.orderMarkup || '0').toLocaleString('en-US')}
                   </td>
                   <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
                   <td style={{ textAlign: 'right' }} className="actions-cell">
                     <div className="action-buttons">
-                      <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view">
+                      <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view">
                         Details
                       </Link>
                     </div>

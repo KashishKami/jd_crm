@@ -340,12 +340,12 @@ export default function AgentList() {
                   </td>
                   <td className="actions-cell">
                     <div className="action-buttons">
-                      <Link href={`/agents/${agent.uid}`} className="action-link-btn view">
+                      <Link href={`/agents/${agent.uid}`} prefetch={false} className="action-link-btn view">
                         View Profile
                       </Link>
                       {canEdit && (
                         <>
-                          <Link href={`/agents/${agent.uid}/edit`} className="action-link-btn edit">
+                          <Link href={`/agents/${agent.uid}/edit`} prefetch={false} className="action-link-btn edit">
                             Edit
                           </Link>
                           <button

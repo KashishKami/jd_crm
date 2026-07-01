@@ -55,7 +55,7 @@ export default function PerformersTable({ title, performers, isTop = true }: Per
                     </div>
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 600, color: isTop ? '#16a34a' : '#dc2626' }}>
-                    ${row.amount.toLocaleString()}
+                    ${row.amount.toLocaleString('en-US')}
                   </td>
                 </tr>
               ))}

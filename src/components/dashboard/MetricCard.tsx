@@ -130,7 +130,7 @@ export default function MetricCard({
             <div className="metric-card-value-container">
               {prefix && <span className="metric-card-prefix">{prefix}</span>}
               <span className="metric-card-value">
-                {displayValue.toLocaleString()}
+                {displayValue.toLocaleString('en-US')}
               </span>
             </div>
             <div className="metric-card-count">
@@ -182,7 +182,7 @@ export default function MetricCard({
 
   if (link) {
     return (
-      <Link href={link} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+      <Link href={link} prefetch={false} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
         {cardContent}
       </Link>
     );

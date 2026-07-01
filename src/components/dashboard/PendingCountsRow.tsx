@@ -134,6 +134,7 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
             {combo.top && (
               <Link
                 href={combo.top.route}
+                prefetch={false}
                 style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
               >
                 <div className="metric-card metric-card-interactive" style={{ border: '3px solid #f1f5f9', height: '100%' }}>
@@ -146,7 +147,7 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
                         <div className="metric-card-value-container">
                           <span className="metric-card-prefix">$</span>
                           <span className="metric-card-value">
-                            {combo.top.amount.toLocaleString()}
+                            {combo.top.amount.toLocaleString('en-US')}
                           </span>
                         </div>
                         <div className="metric-card-count">
@@ -178,6 +179,7 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
             {combo.bottom && (
               <Link
                 href={combo.bottom.route}
+                prefetch={false}
                 style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
               >
                 <div className="metric-card metric-card-interactive" style={{ border: '3px solid #f1f5f9', height: '100%' }}>
@@ -190,7 +192,7 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
                         <div className="metric-card-value-container">
                           <span className="metric-card-prefix">$</span>
                           <span className="metric-card-value">
-                            {combo.bottom.amount.toLocaleString()}
+                            {combo.bottom.amount.toLocaleString('en-US')}
                           </span>
                         </div>
                         <div className="metric-card-count">

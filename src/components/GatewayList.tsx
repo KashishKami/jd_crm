@@ -141,6 +141,7 @@ export default function GatewayList() {
                           {canReport && (
                             <Link
                               href={`/gateways/${gateway.gatewayId}`}
+                              prefetch={false}
                               className="btn-secondary-custom"
                               style={{ padding: '4px 12px', fontSize: '0.8rem' }}
                             >
@@ -151,6 +152,7 @@ export default function GatewayList() {
                             <>
                               <Link
                                 href={`/gateways/${gateway.gatewayId}/edit`}
+                                prefetch={false}
                                 className="btn-secondary-custom"
                                 style={{ padding: '4px 12px', fontSize: '0.8rem', backgroundColor: '#f1f5f9' }}
                               >

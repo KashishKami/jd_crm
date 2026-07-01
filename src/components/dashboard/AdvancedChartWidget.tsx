@@ -175,7 +175,7 @@ export default function AdvancedChartWidget() {
 
   // Helper to format currency
   const formatYLabel = (val: number) => {
-    return `$${Math.round(val).toLocaleString()}`;
+    return `$${Math.round(val).toLocaleString('en-US')}`;
   };
 
   // Helper to thin out date labels
@@ -527,7 +527,7 @@ export default function AdvancedChartWidget() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
                   <span style={{ fontWeight: 600, color: '#64748b' }}>Sales amount:</span>
                   <span style={{ fontWeight: 700, color: '#1e293b' }}>
-                    <span>{"$" + data[hoveredIdx].salesAmount.toLocaleString()}</span>{' '}
+                    <span>{"$" + data[hoveredIdx].salesAmount.toLocaleString('en-US')}</span>{' '}
                     <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748b' }}>
                       ({data[hoveredIdx].salesCount} {data[hoveredIdx].salesCount === 1 ? 'sale' : 'sales'})
                     </span>
@@ -536,7 +536,7 @@ export default function AdvancedChartWidget() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
                   <span style={{ fontWeight: 600, color: '#64748b' }}>Refunds:</span>
                   <span style={{ fontWeight: 700, color: '#1e293b' }}>
-                    <span>{"$" + data[hoveredIdx].refundsAmount.toLocaleString()}</span>{' '}
+                    <span>{"$" + data[hoveredIdx].refundsAmount.toLocaleString('en-US')}</span>{' '}
                     <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748b' }}>
                       ({data[hoveredIdx].refundsCount} {data[hoveredIdx].refundsCount === 1 ? 'refund' : 'refunds'})
                     </span>
@@ -545,7 +545,7 @@ export default function AdvancedChartWidget() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
                   <span style={{ fontWeight: 600, color: '#64748b' }}>Chargebacks:</span>
                   <span style={{ fontWeight: 700, color: '#1e293b' }}>
-                    <span>{"$" + data[hoveredIdx].chargebacksAmount.toLocaleString()}</span>{' '}
+                    <span>{"$" + data[hoveredIdx].chargebacksAmount.toLocaleString('en-US')}</span>{' '}
                     <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748b' }}>
                       ({data[hoveredIdx].chargebacksCount} {data[hoveredIdx].chargebacksCount === 1 ? 'chargeback' : 'chargebacks'})
                     </span>

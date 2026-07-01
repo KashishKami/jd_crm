@@ -197,7 +197,7 @@ export default function VendorList() {
               {vendors.map((vendor) => (
                 <tr key={vendor.vendorId} style={{ opacity: 0 }}>
                   <td>
-                    <Link href={`/vendors/${vendor.vendorId}`} className="font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                    <Link href={`/vendors/${vendor.vendorId}`} prefetch={false} className="font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                       {vendor.vendorName}
                     </Link>
                   </td>
@@ -212,12 +212,12 @@ export default function VendorList() {
                   </td>
                   <td className="actions-cell">
                     <div className="action-buttons">
-                      <Link href={`/vendors/${vendor.vendorId}`} className="action-link-btn view">
+                      <Link href={`/vendors/${vendor.vendorId}`} prefetch={false} className="action-link-btn view">
                         View
                       </Link>
                       {canEdit && (
                         <>
-                          <Link href={`/vendors/${vendor.vendorId}/edit`} className="action-link-btn edit">
+                          <Link href={`/vendors/${vendor.vendorId}/edit`} prefetch={false} className="action-link-btn edit">
                             Edit
                           </Link>
                           <button

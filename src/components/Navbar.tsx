@@ -70,7 +70,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           </svg>
         </button>
 
-        <Link href="/" className="navbar-logo">
+        <Link href="/" prefetch={false} className="navbar-logo">
           <span className="logo-icon">JD</span>
           <span className="logo-text">CRM</span>
         </Link>
@@ -88,6 +88,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             <li className="nav-item">
               <Link
                 href="/"
+                prefetch={false}
                 className={`nav-pill-btn ${isActive('/') ? 'active' : ''}`}
               >
                 Dashboard
@@ -98,6 +99,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               <li className="nav-item">
                 <Link
                   href="/orders"
+                  prefetch={false}
                   className={`nav-pill-btn ${isActive('/orders') ? 'active' : ''}`}
                 >
                   Orders
@@ -109,6 +111,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               <li className="nav-item">
                 <Link
                   href="/vendors"
+                  prefetch={false}
                   className={`nav-pill-btn ${isActive('/vendors') ? 'active' : ''}`}
                 >
                   Vendors
@@ -120,6 +123,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               <li className="nav-item">
                 <Link
                   href="/agents"
+                  prefetch={false}
                   className={`nav-pill-btn ${isActive('/agents') ? 'active' : ''}`}
                 >
                   Agents
@@ -131,6 +135,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               <li className="nav-item">
                 <Link
                   href="/gateways"
+                  prefetch={false}
                   className={`nav-pill-btn ${isActive('/gateways') ? 'active' : ''}`}
                 >
                   Gateways
@@ -171,6 +176,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             {hasPermission(permissions, 'settings:manage-permissions') && (
               <Link
                 href="/settings/roles"
+                prefetch={false}
                 className="dropdown-item-btn"
                 data-testid="settings-btn"
                 onClick={() => setDropdownOpen(false)}

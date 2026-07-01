@@ -189,10 +189,10 @@ export default function OrderList({ orders }: OrderListProps) {
                   </td>
                   <td className="actions-cell">
                     <div className="action-buttons">
-                      <Link href={`/orders/${order.crmOrderId}`} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
+                      <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
                         Details
                       </Link>
-                      <Link href={`/orders/${order.crmOrderId}/edit`} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
+                      <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
                         Edit
                       </Link>
                     </div>
