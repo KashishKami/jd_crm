@@ -32,6 +32,9 @@ export interface OrderCreateInput {
   orderBackendExecutiveId?: number | null;
   saleStatus?: string;
   orderDate?: string | Date;
+  orderRefundAmount?: string | null;
+  orderCurrentStatus?: string | null;
+  saleStatusChangeDate?: string | null;
 }
 
 export interface OrderUpdateInput {
@@ -70,6 +73,7 @@ export interface OrderUpdateInput {
   orderCurrentStatusUpdateDate?: Date | null;
   orderDate?: string | Date;
   saleStatusChangeDate?: string | null;
+  orderRefundAmount?: string | null;
 
   // --- Customer fields (written to crm_customers via separate update) ---
   customerName?: string;

@@ -15,6 +15,7 @@ DELETE FROM crm_customer_cards;
 DELETE FROM crm_customers;
 DELETE FROM users;
 DELETE FROM crm_role_permissions;
+DELETE FROM crm_permissions;
 DELETE FROM crm_roles;
 DELETE FROM crm_designations;
 
@@ -103,21 +104,22 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (35, 'orders:view-pending-delivery',   'View pending delivery queue'),
 (36, 'orders:view-pending-feedback',   'View pending feedback queue'),
 (37, 'orders:view-pending-resolutions','View pending resolutions queue'),
-(38, 'orders:view-sale-status-history', 'View sale status change history timeline'),
-(39, 'orders:view-workflow-history',    'View order workflow status change timeline'),
-(40, 'orders:delete',                    'Permanently delete an order and all its children logs'),
-(41, 'orders:view-log',                  'Access order detail page view access history log'),
-(50, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
+(38, 'orders:view-returned',           'View returned orders queue'),
+(39, 'orders:view-sale-status-history', 'View sale status change history timeline'),
+(40, 'orders:view-workflow-history',    'View order workflow status change timeline'),
+(41, 'orders:delete',                    'Permanently delete an order and all its children logs'),
+(42, 'orders:view-log',                  'Access order detail page view access history log'),
+(43, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
 -- Customers
-(42, 'customers:view',                 'View customer list and detail pages'),
-(43, 'customers:create',               'Create a new customer'),
-(44, 'customers:edit',                 'Edit customer details'),
-(45, 'customers:view-phone',           'View customer phone number in order detail'),
-(46, 'customers:view-email',           'View customer email in order detail'),
-(47, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
-(48, 'customers:view-cards',           'View full unmasked payment card details'),
+(44, 'customers:view',                 'View customer list and detail pages'),
+(45, 'customers:create',               'Create a new customer'),
+(46, 'customers:edit',                 'Edit customer details'),
+(47, 'customers:view-phone',           'View customer phone number in order detail'),
+(48, 'customers:view-email',           'View customer email in order detail'),
+(49, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
+(50, 'customers:view-cards',           'View full unmasked payment card details'),
 -- Settings
-(49, 'settings:manage-permissions',    'Manage role permissions matrix')
+(51, 'settings:manage-permissions',    'Manage role permissions matrix')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- Clear existing role permissions mappings to ensure only admin/superadmin roles are mapped
@@ -129,7 +131,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),
 (1,21),(1,22),(1,23),(1,24),(1,25),(1,26),(1,27),(1,28),(1,29),(1,30),
 (1,31),(1,32),(1,33),(1,34),(1,35),(1,36),(1,37),(1,38),(1,39),(1,40),
-(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50);
+(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50),(1,51);
 
 -- Link permissions to Admin (role_id = 2)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -137,7 +139,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),
 (2,21),(2,22),(2,23),(2,24),(2,25),(2,26),(2,27),(2,28),(2,29),(2,30),
 (2,31),(2,32),(2,33),(2,34),(2,35),(2,36),(2,37),(2,38),(2,39),(2,40),
-(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50);
+(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50),(2,51);
 
 -- Clear existing users to cleanly seed new list
 DELETE FROM users;

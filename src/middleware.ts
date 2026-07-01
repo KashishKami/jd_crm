@@ -13,6 +13,12 @@ export default withAuth(
       '/agents': 'agents:view',
       '/gateways': 'gateways:view',
       '/orders': 'orders:view',
+      '/pending/booking': 'orders:view-pending-booking',
+      '/pending/shipment': 'orders:view-pending-shipment',
+      '/pending/delivery': 'orders:view-pending-delivery',
+      '/pending/feedback': 'orders:view-pending-feedback',
+      '/pending/resolutions': 'orders:view-pending-resolutions',
+      '/pending/returned': 'orders:view-returned',
     };
 
     // Check if the current route matches any protected path prefix

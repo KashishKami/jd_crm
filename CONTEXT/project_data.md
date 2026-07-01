@@ -92,6 +92,7 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `orders:view-pending-delivery` | `176` | Access Pending Delivery queue |
 | `orders:view-pending-feedback` | `177` | Access Pending Feedback queue |
 | `orders:view-pending-resolutions` | `178` | Access Pending Resolutions queue |
+| `orders:view-returned` | — | Access Returned Orders queue (new) |
 | `orders:view-sale-status-history` | — | View sale status change history timeline |
 | `orders:view-workflow-history` | — | View order workflow status change timeline |
 

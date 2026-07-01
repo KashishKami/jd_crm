@@ -172,16 +172,20 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           <h1 className="page-title">
             {statusFilter === 'Completed Orders' 
               ? 'Completed Orders' 
-              : statusFilter 
-                ? `${statusFilter} Queue` 
-                : 'Sales Orders Pipeline'}
+              : statusFilter === 'Returned Orders'
+                ? 'Returned Orders'
+                : statusFilter 
+                  ? `${statusFilter} Queue` 
+                  : 'Sales Orders Pipeline'}
           </h1>
           <p className="page-subtitle">
             {statusFilter === 'Completed Orders'
-              ? 'Review and manage all successful completed orders (Sold)'
-              : statusFilter 
-                ? `Review and manage orders currently in ${statusFilter} state`
-                : 'Monitor real-time customer bookings, purchase margins, and pipeline status.'
+              ? 'Review and manage all completed orders — Sold and Partial Refund (orders where money was received)'
+              : statusFilter === 'Returned Orders'
+                ? 'Review and resolve processing failures, returns, or disputes'
+                : statusFilter 
+                  ? `Review and manage orders currently in ${statusFilter} state`
+                  : 'Monitor real-time customer bookings, purchase margins, and pipeline status.'
             }
           </p>
         </div>
@@ -199,48 +203,70 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       <div className="filter-bar">
         {/* Navigation Tabs */}
         <div className="tab-group">
-          <button
-            onClick={() => setStatusFilter('')}
-            className={`tab-btn ${statusFilter === '' ? 'active' : ''}`}
-          >
-            All Orders
-          </button>
-          <button
-            onClick={() => setStatusFilter('Pending Booking')}
-            className={`tab-btn ${statusFilter === 'Pending Booking' ? 'active' : ''}`}
-          >
-            Pending Booking
-          </button>
-          <button
-            onClick={() => setStatusFilter('Pending Shipment')}
-            className={`tab-btn ${statusFilter === 'Pending Shipment' ? 'active' : ''}`}
-          >
-            Pending Shipment
-          </button>
-          <button
-            onClick={() => setStatusFilter('Pending Delivery')}
-            className={`tab-btn ${statusFilter === 'Pending Delivery' ? 'active' : ''}`}
-          >
-            Pending Delivery
-          </button>
-          <button
-            onClick={() => setStatusFilter('Pending Feedback')}
-            className={`tab-btn ${statusFilter === 'Pending Feedback' ? 'active' : ''}`}
-          >
-            Pending Feedback
-          </button>
-          <button
-            onClick={() => setStatusFilter('Pending Resolutions')}
-            className={`tab-btn ${statusFilter === 'Pending Resolutions' ? 'active' : ''}`}
-          >
-            Pending Resolutions
-          </button>
-          <button
-            onClick={() => setStatusFilter('Completed Orders')}
-            className={`tab-btn ${statusFilter === 'Completed Orders' ? 'active' : ''}`}
-          >
-            Completed Orders
-          </button>
+          {hasPermission(permissions, 'orders:view') && (
+            <button
+              onClick={() => setStatusFilter('')}
+              className={`tab-btn ${statusFilter === '' ? 'active' : ''}`}
+            >
+              All Orders
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-pending-booking') && (
+            <button
+              onClick={() => setStatusFilter('Pending Booking')}
+              className={`tab-btn ${statusFilter === 'Pending Booking' ? 'active' : ''}`}
+            >
+              Pending Booking
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-pending-shipment') && (
+            <button
+              onClick={() => setStatusFilter('Pending Shipment')}
+              className={`tab-btn ${statusFilter === 'Pending Shipment' ? 'active' : ''}`}
+            >
+              Pending Shipment
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-pending-delivery') && (
+            <button
+              onClick={() => setStatusFilter('Pending Delivery')}
+              className={`tab-btn ${statusFilter === 'Pending Delivery' ? 'active' : ''}`}
+            >
+              Pending Delivery
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-pending-feedback') && (
+            <button
+              onClick={() => setStatusFilter('Pending Feedback')}
+              className={`tab-btn ${statusFilter === 'Pending Feedback' ? 'active' : ''}`}
+            >
+              Pending Feedback
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-pending-resolutions') && (
+            <button
+              onClick={() => setStatusFilter('Pending Resolutions')}
+              className={`tab-btn ${statusFilter === 'Pending Resolutions' ? 'active' : ''}`}
+            >
+              Pending Resolutions
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-completed') && (
+            <button
+              onClick={() => setStatusFilter('Completed Orders')}
+              className={`tab-btn ${statusFilter === 'Completed Orders' ? 'active' : ''}`}
+            >
+              Completed Orders
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-returned') && (
+            <button
+              onClick={() => setStatusFilter('Returned Orders')}
+              className={`tab-btn ${statusFilter === 'Returned Orders' ? 'active' : ''}`}
+            >
+              Returned Orders
+            </button>
+          )}
         </div>
 
         {/* Date, Agent & Team Filters */}
@@ -298,7 +324,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
           {saleStatusFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '2' ? 'Refunded' : saleStatusFilter === '3' ? 'Chargebacked' : saleStatusFilter}
+              Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '2' ? 'Refunded' : saleStatusFilter === '3' ? 'Chargebacked' : saleStatusFilter === '4' ? 'Partial Refund' : saleStatusFilter}
               <button 
                 onClick={() => setSaleStatusFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
@@ -340,6 +366,48 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
         </div>
       ) : (
         <>
+          {statusFilter === 'Completed Orders' && (
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px',
+              color: '#166534',
+              alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>✅</span>
+              <div>
+                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Completed Orders Queue</h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#15803d' }}>
+                  This queue shows orders with Sale Status: <strong>Sold</strong> or <strong>Partial Refund</strong> — orders where money was received from the customer.
+                </p>
+              </div>
+            </div>
+          )}
+          {statusFilter === 'Returned Orders' && (
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fee2e2',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px',
+              color: '#991b1b',
+              alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>⚠️</span>
+              <div>
+                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Returned Orders Processing Queue</h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#b91c1c' }}>
+                  This queue displays all orders with processing failures, returns, or disputes. Work with QA Verifiers and Backend Executives to resolve open issues.
+                </p>
+              </div>
+            </div>
+          )}
           <OrderList orders={orders} />
           {totalPages > 1 && (
             <div className="pagination-bar">

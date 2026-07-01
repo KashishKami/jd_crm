@@ -3,17 +3,19 @@ import { prisma } from '../lib/db';
 export async function getSalesBetweenDates(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: '1',
+      saleStatus: { in: ['1', '4'] },
       orderDate: {
         gte: start,
         lt: end,
       },
     },
-    select: { orderMarkup: true },
+    select: { orderMarkup: true, orderRefundAmount: true },
   });
   let amount = 0;
   for (const order of orders) {
-    amount += parseFloat(order.orderMarkup || '0');
+    const markup = parseFloat(order.orderMarkup || '0');
+    const refund = parseFloat(order.orderRefundAmount || '0');
+    amount += (markup - refund);
   }
   return { amount, count: orders.length };
 }
@@ -21,7 +23,7 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
 export async function getNetSalesBetweenDates(start: Date, end: Date) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: { in: ['1', '2', '3'] },
+      saleStatus: { in: ['1', '2', '3', '4'] },
       orderDate: {
         gte: start,
         lt: end,
@@ -30,19 +32,20 @@ export async function getNetSalesBetweenDates(start: Date, end: Date) {
     select: {
       saleStatus: true,
       orderMarkup: true,
+      orderRefundAmount: true,
     },
   });
 
   let amount = 0;
   let count = 0;
   for (const order of orders) {
-    const val = parseFloat(order.orderMarkup || '0');
-    if (order.saleStatus === '1') {
-      amount += val;
+    if (order.saleStatus === '1' || order.saleStatus === '4') {
+      const markup = parseFloat(order.orderMarkup || '0');
+      const refund = parseFloat(order.orderRefundAmount || '0');
+      amount += (markup - refund);
       count += 1;
     } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-      amount -= val;
-      count -= 1;
+      // Refunded/Chargebacked contribute 0 to net sales, count is not decremented
     }
   }
   return { amount, count };
@@ -78,11 +81,11 @@ export async function getChargebackThisMonth(start: Date, end: Date) {
         lt: end,
       },
     },
-    select: { orderMarkup: true },
+    select: { orderRefundAmount: true },
   });
   let amount = 0;
   for (const order of orders) {
-    amount += parseFloat(order.orderMarkup || '0');
+    amount += parseFloat(order.orderRefundAmount || '0');
   }
   return { amount, count: orders.length };
 }
@@ -96,36 +99,37 @@ export async function getRefundThisMonth(start: Date, end: Date) {
         lt: end,
       },
     },
-    select: { orderMarkup: true },
+    select: { orderRefundAmount: true },
   });
   let amount = 0;
   for (const order of orders) {
-    amount += parseFloat(order.orderMarkup || '0');
+    amount += parseFloat(order.orderRefundAmount || '0');
   }
   return { amount, count: orders.length };
 }
 
-export async function getNetSales() {
+export async function getNetSales(whereClause?: any) {
   const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: { in: ['1', '2', '3'] },
+    where: whereClause || {
+      saleStatus: { in: ['1', '2', '3', '4'] },
     },
     select: {
       saleStatus: true,
       orderMarkup: true,
+      orderRefundAmount: true,
     },
   });
 
   let amount = 0;
   let count = 0;
   for (const order of orders) {
-    const val = parseFloat(order.orderMarkup || '0');
-    if (order.saleStatus === '1') {
-      amount += val;
+    if (order.saleStatus === '1' || order.saleStatus === '4') {
+      const markup = parseFloat(order.orderMarkup || '0');
+      const refund = parseFloat(order.orderRefundAmount || '0');
+      amount += (markup - refund);
       count += 1;
     } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-      amount -= val;
-      count -= 1;
+      // Contribute 0, count is not decremented
     }
   }
   return { amount, count };
@@ -134,13 +138,14 @@ export async function getNetSales() {
 export async function getTopPerformers(limit = 5) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: '1',
+      saleStatus: { in: ['1', '4'] },
       orderSalesAgentId: { not: null },
     },
     select: {
       orderSalesAgentId: true,
       orderSalesAgentName: true,
       orderMarkup: true,
+      orderRefundAmount: true,
     },
   });
 
@@ -149,11 +154,13 @@ export async function getTopPerformers(limit = 5) {
     const agentId = order.orderSalesAgentId!;
     const name = order.orderSalesAgentName || 'Unknown Agent';
     const markup = parseFloat(order.orderMarkup || '0');
+    const refund = parseFloat(order.orderRefundAmount || '0');
+    const finalMargin = markup - refund;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, { agentName: name, amount: 0 });
     }
-    agentMap.get(agentId)!.amount += markup;
+    agentMap.get(agentId)!.amount += finalMargin;
   }
 
   return Array.from(agentMap.values())
@@ -164,13 +171,14 @@ export async function getTopPerformers(limit = 5) {
 export async function getBottomPerformers(limit = 5) {
   const orders = await prisma.crmOrders.findMany({
     where: {
-      saleStatus: '1',
+      saleStatus: { in: ['1', '4'] },
       orderSalesAgentId: { not: null },
     },
     select: {
       orderSalesAgentId: true,
       orderSalesAgentName: true,
       orderMarkup: true,
+      orderRefundAmount: true,
     },
   });
 
@@ -179,11 +187,13 @@ export async function getBottomPerformers(limit = 5) {
     const agentId = order.orderSalesAgentId!;
     const name = order.orderSalesAgentName || 'Unknown Agent';
     const markup = parseFloat(order.orderMarkup || '0');
+    const refund = parseFloat(order.orderRefundAmount || '0');
+    const finalMargin = markup - refund;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, { agentName: name, amount: 0 });
     }
-    agentMap.get(agentId)!.amount += markup;
+    agentMap.get(agentId)!.amount += finalMargin;
   }
 
   return Array.from(agentMap.values())
@@ -202,6 +212,7 @@ export async function getRecentOrders(limit = 10) {
       crmOrderId: true,
       orderDate: true,
       orderMarkup: true,
+      orderRefundAmount: true,
       saleStatus: true,
       customer: {
         select: {
@@ -262,12 +273,14 @@ export async function getPendingCounts() {
           'Pending Feedback',
           'Pending Resolutions',
           'Completed Orders',
+          'Returned Orders',
         ],
       },
     },
     select: {
       orderCurrentStatus: true,
       orderMarkup: true,
+      orderRefundAmount: true,
     },
   });
 
@@ -278,13 +291,16 @@ export async function getPendingCounts() {
     'Pending Feedback': { amount: 0, count: 0 },
     'Pending Resolutions': { amount: 0, count: 0 },
     'Completed Orders': { amount: 0, count: 0 },
+    'Returned Orders': { amount: 0, count: 0 },
   };
 
   for (const order of orders) {
     const status = order.orderCurrentStatus;
     if (status && status in res) {
       const markupVal = parseFloat(order.orderMarkup || '0');
-      res[status].amount += markupVal;
+      const refundVal = parseFloat(order.orderRefundAmount || '0');
+      const finalMargin = markupVal - refundVal;
+      res[status].amount += finalMargin;
       res[status].count += 1;
     }
   }
@@ -299,13 +315,13 @@ export async function getTeamMonthlyScores(month: number, year: number) {
     SELECT 
       t.team_id AS teamId, 
       t.team_name AS teamName,
-      SUM(CASE WHEN o.sale_status = '1' THEN 1 ELSE 0 END) AS soldCount,
+      SUM(CASE WHEN o.sale_status IN ('1', '4') THEN 1 ELSE 0 END) AS soldCount,
       SUM(CASE WHEN o.sale_status = '2' THEN 1 ELSE 0 END) AS refundCount,
       SUM(CASE WHEN o.sale_status = '3' THEN 1 ELSE 0 END) AS chargebackCount,
       SUM(
         CASE 
-          WHEN o.sale_status = '1' THEN CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2))
-          WHEN o.sale_status IN ('2', '3') THEN -CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2))
+          WHEN o.sale_status IN ('1', '4') THEN CAST(COALESCE(o.order_markup, '0') AS DECIMAL(10,2)) - CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(10,2))
+          WHEN o.sale_status IN ('2', '3') THEN 0
           ELSE 0 
         END
       ) AS netAmount
@@ -337,7 +353,7 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
     include: {
       salesOrders: {
         where: {
-          saleStatus: { in: ['1', '2', '3'] },
+          saleStatus: { in: ['1', '2', '3', '4'] },
           orderDate: {
             gte: start,
             lt: end,
@@ -346,6 +362,7 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
         select: {
           saleStatus: true,
           orderMarkup: true,
+          orderRefundAmount: true,
         },
       },
     },
@@ -360,11 +377,12 @@ export async function getTeamMonthlyTopPerformer(teamId: number, month: number, 
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
-      const val = parseFloat(order.orderMarkup || '0');
-      if (order.saleStatus === '1') {
-        total += val;
+      if (order.saleStatus === '1' || order.saleStatus === '4') {
+        const markup = parseFloat(order.orderMarkup || '0');
+        const refund = parseFloat(order.orderRefundAmount || '0');
+        total += (markup - refund);
       } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-        total -= val;
+        // Contribute 0
       }
     }
     if (!topAgent || total > topAgent.amount) {
@@ -389,7 +407,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
     include: {
       salesOrders: {
         where: {
-          saleStatus: { in: ['1', '2', '3'] },
+          saleStatus: { in: ['1', '2', '3', '4'] },
           orderDate: {
             gte: start,
             lt: end,
@@ -398,6 +416,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
         select: {
           saleStatus: true,
           orderMarkup: true,
+          orderRefundAmount: true,
         },
       },
     },
@@ -412,11 +431,12 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
   for (const agent of agents) {
     let total = 0;
     for (const order of agent.salesOrders) {
-      const val = parseFloat(order.orderMarkup || '0');
-      if (order.saleStatus === '1') {
-        total += val;
+      if (order.saleStatus === '1' || order.saleStatus === '4') {
+        const markup = parseFloat(order.orderMarkup || '0');
+        const refund = parseFloat(order.orderRefundAmount || '0');
+        total += (markup - refund);
       } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-        total -= val;
+        // Contribute 0
       }
     }
     if (!bottomAgent || total < bottomAgent.amount) {
@@ -433,7 +453,7 @@ export async function getTeamMonthlyBottomPerformer(teamId: number, month: numbe
 
 export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {
   const where: any = {
-    saleStatus: { in: ['1', '2', '3'] },
+    saleStatus: { in: ['1', '2', '3', '4'] },
   };
 
   if (dateFrom || dateTo) {
@@ -459,6 +479,7 @@ export async function getAdvancedChartData(teamId?: number, agentId?: number, da
     select: {
       orderDate: true,
       orderMarkup: true,
+      orderRefundAmount: true,
       saleStatus: true,
     },
     orderBy: {

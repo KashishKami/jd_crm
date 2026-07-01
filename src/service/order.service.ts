@@ -2,7 +2,10 @@ import * as orderRepository from '../repository/order.repository';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
 
-export async function createOrder(data: OrderCreateInput) {
+export async function createOrder(
+  data: OrderCreateInput,
+  actingUser?: { uid: number; name: string; nickname?: string | null }
+) {
   // Input validations
   if (!data.customerName) {
     throw new Error('Customer name is required');
@@ -17,7 +20,12 @@ export async function createOrder(data: OrderCreateInput) {
     throw new Error('Order vehicle part description is required');
   }
 
-  return await orderRepository.createWithCustomerAndCard(data);
+  // Sale Status & Refund Auto-Rules for creation
+  if (data.saleStatus === '4' && !data.orderRefundAmount) {
+    throw new Error('Refund amount is required for Partial Refund status');
+  }
+
+  return await orderRepository.createWithCustomerAndCard(data, actingUser);
 }
 
 export async function getOrderDetails(crmOrderId: number) {
@@ -71,6 +79,27 @@ export async function updateOrder(
     const totalPitched = parseFloat(data.orderTotalPitched ?? existingOrder.orderTotalPitched ?? '0');
     const vendorPrice = parseFloat(data.orderVendorPrice ?? existingOrder.orderVendorPrice ?? '0');
     updatedData.orderMarkup = (totalPitched - vendorPrice).toString();
+  }
+
+  // ─── Sale Status & Refund Auto-Rules (Phase 17) ───
+  if (data.saleStatus !== undefined) {
+    if (data.saleStatus === '2' || data.saleStatus === '3') {
+      const markup = updatedData.orderMarkup !== undefined 
+        ? updatedData.orderMarkup 
+        : (existingOrder.orderMarkup ?? '0');
+      updatedData.orderRefundAmount = markup;
+      updatedData.orderCurrentStatus = 'Returned Orders';
+      updatedData.orderCurrentStatusUpdateDate = new Date();
+    } else if (data.saleStatus === '1') {
+      updatedData.orderRefundAmount = '0';
+    } else if (data.saleStatus === '4') {
+      if (!data.orderRefundAmount) {
+        throw new Error('Refund amount is required for Partial Refund status');
+      }
+      updatedData.orderRefundAmount = data.orderRefundAmount;
+    }
+  } else if (existingOrder.saleStatus === '4' && data.orderRefundAmount !== undefined) {
+    updatedData.orderRefundAmount = data.orderRefundAmount;
   }
 
   // ─── State machine: auto-advance only when a specific trigger fires ──────────
@@ -211,7 +240,7 @@ export async function updateOrder(
   const orderKeysToAudit = [
     'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMiles', 'orderGivenMiles',
     'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName',
-    'orderShippingType', 'orderMarkup',
+    'orderShippingType', 'orderMarkup', 'orderRefundAmount',
     'orderSalesAgentName', 'orderVerifierName',
     'orderSalesVerifierName', 'orderBackendExecutiveName',
     'orderCurrentStatus', 'orderTrackingNumber', 'orderDeliveryStatus',
@@ -241,6 +270,7 @@ export async function updateOrder(
     if (status === '1' || status === 1) return 'Sold';
     if (status === '2' || status === 2) return 'Refunded';
     if (status === '3' || status === 3) return 'Chargebacked';
+    if (status === '4' || status === 4) return 'Partial Refund';
     return status ? String(status) : null;
   };
 

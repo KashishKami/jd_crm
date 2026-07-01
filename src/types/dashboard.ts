@@ -10,6 +10,7 @@ export interface PendingCounts {
   'Pending Feedback': MetricValue;
   'Pending Resolutions': MetricValue;
   'Completed Orders'?: MetricValue;
+  'Returned Orders'?: MetricValue;
 }
 
 export interface AttendanceSummary {
@@ -25,6 +26,7 @@ export interface RecentOrderRow {
   salesAgentName: string;
   saleStatus: string;
   orderMarkup: string;
+  orderRefundAmount?: string | null;
   orderDate: string;
 }
 

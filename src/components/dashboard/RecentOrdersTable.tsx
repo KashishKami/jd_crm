@@ -14,6 +14,7 @@ export function getStatusBadge(status: string) {
     '1': { label: 'Sold', className: 'status-active' },
     '2': { label: 'Refunded', className: 'status-inactive', bg: '#faf2f2', color: '#b25353' },
     '3': { label: 'Chargebacked', className: 'status-inactive', bg: '#f5e6e6', color: '#8a3d3d' },
+    '4': { label: 'Partial Refund', className: 'status-active', bg: '#faf2eb', color: '#a47c5c' },
   };
 
   const current = map[status] || { label: status, className: '', bg: '#f1f5f9', color: '#475569' };
@@ -47,28 +48,32 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                 <th>Date</th>
                 <th>Customer</th>
                 <th>Sales Agent</th>
-                <th style={{ textAlign: 'right' }}>Markup</th>
+                <th style={{ textAlign: 'right' }}>Final Margin</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
-                <tr key={order.crmOrderId}>
-                  <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
-                  <td style={{ fontSize: '0.82em' }}>{formatDateDDMMYYYY(order.orderDate)}</td>
-                  <td>{order.customerName}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="avatar-circle">
-                        {order.salesAgentName[0]?.toUpperCase()}
+              {orders.map((order) => {
+                const markupVal = parseFloat(order.orderMarkup || '0');
+                const refundVal = parseFloat(order.orderRefundAmount || '0');
+                const finalMargin = markupVal - refundVal;
+                return (
+                  <tr key={order.crmOrderId}>
+                    <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
+                    <td style={{ fontSize: '0.82em' }}>{formatDateDDMMYYYY(order.orderDate)}</td>
+                    <td>{order.customerName}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div className="avatar-circle">
+                          {order.salesAgentName[0]?.toUpperCase()}
+                        </div>
+                        <span>{order.salesAgentName}</span>
                       </div>
-                      <span>{order.salesAgentName}</span>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                    ${parseFloat(order.orderMarkup || '0').toLocaleString('en-US')}
-                  </td>
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      ${finalMargin.toLocaleString('en-US')}
+                    </td>
                   <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
                   <td style={{ textAlign: 'right' }} className="actions-cell">
                     <div className="action-buttons">
@@ -78,8 +83,9 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              );
+            })}
+          </tbody>
           </table>
         </div>
       )}

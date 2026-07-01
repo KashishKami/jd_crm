@@ -2,7 +2,10 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
 
-export async function createWithCustomerAndCard(data: OrderCreateInput) {
+export async function createWithCustomerAndCard(
+  data: OrderCreateInput,
+  actingUser?: { uid: number; name: string; nickname?: string | null }
+) {
   // Resolve sales agent name if present
   let salesAgentName: string | null = null;
   if (data.orderSalesAgentId) {
@@ -119,7 +122,14 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
         orderBackendExecutiveId: data.orderBackendExecutiveId || null,
         orderBackendExecutiveName: backendExecutiveName,
         saleStatus: data.saleStatus || '1', // Default to Sold
-        orderCurrentStatus: data.orderVendorId ? 'Pending Shipment' : 'Pending Booking', // Initial state
+        orderCurrentStatus: data.orderCurrentStatus
+          ? data.orderCurrentStatus
+          : (data.saleStatus === '2' || data.saleStatus === '3')
+            ? 'Returned Orders'
+            : (data.orderVendorId ? 'Pending Shipment' : 'Pending Booking'), // Initial state
+        orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3')
+          ? markup
+          : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
         orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
         orderVendorFeedback: 'Positive',
@@ -129,6 +139,34 @@ export async function createWithCustomerAndCard(data: OrderCreateInput) {
         orderUpdatedDate: new Date(),
       },
     });
+
+    // 4. Create initial histories if actingUser is provided
+    if (actingUser) {
+      const saleChangedAt = data.saleStatusChangeDate
+        ? new Date(data.saleStatusChangeDate)
+        : new Date();
+      await tx.crmSaleStatusHistory.create({
+        data: {
+          orderId: order.crmOrderId,
+          oldValue: null,
+          newValue: order.saleStatus || '1',
+          changedById: actingUser.uid,
+          changedByName: actingUser.nickname || actingUser.name,
+          changedAt: saleChangedAt,
+        },
+      });
+
+      await tx.crmOrderCurrentStatusHistory.create({
+        data: {
+          orderId: order.crmOrderId,
+          oldValue: null,
+          newValue: order.orderCurrentStatus || 'Pending Booking',
+          changedById: actingUser.uid,
+          changedByName: actingUser.nickname || actingUser.name,
+          changedAt: new Date(),
+        },
+      });
+    }
 
     return {
       orderId: order.crmOrderId,
@@ -144,7 +182,12 @@ export async function findAll(filters: OrderFilters): Promise<any> {
   if (filters.status) {
     if (filters.status === 'Completed Orders') {
       where.orderCurrentStatus = 'Completed Orders';
-      where.saleStatus = '1';
+      where.saleStatus = { in: ['1', '4'] };
+    } else if (filters.status === 'Returned Orders') {
+      where.OR = [
+        { orderCurrentStatus: 'Returned Orders' },
+        { saleStatus: { in: ['2', '3'] } }
+      ];
     } else {
       where.orderCurrentStatus = filters.status;
     }

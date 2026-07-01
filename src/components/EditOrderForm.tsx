@@ -51,6 +51,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
   const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState(order.orderBackendExecutiveId ? String(order.orderBackendExecutiveId) : '');
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
+  const [orderRefundAmount, setOrderRefundAmount] = useState(order.orderRefundAmount || '');
   const [showStatusDateModal, setShowStatusDateModal] = useState(false);
   const [saleStatusChangeDateInput, setSaleStatusChangeDateInput] = useState('');
   const [saleStatusChangeTimeInput, setSaleStatusChangeTimeInput] = useState('');
@@ -123,6 +124,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
+      orderRefundAmount: saleStatus === '4' ? orderRefundAmount : null,
       orderCurrentStatus,
       orderDate,
       saleStatusChangeDate: saleStatusChangeDate || null,
@@ -445,16 +447,18 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
                 <option value="Pending Feedback">Pending Feedback</option>
                 <option value="Pending Resolutions">Pending Resolutions</option>
                 <option value="Completed Orders">Completed Orders</option>
+                <option value="Returned Orders">Returned Orders</option>
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Sale Status</label>
+              <label htmlFor="saleStatus" className="form-label">Sale Status</label>
               <select
+                id="saleStatus"
                 value={saleStatus}
                 onChange={(e) => {
                   const val = e.target.value;
                   setSaleStatus(val);
-                  if (val === '2' || val === '3') {
+                  if (val === '2' || val === '3' || val === '4') {
                     const est = getCurrentEstDateTime();
                     setSaleStatusChangeDateInput(est.date);
                     setSaleStatusChangeTimeInput(est.time);
@@ -468,6 +472,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
                 <option value="1">Sold</option>
                 <option value="2">Refunded</option>
                 <option value="3">Chargebacked</option>
+                <option value="4">Partial Refund</option>
               </select>
             </div>
 
@@ -604,12 +609,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <span style={{ fontSize: '1.5rem' }}>⚠️</span>
               <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                Record {saleStatus === '2' ? 'Refund' : 'Chargeback'} Date & Time
+                Record {saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : 'Partial Refund'} Details
               </h3>
             </div>
 
             <p style={{ fontSize: '0.9rem', color: '#475569', margin: 0 }}>
-              When did this refund/chargeback actually occur?
+              {saleStatus === '4'
+                ? 'Enter the date, time, and refund amount for this partial refund.'
+                : 'When did this refund/chargeback actually occur?'
+              }
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -642,12 +650,35 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
                   }}
                 />
               </div>
+
+              {saleStatus === '4' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="orderRefundAmount" style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Refund Amount *:</label>
+                  <input 
+                    id="orderRefundAmount"
+                    type="number" 
+                    step="0.01"
+                    placeholder="e.g. 50.00"
+                    value={orderRefundAmount}
+                    onChange={(e) => setOrderRefundAmount(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.95rem'
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
               <span style={{ fontSize: '1rem', color: '#64748b' }}>ⓘ</span>
               <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
-                If left blank, the current date and time will be recorded automatically.
+                {saleStatus === '4'
+                  ? 'All fields are required. If date/time are left blank, current time is used.'
+                  : 'If left blank, the current date and time will be recorded automatically.'
+                }
               </p>
             </div>
 
@@ -655,17 +686,25 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
               <button
                 type="button"
                 onClick={() => {
+                  if (saleStatus === '4') {
+                    setSaleStatus(order.saleStatus || '1');
+                    setOrderRefundAmount(order.orderRefundAmount || '');
+                  }
                   setSaleStatusChangeDate('');
                   setShowStatusDateModal(false);
                 }}
                 className="btn-secondary-custom"
                 style={{ padding: '8px 16px', fontSize: '0.85rem' }}
               >
-                Skip — Use Current Time
+                {saleStatus === '4' ? 'Cancel' : 'Skip — Use Current Time'}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (saleStatus === '4' && !orderRefundAmount) {
+                    alert('Refund amount is required');
+                    return;
+                  }
                   if (saleStatusChangeDateInput && saleStatusChangeTimeInput) {
                     const combined = convertEstToUtc(saleStatusChangeDateInput, saleStatusChangeTimeInput);
                     setSaleStatusChangeDate(combined);

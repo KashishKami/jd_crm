@@ -92,12 +92,25 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
       label: 'Completed Orders',
       amount: pendingCounts['Completed Orders']?.amount || 0,
       count: pendingCounts['Completed Orders']?.count || 0,
-      route: '/orders?saleStatus=1&status=Completed+Orders',
+      route: '/orders?status=Completed+Orders',
       color: '#4b7ccd',
       bg: '#f0f5fa',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Returned Orders',
+      amount: pendingCounts['Returned Orders']?.amount || 0,
+      count: pendingCounts['Returned Orders']?.count || 0,
+      route: '/pending/returned',
+      color: '#b25353',
+      bg: '#faf2f2',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
         </svg>
       )
     }
@@ -115,7 +128,11 @@ export default function PendingCountsRow({ pendingCounts }: PendingCountsRowProp
     },
     {
       top: steps.find(s => s.label === 'Pending Resolutions'),
-      bottom: steps.find(s => s.label === 'Completed Orders'),
+      bottom: steps.find(s => s.label === 'Returned Orders'),
+    },
+    {
+      top: steps.find(s => s.label === 'Completed Orders'),
+      bottom: undefined,
     }
   ].filter(combo => combo.top || combo.bottom);
 

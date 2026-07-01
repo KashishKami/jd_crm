@@ -62,4 +62,48 @@ describe('OrderList W-1601 Unit Tests', () => {
     expect(bobIndex).toBeLessThan(carolIndex);
     expect(carolIndex).toBeLessThan(daveIndex);
   });
+
+  it('[RED] should display finalMargin instead of raw orderMarkup when orderRefundAmount is set', () => {
+    const mockOrders = [
+      {
+        crmOrderId: 46,
+        orderDate: '2026-06-30',
+        orderMakeModel: '2026 Honda Civic',
+        orderPart: 'Bumper',
+        orderTotalPitched: '1000',
+        orderVendorPrice: '600',
+        orderMarkup: '400',
+        orderRefundAmount: '150', // finalMargin = 250
+        orderCurrentStatus: 'Pending Booking',
+        customer: {
+          customerName: 'Jane Smith',
+          customerEmail: 'jane@example.com',
+        },
+      },
+      {
+        crmOrderId: 47,
+        orderDate: '2026-06-30',
+        orderMakeModel: '2026 Nissan Altima',
+        orderPart: 'Hood',
+        orderTotalPitched: '800',
+        orderVendorPrice: '500',
+        orderMarkup: '300',
+        orderRefundAmount: null, // finalMargin = 300
+        orderCurrentStatus: 'Pending Booking',
+        customer: {
+          customerName: 'Jim Green',
+          customerEmail: 'jim@example.com',
+        },
+      }
+    ];
+
+    render(<OrderList orders={mockOrders as any} />);
+
+    // Order #46 has markup 400 and refund 150 -> finalMargin = $250
+    expect(screen.queryByText(/400\.00/)).toBeNull(); // Raw markup should not be shown
+    expect(screen.getByText(/250\.00/)).toBeDefined(); // finalMargin should be shown
+
+    // Order #47 has markup 300 and refund null -> finalMargin = $300
+    expect(screen.getByText(/300\.00/)).toBeDefined();
+  });
 });

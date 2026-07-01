@@ -118,7 +118,7 @@ describe('Dashboard Integration Tests', () => {
       expect(data).not.toHaveProperty('netSales');
     });
 
-    it('should calculate Net Sales correctly', async () => {
+    it('[RED] should calculate Net Sales using finalMargin and calculate Refund/Chargeback metric amounts correctly', async () => {
       // Find or create test team and role
       const team = await prisma.crmTeams.findFirst();
       const role = await prisma.crmRoles.findFirst();
@@ -141,13 +141,14 @@ describe('Dashboard Integration Tests', () => {
 
       const now = new Date();
 
-      // Seed 5 Sold orders (saleStatus = '1', markup = 100)
-      for (let i = 0; i < 5; i++) {
+      // Seed 3 Sold orders (saleStatus = '1', markup = 100, refundAmount = '0')
+      for (let i = 0; i < 3; i++) {
         await prisma.crmOrders.create({
           data: {
             orderCustomerId: testCustomer.customerId,
             saleStatus: '1',
             orderMarkup: '100',
+            orderRefundAmount: '0',
             orderDate: now,
             orderSalesAgentId: testAgent.uid,
             orderVendorName: 'DASH_TEST_VENDOR',
@@ -155,27 +156,45 @@ describe('Dashboard Integration Tests', () => {
         });
       }
 
-      // Seed 1 Refunded order (saleStatus = '2', markup = 100)
+      // Seed 1 Partial Refund order (saleStatus = '4', markup = 100, refundAmount = '30.00')
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '4',
+          orderMarkup: '100',
+          orderRefundAmount: '30.00',
+          orderDate: now,
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_TEST_VENDOR',
+          orderCreatedDate: now,
+        },
+      });
+
+      // Seed 1 Refunded order (saleStatus = '2', markup = 120, refundAmount = '120.00')
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: testCustomer.customerId,
           saleStatus: '2',
-          orderMarkup: '100',
+          orderMarkup: '120',
+          orderRefundAmount: '120.00',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
           orderVendorName: 'DASH_TEST_VENDOR',
+          orderCreatedDate: now,
         },
       });
 
-      // Seed 1 Chargebacked order (saleStatus = '3', markup = 100)
+      // Seed 1 Chargebacked order (saleStatus = '3', markup = 150, refundAmount = '150.00')
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: testCustomer.customerId,
           saleStatus: '3',
-          orderMarkup: '100',
+          orderMarkup: '150',
+          orderRefundAmount: '150.00',
           orderDate: now,
           orderSalesAgentId: testAgent.uid,
           orderVendorName: 'DASH_TEST_VENDOR',
+          orderCreatedDate: now,
         },
       });
 
@@ -190,10 +209,27 @@ describe('Dashboard Integration Tests', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
 
-      // We expect Net Sales to filter specifically for these seeded test items if possible, but
-      // here we assert it contains a numeric netSales value. We will check details in unit tests,
-      // or we can test net sales calculation logic via Repository/Service directly.
-      expect(typeof data.netSales.amount).toBe('number');
+      // Expected Net Sales:
+      // Sold: 3 * 100 = 300
+      // Partial Refund: 100 - 30 = 70
+      // Refunded: 0
+      // Chargebacked: 0
+      // Total: 370
+      // We query repository functions below to test the specific calculation directly
+      const { getNetSales } = await import('../repository/dashboard.repository');
+      const netRes = await getNetSales({ orderVendorName: 'DASH_TEST_VENDOR' });
+      expect(netRes.amount).toBe(370);
+
+      // Verify Refund/Chargeback metrics are sums of orderRefundAmount
+      const { getRefundThisMonth, getChargebackThisMonth } = await import('../repository/dashboard.repository');
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      
+      const refundRes = await getRefundThisMonth(startOfMonth, endOfMonth);
+      expect(refundRes.amount).toBe(120);
+
+      const chargebackRes = await getChargebackThisMonth(startOfMonth, endOfMonth);
+      expect(chargebackRes.amount).toBe(150);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderSalesAgentId: testAgent.uid } });
@@ -458,15 +494,15 @@ describe('Dashboard Integration Tests', () => {
       const resTeamA = data.find((t: { teamId: number }) => t.teamId === teamA.teamId);
       expect(resTeamA).toBeDefined();
 
-      // Alice should be Top Performer (net 250)
+      // Alice should be Top Performer (net 400 because refunded order contributes 0)
       expect(resTeamA.topPerformer).toBeDefined();
       expect(resTeamA.topPerformer.agentName).toBe('Alice Agent');
-      expect(resTeamA.topPerformer.amount).toBe(250);
+      expect(resTeamA.topPerformer.amount).toBe(400);
 
-      // Carlos should be Bottom Performer (net -50) and use nickname 'Carlo'
+      // Carlos should be Bottom Performer (net 0 because chargeback order contributes 0) and use nickname 'Carlo'
       expect(resTeamA.bottomPerformer).toBeDefined();
       expect(resTeamA.bottomPerformer.agentName).toBe('Carlo');
-      expect(resTeamA.bottomPerformer.amount).toBe(-50);
+      expect(resTeamA.bottomPerformer.amount).toBe(0);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
@@ -567,6 +603,7 @@ describe('Dashboard Integration Tests', () => {
           orderCustomerId: customer.customerId,
           saleStatus: '2',
           orderMarkup: '120',
+          orderRefundAmount: '120',
           orderDate,
           orderSalesAgentId: agent.uid,
           orderVendorName: 'TEAM_TEST',

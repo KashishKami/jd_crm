@@ -68,7 +68,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const result = await orderService.createOrder(body);
+    const result = await orderService.createOrder(body, {
+      uid: session.user.id ? Number(session.user.id) : 0,
+      name: session.user.name || '',
+      nickname: session.user.nickname || null,
+    });
     return NextResponse.json(result, { status: 201 });
   } catch (error: unknown) {
     const err = error as Error;

@@ -173,6 +173,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     '1': 'Sold',
     '2': 'Refunded',
     '3': 'Chargebacked',
+    '4': 'Partial Refund',
   };
 
   const currentStatusDisplay = order.orderCurrentStatus || 'Pending Booking';
@@ -372,9 +373,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-                <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Markup Margin</span>
-                <span className="info-value font-mono" style={{ fontWeight: 'bold', color: parseFloat(order.orderMarkup || '0') >= 0 ? '#10b981' : '#ef4444' }}>
+                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Markup Margin</span>
+                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>
                   ${parseFloat(order.orderMarkup || '0').toFixed(2)}
+                </span>
+              </div>
+              {parseFloat(order.orderRefundAmount || '0') > 0 && (
+                <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Refund Amount</span>
+                  <span className="info-value font-mono" style={{ color: '#f87171' }}>
+                    -${parseFloat(order.orderRefundAmount || '0').toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Final Margin</span>
+                <span className="info-value font-mono" style={{ fontWeight: 'bold', color: (parseFloat(order.orderMarkup || '0') - parseFloat(order.orderRefundAmount || '0')) >= 0 ? '#10b981' : '#ef4444' }}>
+                  ${(parseFloat(order.orderMarkup || '0') - parseFloat(order.orderRefundAmount || '0')).toFixed(2)}
                 </span>
               </div>
             </div>

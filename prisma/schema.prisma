@@ -216,6 +216,7 @@ model CrmOrders {
   orderVendorName               String?       @map("order_vendor_name") @db.VarChar(255)
   orderShippingType             String?       @map("order_shipping_type") @db.VarChar(255)
   orderMarkup                   String?       @map("order_markup") @db.VarChar(255)
+  orderRefundAmount             String?       @map("order_refund_amount") @db.VarChar(25)
   orderPaymentGatewayId         Int?          @map("order_payment_gateway")
   orderSalesAgentId             Int?          @map("order_sales_agent_id")
   orderSalesAgentName           String?       @map("order_sales_agent_name") @db.VarChar(55)

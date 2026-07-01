@@ -115,11 +115,12 @@ async function main() {
 
   const today = new Date();
   
-  // Create orders for each sale status '1' to '3'
+  // Create orders for each sale status '1' to '4'
   const statuses = [
-    { saleStatus: '1', markup: '500.00', currentStatus: 'Completed Orders', name: 'Sold Order' },
-    { saleStatus: '2', markup: '100.00', currentStatus: 'Completed Orders', name: 'Refunded Order' },
-    { saleStatus: '3', markup: '150.00', currentStatus: 'Completed Orders', name: 'Chargebacked Order' },
+    { saleStatus: '1', markup: '500.00', refundAmount: null, currentStatus: 'Completed Orders', name: 'Sold Order' },
+    { saleStatus: '2', markup: '100.00', refundAmount: '100.00', currentStatus: 'Returned Orders', name: 'Refunded Order' },
+    { saleStatus: '3', markup: '150.00', refundAmount: '150.00', currentStatus: 'Returned Orders', name: 'Chargebacked Order' },
+    { saleStatus: '4', markup: '200.00', refundAmount: '50.00', currentStatus: 'Completed Orders', name: 'Partial Refund Order' },
   ];
 
   for (const s of statuses) {
@@ -131,6 +132,7 @@ async function main() {
         orderTotalPitched: (parseFloat(s.markup) + 100).toString(),
         orderVendorPrice: '100.00',
         orderMarkup: s.markup,
+        orderRefundAmount: s.refundAmount,
         orderPaymentGatewayId: gateway.gatewayId,
         orderVendorId: vendor.vendorId,
         orderVendorName: vendor.vendorName,
@@ -146,7 +148,7 @@ async function main() {
     });
   }
 
-  console.log('Seeded 3 orders successfully for saleStatus 1 to 3!');
+  console.log(`Seeded ${statuses.length} orders successfully for saleStatus 1 to 4!`);
 }
 
 main()

@@ -579,6 +579,167 @@ describe('Order Management Integration Tests', () => {
       expect(dbCustomer?.customerBillingAddress).toBe('999 New Billing St');
       expect(dbCustomer?.customerShippingAddress).toBe('888 New Shipping Ave');
     });
+
+    it('[RED] should automatically set orderRefundAmount to orderMarkup and orderCurrentStatus to Returned Orders when saleStatus is set to 2', async () => {
+      // Set testOrder markup
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderMarkup: '120.00' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '2' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBe('120.00');
+      expect(dbOrder?.orderCurrentStatus).toBe('Returned Orders');
+    });
+
+    it('[RED] should automatically set orderRefundAmount to orderMarkup and orderCurrentStatus to Returned Orders when saleStatus is set to 3', async () => {
+      // Set testOrder markup
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderMarkup: '150.00' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '3' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBe('150.00');
+      expect(dbOrder?.orderCurrentStatus).toBe('Returned Orders');
+    });
+
+    it('[RED] should set orderRefundAmount to provided value when saleStatus is set to 4', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '4', orderRefundAmount: '50.00' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBe('50.00');
+      expect(dbOrder?.orderCurrentStatus).not.toBe('Returned Orders');
+    });
+
+    it('[RED] should throw 400 when setting saleStatus to 4 without providing orderRefundAmount', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '4' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[RED] should reset orderRefundAmount to 0 when saleStatus is set to 1', async () => {
+      // Setup order with refund amount
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderRefundAmount: '45.00' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '1' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBe('0');
+    });
+
+    it('[RED] should return only orders with orderCurrentStatus = Returned Orders when status=Returned+Orders filter is applied', async () => {
+      // Set testOrder status to Returned Orders
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderCurrentStatus: 'Returned Orders' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders?status=Returned+Orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.length).toBeGreaterThan(0);
+      expect(data.every((o: { orderCurrentStatus: string | null }) => o.orderCurrentStatus === 'Returned Orders')).toBe(true);
+    });
   });
 
   describe('W-1502: Merge orderYear into orderMakeModel', () => {

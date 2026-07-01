@@ -296,4 +296,60 @@ describe('Dashboard Component Unit Tests', () => {
 
     expect(global.fetch).toHaveBeenCalled();
   });
+
+  describe('W-1703: Dashboard UI Phase 17 tests', () => {
+    it('[RED] should render Returned Orders in PendingCountsRow and finalMargin in RecentOrdersTable', () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { name: 'Admin', userPermissions: 'dashboard:pending-counts,dashboard:recent-orders,dashboard:refund,dashboard:chargeback' },
+        },
+        status: 'authenticated',
+      } as any);
+
+      const metricsWithRefunds = {
+        pendingCounts: {
+          ...mockMetrics.pendingCounts,
+          'Returned Orders': { amount: 1500, count: 5 },
+        },
+        refundThisMonth: { amount: 200, count: 1 },
+        chargebackThisMonth: { amount: 400, count: 2 },
+        recentOrders: [
+          { 
+            crmOrderId: 101, 
+            customerName: 'Refund Customer', 
+            salesAgentName: 'Bob Agent', 
+            saleStatus: '4', 
+            orderMarkup: '500', 
+            orderRefundAmount: '150', // finalMargin = 350
+            orderDate: '2026-06-20' 
+          }
+        ]
+      };
+
+      render(
+        <DashboardPage
+          initialMetrics={metricsWithRefunds as any}
+          userPermissions="dashboard:pending-counts,dashboard:recent-orders,dashboard:refund,dashboard:chargeback"
+          userName="Admin"
+        />
+      );
+
+      // Check Returned Orders shows up in PendingCountsRow
+      expect(screen.getByText('Returned Orders')).toBeDefined();
+      expect(screen.getByText('1,500')).toBeDefined();
+
+      // Check RecentOrdersTable renders finalMargin $350.00 instead of raw markup $500
+      expect(screen.queryByText('$500')).toBeNull();
+      expect(screen.getByText('$350')).toBeDefined();
+
+      // Check Refunds and Chargebacks card links point to /pending/returned
+      const refundsLink = screen.getByText('Refunds This Month').closest('a');
+      expect(refundsLink?.getAttribute('href')).toContain('/pending/returned');
+      expect(refundsLink?.getAttribute('href')).toContain('saleStatus=2');
+
+      const chargebacksLink = screen.getByText('Chargebacks This Month').closest('a');
+      expect(chargebacksLink?.getAttribute('href')).toContain('/pending/returned');
+      expect(chargebacksLink?.getAttribute('href')).toContain('saleStatus=3');
+    });
+  });
 });

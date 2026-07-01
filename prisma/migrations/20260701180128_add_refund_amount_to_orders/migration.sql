@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `crm_orders` ADD COLUMN `order_refund_amount` VARCHAR(25) NULL;

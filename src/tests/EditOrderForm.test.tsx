@@ -274,5 +274,56 @@ describe('EditOrderForm Unit Tests', () => {
       vi.unstubAllGlobals();
     });
   });
+
+  describe('W-1702: Sale Status Overhaul (Edit Form)', () => {
+    it('[RED] should display Partial Refund in sale status options and show refund amount input only when Partial Refund is selected', async () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+
+      const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+      expect(saleStatusSelect).not.toBeNull();
+      
+      const options = Array.from(saleStatusSelect.options).map(o => o.value);
+      expect(options).toContain('4'); // 4 is Partial Refund
+
+      // Refund input should not be visible when status is '1' (Sold)
+      expect(screen.queryByLabelText(/refund amount/i)).toBeNull();
+
+      // Change status to '4' (Partial Refund)
+      fireEvent.change(saleStatusSelect, { target: { value: '4' } });
+
+      // Now the refund amount input should be visible
+      const refundInput = screen.getByLabelText(/refund amount/i) as HTMLInputElement;
+      expect(refundInput).not.toBeNull();
+
+      // Change it to '50.00'
+      fireEvent.change(refundInput, { target: { value: '50.00' } });
+
+      // submit and check body
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const saveButton = screen.getByText('Save Changes');
+      fireEvent.click(saveButton);
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const [, fetchOptions] = fetchSpy.mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions.body);
+
+      expect(sentBody).toHaveProperty('saleStatus', '4');
+      expect(sentBody).toHaveProperty('orderRefundAmount', '50.00');
+
+      vi.unstubAllGlobals();
+    });
+  });
 });
 

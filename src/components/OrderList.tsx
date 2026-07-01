@@ -15,6 +15,7 @@ interface OrderListProps {
     orderTotalPitched: string | null;
     orderVendorPrice: string | null;
     orderMarkup: string | null;
+    orderRefundAmount?: string | null;
     orderCurrentStatus: string | null;
     customer: {
       customerName: string;
@@ -84,7 +85,7 @@ export default function OrderList({ orders }: OrderListProps) {
     if (s.includes('shipment') || s.includes('tracking')) {
       return 'bg-sky-50 text-sky-700 border border-sky-200/50';
     }
-    if (s.includes('resolution') || s.includes('dispute') || s.includes('chargebacked')) {
+    if (s.includes('resolution') || s.includes('dispute') || s.includes('chargebacked') || s.includes('returned')) {
       return 'bg-rose-50 text-rose-700 border border-rose-200/50';
     }
     if (s.includes('refunded')) {
@@ -113,6 +114,8 @@ export default function OrderList({ orders }: OrderListProps) {
           <tbody ref={tableRowsRef}>
             {orders.map((order) => {
               const markupVal = parseFloat(order.orderMarkup || '0');
+              const refundVal = parseFloat(order.orderRefundAmount || '0');
+              const finalMargin = markupVal - refundVal;
               return (
                 <tr key={order.crmOrderId} style={{ opacity: 0 }}>
                   <td>
@@ -169,8 +172,8 @@ export default function OrderList({ orders }: OrderListProps) {
                     <div className="flex flex-col font-mono" style={{ fontSize: '0.92em' }}>
                       <span className="text-slate-500">Pitch: ${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
                       <span className="text-slate-400">Buy: ${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
-                      <span className={`font-semibold mt-0.5 ${markupVal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        Margin: ${markupVal.toFixed(2)}
+                      <span className={`font-semibold mt-0.5 ${finalMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        Final Margin: ${finalMargin.toFixed(2)}
                       </span>
                     </div>
                   </td>

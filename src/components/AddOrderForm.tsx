@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { fadeInPage } from '../lib/animations';
+import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 
 interface AddOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string }>;
@@ -45,11 +47,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState('');
   const [orderVerifierId, setOrderVerifierId] = useState('');
   const [saleStatus, setSaleStatus] = useState('1'); // Default Sold
+  const [orderRefundAmount, setOrderRefundAmount] = useState('');
+  const [showStatusDateModal, setShowStatusDateModal] = useState(false);
+  const [saleStatusChangeDateInput, setSaleStatusChangeDateInput] = useState('');
+  const [saleStatusChangeTimeInput, setSaleStatusChangeTimeInput] = useState('');
+  const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('');
+  const [orderCurrentStatus, setOrderCurrentStatus] = useState('Pending Booking');
   const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
 
   // Validation & Submission States
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Compute markup dynamically
   const totalPitchedVal = parseFloat(orderTotalPitched) || 0;
@@ -57,10 +66,32 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const markup = totalPitchedVal - vendorPriceVal;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
     if (containerRef.current) {
       fadeInPage(containerRef.current);
     }
   }, []);
+
+  // Auto-advance workflow queue if vendor is selected
+  useEffect(() => {
+    if (orderVendorId && orderCurrentStatus === 'Pending Booking') {
+      setOrderCurrentStatus('Pending Shipment');
+    } else if (!orderVendorId && orderCurrentStatus === 'Pending Shipment') {
+      setOrderCurrentStatus('Pending Booking');
+    }
+  }, [orderVendorId, orderCurrentStatus]);
+
+  // Auto-advance workflow queue if sale status is refunded/chargebacked
+  useEffect(() => {
+    if (saleStatus === '2' || saleStatus === '3') {
+      setOrderCurrentStatus('Returned Orders');
+    } else if (saleStatus === '1' || saleStatus === '4') {
+      if (orderCurrentStatus === 'Returned Orders') {
+        setOrderCurrentStatus(orderVendorId ? 'Pending Shipment' : 'Pending Booking');
+      }
+    }
+  }, [saleStatus, orderVendorId, orderCurrentStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +143,10 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
       saleStatus,
+      orderRefundAmount: saleStatus === '4' ? orderRefundAmount : null,
+      orderCurrentStatus,
       orderDate,
+      saleStatusChangeDate: saleStatusChangeDate || null,
     };
 
     try {
@@ -512,16 +546,45 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               </select>
             </div>
             <div className="form-group">
+              <label htmlFor="orderCurrentStatus" className="form-label">Workflow Queue</label>
+              <select
+                id="orderCurrentStatus"
+                value={orderCurrentStatus}
+                onChange={(e) => setOrderCurrentStatus(e.target.value)}
+                className="form-select"
+              >
+                <option value="Pending Booking">Pending Booking</option>
+                <option value="Pending Shipment">Pending Shipment</option>
+                <option value="Pending Delivery">Pending Delivery</option>
+                <option value="Pending Feedback">Pending Feedback</option>
+                <option value="Pending Resolutions">Pending Resolutions</option>
+                <option value="Completed Orders">Completed Orders</option>
+                <option value="Returned Orders">Returned Orders</option>
+              </select>
+            </div>
+            <div className="form-group">
               <label htmlFor="saleStatus" className="form-label">Sale Status</label>
               <select
                 id="saleStatus"
                 value={saleStatus}
-                onChange={(e) => setSaleStatus(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSaleStatus(val);
+                  if (val === '2' || val === '3' || val === '4') {
+                    const est = getCurrentEstDateTime();
+                    setSaleStatusChangeDateInput(est.date);
+                    setSaleStatusChangeTimeInput(est.time);
+                    setShowStatusDateModal(true);
+                  } else {
+                    setSaleStatusChangeDate('');
+                  }
+                }}
                 className="form-select"
               >
                 <option value="1">Sold</option>
                 <option value="2">Refunded</option>
                 <option value="3">Chargebacked</option>
+                <option value="4">Partial Refund</option>
               </select>
             </div>
           </div>
@@ -545,6 +608,150 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
           </button>
         </div>
       </form>
+
+      {mounted && showStatusDateModal && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid rgba(226, 232, 240, 0.8)',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '450px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                Record {saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : 'Partial Refund'} Details
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '0.9rem', color: '#475569', margin: 0 }}>
+              {saleStatus === '4'
+                ? 'Enter the date, time, and refund amount for this partial refund.'
+                : 'When did this refund/chargeback actually occur?'
+              }
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Date:</label>
+                <input 
+                  type="date" 
+                  value={saleStatusChangeDateInput}
+                  onChange={(e) => setSaleStatusChangeDateInput(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Time:</label>
+                <input 
+                  type="time" 
+                  value={saleStatusChangeTimeInput}
+                  onChange={(e) => setSaleStatusChangeTimeInput(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem'
+                  }}
+                />
+              </div>
+
+              {saleStatus === '4' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="orderRefundAmount" style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>Refund Amount *:</label>
+                  <input 
+                    id="orderRefundAmount"
+                    type="number" 
+                    step="0.01"
+                    placeholder="e.g. 50.00"
+                    value={orderRefundAmount}
+                    onChange={(e) => setOrderRefundAmount(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.95rem'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: '1rem', color: '#64748b' }}>ⓘ</span>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
+                {saleStatus === '4'
+                  ? 'All fields are required. If date/time are left blank, current time is used.'
+                  : 'If left blank, the current date and time will be recorded automatically.'
+                }
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saleStatus === '4') {
+                    setSaleStatus('1');
+                    setOrderRefundAmount('');
+                  }
+                  setSaleStatusChangeDate('');
+                  setShowStatusDateModal(false);
+                }}
+                className="btn-secondary-custom"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                {saleStatus === '4' ? 'Cancel' : 'Skip — Use Current Time'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saleStatus === '4' && !orderRefundAmount) {
+                    alert('Refund amount is required');
+                    return;
+                  }
+                  if (saleStatusChangeDateInput && saleStatusChangeTimeInput) {
+                    const combined = convertEstToUtc(saleStatusChangeDateInput, saleStatusChangeTimeInput);
+                    setSaleStatusChangeDate(combined);
+                  } else {
+                    setSaleStatusChangeDate('');
+                  }
+                  setShowStatusDateModal(false);
+                }}
+                className="btn-primary-custom"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -82,7 +82,7 @@ export default function DashboardPage({
       count: initialMetrics.thisYearSales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1&dateFrom=${startOfYear}&dateTo=${endOfYear}`,
+      link: `/orders?saleStatus=1,4&dateFrom=${startOfYear}&dateTo=${endOfYear}`,
       lastAmount: initialMetrics.thisYearSales.lastAmount,
       lastCount: initialMetrics.thisYearSales.lastCount,
       percentageChange: initialMetrics.thisYearSales.percentageChange,
@@ -98,7 +98,7 @@ export default function DashboardPage({
       count: initialMetrics.totalSalesThisMonth.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=1,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.totalSalesThisMonth.lastAmount,
       lastCount: initialMetrics.totalSalesThisMonth.lastCount,
       percentageChange: initialMetrics.totalSalesThisMonth.percentageChange,
@@ -114,7 +114,7 @@ export default function DashboardPage({
       count: initialMetrics.todaySales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1&dateFrom=${todayStr}&dateTo=${todayStr}`,
+      link: `/orders?saleStatus=1,4&dateFrom=${todayStr}&dateTo=${todayStr}`,
       lastAmount: initialMetrics.todaySales.lastAmount,
       lastCount: initialMetrics.todaySales.lastCount,
       percentageChange: initialMetrics.todaySales.percentageChange,
@@ -130,7 +130,7 @@ export default function DashboardPage({
       count: initialMetrics.netSales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1,2,3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=1,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.netSales.lastAmount,
       lastCount: initialMetrics.netSales.lastCount,
       percentageChange: initialMetrics.netSales.percentageChange,
@@ -146,7 +146,7 @@ export default function DashboardPage({
       count: initialMetrics.refundThisMonth.count,
       countLabel: 'Refunds',
       prefix: '$',
-      link: `/orders?saleStatus=2&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/pending/returned?saleStatus=2&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       description: 'Returned funds this month',
     });
   }
@@ -159,7 +159,7 @@ export default function DashboardPage({
       count: initialMetrics.chargebackThisMonth.count,
       countLabel: 'Chargebacks',
       prefix: '$',
-      link: `/orders?saleStatus=3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/pending/returned?saleStatus=3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       description: 'Disputed orders this month',
     });
   }

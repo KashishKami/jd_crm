@@ -148,6 +148,7 @@ export async function getMetricsForUser(session: any) {
       salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : 'Unknown Agent',
       saleStatus: o.saleStatus,
       orderMarkup: o.orderMarkup,
+      orderRefundAmount: o.orderRefundAmount,
       orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
     }));
   }
@@ -360,15 +361,16 @@ export async function getAdvancedChartMetrics(
       bin = bins.find(b => b.label === label);
     }
     if (bin) {
-      const val = parseFloat(o.orderMarkup || '0');
-      if (o.saleStatus === '1') {
-        bin.salesAmount += val;
+      const markup = parseFloat(o.orderMarkup || '0');
+      const refund = parseFloat(o.orderRefundAmount || '0');
+      if (o.saleStatus === '1' || o.saleStatus === '4') {
+        bin.salesAmount += (markup - refund);
         bin.salesCount += 1;
       } else if (o.saleStatus === '2') {
-        bin.refundsAmount += val;
+        bin.refundsAmount += refund;
         bin.refundsCount += 1;
       } else if (o.saleStatus === '3') {
-        bin.chargebacksAmount += val;
+        bin.chargebacksAmount += refund;
         bin.chargebacksCount += 1;
       }
     }

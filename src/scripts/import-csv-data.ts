@@ -81,6 +81,7 @@ function mapSaleStatus(status: string): string {
   if (lower === 'enquiry') return '1';
   if (lower === 'refunded') return '2';
   if (lower === 'chargedback' || lower === 'chargebacked') return '3';
+  if (lower === 'partial refund' || lower === 'partialrefund') return '4';
   return '1'; // Default fallback is Sold
 }
 
@@ -347,6 +348,9 @@ async function main() {
       });
     }
 
+    const mappedSaleStatus = mapSaleStatus(saleStatusRaw);
+    const isReturned = mappedSaleStatus === '2' || mappedSaleStatus === '3';
+
     // 3. Order
     orderData.push({
       crmOrderId: customerId, // 1-to-1 matching during reset import
@@ -363,13 +367,14 @@ async function main() {
       orderVendorName: supplierVendor || null,
       orderShippingType: shippingType || null,
       orderMarkup: markupVal,
+      orderRefundAmount: isReturned ? markupVal : null,
       orderPaymentGatewayId: gatewayId,
       orderSalesAgentId: agentId,
       orderSalesAgentName: salesAgentName || null,
       orderSalesVerifierId: salesVerifierId,
       orderSalesVerifierName: salesVerifierName || null,
-      saleStatus: mapSaleStatus(saleStatusRaw),
-      orderCurrentStatus: 'Completed Orders',
+      saleStatus: mappedSaleStatus,
+      orderCurrentStatus: isReturned ? 'Returned Orders' : 'Completed Orders',
       orderCurrentStatusUpdateDate: orderDateParsed,
       orderDate: orderDateParsed,
       orderVendorFeedback: 'Positive',
