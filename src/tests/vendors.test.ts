@@ -209,5 +209,171 @@ describe('Vendor Management Integration Tests', () => {
       await prisma.crmOrders.deleteMany({ where: { crmOrderId: order.crmOrderId } });
       await prisma.crmCustomers.deleteMany({ where: { customerEmail: 'vendor_cust@example.com' } });
     });
+
+    it('should filter orders by rating=positive', async () => {
+      // Find a team and role and user to act as sales agent
+      const team = await prisma.crmTeams.findFirst();
+      const role = await prisma.crmRoles.findFirst();
+      const user = await prisma.users.create({
+        data: {
+          name: 'Test Sales Agent',
+          username: 'test_sales_agent_vendor',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+        },
+      });
+      testUserUid = user.uid;
+
+      // Create a customer
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Vendor Customer',
+          customerEmail: 'vendor_cust@example.com',
+        },
+      });
+
+      // Create two test orders: one Positive, one Negative
+      const orderPos = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderVendorId: testVendor.vendorId,
+          orderVendorName: 'Test Integration Vendor',
+          orderSalesAgentId: user.uid,
+          saleStatus: '1', // Sold
+          orderCurrentStatus: 'Everything Completed',
+          orderVendorFeedback: 'Positive',
+        },
+      });
+
+      const orderNeg = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderVendorId: testVendor.vendorId,
+          orderVendorName: 'Test Integration Vendor',
+          orderSalesAgentId: user.uid,
+          saleStatus: '1', // Sold
+          orderCurrentStatus: 'Everything Completed',
+          orderVendorFeedback: 'Negative',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'vendors:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/vendors/[id]/orders/route');
+      const req = new Request(`http://localhost/api/vendors/${testVendor.vendorId}/orders?rating=positive`);
+      const res = await GET(req, { params: { id: String(testVendor.vendorId) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(1);
+      expect(data[0].crmOrderId).toBe(orderPos.crmOrderId);
+
+      // Clean up
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [orderPos.crmOrderId, orderNeg.crmOrderId] } } });
+      await prisma.crmCustomers.deleteMany({ where: { customerEmail: 'vendor_cust@example.com' } });
+    });
+  });
+
+  describe('GET /api/vendors/:id/performance-history', () => {
+    it('should return 403 Forbidden if user lacks vendors:view permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Restricted User',
+          userPermissions: 'agents:view', // lacks vendors:view
+        },
+      });
+
+      const { GET } = await import('../app/api/vendors/[id]/performance-history/route');
+      const req = new Request(`http://localhost/api/vendors/${testVendor.vendorId}/performance-history`);
+      const res = await GET(req, { params: { id: String(testVendor.vendorId) } });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return monthly aggregates for the vendor', async () => {
+      // Find a team and role and user to act as sales agent
+      const team = await prisma.crmTeams.findFirst();
+      const role = await prisma.crmRoles.findFirst();
+      const user = await prisma.users.create({
+        data: {
+          name: 'Test Sales Agent',
+          username: 'test_sales_agent_vendor',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+        },
+      });
+      testUserUid = user.uid;
+
+      // Create a customer
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Vendor Customer',
+          customerEmail: 'vendor_cust@example.com',
+        },
+      });
+
+      // Create two test orders: one Positive, one Negative on specific date
+      const orderDate = new Date('2026-06-15T12:00:00Z');
+      const orderPos = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderVendorId: testVendor.vendorId,
+          orderVendorName: 'Test Integration Vendor',
+          orderSalesAgentId: user.uid,
+          saleStatus: '1', // Sold
+          orderCurrentStatus: 'Everything Completed',
+          orderVendorFeedback: 'Positive',
+          orderDate: orderDate,
+        },
+      });
+
+      const orderNeg = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderVendorId: testVendor.vendorId,
+          orderVendorName: 'Test Integration Vendor',
+          orderSalesAgentId: user.uid,
+          saleStatus: '1', // Sold
+          orderCurrentStatus: 'Everything Completed',
+          orderVendorFeedback: 'Negative',
+          orderDate: orderDate,
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'vendors:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/vendors/[id]/performance-history/route');
+      const req = new Request(`http://localhost/api/vendors/${testVendor.vendorId}/performance-history`);
+      const res = await GET(req, { params: { id: String(testVendor.vendorId) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBeGreaterThan(0);
+      
+      const juneEntry = data.find((entry: { month: number; year: number }) => entry.month === 6 && entry.year === 2026);
+      expect(juneEntry).toBeDefined();
+      expect(juneEntry.totalOrders).toBe(2);
+      expect(juneEntry.positiveOrders).toBe(1);
+      expect(juneEntry.negativeOrders).toBe(1);
+
+      // Clean up
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [orderPos.crmOrderId, orderNeg.crmOrderId] } } });
+      await prisma.crmCustomers.deleteMany({ where: { customerEmail: 'vendor_cust@example.com' } });
+    });
   });
 });

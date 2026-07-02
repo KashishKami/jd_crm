@@ -56,6 +56,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState('Pending Booking');
   const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
+  const [orderVendorFeedback, setOrderVendorFeedback] = useState('Positive');
 
   // Validation & Submission States
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +150,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderCurrentStatus,
       orderDate,
       saleStatusChangeDate: saleStatusChangeDate || null,
+      orderVendorFeedback,
     };
 
     try {
@@ -598,6 +600,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 <option value="2">Refunded</option>
                 <option value="3">Chargebacked</option>
                 <option value="4">Partial Refund</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderVendorFeedback" className="form-label">Vendor Feedback</label>
+              <select
+                id="orderVendorFeedback"
+                value={orderVendorFeedback}
+                onChange={(e) => setOrderVendorFeedback(e.target.value)}
+                className="form-select"
+              >
+                <option value="Positive">Positive</option>
+                <option value="Negative">Negative</option>
               </select>
             </div>
           </div>

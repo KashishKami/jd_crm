@@ -38,7 +38,7 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
 
     const mappedData = vendors.map((vendor) => {
       const validOrders = vendor.orders.filter(
-        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
+        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
       );
       const totalOrders = validOrders.length;
       const negativeOrders = validOrders.filter(
@@ -66,9 +66,9 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
   const vendors = await vendorRepository.findAll(status);
   
   return vendors.map((vendor) => {
-    // Filter and count orders where saleStatus is in ['1', '2', '3']
+    // Filter and count orders where saleStatus is in ['1', '2', '3', '4']
     const validOrders = vendor.orders.filter(
-      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
+      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
     );
     const totalOrders = validOrders.length;
     
@@ -114,6 +114,10 @@ export async function toggleVendorStatus(vendorId: number, status: number) {
   return vendorRepository.toggleStatus(vendorId, status);
 }
 
-export async function getVendorOrders(vendorId: number) {
-  return vendorRepository.findOrdersByVendorId(vendorId);
+export async function getVendorOrders(vendorId: number, rating?: 'positive' | 'negative') {
+  return vendorRepository.findOrdersByVendorId(vendorId, rating);
+}
+
+export async function getVendorPerformanceHistory(vendorId: number) {
+  return vendorRepository.getPerformanceHistory(vendorId);
 }

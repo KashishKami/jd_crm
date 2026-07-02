@@ -70,6 +70,8 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `agents:view-inactive` | `163` | Access Inactive Agents page |
 | `agents:create` | — | Create a new agent (new — was implicit) |
 | `agents:edit` | — | Edit agent details or deactivate (new — was implicit) |
+| `agents:view-roles` | — | View roles column and filter in Agent list |
+
 
 ### Resource: `gateways`
 | Permission Key | Legacy Code | Description |

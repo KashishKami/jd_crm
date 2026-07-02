@@ -127,7 +127,7 @@ export async function createWithCustomerAndCard(
           : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
         orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
-        orderVendorFeedback: 'Positive',
+        orderVendorFeedback: data.orderVendorFeedback || 'Positive',
         orderClientFeedback: 'Positive',
         orderResolution: 'Resolved',
         orderCreatedDate: new Date(),

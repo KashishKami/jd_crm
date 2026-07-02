@@ -290,8 +290,8 @@ export async function updateOrder(
   checkStrDiff('customerCardNumber', firstCard?.customerCardNumber ?? null, customerCardNumber);
   checkStrDiff('customerCardExpDate', firstCard?.customerCardExpDate ?? null, customerCardExpDate);
   checkStrDiff('customerCardCvv', firstCard?.customerCardCvv ?? null, customerCardCvv);
-  checkStrDiff('customerCardCopyStatus', firstCard?.customerCardCopyStatus ?? null, customerCardCopyStatus);
-  checkStrDiff('customerCardPhotoStatus', firstCard?.customerCardPhotoStatus ?? null, customerCardPhotoStatus);
+  checkStrDiff('customerCardCopyStatus', firstCard?.customerCardCopyStatus ?? 'No', customerCardCopyStatus);
+  checkStrDiff('customerCardPhotoStatus', firstCard?.customerCardPhotoStatus ?? 'No', customerCardPhotoStatus);
 
   if (auditEntries.length > 0) {
     await orderRepository.createAuditLogEntries(crmOrderId, auditEntries, changedByUserId, changedByName);
@@ -367,7 +367,8 @@ export async function updateOrder(
       });
     } else if (
       existingOrder.orderCustomerId &&
-      (customerCardNumber || customerNameOncard || customerCardExpDate)
+      (customerCardNumber || customerNameOncard || customerCardExpDate || customerCardCvv ||
+       customerCardCopyStatus === 'Yes' || customerCardPhotoStatus === 'Yes')
     ) {
       cardUpdate.cardCustomerId = existingOrder.orderCustomerId;
       cardUpdate.customerCardCopyStatus = customerCardCopyStatus || 'No';

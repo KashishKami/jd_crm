@@ -68,6 +68,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
   const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toLocaleDateString('sv-SE', { timeZone: 'UTC' }) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
+  const [orderVendorFeedback, setOrderVendorFeedback] = useState(order.orderVendorFeedback || 'Positive');
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -137,6 +138,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       orderCurrentStatus,
       orderDate,
       saleStatusChangeDate: saleStatusChangeDate || null,
+      orderVendorFeedback,
     };
 
     // Only update card number / CVV if they don't contain asterisks (which indicate a masked placeholder)
@@ -499,6 +501,18 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 <option value="2">Refunded</option>
                 <option value="3">Chargebacked</option>
                 <option value="4">Partial Refund</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderVendorFeedback" className="form-label">Vendor Feedback</label>
+              <select
+                id="orderVendorFeedback"
+                value={orderVendorFeedback}
+                onChange={(e) => setOrderVendorFeedback(e.target.value)}
+                className="form-select"
+              >
+                <option value="Positive">Positive</option>
+                <option value="Negative">Negative</option>
               </select>
             </div>
 

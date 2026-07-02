@@ -483,9 +483,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-label">Parts Supplier</span>
                 <span className="info-value" style={{ fontWeight: '600' }}>{order.orderVendorName || 'Unassigned'}</span>
               </div>
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Sales Status</span>
                 <span className="info-value" style={{ fontWeight: '600' }}>{saleStatuses[order.saleStatus || '1']}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="info-label">Vendor Feedback</span>
+                <span className="info-value" style={{ fontWeight: '600', color: order.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>{order.orderVendorFeedback || 'Positive'}</span>
               </div>
             </div>
           </div>

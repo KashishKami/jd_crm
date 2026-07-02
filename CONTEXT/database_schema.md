@@ -300,15 +300,16 @@ The following standard permissions are seeded in the system:
 | `order_make_model` | `varchar(255)` | YES | `NULL` | Vehicle Make & Model |
 | `order_part` | `varchar(255)` | YES | `NULL` | Part requested |
 | `order_part_size` | `varchar(255)` | YES | `NULL` | Dimensions or specifications |
-| `order_quoted_miles` | `varchar(255)` | YES | `NULL` | Quoted shipping mileage |
-| `order_given_miles` | `varchar(255)` | YES | `NULL` | Actual vendor-specified mileage |
+| `order_quoted_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Quoted shipping mileage and warranty details |
+| `order_vendor_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Actual vendor-specified mileage and warranty details |
 | `order_vin` | `varchar(255)` | YES | `NULL` | Vehicle Identification Number |
 | `order_total_pitched` | `varchar(25)` | YES | `NULL` | Selling price pitched to customer |
 | `order_vendor_price` | `varchar(25)` | YES | `NULL` | Buying price quoted by vendor |
 | `order_vendor_id` | `varchar(111)` | YES | `NULL` | Logical FK to `crm_vendors.vendor_id` (as string) |
 | `order_vendor_name` | `varchar(255)` | YES | `NULL` | Snapshot of vendor name |
 | `order_shipping_type` | `varchar(255)` | YES | `NULL` | Shipping mode (e.g. Ground, Air) |
-| `order_markup` | `varchar(255)` | YES | `NULL` | Calculated margin: Pitch - Vendor Price |
+| `order_amount_charged` | `varchar(25)` | YES | `NULL` | Amount successfully collected (Net Margin) |
+| `order_refund_amount` | `varchar(25)` | YES | `NULL` | Amount returned to the customer |
 | `order_payment_gateway` | `varchar(55)` | YES | `NULL` | Logical FK to `crm_gateway.gateway_id` (as string) |
 | `order_sales_agent_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` |
 | `order_sales_agent_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales agent name/nickname |
@@ -320,7 +321,7 @@ The following standard permissions are seeded in the system:
 | `order_backend_executive_name` | `varchar(55)` | YES | `NULL` | Snapshot of backend executive name/nickname |
 | `order_documentation` | `varchar(255)` | YES | `NULL` | Document upload links / status |
 | `order_booked` | `varchar(255)` | YES | `NULL` | Booking reference / metadata |
-| `order_amount_charged` | `varchar(25)` | YES | `NULL` | Amount successfully collected |
+| `order_checklist` | `varchar(20)` | YES | `'No'` | Order checklist completion status (Yes/No) |
 | `order_tracking_number` | `varchar(55)` | YES | `NULL` | Carrier tracking code |
 | `order_delivery_status` | `varchar(55)` | YES | `NULL` | Delivery stage status |
 | `order_qualified_incentive_status`| `varchar(55)`| YES | `NULL` | Incentive approval status for agents |
@@ -760,57 +761,60 @@ model CrmCustomerCards {
 }
 
 model CrmOrders {
-  crmOrderId                    Int          @id @default(autoincrement()) @map("crm_order_id")
-  // FK is now a proper Int — no more varchar(55) mismatch
-  orderCustomerId               Int          @map("order_customer_id")
-  orderMakeModel                String?      @map("order_make_model") @db.VarChar(255)
-  orderPart                     String?      @map("order_part") @db.VarChar(255)
-  orderPartSize                 String?      @map("order_part_size") @db.VarChar(255)
-  orderQuotedMiles              String?      @map("order_quoted_miles") @db.VarChar(255)
-  orderGivenMiles               String?      @map("order_given_miles") @db.VarChar(255)
-  orderVin                      String?      @map("order_vin") @db.VarChar(255)
-  orderTotalPitched             String?      @map("order_total_pitched") @db.VarChar(25)
-  orderVendorPrice              String?      @map("order_vendor_price") @db.VarChar(25)
-  // FK is now a proper Int — no more varchar(111) mismatch
-  orderVendorId                 Int?         @map("order_vendor_id")
-  orderVendorName               String?      @map("order_vendor_name") @db.VarChar(255)
-  orderShippingType             String?      @map("order_shipping_type") @db.VarChar(255)
-  orderMarkup                   String?      @map("order_markup") @db.VarChar(255)
-  // Stores the dollar amount returned to the customer (Phase 17).
-  // Sold: '0'. Refunded/Chargebacked: auto-set to orderMarkup by order.service.ts.
-  // Partial Refund ('4'): user-entered amount. finalMargin = orderMarkup − orderRefundAmount.
-  orderRefundAmount             String?      @map("order_refund_amount") @db.VarChar(25)
-  // FK is now a proper Int — no more varchar(55) mismatch
-  orderPaymentGatewayId         Int?         @map("order_payment_gateway")
-  orderSalesAgentId             Int?         @map("order_sales_agent_id")
-  orderSalesAgentName           String?      @map("order_sales_agent_name") @db.VarChar(55)
-  orderVerifierId               Int?         @map("order_verifier_id")
-  orderVerifierName             String?      @map("order_verifier_name") @db.VarChar(55)
-  orderDocumentation            String?      @map("order_documentation") @db.VarChar(255)
-  orderBooked                   String?      @map("order_booked") @db.VarChar(255)
-  orderAmountCharged            String?      @map("order_amount_charged") @db.VarChar(25)
-  orderTrackingNumber           String?      @map("order_tracking_number") @db.VarChar(55)
-  orderDeliveryStatus           String?      @map("order_delivery_status") @db.VarChar(55)
-  orderQualifiedIncentiveStatus String?      @map("order_qualified_incentive_status") @db.VarChar(55)
-  orderQualifiedIncentiveAmount String?      @map("order_qualified_incentive_amount") @db.VarChar(55)
-  orderStatus                   String?      @map("order_status") @db.VarChar(55)
-  saleStatus                    String?      @map("sale_status") @db.VarChar(55)
-  orderCurrentStatus            String?      @map("order_current_status") @db.VarChar(55)
-  orderCurrentStatusUpdateDate  DateTime?    @map("order_current_status_update_date") @db.DateTime(0)
-  orderDate                     DateTime?    @map("order_date") @db.Date // Changed from varchar to proper Date type
-  orderVendorFeedback           String       @default("Positive") @map("order_vendor_feedback") @db.VarChar(25)
-  orderClientFeedback           String       @default("Positive") @map("order_client_feedback") @db.VarChar(25)
-  orderResolution               String       @default("Resolved") @map("order_resolution") @db.VarChar(25)
-  orderCreatedDate              DateTime     @default(now()) @map("order_created_date") @db.DateTime(0)
-  orderUpdatedDate              DateTime     @updatedAt @map("order_updated_date") @db.DateTime(0)
-
-  // Real FK relationships — enforced at DB level
-  customer                      CrmCustomers @relation(fields: [orderCustomerId], references: [customerId], onDelete: Restrict)
-  vendor                        CrmVendors?  @relation(fields: [orderVendorId], references: [vendorId], onDelete: SetNull)
-  gateway                       CrmGateway?  @relation(fields: [orderPaymentGatewayId], references: [gatewayId], onDelete: SetNull)
-  salesAgent                    Users?       @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid], onDelete: SetNull)
-  verifier                      Users?       @relation("Verifier", fields: [orderVerifierId], references: [uid], onDelete: SetNull)
+  crmOrderId                    Int           @id @default(autoincrement()) @map("crm_order_id")
+  orderCustomerId               Int           @map("order_customer_id")
+  /// Merged field containing Year, Make, & Model (from legacy order_year migration)
+  orderMakeModel                String?       @map("order_make_model") @db.VarChar(255)
+  orderPart                     String?       @map("order_part") @db.VarChar(255)
+  orderPartSize                 String?       @map("order_part_size") @db.VarChar(255)
+  orderQuotedMilesAndWarranty   String?       @map("order_quoted_miles_and_warranty") @db.VarChar(255)
+  orderVendorMilesAndWarranty   String?       @map("order_vendor_miles_and_warranty") @db.VarChar(255)
+  orderVin                      String?       @map("order_vin") @db.VarChar(255)
+  orderTotalPitched             String?       @map("order_total_pitched") @db.VarChar(25)
+  orderVendorPrice              String?       @map("order_vendor_price") @db.VarChar(25)
+  orderVendorId                 Int?          @map("order_vendor_id")
+  orderVendorName               String?       @map("order_vendor_name") @db.VarChar(255)
+  orderShippingType             String?       @map("order_shipping_type") @db.VarChar(255)
+  orderAmountCharged            String?       @map("order_amount_charged") @db.VarChar(25)
+  orderRefundAmount             String?       @map("order_refund_amount") @db.VarChar(25)
+  orderPaymentGatewayId         Int?          @map("order_payment_gateway")
+  orderSalesAgentId             Int?          @map("order_sales_agent_id")
+  orderSalesAgentName           String?       @map("order_sales_agent_name") @db.VarChar(55)
+  orderVerifierId               Int?          @map("order_verifier_id")
+  orderVerifierName             String?       @map("order_verifier_name") @db.VarChar(55)
+  orderSalesVerifierId          Int?          @map("order_sales_verifier_id")
+  orderSalesVerifierName        String?       @map("order_sales_verifier_name") @db.VarChar(55)
+  orderBackendExecutiveId       Int?          @map("order_backend_executive_id")
+  orderBackendExecutiveName     String?       @map("order_backend_executive_name") @db.VarChar(55)
+  orderDocumentation            String?       @map("order_documentation") @db.VarChar(255)
+  orderBooked                   String?       @map("order_booked") @db.VarChar(255)
+  orderChecklist                String?       @map("order_checklist") @db.VarChar(20)
+  orderTrackingNumber           String?       @map("order_tracking_number") @db.VarChar(55)
+  orderDeliveryStatus           String?       @map("order_delivery_status") @db.VarChar(55)
+  orderQualifiedIncentiveStatus String?       @map("order_qualified_incentive_status") @db.VarChar(55)
+  orderQualifiedIncentiveAmount String?       @map("order_qualified_incentive_amount") @db.VarChar(55)
+  orderStatus                   String?       @map("order_status") @db.VarChar(55)
+  saleStatus                    String?       @map("sale_status") @db.VarChar(55)
+  orderCurrentStatus            String?       @map("order_current_status") @db.VarChar(55)
+  orderCurrentStatusUpdateDate  DateTime?     @map("order_current_status_update_date") @db.DateTime(0)
+  orderDate                     DateTime?     @map("order_date") @db.Date
+  orderVendorFeedback           String        @default("Positive") @map("order_vendor_feedback") @db.VarChar(25)
+  orderClientFeedback           String        @default("Positive") @map("order_client_feedback") @db.VarChar(25)
+  orderResolution               String        @default("Resolved") @map("order_resolution") @db.VarChar(25)
+  orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
+  orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
   comments                      CrmComments[]
+  saleStatusHistory             CrmSaleStatusHistory[]
+  workflowHistory               CrmOrderCurrentStatusHistory[]
+  viewLogs                      CrmOrderViews[]
+  auditLogs                     CrmOrderAuditLog[]
+  customer                      CrmCustomers  @relation(fields: [orderCustomerId], references: [customerId], onDelete: Restrict)
+  gateway                       CrmGateway?   @relation(fields: [orderPaymentGatewayId], references: [gatewayId], onDelete: SetNull)
+  salesAgent                    Users?        @relation("SalesAgent", fields: [orderSalesAgentId], references: [uid], onDelete: SetNull)
+  vendor                        CrmVendors?   @relation(fields: [orderVendorId], references: [vendorId], onDelete: SetNull)
+  verifier                      Users?        @relation("Verifier", fields: [orderVerifierId], references: [uid], onDelete: SetNull)
+  salesVerifier                 Users?        @relation("SalesVerifier", fields: [orderSalesVerifierId], references: [uid], onDelete: SetNull)
+  backendExecutive              Users?        @relation("BackendExecutive", fields: [orderBackendExecutiveId], references: [uid], onDelete: SetNull)
 
   @@index([orderCustomerId])
   @@index([orderSalesAgentId])

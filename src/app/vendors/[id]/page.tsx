@@ -40,6 +40,10 @@ export default function VendorDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
+  const [drilldownType, setDrilldownType] = useState<'total' | 'positive' | 'negative' | null>(null);
+  const [performanceHistory, setPerformanceHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
   const permissions = session?.user?.userPermissions || '';
   const canEdit = hasPermission(permissions, 'vendors:edit');
 
@@ -117,6 +121,38 @@ export default function VendorDetailPage() {
     };
   }, [id]);
 
+  // Fetch Performance History
+  useEffect(() => {
+    if (isNaN(id)) return;
+
+    let active = true;
+    const fetchHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const res = await fetch(`/api/vendors/${id}/performance-history`);
+        if (!res.ok) {
+          throw new Error('Failed to fetch vendor performance history');
+        }
+        const data = await res.json();
+        if (active) {
+          setPerformanceHistory(data);
+        }
+      } catch (err: unknown) {
+        console.error(err);
+      } finally {
+        if (active) {
+          setHistoryLoading(false);
+        }
+      }
+    };
+
+    fetchHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
   // Stagger table rows animation
   useEffect(() => {
     if (tableRowsRef.current && orders.length > 0) {
@@ -155,7 +191,7 @@ export default function VendorDetailPage() {
 
   // Compute metrics locally
   const validOrders = orders.filter(
-    (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3'
+    (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
   );
   const totalOrders = validOrders.length;
   const negativeOrders = validOrders.filter(
@@ -238,7 +274,26 @@ export default function VendorDetailPage() {
 
       {/* Metrics Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-        <div className="form-card" style={{ padding: '20px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          onClick={() => setDrilldownType('total')}
+          className="form-card"
+          style={{
+            padding: '20px',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
           <div>
             <span className="form-label" style={{ fontSize: '0.75rem' }}>Total Managed Orders</span>
             <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginTop: '4px' }}>{totalOrders}</h2>
@@ -250,7 +305,26 @@ export default function VendorDetailPage() {
           </div>
         </div>
 
-        <div className="form-card" style={{ padding: '20px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          onClick={() => setDrilldownType('positive')}
+          className="form-card"
+          style={{
+            padding: '20px',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
           <div>
             <span className="form-label" style={{ fontSize: '0.75rem', color: '#059669' }}>Positive Orders (+)</span>
             <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginTop: '4px', color: '#059669' }}>{positiveOrders}</h2>
@@ -262,7 +336,26 @@ export default function VendorDetailPage() {
           </div>
         </div>
 
-        <div className="form-card" style={{ padding: '20px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          onClick={() => setDrilldownType('negative')}
+          className="form-card"
+          style={{
+            padding: '20px',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
           <div>
             <span className="form-label" style={{ fontSize: '0.75rem', color: '#dc2626' }}>Negative Orders (-)</span>
             <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginTop: '4px', color: '#dc2626' }}>{negativeOrders}</h2>
@@ -308,6 +401,144 @@ export default function VendorDetailPage() {
 
         {/* Orders History Tab/Table */}
         <div className="profile-main">
+          {/* Performance History Chart Card */}
+          <div className="form-card" style={{ padding: '24px', marginBottom: '20px', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px', color: '#1e293b' }}>
+              Monthly Performance History
+            </h3>
+            {historyLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                <div className="spinner"></div>
+                <p style={{ marginLeft: '12px' }}>Loading chart data...</p>
+              </div>
+            ) : performanceHistory.length === 0 ? (
+              <p style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No performance history available.</p>
+            ) : (() => {
+              const chartData = [...performanceHistory].reverse();
+              const maxOrders = Math.max(...chartData.map(d => d.totalOrders), 5);
+              const svgHeight = 200;
+              const svgWidth = 600;
+              const padding = { top: 20, right: 20, bottom: 40, left: 40 };
+              const graphWidth = svgWidth - padding.left - padding.right;
+              const graphHeight = svgHeight - padding.top - padding.bottom;
+              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+              
+              return (
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height="200" style={{ overflow: 'visible' }}>
+                    {/* Horizontal Grid lines */}
+                    {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                      const y = padding.top + graphHeight * (1 - ratio);
+                      const labelValue = Math.round(maxOrders * ratio);
+                      return (
+                        <g key={idx}>
+                          <line
+                            x1={padding.left}
+                            y1={y}
+                            x2={svgWidth - padding.right}
+                            y2={y}
+                            stroke="rgba(0, 0, 0, 0.08)"
+                            strokeDasharray="4 4"
+                          />
+                          <text
+                            x={padding.left - 10}
+                            y={y + 4}
+                            fill="rgba(71, 85, 105, 0.7)"
+                            fontSize="10"
+                            textAnchor="end"
+                            className="font-mono"
+                          >
+                            {labelValue}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Columns */}
+                    {chartData.map((d, i) => {
+                      const groupWidth = graphWidth / chartData.length;
+                      const barWidth = Math.min(24, groupWidth * 0.35);
+                      const groupX = padding.left + i * groupWidth + (groupWidth - barWidth * 2 - 4) / 2;
+                      
+                      const posHeight = (d.positiveOrders / maxOrders) * graphHeight;
+                      const negHeight = (d.negativeOrders / maxOrders) * graphHeight;
+                      
+                      const posY = padding.top + graphHeight - posHeight;
+                      const negY = padding.top + graphHeight - negHeight;
+                      
+                      const monthLabel = monthNames[d.month - 1] || 'Unknown';
+                      const yearLabel = `'${String(d.year).slice(2)}`;
+                      
+                      return (
+                        <g key={i}>
+                          {/* Positive Bar */}
+                          {posHeight > 0 && (
+                            <rect
+                              x={groupX}
+                              y={posY}
+                              width={barWidth}
+                              height={posHeight}
+                              fill="#10b981"
+                              rx="2"
+                            />
+                          )}
+                          {/* Negative Bar */}
+                          {negHeight > 0 && (
+                            <rect
+                              x={groupX + barWidth + 4}
+                              y={negY}
+                              width={barWidth}
+                              height={negHeight}
+                              fill="#ef4444"
+                              rx="2"
+                            />
+                          )}
+                          {/* X-axis Label */}
+                          <text
+                            x={padding.left + i * groupWidth + groupWidth / 2}
+                            y={svgHeight - 15}
+                            fill="rgba(71, 85, 105, 0.8)"
+                            fontSize="10"
+                            textAnchor="middle"
+                          >
+                            {monthLabel} {yearLabel}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Axes lines */}
+                    <line
+                      x1={padding.left}
+                      y1={padding.top}
+                      x2={padding.left}
+                      y2={padding.top + graphHeight}
+                      stroke="rgba(0, 0, 0, 0.15)"
+                    />
+                    <line
+                      x1={padding.left}
+                      y1={padding.top + graphHeight}
+                      x2={svgWidth - padding.right}
+                      y2={padding.top + graphHeight}
+                      stroke="rgba(0, 0, 0, 0.15)"
+                    />
+                  </svg>
+                  {/* Legend */}
+                  <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '2px' }}></span>
+                      <span style={{ fontSize: '0.75rem', color: '#475569' }}>Positive Orders</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '2px' }}></span>
+                      <span style={{ fontSize: '0.75rem', color: '#475569' }}>Negative Orders</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           <div className="profile-tabs-header">
             <div className="profile-tab-btn active">
               Order History ({orders.length})
@@ -383,6 +614,110 @@ export default function VendorDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Drilldown Modal Overlay */}
+      {drilldownType && (() => {
+        const filteredOrdersForDrilldown = orders.filter(order => {
+          const isValid = order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4';
+          if (!isValid) return false;
+          if (drilldownType === 'positive') return order.orderVendorFeedback === 'Positive';
+          if (drilldownType === 'negative') return order.orderVendorFeedback === 'Negative';
+          return true; // 'total'
+        });
+
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}>
+            <div className="form-card" style={{
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              padding: '24px',
+              backgroundColor: '#1e293b',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '12px',
+              boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'white' }}>
+                  Feedback Drilldown: {drilldownType === 'total' ? 'Total' : drilldownType === 'positive' ? 'Positive' : 'Negative'} Orders
+                </h2>
+                <button
+                  onClick={() => setDrilldownType(null)}
+                  className="btn-secondary-custom"
+                  style={{ padding: '6px 12px', margin: 0 }}
+                >
+                  Close
+                </button>
+              </div>
+              
+              <div className="table-wrapper" style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }}>
+                <table className="custom-table table-responsive">
+                  <thead>
+                    <tr>
+                      <th>Order Date</th>
+                      <th>Order ID</th>
+                      <th>Customer Name</th>
+                      <th>Phone Number</th>
+                      <th>Amt. Charged</th>
+                      <th>Agent</th>
+                      <th>Sale Status</th>
+                      <th>Feedback</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrdersForDrilldown.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                          No orders found matching this filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrdersForDrilldown.map((order) => (
+                        <tr key={order.crmOrderId}>
+                          <td>{formatDateDDMMYYYY(order.orderDate)}</td>
+                          <td>
+                            <Link href={`/orders/${order.orderCustomerId}`} className="font-semibold text-blue-400 font-mono">
+                              #JD{order.crmOrderId}
+                            </Link>
+                          </td>
+                          <td>{order.customer?.customerName}</td>
+                          <td className="font-mono text-slate-400">{order.customer?.customerPhone || '—'}</td>
+                          <td className="font-semibold text-slate-200 font-mono">${order.orderAmountCharged}</td>
+                          <td>{order.orderSalesAgentName}</td>
+                          <td>
+                            <span className={`status-dot-badge ${order.saleStatus === '1' ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 8px' }}>
+                              {getSaleStatusLabel(order.saleStatus)}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: '600', fontSize: '0.8rem', color: order.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>
+                              {order.orderVendorFeedback}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

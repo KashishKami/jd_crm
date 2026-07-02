@@ -446,3 +446,58 @@ The dashboard Refund and Chargeback cards now display the sum of `orderRefundAmo
 - New page at `/pending/returned`, new tab in `OrderListContainer`, new card in `PendingCountsRow`.
 - Info banners on Completed and Returned Orders queue pages explain which sale statuses each contains.
 - Audit log captures `orderRefundAmount` changes as a field-level diff entry.
+
+---
+
+### Decision 20: Role-Based Agent List Visibility / Role Filter Permission (`agents:view-roles`)
+
+**Date:** 2026-07-02
+**Status:** Approved
+
+#### Context
+In a multi-tier organization, not all logged-in staff should be able to view or filter agents by their administrative roles (such as Super Admin, Admin, Manager, HR) in the active agents listing. Leaving role column details unrestricted poses security and hierarchy visibility concerns.
+
+#### Decisions
+**D20.1 — Fine-grained permission `agents:view-roles`**
+Introduced a dedicated permission key `agents:view-roles` in the RBAC permissions table (`crm_permissions` at id 52).
+This permission:
+- Controls whether the "Role" column header and cells are rendered in `AgentList.tsx`.
+- Controls whether the "Role" filtering option is displayed and selectable.
+
+#### Consequences
+- A new row is added in `crm_permissions` via default DB seeding.
+- NextAuth sessions include `agents:view-roles` for Super Admin and Admin roles.
+- `AgentList.tsx` uses the `hasPermission(permissions, 'agents:view-roles')` utility to selectively show/hide the roles table column and filters.
+- Integration tests in `AgentList.test.tsx` assert view logic hides/shows elements based on possession of this permission key.
+
+---
+
+### Decision 21: Renaming Mileage Fields & Adding Order-Level Checklist Field
+
+**Date:** 2026-07-02
+**Status:** Approved
+
+#### Context
+1. The business requested renaming the existing "quoted miles" and "Vendor Miles" fields in the database and UI components to "Quoted Miles and Warranty" and "Vendor Miles and Warranty" respectively, representing both distance and warranty agreements.
+2. The business requested a new checkbox field called "Checklist" to represent verification completion on the Order itself (not on the customer cards), which must be editable during order creation/edit and viewable on the Order Details page alongside the other checklist status elements ("Card Copy Verified" and "Photo ID Checked").
+
+#### Decisions
+**D21.1 — Column rename in `crm_orders`**
+Rename `order_quoted_miles` to `order_quoted_miles_and_warranty` and `order_given_miles` to `order_vendor_miles_and_warranty` to persist both miles and warranty terms.
+
+**D21.2 — Order-level `order_checklist` column**
+Add a new column `order_checklist` VARCHAR(20) DEFAULT 'No' to the `crm_orders` table to track order-level verification checks.
+
+**D21.3 — Unified checklist indicators view**
+Construct a consolidated checklist view under the Ledger Billing/Verification area on the Order Details page rendering:
+- Card Copy Verified (`customer.cards[0].customerCardCopyStatus`)
+- Photo ID Checked (`customer.cards[0].customerCardPhotoStatus`)
+- Checklist (`orderChecklist` on the order itself)
+
+#### Consequences
+- Database migration renaming columns and adding the new `order_checklist` column.
+- Updated `schema.prisma` mapping new fields and updated repository database transactions.
+- Exposing inputs for Quoted Miles and Warranty, Vendor Miles and Warranty, and Checklist in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+- Consolidating display badges on the Order Details page (`page.tsx`) to show all three status checkmarks.
+- Auditing list `orderKeysToAudit` in `order.service.ts` updated to capture history logs for changes to these fields.
+

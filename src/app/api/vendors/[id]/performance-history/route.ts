@@ -29,10 +29,8 @@ export async function GET(
   }
 
   try {
-    const { searchParams } = new URL(request.url);
-    const rating = searchParams.get('rating') as 'positive' | 'negative' | null;
-    const orders = await vendorService.getVendorOrders(vendorId, rating || undefined);
-    return NextResponse.json(orders);
+    const history = await vendorService.getVendorPerformanceHistory(vendorId);
+    return NextResponse.json(history);
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });
