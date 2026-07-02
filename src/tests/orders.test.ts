@@ -327,8 +327,9 @@ describe('Order Management Integration Tests', () => {
       orderMakeModel: 'Ford Focus',
       orderPart: 'Alternator',
       orderPartSize: 'Standard',
-      orderQuotedMiles: '50',
-      orderGivenMiles: '55',
+      orderQuotedMilesAndWarranty: '50',
+      orderVendorMilesAndWarranty: '55',
+      orderChecklist: 'No',
       orderVin: 'VIN789XYZ',
       orderTotalPitched: '500',
       orderVendorPrice: '300',
@@ -817,8 +818,9 @@ describe('Order Management Integration Tests', () => {
       orderMakeModel: '2021 Jeep Grand Cherokee',
       orderPart: 'Alternator',
       orderPartSize: 'Standard',
-      orderQuotedMiles: '50',
-      orderGivenMiles: '55',
+      orderQuotedMilesAndWarranty: '50',
+      orderVendorMilesAndWarranty: '55',
+      orderChecklist: 'No',
       orderVin: 'VIN789XYZ',
       orderTotalPitched: '500',
       orderVendorPrice: '300',
@@ -973,8 +975,9 @@ describe('Order Management Integration Tests', () => {
         orderMakeModel: '2021 Jeep Grand Cherokee',
         orderPart: 'Alternator',
         orderPartSize: 'Standard',
-        orderQuotedMiles: '50',
-        orderGivenMiles: '55',
+        orderQuotedMilesAndWarranty: '50',
+        orderVendorMilesAndWarranty: '55',
+        orderChecklist: 'No',
         orderVin: 'VIN789XYZ',
         orderTotalPitched: '500',
         orderVendorPrice: '300',
@@ -1031,8 +1034,9 @@ describe('Order Management Integration Tests', () => {
         orderMakeModel: '2021 Jeep Grand Cherokee',
         orderPart: 'Alternator',
         orderPartSize: 'Standard',
-        orderQuotedMiles: '50',
-        orderGivenMiles: '55',
+        orderQuotedMilesAndWarranty: '50',
+        orderVendorMilesAndWarranty: '55',
+        orderChecklist: 'No',
         orderVin: 'VIN789XYZ',
         orderTotalPitched: '500',
         orderVendorPrice: '300',
@@ -1761,8 +1765,9 @@ describe('Order Management Integration Tests', () => {
         orderMakeModel: '2021 Jeep Grand Cherokee',
         orderPart: 'Alternator',
         orderPartSize: 'Standard',
-        orderQuotedMiles: '50',
-        orderGivenMiles: '55',
+        orderQuotedMilesAndWarranty: '50',
+        orderVendorMilesAndWarranty: '55',
+        orderChecklist: 'No',
         orderVin: 'VIN789XYZ',
         orderTotalPitched: '500',
         orderVendorPrice: '300',
@@ -1821,6 +1826,108 @@ describe('Order Management Integration Tests', () => {
       expect(dbRows[0].order_amount_charged).toBe('250'); // manually set to 250, NOT auto-calculated (700-400=300)
     });
   });
+
+  describe('W-2101: Mileage & Warranty Rename and Order-Level Checklist Field', () => {
+    it('should create an order with orderQuotedMilesAndWarranty, orderVendorMilesAndWarranty, and orderChecklist', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Creator', userPermissions: 'orders:create' },
+      });
+
+      const payload = {
+        customerName: 'New Buyer Mileage',
+        customerPhone: '9876543210',
+        customerEmail: 'new.buyer@example.com',
+        customerBillingAddress: '123 Billing Rd',
+        customerShippingAddress: '456 Shipping Rd',
+        customerNameOncard: 'New Buyer Mileage',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2021 Jeep Grand Cherokee',
+        orderPart: 'Alternator',
+        orderPartSize: 'Standard',
+        orderQuotedMilesAndWarranty: '1000',
+        orderVendorMilesAndWarranty: '950',
+        orderChecklist: 'Yes',
+        orderVin: 'VIN789XYZ',
+        orderTotalPitched: '500',
+        orderVendorPrice: '300',
+        orderAmountCharged: '350',
+        orderVendorId: testVendor.vendorId,
+        orderShippingType: 'Express',
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        orderVerifierId: null,
+        saleStatus: '1',
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      // Query database directly to confirm values
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_quoted_miles_and_warranty, order_vendor_miles_and_warranty, order_checklist FROM crm_orders WHERE crm_order_id = ?`,
+        data.orderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_quoted_miles_and_warranty).toBe('1000');
+      expect(dbRows[0].order_vendor_miles_and_warranty).toBe('950');
+      expect(dbRows[0].order_checklist).toBe('Yes');
+    });
+
+    it('should return order detail with the new fields and without old fields', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Viewer', userPermissions: 'orders:view' },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      expect(data).toHaveProperty('orderQuotedMilesAndWarranty');
+      expect(data).toHaveProperty('orderVendorMilesAndWarranty');
+      expect(data).toHaveProperty('orderChecklist');
+      expect(data).not.toHaveProperty('orderQuotedMiles');
+      expect(data).not.toHaveProperty('orderGivenMiles');
+    });
+
+    it('should update orderChecklist via PATCH', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Editor', userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderChecklist: 'No',
+        }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const dbRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT order_checklist FROM crm_orders WHERE crm_order_id = ?`,
+        testOrder.crmOrderId
+      );
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].order_checklist).toBe('No');
+    });
+  });
 });
+
 
 

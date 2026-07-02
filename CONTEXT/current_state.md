@@ -2759,30 +2759,7 @@ Card details entered in raw text are prone to input errors. Masks must format di
 
 ---
 
-### W-1905 — Rename Mileage Labels to "Quotes Miles" and "Vendor Miles"
-
-**Root cause / Goal:**
-Form fields must follow vocabulary standards: rename Quoted Mileage and Vendor Mileage to "Quotes Miles" and "Vendor Miles".
-
-**Approach:**
-- Update text label strings in form templates.
-
----
-
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Test: Form text labels display `"Quotes Miles"` and `"Vendor Miles"`.
-  - [ ] **Run — confirm RED.**
-
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Update text attributes in forms.
-  - [ ] Run unit test — **confirm GREEN**.
-
-- [ ] **Verification chain:**
-  - [ ] Agent edits or creates order → views input labels displaying "Quotes Miles" and "Vendor Miles" → ✅ Done.
-
----
-
-### W-1906 — Recent Orders: Add Customer Phone, Edit Button, and Vendor Name
+### W-1905 — Recent Orders: Add Customer Phone, Edit Button, and Vendor Name
 
 **Root cause / Goal:**
 The dashboard's recent orders table lacks telephone contacts, vendor associations, or direct editing shortcuts, slowing down coordinator triage.
@@ -2817,7 +2794,7 @@ The margin column in the Recent Orders table must continue to display the `final
 
 ---
 
-### W-1907 — Order Page Table: Replace Email with Customer Phone Number
+### W-1906 — Order Page Table: Replace Email with Customer Phone Number
 
 **Root cause / Goal:**
 Sales agents rarely email customers from list pages; telephone numbers are much more useful for active operations.
@@ -2840,7 +2817,7 @@ Sales agents rarely email customers from list pages; telephone numbers are much 
 
 ---
 
-### W-1908 — Date and Customer ID as First Columns in All Lists
+### W-1907 — Date and Customer ID as First Columns in All Lists
 
 **Root cause / Goal:**
 Standardize list tables to ensure a cohesive look. Date and Customer ID must consistently occupy column positions 1 and 2.
@@ -2866,7 +2843,7 @@ Ensure this column ordering applies to all pipeline tabs in `OrderListContainer.
 
 ---
 
-### W-1909 — Time in Pending State Column (Except Completed/Returned Orders)
+### W-1908 — Time in Pending State Column (Except Completed/Returned Orders)
 
 **Root cause / Goal:**
 Operations must track how long orders sit in pending states to address bottlenecks. Terminal states (Completed and Returned) do not require aging indicators.
@@ -2896,7 +2873,7 @@ The "Returned Orders" status represents a terminal state (full reversal of sale)
 
 ---
 
-### W-1910 — Blacklisted Vendor Alert Red Flag in Dropdowns
+### W-1909 — Blacklisted Vendor Alert Red Flag in Dropdowns
 
 **Root cause / Goal:**
 Ensure agents do not accidentally place new orders with blacklisted suppliers. Dropdown listings should display clear warnings for blacklisted vendors.
@@ -3189,48 +3166,48 @@ Rename `orderQuotedMiles` and `orderGivenMiles` to include "Warranty" in both da
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: `POST /api/orders` with payload containing `orderQuotedMilesAndWarranty: '1000'`, `orderVendorMilesAndWarranty: '950'`, and `orderChecklist: 'Yes'`. Assert `201 Created`. Assert the database row has the new column values: `order_quoted_miles_and_warranty = '1000'`, `order_vendor_miles_and_warranty = '950'`, and `order_checklist = 'Yes'`.
-  - [ ] Test: `GET /api/orders/:id` returned JSON includes `orderQuotedMilesAndWarranty`, `orderVendorMilesAndWarranty`, and `orderChecklist`, and does NOT include `orderQuotedMiles` or `orderGivenMiles`.
-  - [ ] Test: `PATCH /api/orders/:id` with `{ orderChecklist: 'No' }` returns `200 OK` and updates the column to `'No'`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: `POST /api/orders` with payload containing `orderQuotedMilesAndWarranty: '1000'`, `orderVendorMilesAndWarranty: '950'`, and `orderChecklist: 'Yes'`. Assert `201 Created`. Assert the database row has the new column values: `order_quoted_miles_and_warranty = '1000'`, `order_vendor_miles_and_warranty = '950'`, and `order_checklist = 'Yes'`.
+  - [x] Test: `GET /api/orders/:id` returned JSON includes `orderQuotedMilesAndWarranty`, `orderVendorMilesAndWarranty`, and `orderChecklist`, and does NOT include `orderQuotedMiles` or `orderGivenMiles`.
+  - [x] Test: `PATCH /api/orders/:id` with `{ orderChecklist: 'No' }` returns `200 OK` and updates the column to `'No'`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
-  - [ ] [Schema] Update `CrmOrders` model in `schema.prisma` to rename `orderQuotedMiles` and `orderGivenMiles`, and add `orderChecklist String? @map("order_checklist") @db.VarChar(20) @default("No")`.
-  - [ ] [Migration] Create and apply migration `rename_miles_and_add_order_checklist`.
-  - [ ] [Repository] Update `createWithCustomerAndCard` in `order.repository.ts` to include these three fields.
-  - [ ] [Service] Update `updateOrder` in `order.service.ts` to update these three fields.
-  - [ ] [Service] Add `orderQuotedMilesAndWarranty`, `orderVendorMilesAndWarranty`, and `orderChecklist` to `orderKeysToAudit` array in `order.service.ts` to write change log entries when edited.
-  - [ ] Run integration test — **confirm GREEN**.
+- [x] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [x] [Schema] Update `CrmOrders` model in `schema.prisma` to rename `orderQuotedMiles` and `orderGivenMiles`, and add `orderChecklist String? @map("order_checklist") @db.VarChar(20) @default("No")`.
+  - [x] [Migration] Create and apply migration `rename_miles_and_add_order_checklist`.
+  - [x] [Repository] Update `createWithCustomerAndCard` in `order.repository.ts` to include these three fields.
+  - [x] [Service] Update `updateOrder` in `order.service.ts` to update these three fields.
+  - [x] [Service] Add `orderQuotedMilesAndWarranty`, `orderVendorMilesAndWarranty`, and `orderChecklist` to `orderKeysToAudit` array in `order.service.ts` to write change log entries when edited.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx` / `src/tests/EditOrderForm.test.tsx`):**
-  - [ ] Test: Render `AddOrderForm` and assert inputs for `"Quoted Miles and Warranty"`, `"Vendor Miles and Warranty"`, and `"Checklist"` exist with correct labels.
-  - [ ] Test: Submit `AddOrderForm` with Checklist checkbox checked. Assert that the POST body contains `orderChecklist: 'Yes'`, `orderQuotedMilesAndWarranty`, and `orderVendorMilesAndWarranty`.
-  - [ ] Test: Render `EditOrderForm` with mock order containing `orderChecklist: 'Yes'` and assert that the Checklist checkbox is initially checked.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx` / `src/tests/EditOrderForm.test.tsx`):**
+  - [x] Test: Render `AddOrderForm` and assert inputs for `"Quoted Miles and Warranty"`, `"Vendor Miles and Warranty"`, and `"Checklist"` exist with correct labels.
+  - [x] Test: Submit `AddOrderForm` with Checklist checkbox checked. Assert that the POST body contains `orderChecklist: 'Yes'`, `orderQuotedMilesAndWarranty`, and `orderVendorMilesAndWarranty`.
+  - [x] Test: Render `EditOrderForm` with mock order containing `orderChecklist: 'Yes'` and assert that the Checklist checkbox is initially checked.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Types → Component):**
-  - [ ] [Types] Update `OrderCreateInput` and `OrderUpdateInput` in `src/types/order.ts` to replace old mileage fields and add `orderChecklist?: string`.
-  - [ ] [Component] In `AddOrderForm.tsx`, replace old mileage state hooks/inputs with the new ones. Add a new checkbox hook/input for `Checklist`.
-  - [ ] [Component] In `EditOrderForm.tsx`, implement the same fields and states as in `AddOrderForm.tsx`.
-  - [ ] [Component] In `src/components/OrderAuditLog.tsx`, map the new fields in `fieldLabels` to:
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Update `OrderCreateInput` and `OrderUpdateInput` in `src/types/order.ts` to replace old mileage fields and add `orderChecklist?: string`.
+  - [x] [Component] In `AddOrderForm.tsx`, replace old mileage state hooks/inputs with the new ones. Add a new checkbox hook/input for `Checklist`.
+  - [x] [Component] In `EditOrderForm.tsx`, implement the same fields and states as in `AddOrderForm.tsx`.
+  - [x] [Component] In `src/components/OrderAuditLog.tsx`, map the new fields in `fieldLabels` to:
     - `orderQuotedMilesAndWarranty: 'Quoted Miles and Warranty'`
     - `orderVendorMilesAndWarranty: 'Vendor Miles and Warranty'`
     - `orderChecklist: 'Checklist'`
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **RED — Unit (`src/app/orders/[id]/page.tsx` tests or similar):**
-  - [ ] Test: Render the Order Details page with an order containing `orderChecklist: 'Yes'`. Assert that the labels read "Quoted Miles and Warranty" and "Vendor Miles and Warranty".
-  - [ ] Test: Assert that the page renders Card Copy Verified, Photo ID Checked, and Checklist, each with a checked or unchecked status indicator.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/app/orders/[id]/page.tsx` tests or similar):**
+  - [x] Test: Render the Order Details page with an order containing `orderChecklist: 'Yes'`. Assert that the labels read "Quoted Miles and Warranty" and "Vendor Miles and Warranty".
+  - [x] Test: Assert that the page renders Card Copy Verified, Photo ID Checked, and Checklist, each with a checked or unchecked status indicator.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Page Component):**
-  - [ ] [Page] Update `src/app/orders/[id]/page.tsx` to render labels `"Quoted Miles and Warranty"` and `"Vendor Miles and Warranty"`.
-  - [ ] [Page] In the Ledger Billing/Verification section of the details page, render a list/grid displaying **Card Copy Verified**, **Photo ID Checked**, and **Checklist** statuses, clearly indicating whether they are checked (Yes) or not (No).
-  - [ ] Run page tests — **confirm GREEN**.
+- [x] **GREEN — Frontend (Page Component):**
+  - [x] [Page] Update `src/app/orders/[id]/page.tsx` to render labels `"Quoted Miles and Warranty"` and `"Vendor Miles and Warranty"`.
+  - [x] [Page] In the Ledger Billing/Verification section of the details page, render a list/grid displaying **Card Copy Verified**, **Photo ID Checked**, and **Checklist** statuses, clearly indicating whether they are checked (Yes) or not (No).
+  - [x] Run page tests — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent navigates to `/orders/new` $\rightarrow$ fills in customer, card details, mileage details under "Quoted Miles and Warranty" and "Vendor Miles and Warranty", checks the "Checklist" checkbox $\rightarrow$ submits $\rightarrow$ order details page shows:
+- [x] **Verification chain:**
+  - [x] Agent navigates to `/orders/new` $\rightarrow$ fills in customer, card details, mileage details under "Quoted Miles and Warranty" and "Vendor Miles and Warranty", checks the "Checklist" checkbox $\rightarrow$ submits $\rightarrow$ order details page shows:
     - Vehicle section shows "Quoted Miles and Warranty" and "Vendor Miles and Warranty" with entered numbers.
     - Verification section displays three checkmark indicators for Card Copy Verified, Photo ID Checked, and Checklist.
     - Editing the order and changing mileage or checking off Checklist updates them, showing correctly in the Change History log $\rightarrow$ ✅ Done.

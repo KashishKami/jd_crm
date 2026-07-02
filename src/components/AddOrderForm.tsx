@@ -34,8 +34,9 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderMakeModel, setOrderMakeModel] = useState('');
   const [orderPart, setOrderPart] = useState('');
   const [orderPartSize, setOrderPartSize] = useState('');
-  const [orderQuotedMiles, setOrderQuotedMiles] = useState('');
-  const [orderGivenMiles, setOrderGivenMiles] = useState('');
+  const [orderQuotedMilesAndWarranty, setOrderQuotedMilesAndWarranty] = useState('');
+  const [orderVendorMilesAndWarranty, setOrderVendorMilesAndWarranty] = useState('');
+  const [orderChecklist, setOrderChecklist] = useState('No');
   const [orderVin, setOrderVin] = useState('');
   const [orderShippingType, setOrderShippingType] = useState('Ground');
 
@@ -132,8 +133,9 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderMakeModel,
       orderPart,
       orderPartSize,
-      orderQuotedMiles,
-      orderGivenMiles,
+      orderQuotedMilesAndWarranty,
+      orderVendorMilesAndWarranty,
+      orderChecklist,
       orderVin,
       orderShippingType,
       orderTotalPitched,
@@ -324,6 +326,15 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 />
                 <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Photo ID Checked</span>
               </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={orderChecklist === 'Yes'}
+                  onChange={(e) => setOrderChecklist(e.target.checked ? 'Yes' : 'No')}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist</span>
+              </label>
             </div>
           </div>
         </div>
@@ -366,22 +377,22 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMiles" className="form-label">Quoted Miles</label>
+              <label htmlFor="orderQuotedMilesAndWarranty" className="form-label">Quoted Miles and Warranty</label>
               <input
                 type="text"
-                id="orderQuotedMiles"
-                value={orderQuotedMiles}
-                onChange={(e) => setOrderQuotedMiles(e.target.value)}
+                id="orderQuotedMilesAndWarranty"
+                value={orderQuotedMilesAndWarranty}
+                onChange={(e) => setOrderQuotedMilesAndWarranty(e.target.value)}
                 className="form-input font-mono"
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderGivenMiles" className="form-label">Vendor Miles</label>
+              <label htmlFor="orderVendorMilesAndWarranty" className="form-label">Vendor Miles and Warranty</label>
               <input
                 type="text"
-                id="orderGivenMiles"
-                value={orderGivenMiles}
-                onChange={(e) => setOrderGivenMiles(e.target.value)}
+                id="orderVendorMilesAndWarranty"
+                value={orderVendorMilesAndWarranty}
+                onChange={(e) => setOrderVendorMilesAndWarranty(e.target.value)}
                 className="form-input font-mono"
               />
             </div>

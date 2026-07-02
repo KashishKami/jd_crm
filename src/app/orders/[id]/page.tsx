@@ -294,12 +294,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-value">{order.orderPartSize || '—'}</span>
               </div>
               <div className="info-group">
-                <span className="info-label">Quoted Miles</span>
-                <span className="info-value font-mono">{order.orderQuotedMiles || '—'}</span>
+                <span className="info-label">Quoted Miles & Warranty</span>
+                <span className="info-value font-mono">{order.orderQuotedMilesAndWarranty || '—'}</span>
               </div>
               <div className="info-group">
-                <span className="info-label">Vendor Miles</span>
-                <span className="info-value font-mono">{order.orderGivenMiles || '—'}</span>
+                <span className="info-label">Vendor Miles & Warranty</span>
+                <span className="info-value font-mono">{order.orderVendorMilesAndWarranty || '—'}</span>
               </div>
               <div className="info-group">
                 <span className="info-label">VIN Number</span>
@@ -381,6 +381,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
             )}
+
+            <div className="grid grid-cols-3 gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+              <div className="info-group">
+                <span className="info-label" style={{ fontSize: '10px' }}>Card Copy</span>
+                <span className={`status-dot-badge ${order.customer.cards[0]?.customerCardCopyStatus === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                  {order.customer.cards[0]?.customerCardCopyStatus === 'Yes' ? 'Yes' : 'No'}
+                </span>
+              </div>
+              <div className="info-group">
+                <span className="info-label" style={{ fontSize: '10px' }}>Photo ID</span>
+                <span className={`status-dot-badge ${order.customer.cards[0]?.customerCardPhotoStatus === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                  {order.customer.cards[0]?.customerCardPhotoStatus === 'Yes' ? 'Yes' : 'No'}
+                </span>
+              </div>
+              <div className="info-group">
+                <span className="info-label" style={{ fontSize: '10px' }}>Checklist</span>
+                <span className={`status-dot-badge ${order.orderChecklist === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                  {order.orderChecklist === 'Yes' ? 'Yes' : 'No'}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Pricing Summary */}

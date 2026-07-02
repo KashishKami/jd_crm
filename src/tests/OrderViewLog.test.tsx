@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import React from 'react';
 import OrderViewLog from '../components/OrderViewLog';
 import { OrderViewEntry } from '../types/orderView';
@@ -10,7 +10,23 @@ afterEach(() => {
 });
 
 describe('OrderViewLog Component Unit Tests', () => {
-  it('should render viewer names inside the table', () => {
+  it('should render collapsed by default showing only heading and expand trigger', () => {
+    const mockEntries: OrderViewEntry[] = [
+      {
+        id: 1,
+        orderId: 5,
+        viewerId: 10,
+        viewerName: 'Alice',
+        viewedAt: '2026-06-30T10:00:00.000Z',
+      },
+    ];
+
+    render(<OrderViewLog entries={mockEntries} />);
+    expect(screen.getByText('Access History — Who Has Viewed This Order')).not.toBeNull();
+    expect(screen.queryByText('Alice')).toBeNull();
+  });
+
+  it('should render viewer names inside the table when expanded', () => {
     const mockEntries: OrderViewEntry[] = [
       {
         id: 1,
@@ -29,12 +45,14 @@ describe('OrderViewLog Component Unit Tests', () => {
     ];
 
     render(<OrderViewLog entries={mockEntries} />);
+    const toggleButton = screen.getByRole('button', { name: /Access History/i });
+    fireEvent.click(toggleButton);
 
     expect(screen.getByText('Alice')).not.toBeNull();
     expect(screen.getByText('Bob')).not.toBeNull();
   });
 
-  it('should display most recent entries at the top of the table', () => {
+  it('should display most recent entries at the top of the table when expanded', () => {
     const mockEntries: OrderViewEntry[] = [
       {
         id: 1,
@@ -53,6 +71,8 @@ describe('OrderViewLog Component Unit Tests', () => {
     ];
 
     render(<OrderViewLog entries={mockEntries} />);
+    const toggleButton = screen.getByRole('button', { name: /Access History/i });
+    fireEvent.click(toggleButton);
 
     const rows = screen.getAllByRole('row');
     // Row 0 is header, Row 1 should be Bob (recent), Row 2 should be Alice (older)
@@ -60,7 +80,7 @@ describe('OrderViewLog Component Unit Tests', () => {
     expect(rows[2].textContent).toContain('Alice');
   });
 
-  it('should show formatted date and time in America/New_York (EST/EDT) timezone', () => {
+  it('should show formatted date and time in America/New_York (EST/EDT) timezone when expanded', () => {
     const mockEntries: OrderViewEntry[] = [
       {
         id: 1,
@@ -72,14 +92,19 @@ describe('OrderViewLog Component Unit Tests', () => {
     ];
 
     render(<OrderViewLog entries={mockEntries} />);
+    const toggleButton = screen.getByRole('button', { name: /Access History/i });
+    fireEvent.click(toggleButton);
 
     // Under New_York timezone, 2026-06-30 14:00:00 UTC is 10:00:00 AM
     // Let's assert the rendered time format contains 10:00
     expect(screen.getByText(/30-06-2026 10:00/)).not.toBeNull();
   });
 
-  it('should render no view history warning when entries list is empty', () => {
+  it('should render no view history warning when entries list is empty and expanded', () => {
     render(<OrderViewLog entries={[]} />);
+    const toggleButton = screen.getByRole('button', { name: /Access History/i });
+    fireEvent.click(toggleButton);
+
     expect(screen.getByText('No view history available.')).not.toBeNull();
   });
 });

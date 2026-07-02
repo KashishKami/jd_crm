@@ -231,7 +231,7 @@ export async function updateOrder(
   };
 
   const orderKeysToAudit = [
-    'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMiles', 'orderGivenMiles',
+    'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMilesAndWarranty', 'orderVendorMilesAndWarranty',
     'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName',
     'orderShippingType', 'orderRefundAmount',
     'orderSalesAgentName', 'orderVerifierName',
@@ -239,7 +239,7 @@ export async function updateOrder(
     'orderCurrentStatus', 'orderTrackingNumber', 'orderDeliveryStatus',
     'orderVendorFeedback', 'orderClientFeedback', 'orderResolution', 'orderDocumentation',
     'orderBooked', 'orderAmountCharged', 'orderQualifiedIncentiveStatus', 'orderQualifiedIncentiveAmount',
-    'orderStatus'
+    'orderStatus', 'orderChecklist'
   ];
 
   for (const key of orderKeysToAudit) {

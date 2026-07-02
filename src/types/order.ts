@@ -18,8 +18,8 @@ export interface OrderCreateInput {
   orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderPart?: string;
   orderPartSize?: string;
-  orderQuotedMiles?: string;
-  orderGivenMiles?: string;
+  orderQuotedMilesAndWarranty?: string;
+  orderVendorMilesAndWarranty?: string;
   orderVin?: string;
   orderTotalPitched?: string;
   orderVendorPrice?: string;
@@ -37,6 +37,7 @@ export interface OrderCreateInput {
   orderAmountCharged?: string | null;
   saleStatusChangeDate?: string | null;
   orderVendorFeedback?: string;
+  orderChecklist?: string;
 }
 
 export interface OrderUpdateInput {
@@ -44,9 +45,10 @@ export interface OrderUpdateInput {
   orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderPart?: string;
   orderPartSize?: string;
-  orderQuotedMiles?: string;
-  orderGivenMiles?: string;
+  orderQuotedMilesAndWarranty?: string;
+  orderVendorMilesAndWarranty?: string;
   orderVin?: string;
+  orderChecklist?: string;
   orderTotalPitched?: string;
   orderVendorPrice?: string;
   orderVendorId?: number | null;

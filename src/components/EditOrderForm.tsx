@@ -44,8 +44,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [orderMakeModel, setOrderMakeModel] = useState(order.orderMakeModel || '');
   const [orderPart, setOrderPart] = useState(order.orderPart || '');
   const [orderPartSize, setOrderPartSize] = useState(order.orderPartSize || '');
-  const [orderQuotedMiles, setOrderQuotedMiles] = useState(order.orderQuotedMiles || '');
-  const [orderGivenMiles, setOrderGivenMiles] = useState(order.orderGivenMiles || '');
+  const [orderQuotedMilesAndWarranty, setOrderQuotedMilesAndWarranty] = useState(order.orderQuotedMilesAndWarranty || '');
+  const [orderVendorMilesAndWarranty, setOrderVendorMilesAndWarranty] = useState(order.orderVendorMilesAndWarranty || '');
+  const [orderChecklist, setOrderChecklist] = useState(order.orderChecklist || 'No');
   const [orderVin, setOrderVin] = useState(order.orderVin || '');
   const [orderShippingType, setOrderShippingType] = useState(order.orderShippingType || 'Ground');
   const [orderTrackingNumber, setOrderTrackingNumber] = useState(order.orderTrackingNumber || '');
@@ -118,8 +119,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       orderMakeModel,
       orderPart,
       orderPartSize,
-      orderQuotedMiles,
-      orderGivenMiles,
+      orderQuotedMilesAndWarranty,
+      orderVendorMilesAndWarranty,
+      orderChecklist,
       orderVin,
       orderShippingType,
       orderTrackingNumber: orderTrackingNumber || null,
@@ -304,6 +306,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 />
                 <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Photo ID Checked</span>
               </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={orderChecklist === 'Yes'}
+                  onChange={(e) => setOrderChecklist(e.target.checked ? 'Yes' : 'No')}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist</span>
+              </label>
             </div>
           </div>
         </div>
@@ -342,21 +353,21 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMiles" className="form-label">Quoted Miles</label>
+              <label htmlFor="orderQuotedMilesAndWarranty" className="form-label">Quoted Miles and Warranty</label>
               <input
-                id="orderQuotedMiles"
+                id="orderQuotedMilesAndWarranty"
                 type="text"
-                value={orderQuotedMiles}
-                onChange={(e) => setOrderQuotedMiles(e.target.value)}
+                value={orderQuotedMilesAndWarranty}
+                onChange={(e) => setOrderQuotedMilesAndWarranty(e.target.value)}
                 className="form-input font-mono"
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderGivenMiles" className="form-label">Vendor Miles</label>
+              <label htmlFor="orderVendorMilesAndWarranty" className="form-label">Vendor Miles and Warranty</label>
               <input
                 type="text"
-                value={orderGivenMiles}
-                onChange={(e) => setOrderGivenMiles(e.target.value)}
+                value={orderVendorMilesAndWarranty}
+                onChange={(e) => setOrderVendorMilesAndWarranty(e.target.value)}
                 className="form-input font-mono"
               />
             </div>

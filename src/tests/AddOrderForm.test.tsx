@@ -187,10 +187,10 @@ describe('AddOrderForm Unit Tests', () => {
       expect(sentBody).toHaveProperty('orderDate', '2025-06-15');
     });
 
-    it('should render mileage fields with labels "Quoted Miles" and "Vendor Miles"', () => {
+    it('should render mileage fields with labels "Quoted Miles and Warranty" and "Vendor Miles and Warranty"', () => {
       render(<AddOrderForm agents={[]} gateways={[]} vendors={[]} />);
-      expect(screen.getByText('Quoted Miles')).toBeDefined();
-      expect(screen.getByText('Vendor Miles')).toBeDefined();
+      expect(screen.getByText('Quoted Miles and Warranty')).toBeDefined();
+      expect(screen.getByText('Vendor Miles and Warranty')).toBeDefined();
       expect(screen.queryByText('Quoted Mileage')).toBeNull();
       expect(screen.queryByText('Vendor Mileage')).toBeNull();
     });
