@@ -156,40 +156,25 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
   const start = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
 
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: { in: ['1', '4'] },
-      orderSalesAgentId: { not: null },
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: {
-      orderSalesAgentId: true,
-      orderSalesAgentName: true,
-      orderAmountCharged: true,
-      orderRefundAmount: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT 
+      MAX(order_sales_agent_name) as agentName,
+      SUM(CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12, 2)) - CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12, 2))) as amount
+    FROM crm_orders
+    WHERE 
+      sale_status IN ('1', '4')
+      AND order_sales_agent_id IS NOT NULL
+      AND order_date >= ${start}
+      AND order_date < ${end}
+    GROUP BY order_sales_agent_id
+    ORDER BY amount DESC
+    LIMIT ${limit}
+  `;
 
-  const agentMap = new Map<number, { agentName: string; amount: number }>();
-  for (const order of orders) {
-    const agentId = order.orderSalesAgentId!;
-    const name = order.orderSalesAgentName || 'Unknown Agent';
-    const charged = parseFloat(order.orderAmountCharged || '0');
-    const refund = parseFloat(order.orderRefundAmount || '0');
-    const finalMargin = charged - refund;
-
-    if (!agentMap.has(agentId)) {
-      agentMap.set(agentId, { agentName: name, amount: 0 });
-    }
-    agentMap.get(agentId)!.amount += finalMargin;
-  }
-
-  return Array.from(agentMap.values())
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, limit);
+  return rows.map(r => ({
+    agentName: r.agentName || 'Unknown Agent',
+    amount: parseFloat(r.amount?.toString() || '0')
+  }));
 }
 
 export async function getBottomPerformers(limit = 5, month?: number, year?: number) {
@@ -212,40 +197,25 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
   const start = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
 
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: { in: ['1', '4'] },
-      orderSalesAgentId: { not: null },
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: {
-      orderSalesAgentId: true,
-      orderSalesAgentName: true,
-      orderAmountCharged: true,
-      orderRefundAmount: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT 
+      MAX(order_sales_agent_name) as agentName,
+      SUM(CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12, 2)) - CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12, 2))) as amount
+    FROM crm_orders
+    WHERE 
+      sale_status IN ('1', '4')
+      AND order_sales_agent_id IS NOT NULL
+      AND order_date >= ${start}
+      AND order_date < ${end}
+    GROUP BY order_sales_agent_id
+    ORDER BY amount ASC
+    LIMIT ${limit}
+  `;
 
-  const agentMap = new Map<number, { agentName: string; amount: number }>();
-  for (const order of orders) {
-    const agentId = order.orderSalesAgentId!;
-    const name = order.orderSalesAgentName || 'Unknown Agent';
-    const charged = parseFloat(order.orderAmountCharged || '0');
-    const refund = parseFloat(order.orderRefundAmount || '0');
-    const finalMargin = charged - refund;
-
-    if (!agentMap.has(agentId)) {
-      agentMap.set(agentId, { agentName: name, amount: 0 });
-    }
-    agentMap.get(agentId)!.amount += finalMargin;
-  }
-
-  return Array.from(agentMap.values())
-    .sort((a, b) => a.amount - b.amount)
-    .slice(0, limit);
+  return rows.map(r => ({
+    agentName: r.agentName || 'Unknown Agent',
+    amount: parseFloat(r.amount?.toString() || '0')
+  }));
 }
 
 export async function getRecentOrders(limit = 10) {

@@ -33,6 +33,14 @@ export async function GET(
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
+
+    const hasViewDetails = hasPermission(session.user.userPermissions, 'agents:view-details');
+    if (!hasViewDetails) {
+      agent.profile = null;
+      agent.academicRecord = null as any;
+      agent.professionalRecord = null as any;
+    }
+
     return NextResponse.json(agent);
   } catch (error: unknown) {
     const err = error as Error;

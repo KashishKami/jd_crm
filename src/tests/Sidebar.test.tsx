@@ -80,4 +80,20 @@ describe('Sidebar Component Unit Tests', () => {
     expect(screen.queryByText(/gateways/i)).not.toBeNull();
     expect(screen.queryByText(/orders/i)).not.toBeNull();
   });
+
+  it('should render Roles and Permissions link for super admin', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Super Admin',
+          userPermissions: 'super-admin',
+        },
+      },
+      status: 'authenticated',
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<Sidebar />);
+
+    expect(screen.queryByText('Roles and Permissions')).not.toBeNull();
+  });
 });

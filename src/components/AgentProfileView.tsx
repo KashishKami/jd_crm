@@ -19,6 +19,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
 
   const permissions = session?.user?.userPermissions || '';
   const canEdit = hasPermission(permissions, 'agents:edit');
+  const canViewDetails = hasPermission(permissions, 'agents:view-details');
 
   useEffect(() => {
     if (containerRef.current) {
@@ -81,10 +82,6 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
               <span className="profile-meta-value">{agent.agentTarget ? `$${agent.agentTarget}` : '—'}</span>
             </div>
             <div className="profile-meta-item">
-              <span className="profile-meta-label">Base Salary:</span>
-              <span className="profile-meta-value">{agent.agentSalary ? `$${agent.agentSalary}` : '—'}</span>
-            </div>
-            <div className="profile-meta-item">
               <span className="profile-meta-label">Joining Date:</span>
               <span className="profile-meta-value">{formatDate(agent.dateOfJoining)}</span>
             </div>
@@ -110,19 +107,19 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
               onClick={() => setActiveTab('academic')}
               className={`profile-tab-btn ${activeTab === 'academic' ? 'active' : ''}`}
             >
-              Academic Record
+              Academic Record {!canViewDetails && '🔒'}
             </button>
             <button
               onClick={() => setActiveTab('professional')}
               className={`profile-tab-btn ${activeTab === 'professional' ? 'active' : ''}`}
             >
-              Work History
+              Work History {!canViewDetails && '🔒'}
             </button>
             <button
               onClick={() => setActiveTab('bank_emergency')}
               className={`profile-tab-btn ${activeTab === 'bank_emergency' ? 'active' : ''}`}
             >
-              Bank & Emergency
+              Bank & Emergency {!canViewDetails && '🔒'}
             </button>
           </div>
 
@@ -168,7 +165,13 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
             {/* Academic Tab */}
             {activeTab === 'academic' && (
               <div>
-                {!agent.academicRecord || agent.academicRecord.length === 0 ? (
+                {!canViewDetails ? (
+                  <div className="access-restricted-banner" style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                    <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>🔒</div>
+                    <h4 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px' }}>Access Restricted</h4>
+                    <p style={{ color: '#94a3b8' }}>You do not have the required permissions (`agents:view-details`) to view this sensitive information.</p>
+                  </div>
+                ) : !agent.academicRecord || agent.academicRecord.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">No academic history recorded.</p>
                 ) : (
                   <div className="table-wrapper">
@@ -202,7 +205,13 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
             {/* Professional Tab */}
             {activeTab === 'professional' && (
               <div>
-                {!agent.professionalRecord || agent.professionalRecord.length === 0 ? (
+                {!canViewDetails ? (
+                  <div className="access-restricted-banner" style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                    <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>🔒</div>
+                    <h4 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px' }}>Access Restricted</h4>
+                    <p style={{ color: '#94a3b8' }}>You do not have the required permissions (`agents:view-details`) to view this sensitive information.</p>
+                  </div>
+                ) : !agent.professionalRecord || agent.professionalRecord.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">No professional experience recorded.</p>
                 ) : (
                   <div className="table-wrapper">
@@ -235,66 +244,76 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
 
             {/* Bank & Emergency Tab */}
             {activeTab === 'bank_emergency' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                <div>
-                  <h3 className="form-section-title" style={{ marginBottom: '16px' }}>Bank Account Information</h3>
-                  <div className="info-grid">
-                    <div className="info-group">
-                      <span className="info-label">Bank Account Number</span>
-                      <span className="info-value">{agent.profile?.profileBankAccount || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Bank Name</span>
-                      <span className="info-value">{agent.profile?.profileBankName || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Routing / IFSC Code</span>
-                      <span className="info-value">{agent.profile?.profileBankIfsc || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Bank Branch Location</span>
-                      <span className="info-value">{agent.profile?.profileBankBranch || '—'}</span>
-                    </div>
-                    <div className="info-group" style={{ gridColumn: 'span 2' }}>
-                      <span className="info-label">Bank Branch Address</span>
-                      <span className="info-value">{agent.profile?.profileBankAddress || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">PAN Number</span>
-                      <span className="info-value">{agent.profile?.profilePan || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">National ID (Aadhar)</span>
-                      <span className="info-value">{agent.profile?.profileAadhar || '—'}</span>
-                    </div>
+              <div>
+                {!canViewDetails ? (
+                  <div className="access-restricted-banner" style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                    <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>🔒</div>
+                    <h4 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px' }}>Access Restricted</h4>
+                    <p style={{ color: '#94a3b8' }}>You do not have the required permissions (`agents:view-details`) to view this sensitive information.</p>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    <div>
+                      <h3 className="form-section-title" style={{ marginBottom: '16px' }}>Bank Account Information</h3>
+                      <div className="info-grid">
+                        <div className="info-group">
+                          <span className="info-label">Bank Account Number</span>
+                          <span className="info-value">{agent.profile?.profileBankAccount || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Bank Name</span>
+                          <span className="info-value">{agent.profile?.profileBankName || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Routing / IFSC Code</span>
+                          <span className="info-value">{agent.profile?.profileBankIfsc || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Bank Branch Location</span>
+                          <span className="info-value">{agent.profile?.profileBankBranch || '—'}</span>
+                        </div>
+                        <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                          <span className="info-label">Bank Branch Address</span>
+                          <span className="info-value">{agent.profile?.profileBankAddress || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">PAN Number</span>
+                          <span className="info-value">{agent.profile?.profilePan || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">National ID (Aadhar)</span>
+                          <span className="info-value">{agent.profile?.profileAadhar || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
 
-                <div>
-                  <h3 className="form-section-title" style={{ marginBottom: '16px' }}>Emergency Contacts</h3>
-                  <div className="info-grid">
-                    <div className="info-group">
-                      <span className="info-label">Contact Name</span>
-                      <span className="info-value">{agent.profile?.profileEmergencyContactName || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Relation</span>
-                      <span className="info-value">{agent.profile?.profileEmergencyContactRelation || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Emergency Phone 1</span>
-                      <span className="info-value">{agent.profile?.profileEmergencyContactNumber || '—'}</span>
-                    </div>
-                    <div className="info-group">
-                      <span className="info-label">Emergency Phone 2</span>
-                      <span className="info-value">{agent.profile?.profileEmergencyContactNumber2 || '—'}</span>
-                    </div>
-                    <div className="info-group" style={{ gridColumn: 'span 2' }}>
-                      <span className="info-label">Emergency Address</span>
-                      <span className="info-value">{agent.profile?.profileEmergencyContactAddress || '—'}</span>
+                    <div>
+                      <h3 className="form-section-title" style={{ marginBottom: '16px' }}>Emergency Contacts</h3>
+                      <div className="info-grid">
+                        <div className="info-group">
+                          <span className="info-label">Contact Name</span>
+                          <span className="info-value">{agent.profile?.profileEmergencyContactName || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Relation</span>
+                          <span className="info-value">{agent.profile?.profileEmergencyContactRelation || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Emergency Phone 1</span>
+                          <span className="info-value">{agent.profile?.profileEmergencyContactNumber || '—'}</span>
+                        </div>
+                        <div className="info-group">
+                          <span className="info-label">Emergency Phone 2</span>
+                          <span className="info-value">{agent.profile?.profileEmergencyContactNumber2 || '—'}</span>
+                        </div>
+                        <div className="info-group" style={{ gridColumn: 'span 2' }}>
+                          <span className="info-label">Emergency Address</span>
+                          <span className="info-value">{agent.profile?.profileEmergencyContactAddress || '—'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>

@@ -31,7 +31,11 @@ export async function GET(request: Request) {
 
   try {
     const report = await dashboardService.getTeamMonthlyReport(session, month, year);
-    return NextResponse.json(report);
+    return NextResponse.json(report, {
+      headers: {
+        'Cache-Control': 'private, max-age=60',
+      },
+    });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });

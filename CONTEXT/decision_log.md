@@ -501,3 +501,92 @@ Construct a consolidated checklist view under the Ledger Billing/Verification ar
 - Consolidating display badges on the Order Details page (`page.tsx`) to show all three status checkmarks.
 - Auditing list `orderKeysToAudit` in `order.service.ts` updated to capture history logs for changes to these fields.
 
+
+---
+
+### Decision 22: Split agents:view into List-Only vs Sensitive Details Permissions
+
+**Date:** 2026-07-02
+**Status:** Approved
+
+#### Context
+The `agents:view` permission granted visibility to both the agent directory list and the highly sensitive personal records (bank info, emergency contacts, academic records, and work history) of all staff members. To comply with privacy standards, these must be segregated: basic directory listing should not automatically expose private records.
+
+#### Decision
+1. **Define a new permission `agents:view-details`** in the RBAC system, representing access to sensitive personal, bank, and academic/professional records.
+2. **Sanitize GET `/api/agents/:id` responses**: If the session lacks `agents:view-details` but holds `agents:view`, the API returns a `200 OK` with basic agent info but overrides sensitive relation structures (`profile`, `academicRecord`, `professionalRecord`) to `null`.
+3. **Lock Frontend Tabs**: In `AgentProfileView.tsx`, display lock emojis `🔒` on sensitive tabs and render an "Access Restricted" locked warning placeholder banner when `agents:view-details` is missing from the user session.
+4. **Permissions Reordering**: Reorganize default permissions in `seed.sql` sequentially so all related resource permissions are grouped together (IDs 1 through 53), including `agents:view-details` under the Agents resource block.
+
+#### Consequences
+- Enhanced privacy by ensuring standard agents cannot view sensitive banking or emergency contact details of other staff members.
+- Robust integration test assertions in `agents.test.ts` verifying sanitization behavior.
+- Clean component unit tests in `AgentProfileView.test.tsx` verifying tab locking and warning banners.
+
+
+---
+
+### Decision 23: Database Aggregations and Response Caching for Dashboard Metrics
+
+**Date:** 2026-07-02
+**Status:** Approved
+
+#### Context
+Aggregating thousands of order records in Node.js application memory causes query latency, CPU overhead, and potential server memory limits. In addition, repeated client requests for dashboard statistics trigger redundant database roundtrips for data that updates relatively infrequently.
+
+#### Decision
+1. **Database Indexing**: Added a database index on the `orderDate` (`order_date`) column in `schema.prisma` to optimize date-filtered queries.
+2. **Raw SQL Aggregation**: Refactored `getTopPerformers` and `getBottomPerformers` in `dashboard.repository.ts` to execute group-by SUM calculations directly inside the MySQL database using raw SQL queries (`$queryRaw`) and numeric casts (`CAST(COALESCE(..., '0') AS DECIMAL)`).
+3. **Response Caching**: Added `Cache-Control: private, max-age=60` headers to successful responses on all four dashboard aggregate API endpoints: `/api/dashboard/metrics`, `/api/dashboard/champions-league`, `/api/dashboard/advanced-chart`, and `/api/dashboard/teams/monthly`.
+
+#### Consequences
+- Significantly reduced dashboard load times by shifting mathematical sum reductions from Node.js memory to the database engine.
+- Reduced database traffic and CPU utilization via browser and client-side caching of metrics queries for up to 60 seconds.
+- Ensured absolute reliability via integration tests in `src/tests/performance.test.ts` verifying index presence, performer mathematical accuracy, and Cache-Control headers.
+
+
+---
+
+### Decision 24: Sale Status Expansion — Void & Cancel Order, Team Column Removal & Sale Status Filter
+
+**Date:** 2026-07-03
+**Status:** Approved
+
+#### Context
+The business identified two cancellation scenarios that the existing four sale statuses (`Sold`, `Refunded`, `Chargebacked`, `Partial Refund`) cannot represent:
+1. An order that was charged but cancelled by the customer **on the same day** — the full charge is reversed. This is financially closer to a Refund than to a cancellation, since money was temporarily captured.
+2. An order where all customer details (name, card, vehicle) were collected but the customer was **never charged** and later cancelled — no financial transaction occurred at any point.
+
+Additionally, the Orders table's **Team** column was found to be low-value in the daily workflow view, while the **Sale Status** of each order required opening an individual record to see. The existing `saleStatusFilter` state in `OrderListContainer.tsx` was fully wired to the API but had no visible UI control to trigger it.
+
+#### Decision
+
+**D24.1 — New sale status codes: Void (`'5'`) and Cancel Order (`'6'`)**
+- **`'5'` Void**: Payment was captured but cancelled same-day. Treated identically to `Refunded` and `Chargebacked` in the backend auto-rules: `orderCurrentStatus` is automatically set to `'Returned Orders'` and `orderRefundAmount` is auto-set to `orderAmountCharged` (full reversal). The date/time capture modal opens in the UI (the void event has a precise timestamp). Void orders appear in the `Returned Orders` queue filter.
+- **`'6'` Cancel Order**: No charge was ever processed. `orderRefundAmount` is set to `null`. `orderCurrentStatus` is **not** forced to any value — it remains on its current workflow state (typically `Pending Booking`). The date/time capture modal does **not** open because there is no financial event to timestamp. Cancel Order orders do **not** appear in the `Returned Orders` queue.
+
+**D24.2 — No database schema migration required**
+The `sale_status` column in `crm_orders` is already a free-form `VARCHAR(10)`. Storing `'5'` and `'6'` requires no column type changes, no new columns, and no Prisma migration. The implementation is entirely in the service, repository, and frontend layers.
+
+**D24.3 — Backend auto-rule extension in `order.service.ts`**
+The sale status auto-rule `if` condition is extended from `'2' || '3'` to `'2' || '3' || '5'` for the `Returned Orders` + full-refund-amount branch. The `'1'`-branch null-refund clear is extended to `'1' || '6'`. A `mapSaleStatus` helper update ensures the audit log writes `'Void'` and `'Cancel Order'` as human-readable strings in change history records.
+
+**D24.4 — Repository `Returned Orders` filter includes Void**
+The `findAll` OR-filter condition for `Returned Orders` is extended from `saleStatus: { in: ['2', '3'] }` to `saleStatus: { in: ['2', '3', '5'] }`. This ensures Void orders appear in the `Returned Orders` pipeline queue alongside Refunded and Chargebacked orders.
+
+**D24.5 — Team column replaced by Sale Status column in `OrderList.tsx`**
+The Team column is removed from the Orders table. A new Sale Status column takes its place, rendering a color-coded badge for each row using two pure helper functions (`getSaleStatusLabel`, `getSaleStatusBadgeClass`). Team information remains accessible on the Order Details page. The badge color palette is: Sold → emerald, Refunded → amber, Chargebacked → rose, Partial Refund → blue, Void → purple, Cancel Order → slate.
+
+**D24.6 — Sale Status filter added to `OrderListContainer.tsx` filter bar**
+A visible `<select>` labeled `"Sale Status"` is added to the existing filter row. The existing `saleStatusFilter` state, API wiring, and active-filter pill were already functional — only the UI control was missing. The pill label decoder is extended to handle codes `'5'` and `'6'`.
+
+**D24.7 — Automatic Workflow Status update in `AddOrderForm.tsx` and `EditOrderForm.tsx`**
+When a user selects `Refunded` (`'2'`), `Chargebacked` (`'3'`), or `Void` (`'5'`) in either form, the `orderCurrentStatus` field must automatically update to `'Returned Orders'` in the UI (before the form is saved). For all other sale statuses, if `orderCurrentStatus` was `'Returned Orders'` due to this auto-rule, it resets to `'Pending Booking'`. `AddOrderForm.tsx` already has a `useEffect` for codes `'2'`/`'3'` — it is extended to include `'5'`. `EditOrderForm.tsx` currently has no such `useEffect` — a new one is added that watches only `saleStatus` (with an intentional `eslint-disable` for the excluded `orderCurrentStatus` dep) to fire only on explicit sale status changes by the agent.
+
+#### Consequences
+- No database migration required, making this a zero-risk schema change.
+- Void and Cancel Order are fully audited in `crm_sale_status_history` like all other status changes.
+- `SaleStatusTimeline.tsx` and `OrderAuditLog.tsx` must be extended to decode codes `'5'`/`'6'` to human-readable labels so historical timeline entries display correctly.
+- Vendor statistics in `vendor.repository.ts` are updated to count Void and Cancel Order orders in vendor totals.
+- The Orders table is one column narrower (Team removed), giving the Sale Status badge more visual prominence.
+

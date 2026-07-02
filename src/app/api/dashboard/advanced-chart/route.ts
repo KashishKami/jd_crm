@@ -22,7 +22,11 @@ export async function GET(request: Request) {
 
   try {
     const data = await getAdvancedChartMetrics(session, teamId, agentId, range, startDateStr, endDateStr);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'private, max-age=60',
+      },
+    });
   } catch (error: unknown) {
     const err = error as Error;
     if (err.message === 'Forbidden') {

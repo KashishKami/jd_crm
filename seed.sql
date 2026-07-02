@@ -89,39 +89,39 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (22, 'agents:view-inactive',           'View inactive agents list'),
 (23, 'agents:create',                  'Create a new agent account'),
 (24, 'agents:edit',                    'Edit agent details or deactivate'),
+(25, 'agents:view-roles',              'View roles column and filter in Agent list'),
+(26, 'agents:view-details',            'View sensitive agent detail tabs (bank, academic, work)'),
 -- Gateways
-(25, 'gateways:view',                  'View all payment gateways'),
-(26, 'gateways:create',                'Add a new gateway'),
-(27, 'gateways:report',                'Access gateway report page'),
-(28, 'gateways:edit',                  'Edit or deactivate a gateway'),
+(27, 'gateways:view',                  'View all payment gateways'),
+(28, 'gateways:create',                'Add a new gateway'),
+(29, 'gateways:report',                'Access gateway report page'),
+(30, 'gateways:edit',                  'Edit or deactivate a gateway'),
 -- Orders
-(29, 'orders:view',                    'View orders, transactions, and status boards'),
-(30, 'orders:create',                  'Create a new order'),
-(31, 'orders:edit',                    'Edit or delete an existing order'),
-(32, 'orders:view-completed',          'View completed orders'),
-(33, 'orders:view-pending-booking',    'View pending booking queue'),
-(34, 'orders:view-pending-shipment',   'View pending shipment queue'),
-(35, 'orders:view-pending-delivery',   'View pending delivery queue'),
-(36, 'orders:view-pending-feedback',   'View pending feedback queue'),
-(37, 'orders:view-pending-resolutions','View pending resolutions queue'),
-(38, 'orders:view-returned',           'View returned orders queue'),
-(39, 'orders:view-sale-status-history', 'View sale status change history timeline'),
-(40, 'orders:view-workflow-history',    'View order workflow status change timeline'),
-(41, 'orders:delete',                    'Permanently delete an order and all its children logs'),
-(42, 'orders:view-log',                  'Access order detail page view access history log'),
-(43, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
+(31, 'orders:view',                    'View orders, transactions, and status boards'),
+(32, 'orders:create',                  'Create a new order'),
+(33, 'orders:edit',                    'Edit or delete an existing order'),
+(34, 'orders:view-completed',          'View completed orders'),
+(35, 'orders:view-pending-booking',    'View pending booking queue'),
+(36, 'orders:view-pending-shipment',   'View pending shipment queue'),
+(37, 'orders:view-pending-delivery',   'View pending delivery queue'),
+(38, 'orders:view-pending-feedback',   'View pending feedback queue'),
+(39, 'orders:view-pending-resolutions','View pending resolutions queue'),
+(40, 'orders:view-returned',           'View returned orders queue'),
+(41, 'orders:view-sale-status-history', 'View sale status change history timeline'),
+(42, 'orders:view-workflow-history',    'View order workflow status change timeline'),
+(43, 'orders:delete',                    'Permanently delete an order and all its children logs'),
+(44, 'orders:view-log',                  'Access order detail page view access history log'),
+(45, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
 -- Customers
-(44, 'customers:view',                 'View customer list and detail pages'),
-(45, 'customers:create',               'Create a new customer'),
-(46, 'customers:edit',                 'Edit customer details'),
-(47, 'customers:view-phone',           'View customer phone number in order detail'),
-(48, 'customers:view-email',           'View customer email in order detail'),
-(49, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
-(50, 'customers:view-cards',           'View full unmasked payment card details'),
+(46, 'customers:view',                 'View customer list and detail pages'),
+(47, 'customers:create',               'Create a new customer'),
+(48, 'customers:edit',                 'Edit customer details'),
+(49, 'customers:view-phone',           'View customer phone number in order detail'),
+(50, 'customers:view-email',           'View customer email in order detail'),
+(51, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
+(52, 'customers:view-cards',           'View full unmasked payment card details'),
 -- Settings
-(51, 'settings:manage-permissions',    'Manage role permissions matrix'),
--- Agents extra
-(52, 'agents:view-roles',              'View roles column and filter in Agent list')
+(53, 'settings:manage-permissions',    'Manage role permissions matrix')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- Clear existing role permissions mappings to ensure only admin/superadmin roles are mapped
@@ -133,7 +133,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),
 (1,21),(1,22),(1,23),(1,24),(1,25),(1,26),(1,27),(1,28),(1,29),(1,30),
 (1,31),(1,32),(1,33),(1,34),(1,35),(1,36),(1,37),(1,38),(1,39),(1,40),
-(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50),(1,51),(1,52);
+(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53);
 
 -- Link permissions to Admin (role_id = 2)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -141,7 +141,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),
 (2,21),(2,22),(2,23),(2,24),(2,25),(2,26),(2,27),(2,28),(2,29),(2,30),
 (2,31),(2,32),(2,33),(2,34),(2,35),(2,36),(2,37),(2,38),(2,39),(2,40),
-(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50),(2,51),(2,52);
+(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53);
 
 -- Clear existing users to cleanly seed new list
 DELETE FROM users;

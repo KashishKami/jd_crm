@@ -218,4 +218,129 @@ describe('Agent Management CRUD Endpoints Integration Tests', () => {
       expect(dbUser?.status).toBe(0);
     });
   });
+
+  describe('GET /api/agents/:id', () => {
+    it('should return 403 Forbidden if user lacks agents:view permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Restricted User',
+          userPermissions: 'vendors:view', // Lacks agents:view
+        },
+      });
+
+      const { GET } = await import('../app/api/agents/[id]/route');
+      const req = new Request('http://localhost/api/agents/1');
+      const res = await GET(req, { params: { id: '1' } });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return basic info but set personal structures to null if session only has agents:view (lacks agents:view-details)', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const team = await prisma.crmTeams.findFirst();
+
+      const user = await prisma.users.create({
+        data: {
+          name: 'Test Details Agent',
+          username: 'test_agent_details',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: team!.teamId,
+          profile: {
+            create: {
+              profileBankAccount: '123456789',
+              profileBankName: 'Test Bank',
+            }
+          },
+          academicRecord: {
+            create: [
+              { academicInstitute: 'Test Institute' }
+            ]
+          },
+          professionalRecord: {
+            create: [
+              { professionalOrganization: 'Test Corp' }
+            ]
+          }
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User Only View',
+          userPermissions: 'agents:view', // has agents:view but NOT agents:view-details
+        },
+      });
+
+      const { GET } = await import('../app/api/agents/[id]/route');
+      const req = new Request(`http://localhost/api/agents/${user.uid}`);
+      const res = await GET(req, { params: { id: String(user.uid) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.name).toBe('Test Details Agent');
+      expect(data.profile).toBeNull();
+      expect(data.academicRecord).toBeNull();
+      expect(data.professionalRecord).toBeNull();
+
+      // Cleanup
+      await prisma.users.delete({ where: { uid: user.uid } });
+    });
+
+    it('should return full details (including profile, academic, and professional records) if session has agents:view-details', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const team = await prisma.crmTeams.findFirst();
+
+      const user = await prisma.users.create({
+        data: {
+          name: 'Test Details Full Agent',
+          username: 'test_agent_details_full',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: team!.teamId,
+          profile: {
+            create: {
+              profileBankAccount: '123456789',
+              profileBankName: 'Test Bank',
+            }
+          },
+          academicRecord: {
+            create: [
+              { academicInstitute: 'Test Institute' }
+            ]
+          },
+          professionalRecord: {
+            create: [
+              { professionalOrganization: 'Test Corp' }
+            ]
+          }
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User View Details',
+          userPermissions: 'agents:view,agents:view-details', // has both
+        },
+      });
+
+      const { GET } = await import('../app/api/agents/[id]/route');
+      const req = new Request(`http://localhost/api/agents/${user.uid}`);
+      const res = await GET(req, { params: { id: String(user.uid) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.name).toBe('Test Details Full Agent');
+      expect(data.profile).not.toBeNull();
+      expect(data.profile.profileBankAccount).toBe('123456789');
+      expect(data.academicRecord.length).toBeGreaterThan(0);
+      expect(data.professionalRecord.length).toBeGreaterThan(0);
+
+      // Cleanup
+      await prisma.users.delete({ where: { uid: user.uid } });
+    });
+  });
 });

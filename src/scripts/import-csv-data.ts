@@ -97,12 +97,15 @@ function parseCSVDate(dateStr: string): Date | null {
     const monthIndex = months.indexOf(monthStr);
     
     if (!isNaN(day) && monthIndex !== -1 && !isNaN(year)) {
-      return new Date(Date.UTC(year, monthIndex, day));
+      const fullYear = year < 100 ? 2000 + year : year;
+      return new Date(Date.UTC(fullYear, monthIndex, day));
     }
   }
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) {
-    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const yr = d.getFullYear();
+    const fullYear = yr < 100 ? 2000 + yr : yr;
+    return new Date(Date.UTC(fullYear, d.getMonth(), d.getDate()));
   }
   return null;
 }
@@ -221,7 +224,7 @@ async function main() {
   console.log('Parsing data rows...');
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
-    if (row.length < 25) {
+    if (row.length < 29) {
       failedCount++;
       continue;
     }
@@ -240,9 +243,9 @@ async function main() {
     const makeModel = row[11];
     const partDescription = row[12];
     const specifications = row[13];
-    const vinNumber = row[14];
-    const quotedMiles = row[15];
-    const vendorMiles = row[16];
+    const quotedMilesAndWarranty = row[14];
+    const vendorMilesAndWarranty = row[15];
+    const vinNumber = row[16];
     const pricePitched = row[17];
     const buyingPrice = row[18];
     const computedMarkup = row[19];
@@ -250,10 +253,19 @@ async function main() {
     const shippingType = row[21];
     const supplierVendor = row[22];
     const billingGateway = row[23];
+    
+    // Clean names to handle 'NA'
     const salesAgentName = row[24];
     const salesVerifierName = row[25];
-    const saleStatusRaw = row[26];
-    const remarks = row[27];
+    const backendExecutiveName = row[26];
+    const qaVerifierName = row[27];
+    const saleStatusRaw = row[28];
+    const remarks = null; // No comments column in Data_for_CRM_v2.csv
+
+    const cleanAgentName = (salesAgentName && salesAgentName !== 'NA') ? salesAgentName : null;
+    const cleanSalesVerifierName = (salesVerifierName && salesVerifierName !== 'NA') ? salesVerifierName : null;
+    const cleanBackendExecutiveName = (backendExecutiveName && backendExecutiveName !== 'NA') ? backendExecutiveName : null;
+    const cleanQaVerifierName = (qaVerifierName && qaVerifierName !== 'NA') ? qaVerifierName : null;
 
     const orderDateParsed = parseCSVDate(dateRaw);
     if (!orderDateParsed) {
@@ -273,14 +285,22 @@ async function main() {
       vendorId = vendorCache.get(supplierVendor.toLowerCase().trim()) ?? null;
     }
 
-    // Resolve Agent / Verifiers
+    // Resolve Agent / Verifiers / Backend / QA
     let agentId: number | null = null;
-    if (salesAgentName) {
-      agentId = agentCache.get(salesAgentName.toLowerCase().trim()) ?? null;
+    if (cleanAgentName) {
+      agentId = agentCache.get(cleanAgentName.toLowerCase().trim()) ?? null;
     }
     let salesVerifierId: number | null = null;
-    if (salesVerifierName) {
-      salesVerifierId = agentCache.get(salesVerifierName.toLowerCase().trim()) ?? null;
+    if (cleanSalesVerifierName) {
+      salesVerifierId = agentCache.get(cleanSalesVerifierName.toLowerCase().trim()) ?? null;
+    }
+    let backendExecutiveId: number | null = null;
+    if (cleanBackendExecutiveName) {
+      backendExecutiveId = agentCache.get(cleanBackendExecutiveName.toLowerCase().trim()) ?? null;
+    }
+    let qaVerifierId: number | null = null;
+    if (cleanQaVerifierName) {
+      qaVerifierId = agentCache.get(cleanQaVerifierName.toLowerCase().trim()) ?? null;
     }
 
     // Pricing & Charged calculations
@@ -328,8 +348,8 @@ async function main() {
       orderMakeModel: makeModel || null,
       orderPart: partDescription || null,
       orderPartSize: specifications || null,
-      orderQuotedMilesAndWarranty: quotedMiles || null,
-      orderVendorMilesAndWarranty: vendorMiles || null,
+      orderQuotedMilesAndWarranty: quotedMilesAndWarranty || null,
+      orderVendorMilesAndWarranty: vendorMilesAndWarranty || null,
       orderChecklist: 'No',
       orderVin: vinNumber || null,
       orderTotalPitched: pricePitched || '0',
@@ -341,9 +361,13 @@ async function main() {
       orderRefundAmount: isReturned ? chargedVal : null,
       orderPaymentGatewayId: gatewayId,
       orderSalesAgentId: agentId,
-      orderSalesAgentName: salesAgentName || null,
+      orderSalesAgentName: cleanAgentName,
       orderSalesVerifierId: salesVerifierId,
-      orderSalesVerifierName: salesVerifierName || null,
+      orderSalesVerifierName: cleanSalesVerifierName,
+      orderBackendExecutiveId: backendExecutiveId,
+      orderBackendExecutiveName: cleanBackendExecutiveName,
+      orderVerifierId: qaVerifierId,
+      orderVerifierName: cleanQaVerifierName,
       saleStatus: mappedSaleStatus,
       orderCurrentStatus: isReturned ? 'Returned Orders' : 'Completed Orders',
       orderCurrentStatusUpdateDate: orderDateParsed,
@@ -363,7 +387,7 @@ async function main() {
         orderId: customerId,
         comment: remarks,
         commentAgentId: commentAgentUid,
-        commentAgentName: salesAgentName || 'Admin',
+        commentAgentName: cleanAgentName || 'Admin',
         commentCreatedDate: orderDateParsed,
         commentUpdatedDate: new Date(),
       });

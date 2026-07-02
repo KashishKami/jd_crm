@@ -38,7 +38,8 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
 
     const mappedData = vendors.map((vendor) => {
       const validOrders = vendor.orders.filter(
-        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
+        // Void ('5') counted — vendor was booked; Cancel Order ('6') excluded — never charged.
+        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5'
       );
       const totalOrders = validOrders.length;
       const negativeOrders = validOrders.filter(
@@ -66,9 +67,10 @@ export async function getAllVendors(status?: number, page?: number, limit?: numb
   const vendors = await vendorRepository.findAll(status);
   
   return vendors.map((vendor) => {
-    // Filter and count orders where saleStatus is in ['1', '2', '3', '4']
+    // Void ('5') included — vendor was booked and charge captured (same-day reversal).
+    // Cancel Order ('6') excluded — no charge processed, vendor was not involved.
     const validOrders = vendor.orders.filter(
-      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
+      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5'
     );
     const totalOrders = validOrders.length;
     

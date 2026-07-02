@@ -189,9 +189,10 @@ export default function VendorDetailPage() {
     }
   };
 
-  // Compute metrics locally
+  // Void ('5') counted — vendor was booked and charge captured (same-day reversal).
+  // Cancel Order ('6') excluded — no charge was processed, so no vendor was involved.
   const validOrders = orders.filter(
-    (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4'
+    (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5'
   );
   const totalOrders = validOrders.length;
   const negativeOrders = validOrders.filter(
@@ -205,7 +206,8 @@ export default function VendorDetailPage() {
       case '2': return 'Refunded';
       case '3': return 'Chargebacked';
       case '4': return 'Partial Refund';
-      default: return 'Unknown';
+      case '5': return 'Void';
+      default: return '—';
     }
   };
 

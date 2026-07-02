@@ -32,7 +32,11 @@ export async function GET(request: Request) {
 
   try {
     const data = await dashboardService.getChampionsLeague(session, month, year);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'private, max-age=60',
+      },
+    });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -260,6 +260,7 @@ model CrmOrders {
   @@index([orderSalesAgentId])
   @@index([orderCurrentStatus])
   @@index([saleStatus])
+  @@index([orderDate])
   @@index([orderSalesVerifierId])
   @@index([orderBackendExecutiveId])
   @@index([orderPaymentGatewayId], map: "crm_orders_order_payment_gateway_fkey")

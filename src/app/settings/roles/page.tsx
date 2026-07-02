@@ -140,7 +140,7 @@ export default function RoleSettingsPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Role & Permission Settings</h1>
+          <h1 className="page-title">Roles and Permissions</h1>
           <p className="page-subtitle">Configure what each role is allowed to access across the CRM.</p>
         </div>
       </div>

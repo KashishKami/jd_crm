@@ -48,7 +48,9 @@ export async function toggleStatus(vendorId: number, status: number) {
 export async function findOrdersByVendorId(vendorId: number, rating?: 'positive' | 'negative') {
   const where: Prisma.CrmOrdersWhereInput = {
     orderVendorId: vendorId,
-    saleStatus: { in: ['1', '2', '3', '4'] },
+    // Void ('5') is included — a vendor was booked and the charge was captured, even though it was reversed same-day.
+    // Cancel Order ('6') is excluded — no charge was ever processed, so no vendor booking took place.
+    saleStatus: { in: ['1', '2', '3', '4', '5'] },
   };
 
   if (rating === 'positive') {
@@ -95,7 +97,9 @@ export async function getPerformanceHistory(vendorId: number): Promise<VendorPer
     FROM crm_orders
     WHERE
       order_vendor_id = ${vendorId}
-      AND sale_status IN ('1', '2', '3', '4')
+      -- Void ('5') included: vendor was booked and charge was captured (same-day reversal).
+      -- Cancel Order ('6') excluded: no charge ever processed, vendor was not involved.
+      AND sale_status IN ('1', '2', '3', '4', '5')
       AND order_date IS NOT NULL
     GROUP BY YEAR(order_date), MONTH(order_date)
     ORDER BY yr DESC, mo DESC

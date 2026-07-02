@@ -12,7 +12,11 @@ export async function GET(request?: Request) {
 
   try {
     const metrics = await dashboardService.getMetricsForUser(session);
-    return NextResponse.json(metrics);
+    return NextResponse.json(metrics, {
+      headers: {
+        'Cache-Control': 'private, max-age=60',
+      },
+    });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });
