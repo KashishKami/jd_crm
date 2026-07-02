@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { AgentDetail, FormAcademicRecord, FormProfessionalRecord } from '../types/agent';
 import { fadeInPage } from '../lib/animations';
@@ -16,8 +17,14 @@ interface EditAgentFormProps {
 
 export default function EditAgentForm({ agent, teams, roles, designations }: EditAgentFormProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'profile' | 'academic' | 'professional'>('basic');
+
+  const permissions = session?.user?.userPermissions || '';
+  const hasAgentEditPerm = permissions.split(',').includes('agents:edit');
+  const isEditingSelf = session?.user?.id ? Number(session.user.id) === agent.uid : false;
+  const disableRestrictedFields = isEditingSelf && !hasAgentEditPerm;
 
   // Local Form state representing primary fields and nested tables
   const [userData, setUserData] = useState({
@@ -346,6 +353,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     onChange={handleUserChange}
                     className="form-select"
                     required
+                    disabled={disableRestrictedFields}
                   >
                     {roles.map((role) => (
                       <option key={role.roleId} value={role.roleId}>
@@ -362,6 +370,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     onChange={handleUserChange}
                     className="form-select"
                     required
+                    disabled={disableRestrictedFields}
                   >
                     {teams.map((team) => (
                       <option key={team.teamId} value={team.teamId}>
@@ -377,6 +386,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     value={userData.designation}
                     onChange={handleUserChange}
                     className="form-select"
+                    disabled={disableRestrictedFields}
                   >
                     <option value="">-- Select Designation --</option>
                     {designations.map((desg) => (
@@ -394,6 +404,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     value={userData.agentId}
                     onChange={handleUserChange}
                     className="form-input"
+                    disabled={disableRestrictedFields}
                   />
                 </div>
                 <div className="form-group">
@@ -446,6 +457,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     value={userData.dateOfJoining}
                     onChange={handleUserChange}
                     className="form-input"
+                    disabled={disableRestrictedFields}
                   />
                 </div>
                 <div className="form-group">
@@ -456,6 +468,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     value={userData.agentSalary}
                     onChange={handleUserChange}
                     className="form-input"
+                    disabled={disableRestrictedFields}
                   />
                 </div>
                 <div className="form-group">
@@ -466,6 +479,7 @@ export default function EditAgentForm({ agent, teams, roles, designations }: Edi
                     value={userData.agentTarget}
                     onChange={handleUserChange}
                     className="form-input"
+                    disabled={disableRestrictedFields}
                   />
                 </div>
               </div>

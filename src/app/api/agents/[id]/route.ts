@@ -14,18 +14,19 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'agents:view');
+  const resolvedParams = await params;
+  const uid = Number(resolvedParams.id);
+  if (isNaN(uid)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+  }
+
+  const isSelf = Number(session.user.id) === uid;
+  const isPermitted = hasPermission(session.user.userPermissions, 'agents:view') || isSelf;
   if (!isPermitted) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
       { status: 403 }
     );
-  }
-
-  const resolvedParams = await params;
-  const uid = Number(resolvedParams.id);
-  if (isNaN(uid)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
   }
 
   try {
@@ -34,7 +35,7 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
-    const hasViewDetails = hasPermission(session.user.userPermissions, 'agents:view-details');
+    const hasViewDetails = hasPermission(session.user.userPermissions, 'agents:view-details') || isSelf;
     if (!hasViewDetails) {
       agent.profile = null;
       agent.academicRecord = null as any;
@@ -58,7 +59,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'agents:edit');
+  const resolvedParams = await params;
+  const uid = Number(resolvedParams.id);
+  if (isNaN(uid)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+  }
+
+  const isSelf = Number(session.user.id) === uid;
+  const hasAgentEdit = hasPermission(session.user.userPermissions, 'agents:edit');
+  const isPermitted = hasAgentEdit || isSelf;
   if (!isPermitted) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
@@ -66,14 +75,21 @@ export async function PATCH(
     );
   }
 
-  const resolvedParams = await params;
-  const uid = Number(resolvedParams.id);
-  if (isNaN(uid)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-  }
-
   try {
     const body = await request.json();
+
+    // If editing self but lacks agents:edit, strip/ignore administrative fields
+    if (isSelf && !hasAgentEdit) {
+      delete body.roleId;
+      delete body.teamId;
+      delete body.designation;
+      delete body.agentId;
+      delete body.agentSalary;
+      delete body.agentTarget;
+      delete body.dateOfJoining;
+      delete body.status;
+    }
+
     const updatedAgent = await agentService.updateAgent(uid, body);
     return NextResponse.json(updatedAgent);
   } catch (error: unknown) {

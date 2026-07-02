@@ -137,7 +137,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
                         <span className="text-slate-400">Buy: ${buy}</span>
                         <span className="text-slate-500">Charged: ${charged}</span>
                         {showRemaining && (
-                          <span className="text-amber-600">Remaining: ${remaining.toFixed(2)}</span>
+                          <span className="text-amber-600">Balance due: ${remaining.toFixed(2)}</span>
                         )}
                         {showRefund && (
                           <span className="text-rose-600">Refund: ${refund}</span>

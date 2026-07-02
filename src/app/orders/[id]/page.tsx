@@ -450,7 +450,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
                     {showRemaining && (
                       <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Remaining to be charged</span>
+                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Balance due</span>
                         <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${remainingToBeCharged.toFixed(2)}</span>
                       </div>
                     )}

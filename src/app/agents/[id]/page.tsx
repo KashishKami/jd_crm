@@ -21,18 +21,18 @@ export default async function AgentDetailPage({ params }: AgentPageProps) {
     redirect('/login');
   }
 
-  // Ensure user has access to view agents
-  const isPermitted = hasPermission(session.user.userPermissions, 'agents:view');
-  if (!isPermitted) {
-    redirect('/access-denied');
-  }
-
   const resolvedParams = await params;
   const uid = Number(resolvedParams.id);
   if (isNaN(uid)) {
     notFound();
   }
 
+  // Ensure user has access to view agents OR is viewing their own profile
+  const isSelf = Number(session.user.id) === uid;
+  const isPermitted = hasPermission(session.user.userPermissions, 'agents:view') || isSelf;
+  if (!isPermitted) {
+    redirect('/access-denied');
+  }
   const agent = await agentService.getAgentById(uid);
   if (!agent) {
     notFound();

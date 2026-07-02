@@ -165,14 +165,34 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
         {dropdownOpen && (
           <div className="profile-dropdown-menu" data-testid="profile-dropdown-menu">
-            <div className="dropdown-user-info">
+            <Link
+              href={`/agents/${session.user.id}`}
+              prefetch={false}
+              className="dropdown-user-info dropdown-user-info-link"
+              onClick={() => setDropdownOpen(false)}
+              style={{ textDecoration: 'none', color: 'inherit', display: 'flex', width: '100%' }}
+            >
               <span className="dropdown-avatar">{username[0]?.toUpperCase()}</span>
               <div className="dropdown-details">
                 <span className="dropdown-name">{username}</span>
                 <span className="dropdown-email">{session.user.email || 'Staff Member'}</span>
               </div>
-            </div>
+            </Link>
             <div className="dropdown-divider"></div>
+            
+            <Link
+              href={`/agents/${session.user.id}`}
+              prefetch={false}
+              className="dropdown-item-btn"
+              data-testid="profile-btn"
+              onClick={() => setDropdownOpen(false)}
+            >
+              <svg className="dropdown-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              My Profile
+            </Link>
+
             {hasPermission(permissions, 'settings:manage-permissions') && (
               <Link
                 href="/settings/roles"

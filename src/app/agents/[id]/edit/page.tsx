@@ -22,16 +22,17 @@ export default async function EditAgentPage({ params }: EditAgentPageProps) {
     redirect('/login');
   }
 
-  // Ensure user has edit rights
-  const isPermitted = hasPermission(session.user.userPermissions, 'agents:edit');
-  if (!isPermitted) {
-    redirect('/access-denied');
-  }
-
   const resolvedParams = await params;
   const uid = Number(resolvedParams.id);
   if (isNaN(uid)) {
     notFound();
+  }
+
+  // Ensure user has edit rights OR is editing their own profile
+  const isSelf = Number(session.user.id) === uid;
+  const isPermitted = hasPermission(session.user.userPermissions, 'agents:edit') || isSelf;
+  if (!isPermitted) {
+    redirect('/access-denied');
   }
 
   // Fetch the agent with all sub-profiles

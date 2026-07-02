@@ -208,23 +208,33 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="form-card">
+      <form onSubmit={handleSubmit} className="form-card form-card-georgia">
+        <style dangerouslySetInnerHTML={{ __html: `
+          .form-card-georgia, .form-card-georgia input, .form-card-georgia select, .form-card-georgia textarea {
+            font-family: Georgia, serif !important;
+          }
+        `}} />
         {/* Section 1: Customer Info */}
         <div className="form-section">
           <h3 className="form-section-title">1. Customer Information</h3>
           <div className="form-grid">
             <div className="form-group form-grid-full">
-              <label htmlFor="customerName" className="form-label">Customer Name</label>
+              <label htmlFor="customerName" className="form-label">
+                Customer Name <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 id="customerName"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="form-input"
+                placeholder="e.g. Jane Doe"
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Email Address</label>
+              <label className="form-label">
+                Email Address <span className="text-red-500">*</span>
+              </label>
               <input
                 type="email"
                 value={customerEmail}
@@ -233,7 +243,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Phone Number</label>
+              <label className="form-label">
+                Phone Number
+              </label>
               <input
                 type="text"
                 value={customerPhone}
@@ -242,32 +254,61 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group form-grid-full">
-              <label className="form-label">Billing Address</label>
-              <input
-                type="text"
+              <label className="form-label">
+                Billing Address
+              </label>
+              <textarea
                 value={customerBillingAddress}
                 onChange={(e) => setCustomerBillingAddress(e.target.value)}
-                className="form-input"
+                className="form-textarea"
+                rows={3}
               />
             </div>
             <div className="form-group form-grid-full">
-              <label className="form-label">Shipping Address</label>
-              <input
-                type="text"
+              <label className="form-label">
+                Shipping Address
+              </label>
+              <textarea
                 value={customerShippingAddress}
                 onChange={(e) => setCustomerShippingAddress(e.target.value)}
-                className="form-input"
+                className="form-textarea"
+                rows={3}
               />
             </div>
           </div>
         </div>
 
-        {/* Section 2: Card Details */}
+        {/* Section 2: Payment Card Details */}
         <div className="form-section">
           <h3 className="form-section-title">2. Payment Card Details</h3>
+          
+          {/* Checkboxes placed under heading */}
+          <div className="flex gap-6 items-center py-2 mb-4 border-b border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={customerCardCopyStatus === 'Yes'}
+                onChange={(e) => setCustomerCardCopyStatus(e.target.checked ? 'Yes' : 'No')}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Card Copy Verified</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={customerCardPhotoStatus === 'Yes'}
+                onChange={(e) => setCustomerCardPhotoStatus(e.target.checked ? 'Yes' : 'No')}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Photo ID Checked</span>
+            </label>
+          </div>
+
           <div className="form-grid">
             <div className="form-group form-grid-full">
-              <label className="form-label">Name On Card</label>
+              <label className="form-label">
+                Name On Card <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={customerNameOncard}
@@ -276,7 +317,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Card Number</label>
+              <label className="form-label">
+                Card Number <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={customerCardNumber}
@@ -285,7 +328,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Expiry Date (MM/YY)</label>
+              <label className="form-label">
+                Expiry Date (MM/YY) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={customerCardExpDate}
@@ -294,7 +339,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">CVV Code</label>
+              <label className="form-label">
+                CVV Code
+              </label>
               <input
                 type="password"
                 value={customerCardCvv}
@@ -302,64 +349,72 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 className="form-input font-mono"
               />
             </div>
-            <div className="form-group form-grid-full flex-row gap-6 items-center pt-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={customerCardCopyStatus === 'Yes'}
-                  onChange={(e) => setCustomerCardCopyStatus(e.target.checked ? 'Yes' : 'No')}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Card Copy Verified</span>
+            <div className="form-group">
+              <label className="form-label">
+                Billing Gateway
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={customerCardPhotoStatus === 'Yes'}
-                  onChange={(e) => setCustomerCardPhotoStatus(e.target.checked ? 'Yes' : 'No')}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Photo ID Checked</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={orderChecklist === 'Yes'}
-                  onChange={(e) => setOrderChecklist(e.target.checked ? 'Yes' : 'No')}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <span className="form-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist</span>
-              </label>
+              <select
+                value={orderPaymentGatewayId}
+                onChange={(e) => setOrderPaymentGatewayId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Select Gateway --</option>
+                {gateways.map((g) => (
+                  <option key={g.gatewayId} value={g.gatewayId}>{g.gatewayName}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Section 3: Vehicle Specs */}
+        {/* Section 3: Vehicle & Part Specifications */}
         <div className="form-section">
           <h3 className="form-section-title">3. Vehicle & Part Specifications</h3>
+          
+          {/* Checklist checkbox under heading */}
+          <div className="flex gap-6 items-center py-2 mb-4 border-b border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={orderChecklist === 'Yes'}
+                onChange={(e) => setOrderChecklist(e.target.checked ? 'Yes' : 'No')}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist</span>
+            </label>
+          </div>
+
           <div className="form-grid">
             <div className="form-group form-grid-full">
-              <label className="form-label">Year, Make & Model</label>
+              <label className="form-label">
+                Year, Make & Model
+              </label>
               <input
                 id="orderMakeModel"
                 type="text"
                 value={orderMakeModel}
                 onChange={(e) => setOrderMakeModel(e.target.value)}
                 className="form-input"
+                placeholder="e.g. 2021 Jeep Grand Cherokee"
               />
             </div>
             <div className="form-group form-grid-full">
-              <label className="form-label">Part Description *</label>
+              <label className="form-label">
+                Part Description <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={orderPart}
                 onChange={(e) => setOrderPart(e.target.value)}
                 required
                 className="form-input"
+                placeholder="e.g. Passenger Side Headlight Assembly"
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Specs / Size</label>
+              <label className="form-label">
+                Dimensions / Specifications
+              </label>
               <input
                 type="text"
                 value={orderPartSize}
@@ -368,7 +423,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderQuotedMilesAndWarranty" className="form-label">Quoted Miles and Warranty</label>
+              <label htmlFor="orderQuotedMilesAndWarranty" className="form-label">
+                Quoted Miles and Warranty
+              </label>
               <input
                 id="orderQuotedMilesAndWarranty"
                 type="text"
@@ -378,7 +435,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderVendorMilesAndWarranty" className="form-label">Vendor Miles and Warranty</label>
+              <label htmlFor="orderVendorMilesAndWarranty" className="form-label">
+                Vendor Miles and Warranty
+              </label>
               <input
                 type="text"
                 value={orderVendorMilesAndWarranty}
@@ -387,23 +446,31 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">VIN Number</label>
+              <label className="form-label">
+                VIN Number
+              </label>
               <input
                 type="text"
                 value={orderVin}
                 onChange={(e) => setOrderVin(e.target.value)}
                 className="form-input font-mono uppercase"
+                maxLength={17}
               />
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                {orderVin.length}/17 characters
+              </span>
             </div>
           </div>
         </div>
 
         {/* Section 4: Pricing & Allocation */}
         <div className="form-section">
-          <h3 className="form-section-title">4. Pricing, Workflow & Tracking</h3>
+          <h3 className="form-section-title">4. Pricing & Allocation</h3>
           <div className="form-grid">
             <div className="form-group">
-              <label className="form-label">Total Price Pitched *</label>
+              <label className="form-label">
+                Total Price Pitched <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
                 value={orderTotalPitched}
@@ -413,7 +480,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Vendor Buying Price *</label>
+              <label className="form-label">
+                Vendor Buying Price <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
                 value={orderVendorPrice}
@@ -423,7 +492,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Charged Amount</label>
+              <label className="form-label">
+                Charged Amount
+              </label>
               <input
                 type="number"
                 value={orderAmountCharged}
@@ -431,18 +502,19 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 className="form-input font-mono"
               />
             </div>
-            <div className="form-group" style={{ justifyContent: 'center' }}>
-              <span className="form-label">Computed Gross Spread</span>
-              <span className={`text-lg font-bold mt-1 ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                ${markup.toFixed(2)}
-              </span>
+            <div className="form-group">
+              <label className="form-label">
+                Computed Gross Spread
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span className={`text-2xl font-bold ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  ${markup.toFixed(2)}
+                </span>
+              </div>
             </div>
             <div className="form-group">
               <label htmlFor="orderDate" className="form-label">
-                Sale Date
-                <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '6px' }}>
-                  (defaults to today)
-                </span>
+                Sale Date <span className="text-slate-400 font-normal normal-case ml-1">defaults to today</span>
               </label>
               <input
                 type="date"
@@ -453,7 +525,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Shipping Type</label>
+              <label className="form-label">
+                Shipping Type
+              </label>
               <select
                 value={orderShippingType}
                 onChange={(e) => setOrderShippingType(e.target.value)}
@@ -465,9 +539,117 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 <option value="Freight">Freight</option>
               </select>
             </div>
-
             <div className="form-group">
-              <label className="form-label">Carrier Tracking #</label>
+              <label className="form-label">
+                Supplier (Vendor)
+              </label>
+              <select
+                value={orderVendorId}
+                onChange={(e) => setOrderVendorId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">-- Assign Supplier --</option>
+                {vendors.map((v) => (
+                  <option key={v.vendorId} value={v.vendorId}>{v.vendorName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderVendorFeedback" className="form-label">
+                Vendor Feedback
+              </label>
+              <select
+                id="orderVendorFeedback"
+                value={orderVendorFeedback}
+                onChange={(e) => setOrderVendorFeedback(e.target.value)}
+                className="form-select"
+              >
+                <option value="Positive">Positive</option>
+                <option value="Negative">Negative</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 5: Team Allocation */}
+        <div className="form-section">
+          <h3 className="form-section-title">5. Team Allocation</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="orderSalesAgentId" className="form-label">
+                Sales Agent
+              </label>
+              <select
+                id="orderSalesAgentId"
+                value={orderSalesAgentId}
+                onChange={(e) => setOrderSalesAgentId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select or type name</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderSalesVerifierId" className="form-label">
+                Sales Verifier
+              </label>
+              <select
+                id="orderSalesVerifierId"
+                value={orderSalesVerifierId}
+                onChange={(e) => setOrderSalesVerifierId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select or type name</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderBackendExecutiveId" className="form-label">
+                Backend Executive
+              </label>
+              <select
+                id="orderBackendExecutiveId"
+                value={orderBackendExecutiveId}
+                onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select or type name</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderVerifierId" className="form-label">
+                QA Verifier
+              </label>
+              <select
+                id="orderVerifierId"
+                value={orderVerifierId}
+                onChange={(e) => setOrderVerifierId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select or type name</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 6: Order Status */}
+        <div className="form-section">
+          <h3 className="form-section-title">6. Order Status</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">
+                Carrier Tracking #
+              </label>
               <input
                 type="text"
                 placeholder="e.g. FedEx 1234..."
@@ -477,7 +659,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Delivery Stage Status</label>
+              <label className="form-label">
+                Delivery Stage Status
+              </label>
               <input
                 type="text"
                 placeholder="e.g. Out for Delivery / Delivered"
@@ -487,27 +671,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label htmlFor="orderCurrentStatus" className="form-label">Workflow Queue</label>
-              <select
-                id="orderCurrentStatus"
-                value={orderCurrentStatus}
-                onChange={(e) => setOrderCurrentStatus(e.target.value)}
-                className="form-select"
-              >
-                {order.orderCurrentStatus === 'Pending Booking' && (
-                  <option value="Pending Booking" disabled>Pending Booking</option>
-                )}
-                <option value="Pending Shipment">Pending Shipment</option>
-                <option value="Pending Delivery">Pending Delivery</option>
-                <option value="Pending Feedback">Pending Feedback</option>
-                <option value="Pending Resolutions">Pending Resolutions</option>
-                <option value="Completed Orders">Completed Orders</option>
-                <option value="Returned Orders">Returned Orders</option>
-                <option value="Cancelled Orders">Cancelled Orders</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="saleStatus" className="form-label">Sale Status</label>
+              <label htmlFor="saleStatus" className="form-label">
+                Sale Status
+              </label>
               <select
                 id="saleStatus"
                 value={saleStatus}
@@ -537,98 +703,25 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="orderVendorFeedback" className="form-label">Vendor Feedback</label>
+              <label htmlFor="orderCurrentStatus" className="form-label">
+                Workflow Queue
+              </label>
               <select
-                id="orderVendorFeedback"
-                value={orderVendorFeedback}
-                onChange={(e) => setOrderVendorFeedback(e.target.value)}
+                id="orderCurrentStatus"
+                value={orderCurrentStatus}
+                onChange={(e) => setOrderCurrentStatus(e.target.value)}
                 className="form-select"
               >
-                <option value="Positive">Positive</option>
-                <option value="Negative">Negative</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Supplier (Vendor)</label>
-              <select
-                value={orderVendorId}
-                onChange={(e) => setOrderVendorId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Assign Supplier --</option>
-                {vendors.map((v) => (
-                  <option key={v.vendorId} value={v.vendorId}>{v.vendorName}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Billing Gateway</label>
-              <select
-                value={orderPaymentGatewayId}
-                onChange={(e) => setOrderPaymentGatewayId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Select Gateway --</option>
-                {gateways.map((g) => (
-                  <option key={g.gatewayId} value={g.gatewayId}>{g.gatewayName}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="orderSalesAgentId" className="form-label">Sales Agent</label>
-              <select
-                id="orderSalesAgentId"
-                value={orderSalesAgentId}
-                onChange={(e) => setOrderSalesAgentId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Assign Sales Agent --</option>
-                {agents.map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="orderSalesVerifierId" className="form-label">Sales Verifier</label>
-              <select
-                id="orderSalesVerifierId"
-                value={orderSalesVerifierId}
-                onChange={(e) => setOrderSalesVerifierId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Assign Sales Verifier --</option>
-                {agents.map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="orderBackendExecutiveId" className="form-label">Backend Executive</label>
-              <select
-                id="orderBackendExecutiveId"
-                value={orderBackendExecutiveId}
-                onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Assign Backend Executive --</option>
-                {agents.map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="orderVerifierId" className="form-label">QA Verifier</label>
-              <select
-                id="orderVerifierId"
-                value={orderVerifierId}
-                onChange={(e) => setOrderVerifierId(e.target.value)}
-                className="form-select"
-              >
-                <option value="">-- Assign QA --</option>
-                {agents.map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
+                {order.orderCurrentStatus === 'Pending Booking' && (
+                  <option value="Pending Booking" disabled>Pending Booking</option>
+                )}
+                <option value="Pending Shipment">Pending Shipment</option>
+                <option value="Pending Delivery">Pending Delivery</option>
+                <option value="Pending Feedback">Pending Feedback</option>
+                <option value="Pending Resolutions">Pending Resolutions</option>
+                <option value="Completed Orders">Completed Orders</option>
+                <option value="Returned Orders">Returned Orders</option>
+                <option value="Cancelled Orders">Cancelled Orders</option>
               </select>
             </div>
           </div>
