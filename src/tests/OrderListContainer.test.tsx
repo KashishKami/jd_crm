@@ -115,4 +115,79 @@ describe('OrderListContainer Unit Tests', () => {
       expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('backendExecutiveId=2'));
     });
   });
+
+  describe('W-2204: Sale Status Dropdown Filter and Active Pills', () => {
+    it('[RED] should render Sale Status filter dropdown in the filter bar', async () => {
+      render(<OrderListContainer />);
+      await waitFor(() => {
+        expect(screen.getByLabelText(/^Sale Status$/i)).toBeDefined();
+      });
+    });
+
+    it('[RED] should show correct active filter pill when Void (5) is selected', async () => {
+      render(<OrderListContainer />);
+      await waitFor(() => {
+        expect(screen.getByLabelText(/^Sale Status$/i)).toBeDefined();
+      });
+
+      const select = screen.getByLabelText(/^Sale Status$/i) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: '5' } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Sale Status: Void/)).toBeDefined();
+      });
+    });
+
+    it('[RED] should show correct active filter pill when Cancelled (6) is selected', async () => {
+      render(<OrderListContainer />);
+      await waitFor(() => {
+        expect(screen.getByLabelText(/^Sale Status$/i)).toBeDefined();
+      });
+
+      const select = screen.getByLabelText(/^Sale Status$/i) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: '6' } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Sale Status: Cancelled/)).toBeDefined();
+      });
+    });
+
+    it('[RED] should render Cancelled Orders tab when user has orders:view-cancelled permission', async () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            name: 'Authorized Viewer',
+            userPermissions: 'orders:view,orders:view-cancelled',
+          },
+        },
+        status: 'authenticated',
+      } as any);
+
+      render(<OrderListContainer initialStatus="Cancelled Orders" />);
+
+      await waitFor(() => {
+        // Tab should exist
+        const tab = screen.getByRole('button', { name: /Cancelled Orders/i });
+        expect(tab).toBeDefined();
+      });
+    });
+
+    it('[RED] should display warning banner when Cancelled Orders tab is active', async () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            name: 'Authorized Viewer',
+            userPermissions: 'orders:view,orders:view-cancelled',
+          },
+        },
+        status: 'authenticated',
+      } as any);
+
+      render(<OrderListContainer initialStatus="Cancelled Orders" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Cancelled Orders Queue/i)).toBeDefined();
+      });
+    });
+  });
 });

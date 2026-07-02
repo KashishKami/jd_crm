@@ -96,6 +96,7 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `orders:view-pending-feedback` | `177` | Access Pending Feedback queue |
 | `orders:view-pending-resolutions` | `178` | Access Pending Resolutions queue |
 | `orders:view-returned` | — | Access Returned Orders queue (new) |
+| `orders:view-cancelled` | — | Access Cancelled Orders queue (new) |
 | `orders:view-sale-status-history` | — | View sale status change history timeline |
 | `orders:view-workflow-history` | — | View order workflow status change timeline |
 
@@ -145,7 +146,7 @@ Stored as a string in the `crm_orders` table. Controls margin accounting and das
 | **`3`** | `Chargebacked` | Customer disputed charge. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. |
 | **`4`** | `Partial Refund` | Partial amount returned to customer. `orderRefundAmount` = user-entered amount. `finalMargin = orderAmountCharged − orderRefundAmount`. Order remains in `Completed Orders` workflow queue (money was still received). |
 | **`5`** | `Void` | Order was charged but cancelled on the same day — full charge reversed. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. The date/time capture modal opens in the UI. |
-| **`6`** | `Cancel Order` | Agent collected all customer information but no charge was ever processed. Customer later cancelled. `orderRefundAmount` cleared to `null`. `orderCurrentStatus` is **not** changed by the auto-rule — order remains in its current workflow state. Does **not** appear in the `Returned Orders` queue. |
+| **`6`** | `Cancelled` | Agent collected all customer information but no charge was ever processed. Customer later cancelled. `orderRefundAmount` cleared to `null`. `orderCurrentStatus` is automatically set to `Cancelled Orders` workflow queue. |
 | ~~**`2`**~~ | ~~`Prospect`~~ | ~~Potential lead (Deprecated / Removed from DB).~~ |
 | ~~**`3`**~~ | ~~`Call Back`~~ | ~~Requires agent callback (Deprecated / Removed from DB).~~ |
 | ~~**`4`**~~ | ~~`Not Interested`~~ | ~~User declined (Deprecated / Removed from DB).~~ |
@@ -168,6 +169,7 @@ Determines which queue the order sits in (from `class/orderClass.php` pending re
 *   `Pending Resolutions`: Under dispute or issue tracking.
 *   `Completed Orders`: Final successful workflow state. Contains orders with `saleStatus IN ('1', '4')` — Sold and Partial Refund. Both received money.
 *   `Returned Orders`: Terminal failure/reversal workflow state. Contains orders with `saleStatus IN ('2', '3', '5')` — Refunded, Chargebacked, and Void. The full sale was reversed or charged-back. Auto-set by the service layer when `saleStatus` is changed to `'2'`, `'3'`, or `'5'`.
+*   `Cancelled Orders`: Terminal cancelled workflow state. Contains orders with `saleStatus = '6'` — Cancelled. No charge was ever processed. Auto-set by the service layer when `saleStatus` is changed to `'6'`.
 
 ### Attendance Status (`attendance_status_id` / `attendance_status_name`)
 Mapped during daily marking (`mark-attendance.php`):

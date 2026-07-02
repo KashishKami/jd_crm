@@ -95,6 +95,30 @@ export default function OrderList({ orders }: OrderListProps) {
     return 'bg-slate-50 text-slate-700 border border-slate-200/50';
   };
 
+  const getSaleStatusLabel = (status: string | null | undefined): string => {
+    switch (status) {
+      case '1': return 'Sold';
+      case '2': return 'Refunded';
+      case '3': return 'Chargebacked';
+      case '4': return 'Partial Refund';
+      case '5': return 'Void';
+      case '6': return 'Cancelled';
+      default:  return '—';
+    }
+  };
+
+  const getSaleStatusBadgeClass = (status: string | null | undefined): string => {
+    switch (status) {
+      case '1': return 'bg-emerald-50 text-emerald-700 border border-emerald-200/50';
+      case '2': return 'bg-amber-50 text-amber-700 border border-amber-200/50';
+      case '3': return 'bg-rose-50 text-rose-700 border border-rose-200/50';
+      case '4': return 'bg-blue-50 text-blue-700 border border-blue-200/50';
+      case '5': return 'bg-purple-50 text-purple-700 border border-purple-200/50';
+      case '6': return 'bg-slate-50 text-slate-600 border border-slate-200/50';
+      default:  return 'bg-slate-50 text-slate-400';
+    }
+  };
+
   return (
     <div className="table-wrapper card-with-accent">
       <div className="card-table-container" style={{ padding: 0 }}>
@@ -105,7 +129,7 @@ export default function OrderList({ orders }: OrderListProps) {
               <th>Customer</th>
               <th>Vehicle & Part</th>
               <th>Agents</th>
-              <th>Team</th>
+              <th>Sale Status</th>
               <th>Pricing</th>
               <th>Workflow Status</th>
               <th>Order Date</th>
@@ -165,8 +189,11 @@ export default function OrderList({ orders }: OrderListProps) {
                     </div>
                   </td>
                   <td>
-                    <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.92em', padding: '2px 6px' }}>
-                      {order.salesAgent?.team?.teamName || '—'}
+                    <span
+                      className={`status-dot-badge font-semibold ${getSaleStatusBadgeClass(order.saleStatus)}`}
+                      style={{ fontSize: '0.85em', padding: '2px 8px' }}
+                    >
+                      {getSaleStatusLabel(order.saleStatus)}
                     </span>
                   </td>
                   <td>

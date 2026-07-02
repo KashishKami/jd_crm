@@ -230,7 +230,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
             {statusFilter === 'Completed Orders'
               ? 'Review and manage all completed orders — Sold and Partial Refund (orders where money was received)'
               : statusFilter === 'Returned Orders'
-                ? 'Review and resolve processing failures, returns, or disputes'
+                ? 'Review and resolve processing failures, returns, disputes, or same-day voids'
                 : statusFilter 
                   ? `Review and manage orders currently in ${statusFilter} state`
                   : 'Monitor real-time customer bookings, purchase margins, and pipeline status.'
@@ -315,10 +315,35 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               Returned Orders
             </button>
           )}
+          {hasPermission(permissions, 'orders:view-cancelled') && (
+            <button
+              onClick={() => setStatusFilter('Cancelled Orders')}
+              className={`tab-btn ${statusFilter === 'Cancelled Orders' ? 'active' : ''}`}
+            >
+              Cancelled Orders
+            </button>
+          )}
         </div>
 
         {/* Date, Agent & Team Filters */}
         <div className="flex-wrap-container" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end', marginTop: '8px', width: '100%' }}>
+          <div className="filter-select-wrapper">
+            <label htmlFor="saleStatusFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Sale Status</label>
+            <select
+              id="saleStatusFilter"
+              value={saleStatusFilter}
+              onChange={(e) => setSaleStatusFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="">All Sale Statuses</option>
+              <option value="1">Sold</option>
+              <option value="2">Refunded</option>
+              <option value="3">Chargebacked</option>
+              <option value="4">Partial Refund</option>
+              <option value="5">Void</option>
+              <option value="6">Cancelled</option>
+            </select>
+          </div>
           <div className="filter-select-wrapper">
             <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
             <select
@@ -388,7 +413,15 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
           {saleStatusFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              Sale Status: {saleStatusFilter === '1' ? 'Sold' : saleStatusFilter === '2' ? 'Refunded' : saleStatusFilter === '3' ? 'Chargebacked' : saleStatusFilter === '4' ? 'Partial Refund' : saleStatusFilter}
+              Sale Status: {
+                saleStatusFilter === '1' ? 'Sold'
+                : saleStatusFilter === '2' ? 'Refunded'
+                : saleStatusFilter === '3' ? 'Chargebacked'
+                : saleStatusFilter === '4' ? 'Partial Refund'
+                : saleStatusFilter === '5' ? 'Void'
+                : saleStatusFilter === '6' ? 'Cancelled'
+                : saleStatusFilter
+              }
               <button 
                 onClick={() => setSaleStatusFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
@@ -479,7 +512,28 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               <div>
                 <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Returned Orders Processing Queue</h4>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#b91c1c' }}>
-                  This queue displays all orders with processing failures, returns, or disputes. Work with QA Verifiers and Backend Executives to resolve open issues.
+                  This queue shows orders with Sale Status: <strong>Refunded</strong>, <strong>Chargebacked</strong>, or <strong>Void</strong> — displays all orders with processing failures, returns, disputes, or same-day voids. Work with QA Verifiers and Backend Executives to resolve open issues.
+                </p>
+              </div>
+            </div>
+          )}
+          {statusFilter === 'Cancelled Orders' && (
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fee2e2',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px',
+              color: '#991b1b',
+              alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>⚠️</span>
+              <div>
+                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Cancelled Orders Queue</h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#b91c1c' }}>
+                  This queue displays all orders with Sale Status: <strong>Cancelled</strong> — unpaid or unbilled order cancellations.
                 </p>
               </div>
             </div>

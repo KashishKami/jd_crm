@@ -71,7 +71,7 @@ function parseCSV(content: string): string[][] {
 }
 
 // Convert standard status strings to the mapped integers used by Next.js CRM
-function mapSaleStatus(status: string): string {
+export function mapSaleStatus(status: string): string {
   const lower = status.toLowerCase().trim();
   if (lower === 'sold') return '1';
   if (lower === 'prospect') return '1';
@@ -81,7 +81,9 @@ function mapSaleStatus(status: string): string {
   if (lower === 'enquiry') return '1';
   if (lower === 'refunded') return '2';
   if (lower === 'chargedback' || lower === 'chargebacked') return '3';
-  if (lower === 'partial refund' || lower === 'partialrefund') return '4';
+  if (lower === 'partial refund' || lower === 'partialrefund' || lower === 'partial refunded' || lower === 'partialrefunded') return '4';
+  if (lower === 'void') return '5';
+  if (lower === 'no sale' || lower === 'nosale' || lower === 'cancelled') return '6';
   return '1'; // Default fallback is Sold
 }
 
@@ -339,7 +341,8 @@ async function main() {
     }
 
     const mappedSaleStatus = mapSaleStatus(saleStatusRaw);
-    const isReturned = mappedSaleStatus === '2' || mappedSaleStatus === '3';
+    const isReturned = mappedSaleStatus === '2' || mappedSaleStatus === '3' || mappedSaleStatus === '5';
+    const isCancelled = mappedSaleStatus === '6';
 
     // 3. Order
     orderData.push({
@@ -369,7 +372,7 @@ async function main() {
       orderVerifierId: qaVerifierId,
       orderVerifierName: cleanQaVerifierName,
       saleStatus: mappedSaleStatus,
-      orderCurrentStatus: isReturned ? 'Returned Orders' : 'Completed Orders',
+      orderCurrentStatus: isReturned ? 'Returned Orders' : isCancelled ? 'Cancelled Orders' : 'Completed Orders',
       orderCurrentStatusUpdateDate: orderDateParsed,
       orderDate: orderDateParsed,
       orderVendorFeedback: 'Positive',

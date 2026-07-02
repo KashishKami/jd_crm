@@ -285,6 +285,7 @@ export async function getPendingCounts(filters?: {
   backendExecutiveId?: number;
   dateFrom?: string;
   dateTo?: string;
+  saleStatus?: string;
 }) {
   const where: Prisma.CrmOrdersWhereInput = {
     orderCurrentStatus: {
@@ -296,11 +297,15 @@ export async function getPendingCounts(filters?: {
         'Pending Resolutions',
         'Completed Orders',
         'Returned Orders',
+        'Cancelled Orders',
       ],
     },
   };
 
   if (filters) {
+    if (filters.saleStatus) {
+      where.saleStatus = filters.saleStatus;
+    }
     if (filters.agentId) {
       where.orderSalesAgentId = filters.agentId;
     }
@@ -347,6 +352,7 @@ export async function getPendingCounts(filters?: {
     'Pending Resolutions': { amount: 0, count: 0 },
     'Completed Orders': { amount: 0, count: 0 },
     'Returned Orders': { amount: 0, count: 0 },
+    'Cancelled Orders': { amount: 0, count: 0 },
   };
 
   for (const order of orders) {
@@ -371,6 +377,14 @@ export async function getPendingCounts(filters?: {
     if (isCompleted) {
       res['Completed Orders'].amount += finalMargin;
       res['Completed Orders'].count += 1;
+      continue; // Exclude from other statuses in tabs
+    }
+
+    // Cancelled Orders logic:
+    const isCancelled = order.orderCurrentStatus === 'Cancelled Orders' || order.saleStatus === '6';
+    if (isCancelled) {
+      res['Cancelled Orders'].amount += finalMargin;
+      res['Cancelled Orders'].count += 1;
       continue; // Exclude from other statuses in tabs
     }
 

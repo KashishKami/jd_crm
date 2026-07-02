@@ -76,12 +76,16 @@ export async function updateOrder(
 
   // ─── Sale Status & Refund Auto-Rules (Phase 17) ───
   if (data.saleStatus !== undefined) {
-    if (data.saleStatus === '2' || data.saleStatus === '3') {
+    if (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5') {
       const chargedAmount = updatedData.orderAmountCharged !== undefined 
         ? updatedData.orderAmountCharged 
         : (existingOrder.orderAmountCharged ?? '0');
       updatedData.orderRefundAmount = chargedAmount;
       updatedData.orderCurrentStatus = 'Returned Orders';
+      updatedData.orderCurrentStatusUpdateDate = new Date();
+    } else if (data.saleStatus === '6') {
+      updatedData.orderRefundAmount = null;
+      updatedData.orderCurrentStatus = 'Cancelled Orders';
       updatedData.orderCurrentStatusUpdateDate = new Date();
     } else if (data.saleStatus === '1') {
       updatedData.orderRefundAmount = null;
@@ -264,6 +268,8 @@ export async function updateOrder(
     if (status === '2' || status === 2) return 'Refunded';
     if (status === '3' || status === 3) return 'Chargebacked';
     if (status === '4' || status === 4) return 'Partial Refund';
+    if (status === '5' || status === 5) return 'Void';
+    if (status === '6' || status === 6) return 'Cancelled';
     return status ? String(status) : null;
   };
 

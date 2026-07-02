@@ -107,21 +107,22 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (38, 'orders:view-pending-feedback',   'View pending feedback queue'),
 (39, 'orders:view-pending-resolutions','View pending resolutions queue'),
 (40, 'orders:view-returned',           'View returned orders queue'),
-(41, 'orders:view-sale-status-history', 'View sale status change history timeline'),
-(42, 'orders:view-workflow-history',    'View order workflow status change timeline'),
-(43, 'orders:delete',                    'Permanently delete an order and all its children logs'),
-(44, 'orders:view-log',                  'Access order detail page view access history log'),
-(45, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
+(41, 'orders:view-cancelled',          'Access Cancelled Orders queue'),
+(42, 'orders:view-sale-status-history', 'View sale status change history timeline'),
+(43, 'orders:view-workflow-history',    'View order workflow status change timeline'),
+(44, 'orders:delete',                    'Permanently delete an order and all its children logs'),
+(45, 'orders:view-log',                  'Access order detail page view access history log'),
+(46, 'orders:view-audit-log',            'View detailed per-field change audit logs of orders'),
 -- Customers
-(46, 'customers:view',                 'View customer list and detail pages'),
-(47, 'customers:create',               'Create a new customer'),
-(48, 'customers:edit',                 'Edit customer details'),
-(49, 'customers:view-phone',           'View customer phone number in order detail'),
-(50, 'customers:view-email',           'View customer email in order detail'),
-(51, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
-(52, 'customers:view-cards',           'View full unmasked payment card details'),
+(47, 'customers:view',                 'View customer list and detail pages'),
+(48, 'customers:create',               'Create a new customer'),
+(49, 'customers:edit',                 'Edit customer details'),
+(50, 'customers:view-phone',           'View customer phone number in order detail'),
+(51, 'customers:view-email',           'View customer email in order detail'),
+(52, 'customers:view-vendor-details',  'View linked vendor details in order detail'),
+(53, 'customers:view-cards',           'View full unmasked payment card details'),
 -- Settings
-(53, 'settings:manage-permissions',    'Manage role permissions matrix')
+(54, 'settings:manage-permissions',    'Manage role permissions matrix')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- Clear existing role permissions mappings to ensure only admin/superadmin roles are mapped
@@ -133,7 +134,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),
 (1,21),(1,22),(1,23),(1,24),(1,25),(1,26),(1,27),(1,28),(1,29),(1,30),
 (1,31),(1,32),(1,33),(1,34),(1,35),(1,36),(1,37),(1,38),(1,39),(1,40),
-(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53);
+(1,41),(1,42),(1,43),(1,44),(1,45),(1,46),(1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53),(1,54);
 
 -- Link permissions to Admin (role_id = 2)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -141,7 +142,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),
 (2,21),(2,22),(2,23),(2,24),(2,25),(2,26),(2,27),(2,28),(2,29),(2,30),
 (2,31),(2,32),(2,33),(2,34),(2,35),(2,36),(2,37),(2,38),(2,39),(2,40),
-(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53);
+(2,41),(2,42),(2,43),(2,44),(2,45),(2,46),(2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53),(2,54);
 
 -- Clear existing users to cleanly seed new list
 DELETE FROM users;

@@ -800,6 +800,214 @@ describe('Order Management Integration Tests', () => {
       expect(data.length).toBeGreaterThan(0);
       expect(data.every((o: { orderCurrentStatus: string | null }) => o.orderCurrentStatus === 'Returned Orders')).toBe(true);
     });
+
+    it('[RED] should automatically set orderRefundAmount to orderAmountCharged and orderCurrentStatus to Returned Orders when saleStatus is set to 5 (Void)', async () => {
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderAmountCharged: '500.00', orderCurrentStatus: 'Pending Shipment' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '5' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBe('500.00');
+      expect(dbOrder?.orderCurrentStatus).toBe('Returned Orders');
+      
+      const body = await res.json();
+      const updatedOrder = body.data || body;
+      expect(updatedOrder.orderCurrentStatus).toBe('Returned Orders');
+    });
+
+    it('[RED] should clear orderRefundAmount to null and set orderCurrentStatus to Cancelled Orders when saleStatus is set to 6 (Cancelled)', async () => {
+      await prisma.crmOrders.update({
+        where: { crmOrderId: testOrder.crmOrderId },
+        data: { orderAmountCharged: '500.00', orderRefundAmount: '100.00', orderCurrentStatus: 'Pending Shipment' },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '6' }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: testOrder.crmOrderId },
+      });
+      expect(dbOrder?.orderRefundAmount).toBeNull();
+      expect(dbOrder?.orderCurrentStatus).toBe('Cancelled Orders');
+    });
+
+    it('[RED] should return only Cancelled Orders when status=Cancelled+Orders filter is applied', async () => {
+      const cancelOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderSalesAgentId: testUser.uid,
+          saleStatus: '6',
+          orderCurrentStatus: 'Cancelled Orders',
+          orderDate: new Date(),
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Viewer',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders?status=Cancelled+Orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const results = data.data || data;
+
+      expect(results.some((o: any) => o.crmOrderId === cancelOrder.crmOrderId)).toBe(true);
+      expect(results.every((o: any) => o.orderCurrentStatus === 'Cancelled Orders')).toBe(true);
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: cancelOrder.crmOrderId } });
+    });
+
+    it('[RED] should record sale status history for Void (5) and Cancel Order (6)', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized Editor',
+          userPermissions: 'orders:edit',
+        },
+      });
+
+      // Clear any prior status history
+      await prisma.crmSaleStatusHistory.deleteMany({
+        where: { orderId: testOrder.crmOrderId },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${testOrder.crmOrderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ saleStatus: '5' }),
+      });
+      await PATCH(req, { params: Promise.resolve({ id: String(testOrder.crmOrderId) }) });
+
+      const histories = await prisma.crmSaleStatusHistory.findMany({
+        where: { orderId: testOrder.crmOrderId },
+      });
+      expect(histories.length).toBeGreaterThan(0);
+      expect(histories.some(h => h.newValue === '5')).toBe(true);
+    });
+
+    it('[RED] should return Void orders in Returned Orders filter, but not Cancel Order', async () => {
+      // Create a Void order
+      const voidOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderSalesAgentId: testUser.uid,
+          saleStatus: '5',
+          orderCurrentStatus: 'Returned Orders',
+          orderDate: new Date(),
+        },
+      });
+
+      // Create a Cancel Order order
+      const cancelOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderSalesAgentId: testUser.uid,
+          saleStatus: '6',
+          orderCurrentStatus: 'Pending Booking',
+          orderDate: new Date(),
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders?status=Returned+Orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const results = data.data || data;
+
+      expect(results.some((o: any) => o.crmOrderId === voidOrder.crmOrderId)).toBe(true);
+      expect(results.some((o: any) => o.crmOrderId === cancelOrder.crmOrderId)).toBe(false);
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: voidOrder.crmOrderId } });
+      await prisma.crmOrders.delete({ where: { crmOrderId: cancelOrder.crmOrderId } });
+    });
+
+    it('[RED] should filter by saleStatus query param (saleStatus=5 and saleStatus=6)', async () => {
+      // Create a Void order
+      const voidOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderSalesAgentId: testUser.uid,
+          saleStatus: '5',
+          orderCurrentStatus: 'Returned Orders',
+          orderDate: new Date(),
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders?saleStatus=5');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const results = data.data || data;
+
+      expect(results.every((o: any) => o.saleStatus === '5')).toBe(true);
+      expect(results.some((o: any) => o.crmOrderId === voidOrder.crmOrderId)).toBe(true);
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: voidOrder.crmOrderId } });
+    });
   });
 
   describe('W-1502: Merge orderYear into orderMakeModel', () => {

@@ -270,4 +270,40 @@ describe('AddOrderForm Unit Tests', () => {
       expect(sentBody).toHaveProperty('orderBackendExecutiveId', 6);
     });
   });
+
+  describe('W-2202: AddOrderForm Sale Status Expansion (Void & Cancel Order)', () => {
+    it('[RED] should render exactly 6 options in Sale Status select dropdown', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+      expect(saleStatusSelect).not.toBeNull();
+      const options = Array.from(saleStatusSelect.options);
+      expect(options.length).toBe(6);
+      expect(options.map(o => o.value)).toEqual(['1', '2', '3', '4', '5', '6']);
+      expect(options.map(o => o.text)).toEqual([
+        'Sold',
+        'Refunded',
+        'Chargebacked',
+        'Partial Refund',
+        'Void',
+        'Cancelled'
+      ]);
+    });
+
+    it('[RED] should auto-update orderCurrentStatus to Returned Orders when saleStatus is set to 5 (Void) and Cancelled Orders on 6', async () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+      const orderCurrentStatusSelect = document.getElementById('orderCurrentStatus') as HTMLSelectElement;
+
+      // 1. Initial status should be Pending Booking
+      expect(orderCurrentStatusSelect.value).toBe('Pending Booking');
+
+      // 2. Select Void (5)
+      fireEvent.change(saleStatusSelect, { target: { value: '5' } });
+      expect(orderCurrentStatusSelect.value).toBe('Returned Orders');
+
+      // 3. Select Cancelled (6)
+      fireEvent.change(saleStatusSelect, { target: { value: '6' } });
+      expect(orderCurrentStatusSelect.value).toBe('Cancelled Orders');
+    });
+  });
 });

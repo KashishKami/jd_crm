@@ -19,6 +19,7 @@ export default withAuth(
       '/pending/feedback': 'orders:view-pending-feedback',
       '/pending/resolutions': 'orders:view-pending-resolutions',
       '/pending/returned': 'orders:view-returned',
+      '/pending/cancelled': 'orders:view-cancelled',
     };
 
     // Check if the current route matches any protected path prefix

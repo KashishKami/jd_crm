@@ -207,6 +207,7 @@ export default function VendorDetailPage() {
       case '3': return 'Chargebacked';
       case '4': return 'Partial Refund';
       case '5': return 'Void';
+      case '6': return 'Cancel Order';
       default: return '—';
     }
   };
@@ -620,7 +621,7 @@ export default function VendorDetailPage() {
       {/* Drilldown Modal Overlay */}
       {drilldownType && (() => {
         const filteredOrdersForDrilldown = orders.filter(order => {
-          const isValid = order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4';
+          const isValid = order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5';
           if (!isValid) return false;
           if (drilldownType === 'positive') return order.orderVendorFeedback === 'Positive';
           if (drilldownType === 'negative') return order.orderVendorFeedback === 'Negative';

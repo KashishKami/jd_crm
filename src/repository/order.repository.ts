@@ -120,10 +120,10 @@ export async function createWithCustomerAndCard(
         saleStatus: data.saleStatus || '1', // Default to Sold
         orderCurrentStatus: data.orderCurrentStatus
           ? data.orderCurrentStatus
-          : (data.saleStatus === '2' || data.saleStatus === '3')
+          : (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
             ? 'Returned Orders'
             : (data.orderVendorId ? 'Pending Shipment' : 'Pending Booking'), // Initial state
-        orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3')
+        orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
           ? (data.orderAmountCharged || null)
           : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
@@ -182,7 +182,7 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     } else if (filters.status === 'Returned Orders') {
       where.OR = [
         { orderCurrentStatus: 'Returned Orders' },
-        { saleStatus: { in: ['2', '3'] } }
+        { saleStatus: { in: ['2', '3', '5'] } }
       ];
     } else {
       where.orderCurrentStatus = filters.status;

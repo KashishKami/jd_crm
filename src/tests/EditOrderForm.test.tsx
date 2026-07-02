@@ -370,5 +370,59 @@ describe('EditOrderForm Unit Tests', () => {
       vi.unstubAllGlobals();
     });
   });
+
+  describe('W-2202: EditOrderForm Sale Status Expansion (Void & Cancel Order)', () => {
+    it('[RED] should render exactly 6 options in Sale Status select dropdown', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+      expect(saleStatusSelect).not.toBeNull();
+      const options = Array.from(saleStatusSelect.options);
+      expect(options.length).toBe(6);
+      expect(options.map(o => o.value)).toEqual(['1', '2', '3', '4', '5', '6']);
+      expect(options.map(o => o.text)).toEqual([
+        'Sold',
+        'Refunded',
+        'Chargebacked',
+        'Partial Refund',
+        'Void',
+        'Cancelled'
+      ]);
+    });
+
+    it('[RED] should auto-update orderCurrentStatus to Returned Orders when saleStatus is set to 5 (Void), to Cancelled Orders on 6, and revert to saved status on 1', async () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+      const orderCurrentStatusSelect = document.getElementById('orderCurrentStatus') as HTMLSelectElement;
+
+      // Initial status should be Pending Shipment (from getMockOrder)
+      expect(orderCurrentStatusSelect.value).toBe('Pending Shipment');
+
+      // Select Void (5)
+      fireEvent.change(saleStatusSelect, { target: { value: '5' } });
+      expect(orderCurrentStatusSelect.value).toBe('Returned Orders');
+
+      // Change status to Cancelled (6)
+      fireEvent.change(saleStatusSelect, { target: { value: '6' } });
+      expect(orderCurrentStatusSelect.value).toBe('Cancelled Orders');
+
+      // Change back to Sold (1) - should revert to original saved status (Pending Shipment)
+      fireEvent.change(saleStatusSelect, { target: { value: '1' } });
+      expect(orderCurrentStatusSelect.value).toBe('Pending Shipment');
+    });
+  });
 });
 

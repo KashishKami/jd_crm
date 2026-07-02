@@ -13,5 +13,6 @@ export default defineConfig({
     },
     pool: 'forks',
     maxWorkers: 1,
+    fileParallelism: false,
   },
 });

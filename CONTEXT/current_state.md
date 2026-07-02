@@ -34,7 +34,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 19** | Sprint 4 — Polish & Table Column Additions | **[ ] NOT STARTED** | `AdvancedChartWidget.tsx`, `RecentOrdersTable.tsx`, `OrderList.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `seed.sql` |
 | **Phase 20** | orderMarkup → orderAmountCharged: Schema Rename, Auto-Calc Removal & Manual Input | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.service.ts`, `EditOrderForm.tsx`, `OrderList.tsx`, `RecentOrdersTable.tsx`, `SearchResults.tsx`, `AddOrderForm.tsx`, `OrderListContainer.tsx`, `OrderDetailPage` |
 | **Phase 21** | Mileage & Warranty Rename and Order-Level Checklist Field | **[ ] NOT STARTED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `page.tsx` (order details), `OrderAuditLog.tsx`, `import-csv-data.ts`, `restore-admin.ts`, `seed-dummy-orders.ts` |
-| **Phase 22** | Sale Status Expansion: Void & Cancel Order, Sale Status Column & Filter | **[ ] NOT STARTED** | `order.service.ts`, `order.repository.ts`, `vendor.repository.ts`, `vendor.service.ts`, `vendors/[id]/page.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, `import-csv-data.ts`, `project_data.md` |
+| **Phase 22** | Sale Status Expansion: Void & Cancel Order, Sale Status Column & Filter | **[x] COMPLETED** | `order.service.ts`, `order.repository.ts`, `vendor.repository.ts`, `vendor.service.ts`, `vendors/[id]/page.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, `import-csv-data.ts`, `project_data.md` |
+| **Phase 23** | Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue) | **[x] COMPLETED** | `seed.sql`, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.ts`, `import-csv-data.ts`, `middleware.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, new page `/pending/cancelled/page.tsx` |
 
 ---
 
@@ -3245,29 +3246,29 @@ The service layer (`order.service.ts`) hard-codes the logic for sale status code
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: Create a test order with `orderAmountCharged: '500'`. `PATCH /api/orders/:id` with `{ saleStatus: '5' }`. Assert `200 OK`. Assert the database row has `order_current_status = 'Returned Orders'` and `order_refund_amount = '500'` (matching `orderAmountCharged`). Assert the response body includes `orderCurrentStatus: 'Returned Orders'`.
-  - [ ] Test: Create a test order with `orderAmountCharged: '500'`. `PATCH /api/orders/:id` with `{ saleStatus: '6' }`. Assert `200 OK`. Assert the database row has `order_refund_amount = null` (null cleared) and `order_current_status` is **not** `'Returned Orders'` (it must remain whatever the existing workflow status was before the PATCH).
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: '5' }` followed by querying `crm_sale_status_history` for this order's `id`. Assert one row exists where `new_value = '5'` and `old_value` equals the prior sale status code.
-  - [ ] Test: `PATCH /api/orders/:id` with `{ saleStatus: '6' }` followed by querying `crm_sale_status_history` for this order's `id`. Assert one row exists where `new_value = '6'`.
-  - [ ] Test: `GET /api/orders?status=Returned+Orders` — create two orders, set one to saleStatus `'5'` (Void) and one to saleStatus `'2'` (Refunded). Assert both orders appear in the paginated response.
-  - [ ] Test: `GET /api/orders?saleStatus=5` — assert only the Void order is returned. `GET /api/orders?saleStatus=6` — assert only the Cancel Order is returned.
-  - [ ] **Run — confirm RED (saleStatus `'5'` currently does not trigger `orderCurrentStatus = 'Returned Orders'`; the `'6'` branch does not exist; the filter query does not include `'5'` in the Returned Orders OR clause).**
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: Create a test order with `orderAmountCharged: '500'`. `PATCH /api/orders/:id` with `{ saleStatus: '5' }`. Assert `200 OK`. Assert the database row has `order_current_status = 'Returned Orders'` and `order_refund_amount = '500'` (matching `orderAmountCharged`). Assert the response body includes `orderCurrentStatus: 'Returned Orders'`.
+  - [x] Test: Create a test order with `orderAmountCharged: '500'`. `PATCH /api/orders/:id` with `{ saleStatus: '6' }`. Assert `200 OK`. Assert the database row has `order_refund_amount = null` (null cleared) and `order_current_status` is **not** `'Returned Orders'` (it must remain whatever the existing workflow status was before the PATCH).
+  - [x] Test: `PATCH /api/orders/:id` with `{ saleStatus: '5' }` followed by querying `crm_sale_status_history` for this order's `id`. Assert one row exists where `new_value = '5'` and `old_value` equals the prior sale status code.
+  - [x] Test: `PATCH /api/orders/:id` with `{ saleStatus: '6' }` followed by querying `crm_sale_status_history` for this order's `id`. Assert one row exists where `new_value = '6'`.
+  - [x] Test: `GET /api/orders?status=Returned+Orders` — create two orders, set one to saleStatus `'5'` (Void) and one to saleStatus `'2'` (Refunded). Assert both orders appear in the paginated response.
+  - [x] Test: `GET /api/orders?saleStatus=5` — assert only the Void order is returned. `GET /api/orders?saleStatus=6` — assert only the Cancel Order is returned.
+  - [x] **Run — confirm RED (saleStatus `'5'` currently does not trigger `orderCurrentStatus = 'Returned Orders'`; the `'6'` branch does not exist; the filter query does not include `'5'` in the Returned Orders OR clause).**
 
-- [ ] **GREEN — Backend (Repository → Service):**
-  - [ ] [Service — `src/service/order.service.ts`] In `updateOrder`, find the block at lines ~79–93 that checks `data.saleStatus`. Change the condition `data.saleStatus === '2' || data.saleStatus === '3'` to `data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5'`. In the same block, change the `else if (data.saleStatus === '1')` branch to `else if (data.saleStatus === '1' || data.saleStatus === '6')` so that setting Cancel Order also clears `orderRefundAmount` to `null`. Do not add a Returned Orders assignment for `'6'` — the workflow status must remain unchanged when saleStatus is Cancel Order.
-  - [ ] [Service — `src/service/order.service.ts`] In the `mapSaleStatus` helper function (~line 262–268), add two new cases before the final `return status ? String(status) : null` fallback:
+- [x] **GREEN — Backend (Repository → Service):**
+  - [x] [Service — `src/service/order.service.ts`] In `updateOrder`, find the block at lines ~79–93 that checks `data.saleStatus`. Change the condition `data.saleStatus === '2' || data.saleStatus === '3'` to `data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5'`. In the same block, change the `else if (data.saleStatus === '1')` branch to `else if (data.saleStatus === '1' || data.saleStatus === '6')` so that setting Cancel Order also clears `orderRefundAmount` to `null`. Do not add a Returned Orders assignment for `'6'` — the workflow status must remain unchanged when saleStatus is Cancel Order.
+  - [x] [Service — `src/service/order.service.ts`] In the `mapSaleStatus` helper function (~line 262–268), add two new cases before the final `return status ? String(status) : null` fallback:
     ```typescript
     if (status === '5' || status === 5) return 'Void';
     if (status === '6' || status === 6) return 'Cancel Order';
     ```
-  - [ ] [Repository — `src/repository/order.repository.ts`] In `findAll`, find the `else if (filters.status === 'Returned Orders')` block (~line 182–186). Change the `saleStatus: { in: ['2', '3'] }` value to `saleStatus: { in: ['2', '3', '5'] }` so that Void orders appear in the Returned Orders queue filter.
-  - [ ] [Repository — `src/repository/vendor.repository.ts`] Find the raw SQL clause `AND sale_status IN ('1', '2', '3', '4')` (~line 98). Change it to `AND sale_status IN ('1', '2', '3', '4', '5', '6')` so that Void and Cancel Order orders are counted in vendor performance statistics.
-  - [ ] Run integration tests — **confirm GREEN (`npm run test -- orders.test.ts`).**
+  - [x] [Repository — `src/repository/order.repository.ts`] In `findAll`, find the `else if (filters.status === 'Returned Orders')` block (~line 182–186). Change the `saleStatus: { in: ['2', '3'] }` value to `saleStatus: { in: ['2', '3', '5'] }` so that Void orders appear in the Returned Orders queue filter.
+  - [x] [Repository — `src/repository/vendor.repository.ts`] Find the raw SQL clause `AND sale_status IN ('1', '2', '3', '4')` (~line 98). Change it to `AND sale_status IN ('1', '2', '3', '4', '5', '6')` so that Void and Cancel Order orders are counted in vendor performance statistics.
+  - [x] Run integration tests — **confirm GREEN (`npm run test -- orders.test.ts`).**
 
-- [ ] **Verification chain (backend):**
-  - [ ] Agent sends `PATCH /api/orders/:id` with `{ saleStatus: '5' }` → service auto-sets `orderCurrentStatus = 'Returned Orders'` and `orderRefundAmount = orderAmountCharged` → sale status history entry is written → `GET /api/orders?status=Returned+Orders` includes this order → ✅ Done.
-  - [ ] Agent sends `PATCH /api/orders/:id` with `{ saleStatus: '6' }` → service clears `orderRefundAmount = null` → `orderCurrentStatus` remains unchanged → sale status history entry is written → `GET /api/orders?status=Returned+Orders` does **not** include this order → ✅ Done.
+- [x] **Verification chain (backend):**
+  - [x] Agent sends `PATCH /api/orders/:id` with `{ saleStatus: '5' }` → service auto-sets `orderCurrentStatus = 'Returned Orders'` and `orderRefundAmount = orderAmountCharged` → sale status history entry is written → `GET /api/orders?status=Returned+Orders` includes this order → ✅ Done.
+  - [x] Agent sends `PATCH /api/orders/:id` with `{ saleStatus: '6' }` → service clears `orderRefundAmount = null` → `orderCurrentStatus` remains unchanged → sale status history entry is written → `GET /api/orders?status=Returned+Orders` does **not** include this order → ✅ Done.
 
 ---
 
@@ -3285,25 +3286,25 @@ Both `AddOrderForm.tsx` and `EditOrderForm.tsx` hard-code only four `<option>` e
 
 ---
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Test: Render `AddOrderForm`. Find the `<select id="saleStatus">` element. Assert it has exactly **6** `<option>` elements with values `['1', '2', '3', '4', '5', '6']` and labels `['Sold', 'Refunded', 'Chargebacked', 'Partial Refund', 'Void', 'Cancel Order']`.
-  - [ ] Test: Render `AddOrderForm`. Change `saleStatus` select to `'5'` (Void). Assert the `showStatusDateModal` state becomes `true` (i.e., the date/time capture modal opens — use `document.body` for portal assertion or spy on `setShowStatusDateModal`).
-  - [ ] Test: Render `AddOrderForm`. Change `saleStatus` select to `'6'` (Cancel Order). Assert the date/time modal does **not** open (remains `false`).
-  - [ ] Test: Render `AddOrderForm`. Change `saleStatus` select to `'5'` (Void). Assert `orderCurrentStatus` state auto-updates to `'Returned Orders'` (visible via the `<select id="orderCurrentStatus">` value attribute).
-  - [ ] Test: Render `AddOrderForm`. Set `saleStatus` to `'5'` (triggering `orderCurrentStatus = 'Returned Orders'`). Then change `saleStatus` to `'6'` (Cancel Order). Assert `orderCurrentStatus` resets from `'Returned Orders'` to `'Pending Booking'`.
-  - [ ] **Run — confirm RED (only 4 options exist today; `'5'` does not open the modal; no useEffect auto-sets `orderCurrentStatus` for `'5'`/`'6'`).**
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [x] Test: Render `AddOrderForm`. Find the `<select id="saleStatus">` element. Assert it has exactly **6** `<option>` elements with values `['1', '2', '3', '4', '5', '6']` and labels `['Sold', 'Refunded', 'Chargebacked', 'Partial Refund', 'Void', 'Cancel Order']`.
+  - [x] Test: Render `AddOrderForm`. Change `saleStatus` select to `'5'` (Void). Assert the `showStatusDateModal` state becomes `true` (i.e., the date/time capture modal opens — use `document.body` for portal assertion or spy on `setShowStatusDateModal`).
+  - [x] Test: Render `AddOrderForm`. Change `saleStatus` select to `'6'` (Cancel Order). Assert the date/time modal does **not** open (remains `false`).
+  - [x] Test: Render `AddOrderForm`. Change `saleStatus` select to `'5'` (Void). Assert `orderCurrentStatus` state auto-updates to `'Returned Orders'` (visible via the `<select id="orderCurrentStatus">` value attribute).
+  - [x] Test: Render `AddOrderForm`. Set `saleStatus` to `'5'` (triggering `orderCurrentStatus = 'Returned Orders'`). Then change `saleStatus` to `'6'` (Cancel Order). Assert `orderCurrentStatus` resets from `'Returned Orders'` to `'Pending Booking'`.
+  - [x] **Run — confirm RED (only 4 options exist today; `'5'` does not open the modal; no useEffect auto-sets `orderCurrentStatus` for `'5'`/`'6'`).**
 
-- [ ] **RED — Unit (`src/tests/EditOrderForm.test.tsx`):**
-  - [ ] Test: Render `EditOrderForm` with a mock order containing `saleStatus: '1'`. Find `<select id="saleStatus">`. Assert it has exactly **6** `<option>` elements with values `['1', '2', '3', '4', '5', '6']`.
-  - [ ] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`, `orderCurrentStatus: 'Pending Shipment'`. Change `saleStatus` to `'5'` (Void). Assert the `<select id="orderCurrentStatus">` value changes to `'Returned Orders'` automatically without any other interaction.
-  - [ ] Test: Render `EditOrderForm` with mock order `saleStatus: '2'`, `orderCurrentStatus: 'Returned Orders'`. Change `saleStatus` to `'6'` (Cancel Order). Assert `<select id="orderCurrentStatus">` value changes to `'Pending Booking'`.
-  - [ ] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`. Change `saleStatus` to `'5'`. Assert the date/time capture modal opens (the portal `div` appears in `document.body`).
-  - [ ] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`. Change `saleStatus` to `'6'`. Assert the date/time capture modal does **not** open.
-  - [ ] **Run — confirm RED (only 4 options exist; no useEffect auto-sets orderCurrentStatus; `'5'` does not open the modal).**
+- [x] **RED — Unit (`src/tests/EditOrderForm.test.tsx`):**
+  - [x] Test: Render `EditOrderForm` with a mock order containing `saleStatus: '1'`. Find `<select id="saleStatus">`. Assert it has exactly **6** `<option>` elements with values `['1', '2', '3', '4', '5', '6']`.
+  - [x] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`, `orderCurrentStatus: 'Pending Shipment'`. Change `saleStatus` to `'5'` (Void). Assert the `<select id="orderCurrentStatus">` value changes to `'Returned Orders'` automatically without any other interaction.
+  - [x] Test: Render `EditOrderForm` with mock order `saleStatus: '2'`, `orderCurrentStatus: 'Returned Orders'`. Change `saleStatus` to `'6'` (Cancel Order). Assert `<select id="orderCurrentStatus">` value changes to `'Pending Booking'`.
+  - [x] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`. Change `saleStatus` to `'5'`. Assert the date/time capture modal opens (the portal `div` appears in `document.body`).
+  - [x] Test: Render `EditOrderForm` with mock order `saleStatus: '1'`. Change `saleStatus` to `'6'`. Assert the date/time capture modal does **not** open.
+  - [x] **Run — confirm RED (only 4 options exist; no useEffect auto-sets orderCurrentStatus; `'5'` does not open the modal).**
 
-- [ ] **GREEN — Frontend (Types → AddOrderForm → EditOrderForm):**
-  - [ ] [Types — `src/types/order.ts`] No changes needed — `saleStatus` is already typed as `string` in `OrderCreateInput` and `OrderUpdateInput`. Confirm no changes required.
-  - [ ] [Component — `src/components/AddOrderForm.tsx`]
+- [x] **GREEN — Frontend (Types → AddOrderForm → EditOrderForm):**
+  - [x] [Types — `src/types/order.ts`] No changes needed — `saleStatus` is already typed as `string` in `OrderCreateInput` and `OrderUpdateInput`. Confirm no changes required.
+  - [x] [Component — `src/components/AddOrderForm.tsx`]
     - In the `<select id="saleStatus">` JSX block (currently lines ~610–614), add two new `<option>` elements after `<option value="4">Partial Refund</option>`:
       ```tsx
       <option value="5">Void</option>
@@ -3314,7 +3315,7 @@ Both `AddOrderForm.tsx` and `EditOrderForm.tsx` hard-code only four `<option>` e
       - The `Returned Orders` auto-set condition from `saleStatus === '2' || saleStatus === '3'` to `saleStatus === '2' || saleStatus === '3' || saleStatus === '5'`.
       - The reset condition from `saleStatus === '1' || saleStatus === '4'` to `saleStatus === '1' || saleStatus === '4' || saleStatus === '6'`.
     - In the date/time modal title ternary (currently: `saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : 'Partial Refund'`), add the Void case: `saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : saleStatus === '5' ? 'Void' : 'Partial Refund'`.
-  - [ ] [Component — `src/components/EditOrderForm.tsx`]
+  - [x] [Component — `src/components/EditOrderForm.tsx`]
     - In the `<select id="saleStatus">` JSX block (currently lines ~511–514), add two new `<option>` elements after Partial Refund:
       ```tsx
       <option value="5">Void</option>
@@ -3336,12 +3337,12 @@ Both `AddOrderForm.tsx` and `EditOrderForm.tsx` hard-code only four `<option>` e
       ```
       > The `eslint-disable` comment is required because `orderCurrentStatus` is intentionally excluded from deps — we only want this effect to fire when the agent explicitly changes `saleStatus`, not on every status update.
     - In the date/time modal title ternary (currently: `saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : 'Partial Refund'`), add: `saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : saleStatus === '5' ? 'Void' : 'Partial Refund'`.
-  - [ ] Run unit tests — **confirm GREEN (`npm run test -- AddOrderForm.test.tsx EditOrderForm.test.tsx`).**
+  - [x] Run unit tests — **confirm GREEN (`npm run test -- AddOrderForm.test.tsx EditOrderForm.test.tsx`).**
 
-- [ ] **Verification chain:**
-  - [ ] Agent opens Add Order form → selects `Void` from Sale Status dropdown → date/time capture modal appears → agent confirms or skips → `Workflow Queue` dropdown has auto-changed to `'Returned Orders'` → agent submits → `GET /api/orders/:id` shows `saleStatus: '5'` and `orderCurrentStatus: 'Returned Orders'` → ✅ Done.
-  - [ ] Agent opens Edit Order form for an existing order (saleStatus `'1'`, orderCurrentStatus `'Pending Shipment'`) → selects `Cancel Order` from Sale Status dropdown → no modal appears → `Workflow Queue` dropdown remains on `'Pending Shipment'` (Cancel Order does not force Returned Orders) → agent saves → ✅ Done.
-  - [ ] Agent opens Edit Order form → selects `Void` → Workflow Queue auto-changes to `'Returned Orders'` → agent then changes Sale Status back to `'1'` (Sold) → Workflow Queue auto-resets to `'Pending Booking'` → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent opens Add Order form → selects `Void` from Sale Status dropdown → date/time capture modal appears → agent confirms or skips → `Workflow Queue` dropdown has auto-changed to `'Returned Orders'` → agent submits → `GET /api/orders/:id` shows `saleStatus: '5'` and `orderCurrentStatus: 'Returned Orders'` → ✅ Done.
+  - [x] Agent opens Edit Order form for an existing order (saleStatus `'1'`, orderCurrentStatus `'Pending Shipment'`) → selects `Cancel Order` from Sale Status dropdown → no modal appears → `Workflow Queue` dropdown remains on `'Pending Shipment'` (Cancel Order does not force Returned Orders) → agent saves → ✅ Done.
+  - [x] Agent opens Edit Order form → selects `Void` → Workflow Queue auto-changes to `'Returned Orders'` → agent then changes Sale Status back to `'1'` (Sold) → Workflow Queue auto-resets to `'Pending Booking'` → ✅ Done.
 
 ---
 
@@ -3357,20 +3358,20 @@ The Orders table in `OrderList.tsx` currently shows a dedicated **Team** column 
 
 ---
 
-- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '1'`. Assert the rendered table **does not** contain a `<th>` with text `"Team"`. Assert the rendered table **does** contain a `<th>` with text `"Sale Status"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '1'`. Assert a cell in the table body contains the text `"Sold"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '2'`. Assert the body cell contains `"Refunded"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '3'`. Assert the body cell contains `"Chargebacked"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '4'`. Assert the body cell contains `"Partial Refund"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '5'`. Assert the body cell contains `"Void"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: '6'`. Assert the body cell contains `"Cancel Order"`.
-  - [ ] Test: Render `OrderList` with a mock order containing `saleStatus: null`. Assert the body cell contains `"—"`.
-  - [ ] **Run — confirm RED (the table currently has a `"Team"` column header and no `"Sale Status"` column; there is no badge rendering `"Void"` or `"Cancel Order"`).**
+- [x] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '1'`. Assert the rendered table **does not** contain a `<th>` with text `"Team"`. Assert the rendered table **does** contain a `<th>` with text `"Sale Status"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '1'`. Assert a cell in the table body contains the text `"Sold"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '2'`. Assert the body cell contains `"Refunded"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '3'`. Assert the body cell contains `"Chargebacked"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '4'`. Assert the body cell contains `"Partial Refund"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '5'`. Assert the body cell contains `"Void"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: '6'`. Assert the body cell contains `"Cancel Order"`.
+  - [x] Test: Render `OrderList` with a mock order containing `saleStatus: null`. Assert the body cell contains `"—"`.
+  - [x] **Run — confirm RED (the table currently has a `"Team"` column header and no `"Sale Status"` column; there is no badge rendering `"Void"` or `"Cancel Order"`).**
 
-- [ ] **GREEN — Frontend (Component — `src/components/OrderList.tsx`):**
-  - [ ] [Component] In the `OrderListProps` interface, no changes needed — `saleStatus?: string | null` is already declared.
-  - [ ] [Component] Add two pure helper functions **inside the component** (before the `return` statement, after the existing `getStatusBadgeClass` function):
+- [x] **GREEN — Frontend (Component — `src/components/OrderList.tsx`):**
+  - [x] [Component] In the `OrderListProps` interface, no changes needed — `saleStatus?: string | null` is already declared.
+  - [x] [Component] Add two pure helper functions **inside the component** (before the `return` statement, after the existing `getStatusBadgeClass` function):
     ```typescript
     const getSaleStatusLabel = (status: string | null | undefined): string => {
       switch (status) {
@@ -3396,8 +3397,8 @@ The Orders table in `OrderList.tsx` currently shows a dedicated **Team** column 
       }
     };
     ```
-  - [ ] [Component] In the `<thead>` block, replace `<th>Team</th>` with `<th>Sale Status</th>`.
-  - [ ] [Component] In the `<tbody>` `orders.map()` block, replace the entire Team `<td>` block:
+  - [x] [Component] In the `<thead>` block, replace `<th>Team</th>` with `<th>Sale Status</th>`.
+  - [x] [Component] In the `<tbody>` `orders.map()` block, replace the entire Team `<td>` block:
     ```tsx
     <td>
       <span className="badge-team font-medium" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.92em', padding: '2px 6px' }}>
@@ -3416,10 +3417,10 @@ The Orders table in `OrderList.tsx` currently shows a dedicated **Team** column 
       </span>
     </td>
     ```
-  - [ ] Run unit tests — **confirm GREEN (`npm run test -- OrderList.test.tsx`).**
+  - [x] Run unit tests — **confirm GREEN (`npm run test -- OrderList.test.tsx`).**
 
-- [ ] **Verification chain:**
-  - [ ] Manager opens the Orders page → Orders table shows a `"Sale Status"` column with colored badges (`Sold` in green, `Refunded` in amber, `Chargebacked` in red, `Void` in purple, `Cancel Order` in slate, `Partial Refund` in blue) → the `"Team"` column is no longer present in the table → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Manager opens the Orders page → Orders table shows a `"Sale Status"` column with colored badges (`Sold` in green, `Refunded` in amber, `Chargebacked` in red, `Void` in purple, `Cancel Order` in slate, `Partial Refund` in blue) → the `"Team"` column is no longer present in the table → ✅ Done.
 
 ---
 
@@ -3436,14 +3437,14 @@ The `OrderListContainer.tsx` already manages a `saleStatusFilter` state variable
 
 ---
 
-- [ ] **RED — Unit (`src/tests/OrderListContainer.test.tsx`):**
-  - [ ] Test: Render `OrderListContainer`. Assert a `<select>` (or `<label>` containing `"Sale Status"`) is present in the filter bar — not just in the active-filter pill area, but as a primary filter control.
-  - [ ] Test: Render `OrderListContainer`. Simulate changing the Sale Status select to `'5'`. Assert the active-filter pill text reads `"Sale Status: Void"`.
-  - [ ] Test: Render `OrderListContainer`. Simulate changing the Sale Status select to `'6'`. Assert the active-filter pill text reads `"Sale Status: Cancel Order"`.
-  - [ ] **Run — confirm RED (no Sale Status select exists in the filter bar today; the pill only decodes codes `'1'`–`'4'`).**
+- [x] **RED — Unit (`src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: Render `OrderListContainer`. Assert a `<select>` (or `<label>` containing `"Sale Status"`) is present in the filter bar — not just in the active-filter pill area, but as a primary filter control.
+  - [x] Test: Render `OrderListContainer`. Simulate changing the Sale Status select to `'5'`. Assert the active-filter pill text reads `"Sale Status: Void"`.
+  - [x] Test: Render `OrderListContainer`. Simulate changing the Sale Status select to `'6'`. Assert the active-filter pill text reads `"Sale Status: Cancel Order"`.
+  - [x] **Run — confirm RED (no Sale Status select exists in the filter bar today; the pill only decodes codes `'1'`–`'4'`).**
 
-- [ ] **GREEN — Frontend (Component — `src/components/OrderListContainer.tsx`):**
-  - [ ] [Component] In the flex filter row (`<div className="flex-wrap-container" ...>`, lines ~321–382), add a new `<div className="filter-select-wrapper">` block as the **first** child (before the Team filter), containing:
+- [x] **GREEN — Frontend (Component — `src/components/OrderListContainer.tsx`):**
+  - [x] [Component] In the flex filter row (`<div className="flex-wrap-container" ...>`, lines ~321–382), add a new `<div className="filter-select-wrapper">` block as the **first** child (before the Team filter), containing:
     ```tsx
     <div className="filter-select-wrapper">
       <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Sale Status</label>
@@ -3463,7 +3464,7 @@ The `OrderListContainer.tsx` already manages a `saleStatusFilter` state variable
       </select>
     </div>
     ```
-  - [ ] [Component] In the active-filter pill display (lines ~389–399), extend the Sale Status pill label ternary from `saleStatusFilter === '4' ? 'Partial Refund' : saleStatusFilter` to also decode `'5'` and `'6'`:
+  - [x] [Component] In the active-filter pill display (lines ~389–399), extend the Sale Status pill label ternary from `saleStatusFilter === '4' ? 'Partial Refund' : saleStatusFilter` to also decode `'5'` and `'6'`:
     ```tsx
     Sale Status: {
       saleStatusFilter === '1' ? 'Sold'
@@ -3475,12 +3476,12 @@ The `OrderListContainer.tsx` already manages a `saleStatusFilter` state variable
       : saleStatusFilter
     }
     ```
-  - [ ] [Component] In the Returned Orders info banner description paragraph (lines ~481–483), update the text from `"processing failures, returns, or disputes"` to `"processing failures, returns, disputes, or same-day voids"` to reflect that Void orders also land here.
-  - [ ] Run unit tests — **confirm GREEN (`npm run test -- OrderListContainer.test.tsx`).**
+  - [x] [Component] In the Returned Orders info banner description paragraph (lines ~481–483), update the text from `"processing failures, returns, or disputes"` to `"processing failures, returns, disputes, or same-day voids"` to reflect that Void orders also land here.
+  - [x] Run unit tests — **confirm GREEN (`npm run test -- OrderListContainer.test.tsx`).**
 
-- [ ] **Verification chain:**
-  - [ ] Manager opens the Orders page → filter bar shows a labeled `"Sale Status"` dropdown → manager selects `"Void"` → orders list refreshes to show only Void orders → an active-filter pill appears reading `"Sale Status: Void"` with an `×` dismiss button → clicking `×` clears the filter and all orders return → ✅ Done.
-  - [ ] Manager clicks the `"Returned Orders"` tab → sees the info banner now mentions "same-day voids" → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Manager opens the Orders page → filter bar shows a labeled `"Sale Status"` dropdown → manager selects `"Void"` → orders list refreshes to show only Void orders → an active-filter pill appears reading `"Sale Status: Void"` with an `×` dismiss button → clicking `×` clears the filter and all orders return → ✅ Done.
+  - [x] Manager clicks the `"Returned Orders"` tab → sees the info banner now mentions "same-day voids" → ✅ Done.
 
 ---
 
@@ -3496,19 +3497,19 @@ The `SaleStatusTimeline.tsx` component and the `OrderAuditLog.tsx` component bot
 
 ---
 
-- [ ] **RED — Unit (`src/tests/SaleStatusTimeline.test.tsx` — create if not present):**
-  - [ ] Test: Render `SaleStatusTimeline` with a history entry where `newValue === '5'`. Assert the rendered label text is `"Void"` (not `"Unknown"` or `"5"`).
-  - [ ] Test: Render `SaleStatusTimeline` with a history entry where `newValue === '6'`. Assert the rendered label text is `"Cancel Order"`.
-  - [ ] **Run — confirm RED (codes `'5'` and `'6'` currently render as `"Unknown"` or the raw code string).**
+- [x] **RED — Unit (`src/tests/SaleStatusTimeline.test.tsx` — create if not present):**
+  - [x] Test: Render `SaleStatusTimeline` with a history entry where `newValue === '5'`. Assert the rendered label text is `"Void"` (not `"Unknown"` or `"5"`).
+  - [x] Test: Render `SaleStatusTimeline` with a history entry where `newValue === '6'`. Assert the rendered label text is `"Cancel Order"`.
+  - [x] **Run — confirm RED (codes `'5'` and `'6'` currently render as `"Unknown"` or the raw code string).**
 
-- [ ] **GREEN — Frontend (Component → Documentation):**
-  - [ ] [Component — `src/components/SaleStatusTimeline.tsx`] Locate the `getSaleStatusLabel` function or the inline ternary/switch that maps status codes to labels. Add cases for `'5'` → `'Void'` and `'6'` → `'Cancel Order'` with appropriate badge styling (e.g., purple for Void, slate for Cancel Order — matching the palette used in `OrderList.tsx`).
-  - [ ] [Component — `src/components/OrderAuditLog.tsx`] Locate the `fieldLabels` or rendering map for the `saleStatus` audit field. Confirm the audit log renders the human-readable label (not the raw code) for historical entries. The service's `mapSaleStatus` already handles this for new changes; ensure any display-only mapping in the component is also extended to include `'5'` and `'6'`.
-  - [ ] Run unit tests — **confirm GREEN.**
+- [x] **GREEN — Frontend (Component → Documentation):**
+  - [x] [Component — `src/components/SaleStatusTimeline.tsx`] Locate the `getSaleStatusLabel` function or the inline ternary/switch that maps status codes to labels. Add cases for `'5'` → `'Void'` and `'6'` → `'Cancel Order'` with appropriate badge styling (e.g., purple for Void, slate for Cancel Order — matching the palette used in `OrderList.tsx`).
+  - [x] [Component — `src/components/OrderAuditLog.tsx`] Locate the `fieldLabels` or rendering map for the `saleStatus` audit field. Confirm the audit log renders the human-readable label (not the raw code) for historical entries. The service's `mapSaleStatus` already handles this for new changes; ensure any display-only mapping in the component is also extended to include `'5'` and `'6'`.
+  - [x] Run unit tests — **confirm GREEN.**
 
-- [ ] **Verification chain:**
-  - [ ] Manager opens Order Details page for a Void order → Sale Status History timeline shows a row reading `"Sold → Void"` with the correct date and badge color → ✅ Done.
-  - [ ] Manager opens Order Details page for a Cancel Order order → timeline shows `"Sold → Cancel Order"` → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Manager opens Order Details page for a Void order → Sale Status History timeline shows a row reading `"Sold → Void"` with the correct date and badge color → ✅ Done.
+  - [x] Manager opens Order Details page for a Cancel Order order → timeline shows `"Sold → Cancel Order"` → ✅ Done.
 
 ---
 
@@ -3530,23 +3531,23 @@ Any row with these values currently falls through to the default `return '1'` (S
 
 ---
 
-- [ ] **RED — Unit (`src/tests/seed.test.ts` or a new `src/tests/importScript.test.ts`):**
-  - [ ] Test: Call `mapSaleStatus('Void')` (case-insensitive). Assert the return value is `'5'`.
-  - [ ] Test: Call `mapSaleStatus('void')`. Assert the return value is `'5'`.
-  - [ ] Test: Call `mapSaleStatus('No Sale')`. Assert the return value is `'6'`.
-  - [ ] Test: Call `mapSaleStatus('no sale')`. Assert the return value is `'6'`.
-  - [ ] Test: Call `mapSaleStatus('Sold')`. Assert the return value is still `'1'` (regression guard — existing mappings must not change).
-  - [ ] Test: Call `mapSaleStatus('Refunded')`. Assert the return value is still `'2'`.
-  - [ ] Test: Call `mapSaleStatus('unknown garbage')`. Assert the return value is `'1'` (default fallback unchanged).
-  - [ ] **Run — confirm RED (`mapSaleStatus('Void')` currently returns `'1'` and `mapSaleStatus('No Sale')` currently returns `'1'`).**
+- [x] **RED — Unit (`src/tests/seed.test.ts` or a new `src/tests/importScript.test.ts`):**
+  - [x] Test: Call `mapSaleStatus('Void')` (case-insensitive). Assert the return value is `'5'`.
+  - [x] Test: Call `mapSaleStatus('void')`. Assert the return value is `'5'`.
+  - [x] Test: Call `mapSaleStatus('No Sale')`. Assert the return value is `'6'`.
+  - [x] Test: Call `mapSaleStatus('no sale')`. Assert the return value is `'6'`.
+  - [x] Test: Call `mapSaleStatus('Sold')`. Assert the return value is still `'1'` (regression guard — existing mappings must not change).
+  - [x] Test: Call `mapSaleStatus('Refunded')`. Assert the return value is still `'2'`.
+  - [x] Test: Call `mapSaleStatus('unknown garbage')`. Assert the return value is `'1'` (default fallback unchanged).
+  - [x] **Run — confirm RED (`mapSaleStatus('Void')` currently returns `'1'` and `mapSaleStatus('No Sale')` currently returns `'1'`).**
 
-- [ ] **GREEN — Script (`src/scripts/import-csv-data.ts`):**
-  - [ ] [Script] In the `mapSaleStatus` function (lines 74–86), add the following two lines **immediately before** the `return '1'; // Default fallback is Sold` line:
+- [x] **GREEN — Script (`src/scripts/import-csv-data.ts`):**
+  - [x] [Script] In the `mapSaleStatus` function (lines 74–86), add the following two lines **immediately before** the `return '1'; // Default fallback is Sold` line:
     ```typescript
     if (lower === 'void') return '5';
     if (lower === 'no sale' || lower === 'nosale') return '6';
     ```
-  - [ ] [Script] On line 342, change the `isReturned` assignment from:
+  - [x] [Script] On line 342, change the `isReturned` assignment from:
     ```typescript
     const isReturned = mappedSaleStatus === '2' || mappedSaleStatus === '3';
     ```
@@ -3556,21 +3557,78 @@ Any row with these values currently falls through to the default `return '1'` (S
     // Cancel Order ('6') was never charged — not returned; orderRefundAmount stays null.
     const isReturned = mappedSaleStatus === '2' || mappedSaleStatus === '3' || mappedSaleStatus === '5';
     ```
-  - [ ] Run unit tests — **confirm GREEN (`npm run test -- seed.test.ts`).**
+  - [x] Run unit tests — **confirm GREEN (`npm run test -- seed.test.ts`).**
 
-- [ ] **Verification chain:**
-  - [ ] Engineer runs `npx ts-node src/scripts/import-csv-data.ts` against the real `Data_for_CRM_v2.csv` → rows with sale status `"Void"` are imported with `saleStatus = '5'` and `orderCurrentStatus = 'Returned Orders'` and `orderRefundAmount = <chargedVal>` → rows with sale status `"No Sale"` are imported with `saleStatus = '6'` and `orderCurrentStatus = 'Completed Orders'` and `orderRefundAmount = null` → querying the database confirms: `SELECT sale_status, order_current_status, order_refund_amount FROM crm_orders WHERE sale_status IN ('5','6')` returns the expected values for all imported rows → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Engineer runs `npx ts-node src/scripts/import-csv-data.ts` against the real `Data_for_CRM_v2.csv` → rows with sale status `"Void"` are imported with `saleStatus = '5'` and `orderCurrentStatus = 'Returned Orders'` and `orderRefundAmount = <chargedVal>` → rows with sale status `"No Sale"` are imported with `saleStatus = '6'` and `orderCurrentStatus = 'Completed Orders'` and `orderRefundAmount = null` → querying the database confirms: `SELECT sale_status, order_current_status, order_refund_amount FROM crm_orders WHERE sale_status IN ('5','6')` returns the expected values for all imported rows → ✅ Done.
 
 ---
 
 ### Full Phase 22 Verification Chain
 
-- [ ] Agent creates a new order → submits with `saleStatus: '5'` (Void) selected in the form → form auto-sets Workflow Status to `'Returned Orders'` before submit → order is created → Order Details page shows Sale Status as `Void` (purple badge), Workflow as `Returned Orders` → order appears in the `Returned Orders` queue tab in the Orders pipeline → Sale Status History timeline shows `"Sold → Void"` → ✅ Done.
-- [ ] Agent creates a new order → submits with `saleStatus: '6'` (Cancel Order) → form does **not** open the date modal → Workflow Status remains on `'Pending Booking'` → order is created → Order Details page shows Sale Status as `Cancel Order` (slate badge) → order does **not** appear in the `Returned Orders` queue → ✅ Done.
-- [ ] Manager opens the Orders table → `"Sale Status"` column shows color-coded badges for each row → the `"Team"` column is absent → ✅ Done.
-- [ ] Manager uses the Sale Status filter dropdown → selects `"Void"` → only Void orders are shown → pill reads `"Sale Status: Void"` → ✅ Done.
-- [ ] Engineer runs the CSV bulk import → Void rows ingest as `saleStatus = '5'` in `Returned Orders` → No Sale rows ingest as `saleStatus = '6'` in `Completed Orders` with null refund → ✅ Done.
-- [ ] `npm run typecheck` passes with **0 errors**. `npm run lint` passes with **0 errors / 0 warnings**. `npm run test` passes with **all tests GREEN** → ✅ Done.
+- [x] Agent creates a new order → submits with `saleStatus: '5'` (Void) selected in the form → form auto-sets Workflow Status to `'Returned Orders'` before submit → order is created → Order Details page shows Sale Status as `Void` (purple badge), Workflow as `Returned Orders` → order appears in the `Returned Orders` queue tab in the Orders pipeline → Sale Status History timeline shows `"Sold → Void"` → ✅ Done.
+- [x] Agent creates a new order → submits with `saleStatus: '6'` (Cancel Order) → form does **not** open the date modal → Workflow Status remains on `'Pending Booking'` → order is created → Order Details page shows Sale Status as `Cancel Order` (slate badge) → order does **not** appear in the `Returned Orders` queue → ✅ Done.
+- [x] Manager opens the Orders table → `"Sale Status"` column shows color-coded badges for each row → the `"Team"` column is absent → ✅ Done.
+- [x] Manager uses the Sale Status filter dropdown → selects `"Void"` → only Void orders are shown → pill reads `"Sale Status: Void"` → ✅ Done.
+- [x] Engineer runs the CSV bulk import → Void rows ingest as `saleStatus = '5'` in `Returned Orders` → No Sale rows ingest as `saleStatus = '6'` in `Completed Orders` with null refund → ✅ Done.
+- [x] `npm run typecheck` passes with **0 errors**. `npm run lint` passes with **0 errors / 0 warnings**. `npm run test` passes with **all tests GREEN** → ✅ Done.
+
+---
+
+## Phase 23 — Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue)
+
+### W-2301 — Renaming Cancel Order to Cancelled and Adding Cancelled Orders Queue
+
+**Root cause / Goal:**
+Unpaid/unbilled order cancellations need to be classified separately to prevent skewing operational queue metrics. The sale status `'6'` (previously "Cancel Order") needs to be renamed to "Cancelled", and a dedicated workflow status "Cancelled Orders" must be introduced. Selecting "Cancelled" should automatically move the workflow queue to "Cancelled Orders". Access to this queue must be governed by a new sequential RBAC permission `orders:view-cancelled`.
+
+**Approach:**
+1. Update `seed.sql` to insert the new permission `orders:view-cancelled` sequentially at ID 41, shifting subsequent permissions and updating Super Admin/Admin associations.
+2. Update `order.repository.ts` and `order.service.ts` to assign `'Cancelled Orders'` as workflow status for `'6'` and mapping labels.
+3. Update `dashboard.repository.ts` to include `'Cancelled Orders'` in the pipeline counter widget logic and types.
+4. Update `import-csv-data.ts` to map cancelled entries.
+5. Create new `/pending/cancelled` route, page, and middleware guards.
+6. Update frontend forms, lists, timelines, and container components to support `'Cancelled'` and `'Cancelled Orders'`.
+
+---
+
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: `PATCH /api/orders/:id` with `{ saleStatus: '6' }` returns `200 OK` and sets `orderCurrentStatus` to `'Cancelled Orders'`.
+  - [x] Test: `GET /api/orders?status=Cancelled+Orders` returns only orders with `orderCurrentStatus = 'Cancelled Orders'`.
+  - [x] Test: `GET /api/orders?status=Cancelled+Orders` without the new `'orders:view-cancelled'` permission returns `403 Forbidden`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Schema → Repository → Service → Controller):**
+  - [x] [Seed] Modify `seed.sql` to insert `(41, 'orders:view-cancelled', 'Access Cancelled Orders queue')`, shift subsequent IDs up by 1, and update Super Admin/Admin role permission maps (IDs 1-54).
+  - [x] [Repository] In `order.repository.ts`:
+    - In `createWithCustomerAndCard`, set `orderCurrentStatus` to `'Cancelled Orders'` if `saleStatus === '6'`.
+    - In `findAll`, check for `filters.status === 'Cancelled Orders'`.
+  - [x] [Service] In `order.service.ts`:
+    - In `updateOrder`, if `saleStatus === '6'`, set `orderCurrentStatus = 'Cancelled Orders'`.
+    - Update `mapSaleStatus` mapping cases.
+  - [x] [Dashboard] In `dashboard.repository.ts`, include `'Cancelled Orders'` in `getPendingCounts`.
+  - [x] [Importer] In `import-csv-data.ts`, map `"No Sale"` and `"Cancelled"` to `'6'` and set `orderCurrentStatus` to `'Cancelled Orders'` if `saleStatus === '6'`.
+  - [x] [Middleware] In `middleware.ts`, map `/pending/cancelled` to `'orders:view-cancelled'`.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx`, `src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: In `AddOrderForm.test.tsx`, rendering form and selecting `"Cancelled"` automatically changes the workflow queue select option to `"Cancelled Orders"`.
+  - [x] Test: In `EditOrderForm.test.tsx`, selecting `"Cancelled"` changes workflow queue to `"Cancelled Orders"`, and selecting a non-big-3/non-cancelled status reverts to the saved workflow queue.
+  - [x] Test: In `OrderListContainer.test.tsx`, rendering container when user has `'orders:view-cancelled'` displays the `"Cancelled Orders"` tab.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] In `src/types/dashboard.ts`, add `'Cancelled Orders'?: MetricValue;` to `PendingCounts`.
+  - [x] [Pages] Create `src/app/pending/cancelled/page.tsx` rendering `<OrderListContainer initialStatus="Cancelled Orders" />`.
+  - [x] [Components] Update option labels and default side-effects in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+  - [x] [Components] Update label and badge styling in `OrderList.tsx` and `SaleStatusTimeline.tsx`.
+  - [x] [Components] Update `OrderListContainer.tsx` to render the Cancelled Orders tab and info banner.
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Log in as Admin -> Open Add Order form -> Select "Cancelled" from Sale Status dropdown -> Workflow Queue automatically changes to "Cancelled Orders".
+  - [x] Submit order -> Order is listed under the "Cancelled Orders" tab in the Orders list.
+  - [x] Click "Cancelled Orders" tab -> The red warning banner "Cancelled Orders Queue" is displayed -> ✅ Done.
 
 ---
 
@@ -4094,3 +4152,20 @@ Any row with these values currently falls through to the default `return '1'` (S
   - **Decision Logging**: Appended Decision 24 in `CONTEXT/decision_log.md` documenting the design rationale for Void vs. Cancel Order, the column-free schema approach, and the UI auto-rule.
   - **Project Data Update**: Updated `CONTEXT/project_data.md` Sale Status lookup table to add Void (`'5'`) and Cancel Order (`'6'`) rows and updated the Order Workflow Status definition for Returned Orders to include Void.
 
+### Session 47 — July 3, 2026
+  **Phase 22 Implementation: Sale Status Expansion (Void & Cancel Order), Sale Status Column & Filter**
+  - **Backend & Repository Implementation**: Extended `updateOrder` auto-rules in `order.service.ts` to support Void (`'5'`) and Cancel Order (`'6'`) rules. Mapped statuses in audit logs and extended Prisma search and filter queries in `order.repository.ts`.
+  - **Frontend Forms Update**: Added `'5'` and `'6'` options to the Sale Status dropdown in `AddOrderForm.tsx` and `EditOrderForm.tsx`. Triggered the date/time modal for Void (`'5'`).
+  - **Modal Revert & Rejection Rules**: Added `priorSaleStatus` state to track status changes. If a user cancels the date/time modal (clicks `×` close, cancel button, or outside backdrop), the form reverts the status to its prior value. Renamed left modal buttons from "Skip" to "Cancel" for consistency across all states.
+  - **Workflow Defaulting Fixes**: Ensured that edited orders revert to their saved workflow state (`order.orderCurrentStatus || 'Pending Booking'`) upon cancelling a big-3 change or switching back to a non-big-3 status, preventing them from defaulting to Pending Booking. For new orders, removed vendor-based auto-advance and made them default to `Pending Booking` automatically.
+  - **Table Column Swap & Filters**: Swapped the `Team` column in `OrderList.tsx` with a styled `Sale Status` badge. Integrated a `Sale Status` select dropdown filter in `OrderListContainer.tsx` and updated the active filter pills and description notes.
+  - **Timeline Mappings & CSV Importer**: Updated `SaleStatusTimeline.tsx` to handle Void and Cancel Order values and styling. Updated `import-csv-data.ts` to map `"Void"` → `'5'` and `"No Sale"` → `'6'` and include Void in returned orders processing during import.
+  - **Test Suite expansion**: Created `importScript.test.ts` and added comprehensive unit and integration tests across `orders.test.ts`, `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, `OrderList.test.tsx`, `OrderListContainer.test.tsx`, and `SaleStatusTimeline.test.tsx` to cover all Phase 22 behaviors.
+
+### Session 48 — July 3, 2026
+  **Phase 23 Implementation: Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue)**
+  - **Sequential Database Seeding**: Updated `seed.sql` to insert the new permission `'orders:view-cancelled'` at ID 41, shifting subsequent permission IDs (up to 54) by 1 to maintain a perfect, gapless sequence, and mapped permissions 1 to 54 to Super Admin and Admin roles. Re-seeded database cleanly.
+  - **Auto-Rules & Transitions**: Modified `order.service.ts` auto-rules to transition order workflow status to `'Cancelled Orders'` when the `'Cancelled'` status code `'6'` is selected, and reverted to the saved workflow status (for edit orders) or `'Pending Booking'` (for new orders) when transitioning back.
+  - **Dashboard Metrics & Page Routes**: Included `'Cancelled Orders'` in the `getPendingCounts` dashboard metrics query, calculations, and type interfaces. Protected route `/pending/cancelled` in `middleware.ts` and created the React page under `src/app/pending/cancelled/page.tsx` rendering the list container.
+  - **Frontend Form, Table & Timeline Updates**: Renamed `'Cancel Order'` to `'Cancelled'` across `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `SaleStatusTimeline.tsx`, and `OrderListContainer.tsx`. Added the `'Cancelled Orders'` tab and red warning banner in `OrderListContainer.tsx`.
+  - **CSV Importer & Test Suites**: Updated the CSV importer to map `'No Sale'` and `'Cancelled'` entries to `'6'` and set their workflow status to `'Cancelled Orders'`. Added integration/unit tests across `seed.test.ts`, `importScript.test.ts`, `orders.test.ts`, `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, `OrderListContainer.test.tsx`, and `SaleStatusTimeline.test.tsx` to verify all sequential seeding and auto-rules behaviors. Resolved all ESLint warnings.

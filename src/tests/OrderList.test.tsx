@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import OrderList from '../components/OrderList';
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('OrderList W-1601 Unit Tests', () => {
   it('should render all four roles in sequence: Sales Rep/Agent -> Sales Verifier -> Backend Executive -> QA Verifier', () => {
@@ -106,5 +110,50 @@ describe('OrderList W-1601 Unit Tests', () => {
     // Order #47 has amount charged 300 and refund null -> finalMargin = $300
     expect(screen.getByText(/Charged: \$300\.00/)).toBeDefined();
     expect(screen.getByText(/Final Margin: \$300\.00/)).toBeDefined();
+  });
+
+  describe('W-2203: Sale Status Column and Label Rendering', () => {
+    const baseMockOrder = {
+      crmOrderId: 48,
+      orderDate: '2026-06-30',
+      orderMakeModel: '2026 Ford Bronco',
+      orderPart: 'Engine',
+      orderTotalPitched: '4000',
+      orderVendorPrice: '3000',
+      orderAmountCharged: '1000',
+      orderCurrentStatus: 'Pending Booking',
+      customer: {
+        customerName: 'John Doe',
+        customerEmail: 'john@example.com',
+      },
+    };
+
+    it('[RED] should replace Team column header with Sale Status column header', () => {
+      render(<OrderList orders={[{ ...baseMockOrder, saleStatus: '1' }] as any} />);
+      expect(screen.queryByText('Team')).toBeNull();
+      expect(screen.getByText('Sale Status')).toBeDefined();
+    });
+
+    it('[RED] should correctly map and render Sale Status labels', () => {
+      const mockOrders = [
+        { ...baseMockOrder, crmOrderId: 101, saleStatus: '1' },
+        { ...baseMockOrder, crmOrderId: 102, saleStatus: '2' },
+        { ...baseMockOrder, crmOrderId: 103, saleStatus: '3' },
+        { ...baseMockOrder, crmOrderId: 104, saleStatus: '4' },
+        { ...baseMockOrder, crmOrderId: 105, saleStatus: '5' },
+        { ...baseMockOrder, crmOrderId: 106, saleStatus: '6' },
+        { ...baseMockOrder, crmOrderId: 107, saleStatus: null },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      expect(screen.getByText('Sold')).toBeDefined();
+      expect(screen.getByText('Refunded')).toBeDefined();
+      expect(screen.getByText('Chargebacked')).toBeDefined();
+      expect(screen.getByText('Partial Refund')).toBeDefined();
+      expect(screen.getByText('Void')).toBeDefined();
+      expect(screen.getByText('Cancelled')).toBeDefined();
+      expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    });
   });
 });

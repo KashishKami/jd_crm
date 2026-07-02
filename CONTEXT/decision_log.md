@@ -590,3 +590,22 @@ When a user selects `Refunded` (`'2'`), `Chargebacked` (`'3'`), or `Void` (`'5'`
 - Vendor statistics in `vendor.repository.ts` are updated to count Void and Cancel Order orders in vendor totals.
 - The Orders table is one column narrower (Team removed), giving the Sale Status badge more visual prominence.
 
+---
+
+### Decision 25: Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue)
+
+#### Context
+To provide better tracking and classification of unpaid/unbilled order cancellations, we need to separate cancelled orders from the general workflow queues. Previously, selecting `"Cancel Order"` (`'6'`) kept the order in its existing workflow status. This needs to be moved to a dedicated workflow queue to avoid skewing progress metrics. Additionally, the sale status `"Cancel Order"` should be renamed to `"Cancelled"` for brevity and consistency.
+
+#### Decisions
+1. **Rename Sale Status**: Rename `'6'` from `"Cancel Order"` to `"Cancelled"` in all UI dropdowns, badges, timelines, and audit logs.
+2. **Cancelled Orders Workflow Status**: Introduce `'Cancelled Orders'` as a new workflow status value.
+3. **Automatic Workflow Transition**:
+   - In both `AddOrderForm.tsx` and `EditOrderForm.tsx`, selecting `'6'` (Cancelled) automatically sets the workflow queue (`orderCurrentStatus`) to `'Cancelled Orders'`.
+   - When transitioning from `'6'` back to a non-big-3/non-cancelled status, reset the workflow status to `'Pending Booking'` (for new orders) or its original saved state (for edit order).
+4. **New RBAC Navigation Permission**: Add a new permission `orders:view-cancelled` and insert it sequentially at ID 41 in `seed.sql`. Shift subsequent permission IDs by 1 to maintain perfect sequential ordering. Grant this new permission to Super Admin and Admin roles.
+5. **Dashboard Counts**: Add `'Cancelled Orders'` to `PendingCountsRow` and the dashboard metric calculators so that counts are displayed correctly in the pipeline.
+6. **Pipeline Tab**: Render a new `'Cancelled Orders'` tab in `OrderListContainer.tsx` guarded by the `orders:view-cancelled` permission. Display a styled red/warning info banner on this tab view.
+7. **CSV Importer**: Map `"No Sale"` and `"Cancelled"` in CSV files to `'6'`, and automatically assign `'Cancelled Orders'` as the `orderCurrentStatus` for imported cancelled records.
+
+

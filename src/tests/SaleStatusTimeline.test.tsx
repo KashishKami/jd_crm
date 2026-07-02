@@ -39,4 +39,32 @@ describe('SaleStatusTimeline Component Unit Tests', () => {
     expect(screen.getByText('Agent Jack')).not.toBeNull();
     expect(screen.getByText('Admin JD')).not.toBeNull();
   });
+
+  it('[RED] should render Void (5) and Cancel Order (6) labels correctly', () => {
+    const mockHistory = [
+      {
+        id: 3,
+        orderId: 10,
+        oldValue: '1',
+        newValue: '5',
+        changedById: 2,
+        changedByName: 'Agent Jack',
+        changedAt: '2026-06-01T10:00:00Z',
+      },
+      {
+        id: 4,
+        orderId: 10,
+        oldValue: '1',
+        newValue: '6',
+        changedById: 3,
+        changedByName: 'Admin JD',
+        changedAt: '2026-06-05T15:30:00Z',
+      },
+    ];
+
+    render(<SaleStatusTimeline history={mockHistory} />);
+
+    expect(screen.getByText('Void')).not.toBeNull();
+    expect(screen.getByText('Cancelled')).not.toBeNull();
+  });
 });

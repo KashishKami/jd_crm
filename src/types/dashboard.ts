@@ -11,6 +11,7 @@ export interface PendingCounts {
   'Pending Resolutions': MetricValue;
   'Completed Orders'?: MetricValue;
   'Returned Orders'?: MetricValue;
+  'Cancelled Orders'?: MetricValue;
 }
 
 export interface AttendanceSummary {

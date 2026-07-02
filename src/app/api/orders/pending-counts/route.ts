@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const saleStatus = searchParams.get('saleStatus') || undefined;
   const agentIdStr = searchParams.get('agentId');
   const agentId = agentIdStr ? Number(agentIdStr) : undefined;
   const teamIdStr = searchParams.get('teamId');
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
       backendExecutiveId,
       dateFrom,
       dateTo,
+      saleStatus,
     });
     return NextResponse.json(counts);
   } catch (error: unknown) {

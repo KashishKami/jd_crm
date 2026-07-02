@@ -62,6 +62,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState(order.orderBackendExecutiveId ? String(order.orderBackendExecutiveId) : '');
   const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
   const [saleStatus, setSaleStatus] = useState(order.saleStatus || '1');
+  const [priorSaleStatus, setPriorSaleStatus] = useState(order.saleStatus || '1');
   const [orderRefundAmount, setOrderRefundAmount] = useState(order.orderRefundAmount || '');
   const [showStatusDateModal, setShowStatusDateModal] = useState(false);
   const [saleStatusChangeDateInput, setSaleStatusChangeDateInput] = useState('');
@@ -87,6 +88,20 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       fadeInPage(containerRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (saleStatus === '2' || saleStatus === '3' || saleStatus === '5') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOrderCurrentStatus('Returned Orders');
+    } else if (saleStatus === '6') {
+      setOrderCurrentStatus('Cancelled Orders');
+    } else if (saleStatus === '1' || saleStatus === '4') {
+      if (orderCurrentStatus === 'Returned Orders' || orderCurrentStatus === 'Cancelled Orders') {
+        setOrderCurrentStatus(order.orderCurrentStatus || 'Pending Booking');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -472,8 +487,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Workflow Queue</label>
+              <label htmlFor="orderCurrentStatus" className="form-label">Workflow Queue</label>
               <select
+                id="orderCurrentStatus"
                 value={orderCurrentStatus}
                 onChange={(e) => setOrderCurrentStatus(e.target.value)}
                 className="form-select"
@@ -487,6 +503,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 <option value="Pending Resolutions">Pending Resolutions</option>
                 <option value="Completed Orders">Completed Orders</option>
                 <option value="Returned Orders">Returned Orders</option>
+                <option value="Cancelled Orders">Cancelled Orders</option>
               </select>
             </div>
             <div className="form-group">
@@ -496,13 +513,16 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 value={saleStatus}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setSaleStatus(val);
-                  if (val === '2' || val === '3' || val === '4') {
+                  if (val === '2' || val === '3' || val === '4' || val === '5') {
+                    setPriorSaleStatus(saleStatus);
+                    setSaleStatus(val);
                     const est = getCurrentEstDateTime();
                     setSaleStatusChangeDateInput(est.date);
                     setSaleStatusChangeTimeInput(est.time);
                     setShowStatusDateModal(true);
                   } else {
+                    setPriorSaleStatus(val);
+                    setSaleStatus(val);
                     setSaleStatusChangeDate('');
                   }
                 }}
@@ -512,6 +532,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 <option value="2">Refunded</option>
                 <option value="3">Chargebacked</option>
                 <option value="4">Partial Refund</option>
+                <option value="5">Void</option>
+                <option value="6">Cancelled</option>
               </select>
             </div>
             <div className="form-group">
@@ -635,8 +657,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         <div 
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              if (saleStatus === '4') {
-                setSaleStatus(order.saleStatus || '1');
+              setSaleStatus(priorSaleStatus);
+              if (priorSaleStatus !== '4') {
                 setOrderRefundAmount(order.orderRefundAmount || '');
               }
               setSaleStatusChangeDate('');
@@ -673,8 +695,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             <button
               type="button"
               onClick={() => {
-                if (saleStatus === '4') {
-                  setSaleStatus(order.saleStatus || '1');
+                setSaleStatus(priorSaleStatus);
+                if (priorSaleStatus !== '4') {
                   setOrderRefundAmount(order.orderRefundAmount || '');
                 }
                 setSaleStatusChangeDate('');
@@ -716,7 +738,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <span style={{ fontSize: '1.5rem' }}>⚠️</span>
               <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                Record {saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : 'Partial Refund'} Details
+                Record {saleStatus === '2' ? 'Refund' : saleStatus === '3' ? 'Chargeback' : saleStatus === '5' ? 'Void' : 'Partial Refund'} Details
               </h3>
             </div>
 
@@ -793,8 +815,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               <button
                 type="button"
                 onClick={() => {
-                  if (saleStatus === '4') {
-                    setSaleStatus(order.saleStatus || '1');
+                  setSaleStatus(priorSaleStatus);
+                  if (priorSaleStatus !== '4') {
                     setOrderRefundAmount(order.orderRefundAmount || '');
                   }
                   setSaleStatusChangeDate('');
@@ -803,7 +825,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 className="btn-secondary-custom"
                 style={{ padding: '8px 16px', fontSize: '0.85rem' }}
               >
-                {saleStatus === '4' ? 'Cancel' : 'Skip — Use Current Time'}
+                Cancel
               </button>
               <button
                 type="button"
