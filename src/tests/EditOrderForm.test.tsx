@@ -108,6 +108,7 @@ describe('EditOrderForm Unit Tests', () => {
         vendors={[]}
         gateways={[]}
         agents={[]}
+        canViewCards={true}
       />
     );
 
@@ -137,6 +138,49 @@ describe('EditOrderForm Unit Tests', () => {
     expect(sentBody).toHaveProperty('customerCardExpDate', '12/29');
     expect(sentBody).toHaveProperty('customerCardCopyStatus', 'No');
     expect(sentBody).toHaveProperty('customerCardPhotoStatus', 'No');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('should mask card number and CVV and omit them from the payload when canViewCards is false', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <EditOrderForm
+        order={getMockOrder('Pending Shipment')}
+        vendors={[]}
+        gateways={[]}
+        agents={[]}
+        canViewCards={false}
+      />
+    );
+
+    // Verify fields are masked on rendering
+    const cardNumberInput = screen.getByText('Card Number').nextElementSibling as HTMLInputElement;
+    const cardCvvInput = screen.getByText('CVV Code').nextElementSibling as HTMLInputElement;
+    expect(cardNumberInput.value).toBe('**** **** **** 4444');
+    expect(cardCvvInput.value).toBe('***');
+
+    // Submit the form
+    const saveButton = screen.getByText('Save Changes');
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    const [, fetchOptions] = fetchSpy.mock.calls[0];
+    const sentBody = JSON.parse(fetchOptions.body);
+
+    // Masked fields must not be present in the sent payload to prevent database corruption
+    expect(sentBody.customerCardNumber).toBeUndefined();
+    expect(sentBody.customerCardCvv).toBeUndefined();
+
+    // Other customer/card details should still be submitted
+    expect(sentBody).toHaveProperty('customerNameOncard', 'John Doe');
+    expect(sentBody).toHaveProperty('customerCardExpDate', '12/29');
 
     vi.unstubAllGlobals();
   });

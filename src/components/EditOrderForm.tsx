@@ -11,9 +11,10 @@ interface EditOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
   agents: Array<{ uid: number; name: string; nickname?: string | null }>;
+  canViewCards?: boolean;
 }
 
-export default function EditOrderForm({ order, vendors, gateways, agents }: EditOrderFormProps) {
+export default function EditOrderForm({ order, vendors, gateways, agents, canViewCards = false }: EditOrderFormProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -26,9 +27,17 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
 
   const firstCard = order.customer.cards[0] || {};
   const [customerNameOncard, setCustomerNameOncard] = useState(firstCard.customerNameOncard || '');
-  const [customerCardNumber, setCustomerCardNumber] = useState(firstCard.customerCardNumber || '');
+
+  const initialCardNumber = firstCard.customerCardNumber
+    ? (canViewCards ? firstCard.customerCardNumber : `**** **** **** ${firstCard.customerCardNumber.replace(/\s+/g, '').slice(-4)}`)
+    : '';
+  const initialCardCvv = firstCard.customerCardCvv
+    ? (canViewCards ? firstCard.customerCardCvv : '***')
+    : '';
+
+  const [customerCardNumber, setCustomerCardNumber] = useState(initialCardNumber);
   const [customerCardExpDate, setCustomerCardExpDate] = useState(firstCard.customerCardExpDate || '');
-  const [customerCardCvv, setCustomerCardCvv] = useState(firstCard.customerCardCvv || '');
+  const [customerCardCvv, setCustomerCardCvv] = useState(initialCardCvv);
   const [customerCardCopyStatus, setCustomerCardCopyStatus] = useState(firstCard.customerCardCopyStatus || 'No');
   const [customerCardPhotoStatus, setCustomerCardPhotoStatus] = useState(firstCard.customerCardPhotoStatus || 'No');
 
@@ -93,7 +102,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       return;
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       // Customer fields — sent to the service to update crm_customers
       customerName,
       customerPhone,
@@ -102,9 +111,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       customerShippingAddress,
       // Card fields — sent to the service to update crm_customer_cards
       customerNameOncard,
-      customerCardNumber,
       customerCardExpDate,
-      customerCardCvv,
       customerCardCopyStatus,
       customerCardPhotoStatus,
       orderMakeModel,
@@ -131,6 +138,14 @@ export default function EditOrderForm({ order, vendors, gateways, agents }: Edit
       orderDate,
       saleStatusChangeDate: saleStatusChangeDate || null,
     };
+
+    // Only update card number / CVV if they don't contain asterisks (which indicate a masked placeholder)
+    if (customerCardNumber !== undefined && !customerCardNumber.includes('*')) {
+      payload.customerCardNumber = customerCardNumber;
+    }
+    if (customerCardCvv !== undefined && !customerCardCvv.includes('*')) {
+      payload.customerCardCvv = customerCardCvv;
+    }
 
     try {
       const res = await fetch(`/api/orders/${order.crmOrderId}`, {

@@ -94,13 +94,62 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   </div>
                 </td>
                 <td>
-                  <div className="flex flex-col text-[10px] font-mono">
-                    <span className="text-slate-500">Pitch: ${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
-                    <span className="text-slate-400">Buy: ${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
-                    <span className={`font-semibold mt-0.5 ${finalMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      Final Margin: ${finalMargin.toFixed(2)}
-                    </span>
-                  </div>
+                  {(() => {
+                    const pitchNum = parseFloat(order.orderTotalPitched || '0');
+                    const buyNum = parseFloat(order.orderVendorPrice || '0');
+                    const chargedNum = parseFloat(order.orderAmountCharged || '0');
+                    const refundNum = parseFloat(order.orderRefundAmount || '0');
+                    
+                    const netMargin = pitchNum - buyNum;
+                    const showRemaining = netMargin > chargedNum && refundNum !== chargedNum;
+                    const remaining = netMargin - chargedNum;
+
+                    const pitch = pitchNum.toFixed(2);
+                    const buy = buyNum.toFixed(2);
+                    const charged = chargedNum.toFixed(2);
+                    const refund = refundNum.toFixed(2);
+                    
+                    const isCompleted = order.orderCurrentStatus === 'Completed Orders';
+                    const isReturned = order.orderCurrentStatus === 'Returned Orders';
+                    
+                    let showRefund = false;
+                    let showFinalMargin = true;
+                    
+                    if (isCompleted) {
+                      if (order.saleStatus === '4') {
+                        showRefund = true;
+                        showFinalMargin = true;
+                      } else {
+                        showRefund = false;
+                        showFinalMargin = true;
+                      }
+                    } else if (isReturned) {
+                      showRefund = true;
+                      showFinalMargin = false;
+                    } else {
+                      showRefund = false;
+                      showFinalMargin = true;
+                    }
+                    
+                    return (
+                      <div className="flex flex-col text-[10px] font-mono">
+                        <span className="text-slate-500">Pitch: ${pitch}</span>
+                        <span className="text-slate-400">Buy: ${buy}</span>
+                        <span className="text-slate-500">Charged: ${charged}</span>
+                        {showRemaining && (
+                          <span className="text-amber-600">Remaining: ${remaining.toFixed(2)}</span>
+                        )}
+                        {showRefund && (
+                          <span className="text-rose-600">Refund: ${refund}</span>
+                        )}
+                        {showFinalMargin && (
+                          <span className={`font-semibold mt-0.5 ${finalMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            Final Margin: ${finalMargin.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td>
                   {(() => {

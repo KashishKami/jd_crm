@@ -100,10 +100,11 @@ describe('OrderList W-1601 Unit Tests', () => {
     render(<OrderList orders={mockOrders as any} />);
 
     // Order #46 has amount charged 400 and refund 150 -> finalMargin = $250
-    expect(screen.queryByText(/400\.00/)).toBeNull(); // Raw amount charged should not be shown
-    expect(screen.getByText(/250\.00/)).toBeDefined(); // finalMargin should be shown
+    expect(screen.getByText(/Charged: \$400\.00/)).toBeDefined(); 
+    expect(screen.getByText(/Final Margin: \$250\.00/)).toBeDefined(); 
 
     // Order #47 has amount charged 300 and refund null -> finalMargin = $300
-    expect(screen.getByText(/300\.00/)).toBeDefined();
+    expect(screen.getByText(/Charged: \$300\.00/)).toBeDefined();
+    expect(screen.getByText(/Final Margin: \$300\.00/)).toBeDefined();
   });
 });

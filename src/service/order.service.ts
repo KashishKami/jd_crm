@@ -286,14 +286,12 @@ export async function updateOrder(
   }
 
   const firstCard = existingOrder.customer?.cards?.[0];
-  if (firstCard) {
-    checkStrDiff('customerNameOncard', firstCard.customerNameOncard, customerNameOncard);
-    checkStrDiff('customerCardNumber', firstCard.customerCardNumber, customerCardNumber);
-    checkStrDiff('customerCardExpDate', firstCard.customerCardExpDate, customerCardExpDate);
-    checkStrDiff('customerCardCvv', firstCard.customerCardCvv, customerCardCvv);
-    checkStrDiff('customerCardCopyStatus', firstCard.customerCardCopyStatus, customerCardCopyStatus);
-    checkStrDiff('customerCardPhotoStatus', firstCard.customerCardPhotoStatus, customerCardPhotoStatus);
-  }
+  checkStrDiff('customerNameOncard', firstCard?.customerNameOncard ?? null, customerNameOncard);
+  checkStrDiff('customerCardNumber', firstCard?.customerCardNumber ?? null, customerCardNumber);
+  checkStrDiff('customerCardExpDate', firstCard?.customerCardExpDate ?? null, customerCardExpDate);
+  checkStrDiff('customerCardCvv', firstCard?.customerCardCvv ?? null, customerCardCvv);
+  checkStrDiff('customerCardCopyStatus', firstCard?.customerCardCopyStatus ?? null, customerCardCopyStatus);
+  checkStrDiff('customerCardPhotoStatus', firstCard?.customerCardPhotoStatus ?? null, customerCardPhotoStatus);
 
   if (auditEntries.length > 0) {
     await orderRepository.createAuditLogEntries(crmOrderId, auditEntries, changedByUserId, changedByName);
@@ -350,7 +348,7 @@ export async function updateOrder(
   }
 
   // ─── Persist card fields (first card only) ───────────────────────────────────
-  const cardUpdate: Record<string, unknown> = {};
+  const cardUpdate: Record<string, any> = {};
   if (customerNameOncard !== undefined) cardUpdate.customerNameOncard = customerNameOncard;
   if (customerCardNumber !== undefined) cardUpdate.customerCardNumber = customerCardNumber;
   if (customerCardExpDate !== undefined) cardUpdate.customerCardExpDate = customerCardExpDate;
@@ -358,14 +356,28 @@ export async function updateOrder(
   if (customerCardCopyStatus !== undefined) cardUpdate.customerCardCopyStatus = customerCardCopyStatus;
   if (customerCardPhotoStatus !== undefined) cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus;
 
-  if (Object.keys(cardUpdate).length > 0 && existingOrder.customer?.cards?.length) {
+  if (Object.keys(cardUpdate).length > 0) {
     const { prisma } = await import('../lib/db');
-    const firstCardId = existingOrder.customer.cards[0].cardId;
-    cardUpdate.customerCardUpdated = new Date();
-    await prisma.crmCustomerCards.update({
-      where: { cardId: firstCardId },
-      data: cardUpdate,
-    });
+    if (existingOrder.customer?.cards?.length) {
+      const firstCardId = existingOrder.customer.cards[0].cardId;
+      cardUpdate.customerCardUpdated = new Date();
+      await prisma.crmCustomerCards.update({
+        where: { cardId: firstCardId },
+        data: cardUpdate,
+      });
+    } else if (
+      existingOrder.orderCustomerId &&
+      (customerCardNumber || customerNameOncard || customerCardExpDate)
+    ) {
+      cardUpdate.cardCustomerId = existingOrder.orderCustomerId;
+      cardUpdate.customerCardCopyStatus = customerCardCopyStatus || 'No';
+      cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus || 'No';
+      cardUpdate.customerCardCreatedAt = new Date();
+      cardUpdate.customerCardUpdated = new Date();
+      await prisma.crmCustomerCards.create({
+        data: cardUpdate as any,
+      });
+    }
   }
 
   return updatedOrder;

@@ -168,6 +168,7 @@ export default function VendorDetailPage() {
       case '1': return 'Sold';
       case '2': return 'Refunded';
       case '3': return 'Chargebacked';
+      case '4': return 'Partial Refund';
       default: return 'Unknown';
     }
   };

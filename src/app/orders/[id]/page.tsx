@@ -165,6 +165,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     }
   }
 
+  if (!canViewCards && auditLogs.length > 0) {
+    const maskCardNumber = (num: string | null) => {
+      if (!num) return null;
+      const clean = num.replace(/\s+/g, '');
+      const last4 = clean.slice(-4);
+      return `**** **** **** ${last4}`;
+    };
+    auditLogs = auditLogs.map((log: any) => {
+      if (log.fieldName === 'customerCardNumber') {
+        return {
+          ...log,
+          oldValue: maskCardNumber(log.oldValue),
+          newValue: maskCardNumber(log.newValue),
+        };
+      } else if (log.fieldName === 'customerCardCvv') {
+        return {
+          ...log,
+          oldValue: log.oldValue ? '***' : null,
+          newValue: log.newValue ? '***' : null,
+        };
+      }
+      return log;
+    });
+  }
+
   const customerPhoneDisplay = canViewPhone ? order.customer.customerPhone : maskPhone(order.customer.customerPhone);
   const customerEmailDisplay = canViewEmail ? order.customer.customerEmail : maskEmail(order.customer.customerEmail);
 
@@ -364,6 +389,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               Financial Breakdown
             </h3>
             <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '16px' }}>
+              {/* Divider 1 is above this section */}
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
                 <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Selling Price</span>
                 <span className="info-value font-mono" style={{ color: 'white' }}>${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
@@ -372,20 +398,52 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Buying Price</span>
                 <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
               </div>
+              
+              {/* Divider 2 */}
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Amt. Charged</span>
+                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Net Margin</span>
+                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${(parseFloat(order.orderTotalPitched || '0') - parseFloat(order.orderVendorPrice || '0')).toFixed(2)}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Charged Amount</span>
                 <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>
                   ${parseFloat(order.orderAmountCharged || '0').toFixed(2)}
                 </span>
               </div>
-              {parseFloat(order.orderRefundAmount || '0') > 0 && (
-                <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Refund Amount</span>
-                  <span className="info-value font-mono" style={{ color: '#f87171' }}>
-                    -${parseFloat(order.orderRefundAmount || '0').toFixed(2)}
-                  </span>
-                </div>
-              )}
+              
+              {/* Divider 3 / Section C */}
+              {(() => {
+                const sellingPrice = parseFloat(order.orderTotalPitched || '0');
+                const buyingPrice = parseFloat(order.orderVendorPrice || '0');
+                const netMargin = sellingPrice - buyingPrice;
+                const chargedAmount = parseFloat(order.orderAmountCharged || '0');
+                const refundAmount = parseFloat(order.orderRefundAmount || '0');
+                
+                const showRemaining = netMargin > chargedAmount && refundAmount !== chargedAmount;
+                const remainingToBeCharged = netMargin - chargedAmount;
+                const showRefund = refundAmount > 0;
+                
+                if (!showRemaining && !showRefund) return null;
+                
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                    {showRemaining && (
+                      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Remaining to be charged</span>
+                        <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${remainingToBeCharged.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {showRefund && (
+                      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Refund Amount</span>
+                        <span className="info-value font-mono" style={{ color: '#f87171' }}>-${refundAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              
+              {/* Divider 4 */}
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
                 <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Final Margin</span>
                 <span className="info-value font-mono" style={{ fontWeight: 'bold', color: (parseFloat(order.orderAmountCharged || '0') - parseFloat(order.orderRefundAmount || '0')) >= 0 ? '#10b981' : '#ef4444' }}>

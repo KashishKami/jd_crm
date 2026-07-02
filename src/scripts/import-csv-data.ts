@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/db';
 
-const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data for CRM - CRM_Import_Ready.csv');
+const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data_for_CRM_v2.csv');
 
 // Robust CSV parser that handles quoted commas, escaped quotes, and newlines inside quotes.
 // It only treats quote characters as cell boundaries if they are at field delimiters,
@@ -90,14 +90,21 @@ function parseCSVDate(dateStr: string): Date | null {
   const parts = dateStr.split('-');
   if (parts.length === 3) {
     const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1; // 0-indexed month
+    const monthStr = parts[1].toLowerCase().substring(0, 3);
     const year = parseInt(parts[2], 10);
-    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-      return new Date(year, month, day);
+    
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const monthIndex = months.indexOf(monthStr);
+    
+    if (!isNaN(day) && monthIndex !== -1 && !isNaN(year)) {
+      return new Date(Date.UTC(year, monthIndex, day));
     }
   }
   const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? null : d;
+  if (!isNaN(d.getTime())) {
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  }
+  return null;
 }
 
 // Parses prices containing mathematical characters like + (e.g. $8250 + $1250) and returns the sum
@@ -181,7 +188,7 @@ async function main() {
   const uniqueGateways = Array.from(
     new Set(
       dataRows
-        .map((r) => r[21]?.trim())
+        .map((r) => r[23]?.trim())
         .filter((gw) => gw && gw !== 'NA' && gw !== '')
     )
   );
@@ -238,13 +245,15 @@ async function main() {
     const vendorMiles = row[16];
     const pricePitched = row[17];
     const buyingPrice = row[18];
-    const shippingType = row[19];
-    const supplierVendor = row[20];
-    const billingGateway = row[21];
-    const salesAgentName = row[22];
-    const salesVerifierName = row[23];
-    const saleStatusRaw = row[24];
-    const remarks = row[25];
+    const computedMarkup = row[19];
+    const currentChargedAmount = row[20];
+    const shippingType = row[21];
+    const supplierVendor = row[22];
+    const billingGateway = row[23];
+    const salesAgentName = row[24];
+    const salesVerifierName = row[25];
+    const saleStatusRaw = row[26];
+    const remarks = row[27];
 
     const orderDateParsed = parseCSVDate(dateRaw);
     if (!orderDateParsed) {
@@ -264,7 +273,7 @@ async function main() {
       vendorId = vendorCache.get(supplierVendor.toLowerCase().trim()) ?? null;
     }
 
-    // Resolve Agent / Verifier
+    // Resolve Agent / Verifiers
     let agentId: number | null = null;
     if (salesAgentName) {
       agentId = agentCache.get(salesAgentName.toLowerCase().trim()) ?? null;
@@ -274,10 +283,9 @@ async function main() {
       salesVerifierId = agentCache.get(salesVerifierName.toLowerCase().trim()) ?? null;
     }
 
-    // Pricing & Markup calculations
-    const pitchedNum = parsePriceString(pricePitched);
-    const buyingNum = parsePriceString(buyingPrice);
-    const markupVal = (pitchedNum - buyingNum).toFixed(2);
+    // Pricing & Charged calculations
+    const chargedNum = parsePriceString(currentChargedAmount);
+    const chargedVal = chargedNum.toFixed(2);
 
     const customerId = nextCustomerId;
     const customerNameClean = customerName || 'Unknown Customer';
@@ -328,8 +336,8 @@ async function main() {
       orderVendorId: null,
       orderVendorName: null,
       orderShippingType: shippingType || null,
-      orderAmountCharged: markupVal,
-      orderRefundAmount: isReturned ? markupVal : null,
+      orderAmountCharged: chargedVal,
+      orderRefundAmount: isReturned ? chargedVal : null,
       orderPaymentGatewayId: gatewayId,
       orderSalesAgentId: agentId,
       orderSalesAgentName: salesAgentName || null,

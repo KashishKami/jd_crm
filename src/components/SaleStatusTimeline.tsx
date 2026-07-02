@@ -21,6 +21,7 @@ export default function SaleStatusTimeline({ history }: SaleStatusTimelineProps)
       case '1': return 'Sold';
       case '2': return 'Refunded';
       case '3': return 'Chargebacked';
+      case '4': return 'Partial Refund';
       default: return 'Unknown';
     }
   };
@@ -33,6 +34,8 @@ export default function SaleStatusTimeline({ history }: SaleStatusTimelineProps)
         return { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' };
       case '3':
         return { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5' };
+      case '4':
+        return { backgroundColor: '#faf2eb', color: '#a47c5c', border: '1px solid #ffedd5' };
       default:
         return { backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' };
     }
