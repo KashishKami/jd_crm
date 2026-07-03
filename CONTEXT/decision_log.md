@@ -291,7 +291,7 @@ To create a clean mobile layout and display logical pairings of metric states:
   This prevented the local development dev server from loading or rendering pages (causing blank screens).
 
 #### Decision
-- **TypeScript Interface Update**: Modified `PendingCounts` in [dashboard.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/types/dashboard.ts) to define the property `'Completed Orders'?: MetricValue;` as an optional type property, matching the other pending status structures.
+- **TypeScript Interface Update**: Modified `dashboard.ts` (`src/types/dashboard.ts`) to define the property `'Completed Orders'?: MetricValue;` as an optional type property, matching the other pending status structures.
 
 #### Consequences
 - Resolves all Next.js dev and production build compilation crashes.
@@ -621,7 +621,7 @@ To secure the application against unauthorized privilege escalation and improve 
 2. Users should be able to view/toggle password visibility to prevent typing errors during login and agent form entries.
 
 #### Decisions
-1. **Frontend Role Drodown Restriction**: Wrapped the role assignment `<select>` dropdown inside [NewAgentForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/NewAgentForm.tsx) and [EditAgentForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditAgentForm.tsx) in an `isSuperAdmin` session check. For new agents, defaulted the local state `roleId` to `'8'` (Agent role ID).
+1. **Frontend Role Drodown Restriction**: Wrapped the role assignment `<select>` dropdown inside `NewAgentForm.tsx` and `EditAgentForm.tsx` in an `isSuperAdmin` session check. For new agents, defaulted the local state `roleId` to `'8'` (Agent role ID).
 2. **Backend API Privilege Hardening**: 
    - `POST /api/agents` overrides the payload and forces `roleId = 8` if the requester is not a super-admin.
    - `PATCH /api/agents/[id]` strips the `roleId` key entirely from the database update payload if the requester lacks super-admin privileges.
@@ -632,3 +632,65 @@ To secure the application against unauthorized privilege escalation and improve 
 - Privilege escalation is locked on both frontend forms and backend endpoints.
 - Users can safely toggle password visibility while logging in or managing agent accounts.
 - The entire Vitest and Prisma integration test suite continues to pass cleanly.
+
+---
+
+### Decision 27: Phase 24 Schema Additions — Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Base64 Image Storage & UI Label Renames
+
+**Date:** 2026-07-03
+**Status:** Approved
+
+#### Context
+Several business requirements emerged that required additive schema changes and UI updates:
+1. Customers and vendors can have more than one phone number.
+2. Vendors operate in specific countries (US or Canada) and states, and accept multiple payment modes (Customer Card, Company Card, Link).
+3. A single customer order sometimes requires charging multiple cards for different amounts.
+4. Agents need to attach scanned card copy and photo ID images to card records for verification audits.
+5. Several UI labels were misleading and required renaming.
+
+All database changes are **purely additive** — new nullable columns only. No existing column is renamed, dropped, or altered. No existing data is affected.
+
+#### Decisions
+
+**D27.1 — Alternate Phone Numbers: Two nullable columns added to `crm_customers` and `crm_vendors`**
+- `crm_customers`: `customer_alternate_phone_1 VARCHAR(25) NULL`, `customer_alternate_phone_2 VARCHAR(25) NULL`.
+- `crm_vendors`: `vendor_alternate_phone_1 VARCHAR(15) NULL`, `vendor_alternate_phone_2 VARCHAR(15) NULL`.
+- Both sets are optional — existing rows default to `NULL`. Guarded by the existing `customers:view-phone` permission on the frontend.
+
+**D27.2 — Vendor Geographic & Payment Fields: Three nullable columns added to `crm_vendors`**
+- `vendor_country VARCHAR(50) NULL` — stores `'US'` or `'Canada'`.
+- `vendor_state VARCHAR(100) NULL` — stores the state/province name.
+- `vendor_payment_mode VARCHAR(255) NULL` — stores a serialized JSON array string of selected payment modes (e.g. `'["Customer Card","Link"]'`).
+- The payment modes available are: **Customer Card**, **Company Card**, and **Link**. The UI renders this as a multiselect dropdown.
+- The country → state cascade dropdown is implemented as a **static hardcoded map** in `src/lib/geography.ts` (`COUNTRY_STATE_MAP`). No lookup table is needed in the database for a fixed 2-country list. The map contains all 50 US states and all 13 Canadian provinces/territories.
+
+- These 5 vendor columns (2 alternate phones + 3 geo/payment) are bundled into a **single migration** (`add_vendor_extended_fields`) to avoid two separate `ALTER TABLE crm_vendors` operations.
+
+
+**D27.3 — Multi-Card Support: `amount_to_charge VARCHAR(25) NULL` added to `crm_customer_cards`**
+- The `crm_customer_cards` table already supports multiple cards per customer (one-to-many). The schema addition of `amount_to_charge` is the only DB change — the UI was the gap.
+- `amountToCharge` is **nullable and only meaningful when more than one card is present**. It is hidden in the UI when `cards.length === 1`.
+- Stored as `VARCHAR(25)` to be consistent with all other monetary fields in this system (`orderAmountCharged`, `orderTotalPitched`, etc.).
+- The order repository's `createWithCustomerAndCard` transaction is updated to use `createMany` to insert all cards from the `cards[]` array atomically.
+
+**D27.4 — Base64 In-Database Image Storage for Card Documents**
+- Two new `LONGTEXT NULL` columns are added to `crm_customer_cards`: `customer_card_copy_image` and `customer_photo_id_image`.
+- Images are stored as **Base64-encoded data URL strings** (e.g., `data:image/jpeg;base64,...`) directly in MySQL. No server filesystem or cloud object storage is used.
+- **Rationale:**
+  - These images are sensitive verification documents accessed rarely (never in list queries — only on explicit single-card detail view).
+  - On a Hostinger VPS deployment, the database is a completely separate process from the Node.js application. A `git pull` + app restart never touches the database. A `mysqldump` backup automatically includes all images — no separate file-sync step.
+  - On Vercel (serverless), the local filesystem is ephemeral (wiped on every deployment), making DB storage the only safe option without external cloud storage.
+- **Mandatory Query Rule:** `customerCardCopyImage` and `customerPhotoIdImage` are **excluded from all `findMany` / list queries** using Prisma `select: { customerCardCopyImage: false, customerPhotoIdImage: false }`. They are fetched only via `findCardById(cardId)` — a dedicated single-record fetch method. This rule is **non-negotiable** and must be preserved in every future change touching the `customer.repository.ts`.
+- On the frontend, images are encoded from file inputs using `FileReader.readAsDataURL()` on the client before being included in the API payload. They are rendered directly as `<img src={base64String} />` — no separate image-serving route is needed.
+
+**D27.5 — UI Label Renames (zero schema impact)**
+- `"Card Copy Verified"` → **`"Card copy received"`** across `AddOrderForm.tsx`, `EditOrderForm.tsx`, and the order detail page.
+- `"Photo ID Checked"` → **`"Photo ID received"`** across the same files.
+- `"Normal Checklist"` (label for `orderChecklist`) → **`"Checklist by backend"`** across the same files.
+- These are string-only changes in React components. No database column, API route, or business logic is changed.
+
+#### Consequences
+- Three Prisma migrations are required: `add_alternate_phones_to_customers`, `add_vendor_extended_fields`, `add_amount_to_charge_to_customer_cards`, and `add_card_image_fields_to_customer_cards`.
+- `src/lib/geography.ts` is a new file — the `COUNTRY_STATE_MAP` export is the single source of truth for country/state options across all vendor forms.
+- The `findCardById` repository method becomes the authoritative way to fetch card data including images. Any code path that needs card images must call this method, not the general `findCardsByCustomerId` list query.
+- Existing card rows silently receive `NULL` for all new columns — no data migration script needed.

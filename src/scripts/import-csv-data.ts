@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/db';
 
-const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data_for_CRM_v2.csv');
+const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data_for_CRM_v3.csv');
 
 // Robust CSV parser that handles quoted commas, escaped quotes, and newlines inside quotes.
 // It only treats quote characters as cell boundaries if they are at field delimiters,
@@ -262,7 +262,7 @@ async function main() {
     const backendExecutiveName = row[26];
     const qaVerifierName = row[27];
     const saleStatusRaw = row[28];
-    const remarks = null; // No comments column in Data_for_CRM_v2.csv
+    const remarks = (row[29] && row[29] !== 'NA' && row[29] !== '') ? row[29].trim() : null;
 
     const cleanAgentName = (salesAgentName && salesAgentName !== 'NA') ? salesAgentName : null;
     const cleanSalesVerifierName = (salesVerifierName && salesVerifierName !== 'NA') ? salesVerifierName : null;

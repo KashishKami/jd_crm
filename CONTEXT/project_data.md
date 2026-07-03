@@ -106,7 +106,7 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `customers:view` | — | Access customer list and detail pages (new) |
 | `customers:create` | — | Create a new customer (new — was embedded in order create) |
 | `customers:edit` | — | Edit customer details (new) |
-| `customers:view-phone` | `201` | View customer phone number in order detail |
+| `customers:view-phone` | `201` | View customer phone number and alternate phone numbers in order detail (covers all three phone fields added in Phase 24) |
 | `customers:view-email` | `202` | View customer email in order detail |
 | `customers:view-vendor-details` | `203` | View linked vendor details in order detail |
 | `customers:view-cards` | `204` | View full (unmasked) payment card details |

@@ -193,12 +193,15 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
 | :--- | :--- | :--- | :--- | :--- |
 | `customer_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
 | `customer_name` | `varchar(511)` | NO | *None* | Consolidated Customer Full Name |
-| `customer_phone` | `varchar(25)` | YES | `NULL` | Phone number (guarded by permission `201`) |
+| `customer_phone` | `varchar(25)` | YES | `NULL` | Primary phone number (guarded by permission `201`) |
+| `customer_alternate_phone_1` | `varchar(25)` | YES | `NULL` | **[Phase 24]** First alternate phone number (optional) |
+| `customer_alternate_phone_2` | `varchar(25)` | YES | `NULL` | **[Phase 24]** Second alternate phone number (optional) |
 | `customer_email` | `varchar(255)` | NO | *None* | Email address (guarded by permission `202`) |
 | `customer_billing_address` | `varchar(255)` | YES | `NULL` | Billing Address |
 | `customer_shipping_address` | `varchar(255)` | YES | `NULL` | Shipping Address |
 | `date_created` | `datetime` | YES | `NULL` | Date created |
 | `date_updated` | `datetime` | YES | `NULL` | Date updated |
+
 
 ### crm_customer_cards
 *   **Engine:** MyISAM
@@ -212,10 +215,14 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
 | `customer_card_number` | `varchar(25)` | NO | *None* | Card number (sensitive, guarded by `204`) |
 | `customer_card_exp_date` | `varchar(15)` | NO | *None* | Expiry date (MM/YY) |
 | `customer_card_cvv` | `varchar(5)` | YES | `NULL` | CVV security code (sensitive) |
-| `customer_card_copy_status`| `varchar(20)` | YES | `NULL` | Card copy audit verification flag |
-| `customer_card_photo_status`| `varchar(20)` | YES | `NULL` | Card photo audit verification flag |
+| `customer_card_copy_status`| `varchar(20)` | YES | `NULL` | Card copy received flag (`Yes`/`No`) |
+| `customer_card_photo_status`| `varchar(20)` | YES | `NULL` | Photo ID received flag (`Yes`/`No`) |
+| `amount_to_charge` | `varchar(25)` | YES | `NULL` | **[Phase 24]** Amount to charge from this card (only meaningful when order has >1 card) |
+| `customer_card_copy_image` | `longtext` | YES | `NULL` | **[Phase 24]** Base64-encoded card copy image (see Decision 27.4 — never returned in list queries) |
+| `customer_photo_id_image` | `longtext` | YES | `NULL` | **[Phase 24]** Base64-encoded photo ID image (see Decision 27.4 — never returned in list queries) |
 | `customer_card_created_at` | `datetime` | YES | `NULL` | Created date |
 | `customer_card_updated` | `datetime` | YES | `NULL` | Updated date |
+
 
 ### crm_designations
 *   **Engine:** MyISAM
@@ -345,14 +352,20 @@ The following standard permissions are seeded in the system:
 | :--- | :--- | :--- | :--- | :--- |
 | `vendor_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
 | `vendor_name` | `varchar(255)` | NO | *None* | Company Name |
-| `vendor_phone` | `varchar(15)` | NO | *None* | Contact number |
+| `vendor_phone` | `varchar(15)` | NO | *None* | Primary contact number |
+| `vendor_alternate_phone_1` | `varchar(15)` | YES | `NULL` | **[Phase 24]** First alternate phone number (optional) |
+| `vendor_alternate_phone_2` | `varchar(15)` | YES | `NULL` | **[Phase 24]** Second alternate phone number (optional) |
 | `vendor_fax` | `varchar(20)` | YES | `NULL` | Fax |
 | `vendor_email` | `varchar(255)` | YES | `NULL` | Email Address |
 | `vendor_contact_person`| `varchar(255)`| NO | *None* | Primary Point of Contact |
 | `vendor_remark` | `text` | YES | `NULL` | Miscellaneous remarks / performance history |
 | `vendor_status` | `int(11)` | NO | `1` | `1` = Active, `0` = Blacklisted |
+| `vendor_country` | `varchar(50)` | YES | `NULL` | **[Phase 24]** Country of operation (`'US'` or `'Canada'`) |
+| `vendor_state` | `varchar(100)` | YES | `NULL` | **[Phase 24]** State or province name (cascade-filtered by country in UI) |
+| `vendor_payment_mode` | `varchar(255)` | YES | `NULL` | **[Phase 24]** Accepted payment modes (JSON array string containing `'Customer Card'`, `'Company Card'`, and/or `'Link'`, e.g., `'["Customer Card", "Link"]'`) |
 | `created_at` | `datetime` | YES | `NULL` | Created date |
 | `updated_at` | `datetime` | YES | `NULL` | Last modified date |
+
 
 ### prequest
 *   **Engine:** InnoDB
@@ -708,26 +721,34 @@ model CrmGateway {
 }
 
 model CrmVendors {
-  vendorId            Int         @id @default(autoincrement()) @map("vendor_id")
-  vendorName          String      @map("vendor_name") @db.VarChar(255)
-  vendorPhone         String      @map("vendor_phone") @db.VarChar(15)
-  vendorFax           String?     @map("vendor_fax") @db.VarChar(20)
-  vendorEmail         String?     @map("vendor_email") @db.VarChar(255)
-  vendorContactPerson String      @map("vendor_contact_person") @db.VarChar(255)
-  vendorRemark        String?     @map("vendor_remark") @db.Text
-  vendorStatus        Int         @default(1) @map("vendor_status")
-  createdAt           DateTime?   @map("created_at") @db.DateTime(0)
-  updatedAt           DateTime?   @map("updated_at") @db.DateTime(0)
-  orders              CrmOrders[]
+  vendorId              Int         @id @default(autoincrement()) @map("vendor_id")
+  vendorName            String      @map("vendor_name") @db.VarChar(255)
+  vendorPhone           String      @map("vendor_phone") @db.VarChar(15)
+  vendorAlternatePhone1 String?     @map("vendor_alternate_phone_1") @db.VarChar(15)  // Phase 24
+  vendorAlternatePhone2 String?     @map("vendor_alternate_phone_2") @db.VarChar(15)  // Phase 24
+  vendorFax             String?     @map("vendor_fax") @db.VarChar(20)
+  vendorEmail           String?     @map("vendor_email") @db.VarChar(255)
+  vendorContactPerson   String      @map("vendor_contact_person") @db.VarChar(255)
+  vendorRemark          String?     @map("vendor_remark") @db.Text
+  vendorStatus          Int         @default(1) @map("vendor_status")
+  vendorCountry         String?     @map("vendor_country") @db.VarChar(50)            // Phase 24
+  vendorState           String?     @map("vendor_state") @db.VarChar(100)             // Phase 24
+  vendorPaymentMode     String?     @map("vendor_payment_mode") @db.VarChar(255)     // Phase 24
+  createdAt             DateTime?   @map("created_at") @db.DateTime(0)
+  updatedAt             DateTime?   @map("updated_at") @db.DateTime(0)
+  orders                CrmOrders[]
 
   @@map("crm_vendors")
 }
+
 
 model CrmCustomers {
   customerId               Int                 @id @default(autoincrement()) @map("customer_id")
   firstName                String              @map("first_name") @db.VarChar(255)
   lastName                 String              @map("last_name") @db.VarChar(255)
   customerPhone            String?             @map("customer_phone") @db.VarChar(25)
+  customerAlternatePhone1  String?             @map("customer_alternate_phone_1") @db.VarChar(25)  // Phase 24
+  customerAlternatePhone2  String?             @map("customer_alternate_phone_2") @db.VarChar(25)  // Phase 24
   customerEmail            String              @map("customer_email") @db.VarChar(255)
   customerBillingAddress   String?             @map("customer_billing_address") @db.VarChar(255)
   customerShippingAddress  String?             @map("customer_shipping_address") @db.VarChar(255)
@@ -741,6 +762,7 @@ model CrmCustomers {
   @@map("crm_customers")
 }
 
+
 model CrmCustomerCards {
   cardId                  Int          @id @default(autoincrement()) @map("card_id")
   // FK is now a proper Int — no more varchar(15) mismatch
@@ -751,6 +773,11 @@ model CrmCustomerCards {
   customerCardCvv         String?      @map("customer_card_cvv") @db.VarChar(5)
   customerCardCopyStatus  String?      @map("customer_card_copy_status") @db.VarChar(20)
   customerCardPhotoStatus String?      @map("customer_card_photo_status") @db.VarChar(20)
+  amountToCharge          String?      @map("amount_to_charge") @db.VarChar(25)         // Phase 24 — only shown in UI when >1 card
+  /// NEVER include in findMany/list queries. Use findCardById() for single-record access only. See Decision 27.4.
+  customerCardCopyImage   String?      @map("customer_card_copy_image") @db.LongText    // Phase 24 — Base64 image
+  /// NEVER include in findMany/list queries. Use findCardById() for single-record access only. See Decision 27.4.
+  customerPhotoIdImage    String?      @map("customer_photo_id_image") @db.LongText     // Phase 24 — Base64 image
   customerCardCreatedAt   DateTime?    @map("customer_card_created_at") @db.DateTime(0)
   customerCardUpdated     DateTime?    @map("customer_card_updated") @db.DateTime(0)
 
@@ -759,6 +786,7 @@ model CrmCustomerCards {
   @@index([cardCustomerId])
   @@map("crm_customer_cards")
 }
+
 
 model CrmOrders {
   crmOrderId                    Int           @id @default(autoincrement()) @map("crm_order_id")
