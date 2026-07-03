@@ -306,4 +306,16 @@ describe('AddOrderForm Unit Tests', () => {
       expect(orderCurrentStatusSelect.value).toBe('Cancelled Orders');
     });
   });
+
+  describe('W-1903: AddOrderForm Shipping Type Dropdown (Residential and Commercial Only)', () => {
+    it('should contain only Residential and Commercial options in Shipping Type dropdown', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      const shippingTypeSelect = document.getElementById('orderShippingType') as HTMLSelectElement;
+      expect(shippingTypeSelect).not.toBeNull();
+      const options = Array.from(shippingTypeSelect.options);
+      expect(options.length).toBe(2);
+      expect(options.map(o => o.value)).toEqual(['Residential', 'Commercial']);
+      expect(options.map(o => o.text)).toEqual(['Residential', 'Commercial']);
+    });
+  });
 });

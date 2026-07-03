@@ -43,7 +43,7 @@ const getMockOrder = (status: string) => ({
   orderVendorMilesAndWarranty: '100',
   orderChecklist: 'No',
   orderVin: 'VIN123',
-  orderShippingType: 'Ground',
+  orderShippingType: 'Residential',
   orderTrackingNumber: '',
   orderDeliveryStatus: '',
   orderTotalPitched: '500',
@@ -422,6 +422,25 @@ describe('EditOrderForm Unit Tests', () => {
       // Change back to Sold (1) - should revert to original saved status (Pending Shipment)
       fireEvent.change(saleStatusSelect, { target: { value: '1' } });
       expect(orderCurrentStatusSelect.value).toBe('Pending Shipment');
+    });
+  });
+
+  describe('W-1903: EditOrderForm Shipping Type Dropdown (Residential and Commercial Only)', () => {
+    it('should contain only Residential and Commercial options in Shipping Type dropdown', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      const shippingTypeSelect = document.getElementById('orderShippingType') as HTMLSelectElement;
+      expect(shippingTypeSelect).not.toBeNull();
+      const options = Array.from(shippingTypeSelect.options);
+      expect(options.length).toBe(2);
+      expect(options.map(o => o.value)).toEqual(['Residential', 'Commercial']);
+      expect(options.map(o => o.text)).toEqual(['Residential', 'Commercial']);
     });
   });
 });

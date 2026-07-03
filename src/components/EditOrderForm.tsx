@@ -49,7 +49,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [orderVendorMilesAndWarranty, setOrderVendorMilesAndWarranty] = useState(order.orderVendorMilesAndWarranty || '');
   const [orderChecklist, setOrderChecklist] = useState(order.orderChecklist || 'No');
   const [orderVin, setOrderVin] = useState(order.orderVin || '');
-  const [orderShippingType, setOrderShippingType] = useState(order.orderShippingType || 'Ground');
+  const [orderShippingType, setOrderShippingType] = useState(order.orderShippingType || 'Residential');
   const [orderTrackingNumber, setOrderTrackingNumber] = useState(order.orderTrackingNumber || '');
   const [orderDeliveryStatus, setOrderDeliveryStatus] = useState(order.orderDeliveryStatus || '');
 
@@ -531,18 +531,17 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               />
             </div>
             <div className="form-group">
-              <label className="form-label">
+              <label htmlFor="orderShippingType" className="form-label">
                 Shipping Type
               </label>
               <select
+                id="orderShippingType"
                 value={orderShippingType}
                 onChange={(e) => setOrderShippingType(e.target.value)}
                 className="form-select"
               >
-                <option value="Ground">Ground</option>
-                <option value="Air">Air</option>
-                <option value="Express">Express</option>
-                <option value="Freight">Freight</option>
+                <option value="Residential">Residential</option>
+                <option value="Commercial">Commercial</option>
               </select>
             </div>
             <div className="form-group">

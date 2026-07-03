@@ -39,7 +39,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderVendorMilesAndWarranty, setOrderVendorMilesAndWarranty] = useState('');
   const [orderChecklist, setOrderChecklist] = useState('No');
   const [orderVin, setOrderVin] = useState('');
-  const [orderShippingType, setOrderShippingType] = useState('Ground');
+  const [orderShippingType, setOrderShippingType] = useState('Residential');
 
   const [orderTotalPitched, setOrderTotalPitched] = useState('');
   const [orderVendorPrice, setOrderVendorPrice] = useState('');
@@ -552,10 +552,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 onChange={(e) => setOrderShippingType(e.target.value)}
                 className="form-select"
               >
-                <option value="Ground">Ground</option>
-                <option value="Air">Air</option>
-                <option value="Express">Express</option>
-                <option value="Freight">Freight</option>
+                <option value="Residential">Residential</option>
+                <option value="Commercial">Commercial</option>
               </select>
             </div>
             <div className="form-group">

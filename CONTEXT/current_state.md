@@ -2724,16 +2724,16 @@ Shipping types currently capture transit modes (Ground, Express, etc.), whereas 
 
 ---
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Test: Shipping Type select dropdown contains only `Residential` and `Commercial` options.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [x] Test: Shipping Type select dropdown contains only `Residential` and `Commercial` options.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Update form inputs in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Update form inputs in `AddOrderForm.tsx` and `EditOrderForm.tsx`.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent opens Add Order form → select dropdown shows only "Residential" and "Commercial" → selections save correctly → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent opens Add Order form → select dropdown shows only "Residential" and "Commercial" → selections save correctly → ✅ Done.
 
 ---
 
@@ -4194,3 +4194,12 @@ Unpaid/unbilled order cancellations need to be classified separately to prevent 
   - **Read-Side Helper**: Added `utcDateToLocalDateString(dateVal)` in `src/lib/date.ts` to safely extract a `YYYY-MM-DD` string from a Prisma `@db.Date` return for pre-populating `<input type="date">` fields. Used in `EditAgentForm.tsx` state initialization.
   - **`convertEstToUtc` Rewrite**: Fixed the broken `convertEstToUtc` function (previously treated input as UTC and re-offset it, yielding wrong results). Now correctly constructs a local `Date` from Y/M/D/H/M parts and uses `Intl.DateTimeFormat` to calculate the true EST→UTC offset.
   - **Files Changed**: `src/lib/date.ts`, `src/repository/order.repository.ts`, `src/components/NewAgentForm.tsx`, `src/components/EditAgentForm.tsx`, `src/components/EditOrderForm.tsx`.
+
+### Session 51 — July 3, 2026
+  **Phase 19 — W-1903 Shipping Type Dropdown (Residential and Commercial Only)**
+  - **TDD Implementation**: Added unit tests in `AddOrderForm.test.tsx` and `EditOrderForm.test.tsx` asserting that the Shipping Type select dropdown contains only `'Residential'` and `'Commercial'` options.
+  - **UI Updates**: Restructured the Shipping Type select input in both `AddOrderForm.tsx` and `EditOrderForm.tsx` to only render "Residential" and "Commercial" options.
+  - **Default Value Alignment**: Updated the default/initial state of `orderShippingType` from `'Ground'` to `'Residential'` in both form components. Added `id="orderShippingType"` to the select input in `EditOrderForm.tsx` to align with the query identifier.
+  - **Test Cleanups**: Adjusted the mock order payload in `EditOrderForm.test.tsx` to use `'Residential'` instead of `'Ground'` as a valid shipping type.
+  - **Verification**: Verified that all unit tests, integration tests, and typechecks build and pass successfully.
+
