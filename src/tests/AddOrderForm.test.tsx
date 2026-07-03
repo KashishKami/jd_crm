@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
+import { useSession } from 'next-auth/react';
 import AddOrderForm from '../components/AddOrderForm';
 
 vi.mock('next/navigation', () => ({
@@ -11,6 +12,10 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
 afterEach(() => {
   cleanup();
 });
@@ -18,6 +23,10 @@ afterEach(() => {
 describe('AddOrderForm Unit Tests', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as any);
   });
 
   afterEach(() => {
@@ -37,6 +46,25 @@ describe('AddOrderForm Unit Tests', () => {
     expect(screen.getByLabelText(/total price pitched/i)).toBeDefined();
     expect(screen.getByLabelText(/vendor buying price/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /create order/i })).toBeDefined();
+  });
+
+  it('should auto-populate Sales Agent dropdown with currently logged-in user if they exist in agents list', async () => {
+    const mockAgents = [
+      { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
+      { uid: 4, name: 'Agent Neo', nickname: 'Neo' }
+    ];
+
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: '4', name: 'Agent Neo' }
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<AddOrderForm vendors={[]} gateways={[]} agents={mockAgents} />);
+
+    const salesAgentSelect = screen.getByLabelText(/Sales Agent/i) as HTMLSelectElement;
+    expect(salesAgentSelect.value).toBe('4');
   });
 
   it('should dynamically calculate markup as total pitched and vendor price change', async () => {

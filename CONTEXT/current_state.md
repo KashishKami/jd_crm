@@ -36,6 +36,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 21** | Mileage & Warranty Rename and Order-Level Checklist Field | **[ ] NOT STARTED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `page.tsx` (order details), `OrderAuditLog.tsx`, `import-csv-data.ts`, `restore-admin.ts`, `seed-dummy-orders.ts` |
 | **Phase 22** | Sale Status Expansion: Void & Cancel Order, Sale Status Column & Filter | **[x] COMPLETED** | `order.service.ts`, `order.repository.ts`, `vendor.repository.ts`, `vendor.service.ts`, `vendors/[id]/page.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, `import-csv-data.ts`, `project_data.md` |
 | **Phase 23** | Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue) | **[x] COMPLETED** | `seed.sql`, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.ts`, `import-csv-data.ts`, `middleware.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, new page `/pending/cancelled/page.tsx` |
+| **Phase 24** | Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Card Image Uploads & UI Label Renames | **[ ] NOT STARTED** | `schema.prisma`, 3 migrations, `customer.repository.ts`, `vendor.repository.ts`, `order.repository.ts`, `customer.service.ts`, `vendor.service.ts`, `order.service.ts`, `types/customer.ts`, `types/vendor.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `VendorForm` (new/edit), `page.tsx` (order detail), `api/upload/card-images/route.ts` |
 
 ---
 
@@ -4203,3 +4204,336 @@ Unpaid/unbilled order cancellations need to be classified separately to prevent 
   - **Test Cleanups**: Adjusted the mock order payload in `EditOrderForm.test.tsx` to use `'Residential'` instead of `'Ground'` as a valid shipping type.
   - **Verification**: Verified that all unit tests, integration tests, and typechecks build and pass successfully.
 
+---
+
+### Phase 24 — Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Card Image Uploads & UI Label Renames
+
+> **Decision Reference:** This phase was designed and approved in the `CONTEXT/decision_log.md` investigation session of July 3, 2026. All schema changes are purely additive (nullable columns only) and cannot affect existing data.
+
+> **Image Storage Decision:** All new image fields (Card Copy Received, Photo ID Received) will be stored as **Base64-encoded strings in `LONGTEXT` columns** directly in the MySQL database. No server filesystem storage is used. On the read path, image columns are **excluded from all `findMany` / list queries** using Prisma `select` to prevent performance degradation — they are only fetched explicitly for single-record detail views.
+
+---
+
+#### W-2401 — Database: Alternate Phone Fields for Customers
+
+**Root cause / Goal:**
+Customers frequently provide more than one contact number (e.g., home, mobile, work), but `crm_customers` currently only has a single `customer_phone` column. Agents need to capture up to two alternate phone numbers per customer. These are optional fields — many customers will have only one or zero numbers.
+
+**Approach:**
+Add two nullable `VARCHAR(25)` columns to `crm_customers` via a Prisma migration. Expose both fields in the customer repository, service, and type definitions. Update `AddOrderForm.tsx` and `EditOrderForm.tsx` UI to render two additional optional phone inputs in the Customer Info section.
+
+---
+
+- [ ] **RED — Integration (`src/tests/customers.test.ts`):**
+  - [ ] Test: `POST /api/customers` with payload `{ customerName: 'Test User', customerEmail: 'a@b.com', customerPhone: '123', customerAlternatePhone1: '456', customerAlternatePhone2: '789' }`. Assert `201 Created`. Then `GET /api/customers/:id` and assert the response body contains `customerAlternatePhone1: '456'` and `customerAlternatePhone2: '789'`.
+  - [ ] Test: `POST /api/customers` with payload omitting `customerAlternatePhone1` and `customerAlternatePhone2` entirely. Assert `201 Created` with no error. Assert `GET /api/customers/:id` returns both fields as `null`.
+  - [ ] Test: `PATCH /api/customers/:id` (or order update path that updates customer) with `{ customerAlternatePhone1: '999' }`. Assert subsequent `GET` returns `customerAlternatePhone1: '999'` while all other existing fields remain unchanged.
+  - [ ] **Run — confirm RED (these fields do not exist in the schema yet; the API will return 400 or ignore the values).**
+
+- [ ] **GREEN — Backend (Schema → Repository → Service → Controller):**
+  - [ ] [Schema] In `prisma/schema.prisma`, inside the `CrmCustomers` model (after `customerPhone`), add:
+    ```prisma
+    customerAlternatePhone1 String? @map("customer_alternate_phone_1") @db.VarChar(25)
+    customerAlternatePhone2 String? @map("customer_alternate_phone_2") @db.VarChar(25)
+    ```
+  - [ ] [Migration] Run `npx prisma migrate dev --name add_alternate_phones_to_customers`. Verify the migration SQL contains `ADD COLUMN customer_alternate_phone_1 VARCHAR(25) NULL` and `ADD COLUMN customer_alternate_phone_2 VARCHAR(25) NULL` and **no DROP or ALTER on any existing column**.
+  - [ ] [Repository] In `src/repository/customer.repository.ts`, update `create(data)` and `update(id, data)` to map `customerAlternatePhone1` and `customerAlternatePhone2` from the input. Update `findById(id)` to ensure both fields are returned.
+  - [ ] [Service] In `src/service/customer.service.ts`, pass `customerAlternatePhone1` and `customerAlternatePhone2` through the create and update input pipelines. No validation constraint — both are fully optional strings.
+  - [ ] [Controller] In `src/app/api/customers/[id]/route.ts` (PATCH), ensure both alternate phone fields are accepted from the request body and forwarded to the service.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx` and `src/tests/EditOrderForm.test.tsx`):**
+  - [ ] Test (`AddOrderForm`): Render the form. Assert an `<input id="customerAlternatePhone1">` element is present in the Customer Info section.
+  - [ ] Test (`AddOrderForm`): Render the form. Assert an `<input id="customerAlternatePhone2">` element is present in the Customer Info section.
+  - [ ] Test (`EditOrderForm`): Render the form with a mock order whose customer has `customerAlternatePhone1: '555-1234'`. Assert the input `#customerAlternatePhone1` has `value="555-1234"`.
+  - [ ] **Run — confirm RED (neither input exists in the current form JSX).**
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Types] In `src/types/customer.ts`, add `customerAlternatePhone1?: string | null` and `customerAlternatePhone2?: string | null` to the `Customer`, `CustomerCreateInput`, and `CustomerUpdateInput` types.
+  - [ ] [Component — `src/components/AddOrderForm.tsx`] In the Customer Info section (after the `customerPhone` input block), add two new optional input fields labeled `"Alternate Phone 1 (optional)"` and `"Alternate Phone 2 (optional)"` with IDs `customerAlternatePhone1` and `customerAlternatePhone2`. Include both in the form submit payload.
+  - [ ] [Component — `src/components/EditOrderForm.tsx`] Apply the same two input fields, pre-populated from `order.customer.customerAlternatePhone1` and `order.customer.customerAlternatePhone2`. Include both in the submit payload.
+  - [ ] [Page — `src/app/orders/[id]/page.tsx`] In the Customer Info display card on the order detail page, render `customerAlternatePhone1` and `customerAlternatePhone2` as two labeled rows below the primary phone (guarded by `customers:view-phone` permission, same as the primary phone).
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → Customer Info section shows `Phone`, `Alternate Phone 1`, `Alternate Phone 2` inputs → agent fills in all three → submits order → `GET /api/orders/:id` shows customer object with all three phone fields populated → Admin opens Order Detail page → all three phone numbers are visible in the Customer Info card → ✅ Done.
+
+---
+
+#### W-2402 — Database: Alternate Phone Fields for Vendors
+
+**Root cause / Goal:**
+`crm_vendors` has a single `vendor_phone` (NOT NULL) field. Vendors can have multiple contact numbers (main office, mobile, secondary department). Agents need to capture up to two alternate numbers per vendor.
+
+**Approach:**
+Add two nullable `VARCHAR(15)` columns to `crm_vendors`. These will be exposed on the Add Vendor and Edit Vendor forms, and displayed on the vendor detail page. These columns are bundled into the same migration as W-2403.
+
+---
+
+- [ ] **RED — Integration (`src/tests/vendors.test.ts`):**
+  - [ ] Test: `POST /api/vendors` with valid payload including `vendorAlternatePhone1: '800-555-0001'` and `vendorAlternatePhone2: '800-555-0002'`. Assert `201 Created`. Then `GET /api/vendors/:id` and assert response contains `vendorAlternatePhone1: '800-555-0001'` and `vendorAlternatePhone2: '800-555-0002'`.
+  - [ ] Test: `POST /api/vendors` omitting both alternate phone fields. Assert `201 Created` (they are not required). Assert `GET /api/vendors/:id` returns both as `null`.
+  - [ ] Test: `PATCH /api/vendors/:id` with `{ vendorAlternatePhone1: '999-999-9999' }`. Assert the field is updated. Assert `vendorPhone` (the primary phone) is unchanged.
+  - [ ] **Run — confirm RED (columns do not exist in schema; the POST will ignore or reject those fields).**
+
+- [ ] **GREEN — Backend (Schema → Repository → Service → Controller):**
+  - [ ] [Schema] In `prisma/schema.prisma`, inside the `CrmVendors` model (after `vendorPhone`), add:
+    ```prisma
+    vendorAlternatePhone1 String? @map("vendor_alternate_phone_1") @db.VarChar(15)
+    vendorAlternatePhone2 String? @map("vendor_alternate_phone_2") @db.VarChar(15)
+    ```
+    > **Note:** This schema change for `crm_vendors` is combined with W-2403 (Country, State, Payment Mode) into a single migration file `add_vendor_extended_fields`. Do not run the migration until W-2403 schema additions are also complete in `schema.prisma`.
+  - [ ] [Repository] In `src/repository/vendor.repository.ts`, update `create(data)`, `update(id, data)`, and `findById(id)` to include `vendorAlternatePhone1` and `vendorAlternatePhone2`.
+  - [ ] [Service] In `src/service/vendor.service.ts`, pass both alternate phone fields through. No additional validation — they are optional.
+  - [ ] [Controller] Ensure both fields are accepted from `POST /api/vendors` and `PATCH /api/vendors/:id` request bodies.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/VendorForm.test.tsx` — create if not present):**
+  - [ ] Test: Render the Add Vendor form. Assert `<input id="vendorAlternatePhone1">` is present.
+  - [ ] Test: Render the Add Vendor form. Assert `<input id="vendorAlternatePhone2">` is present.
+  - [ ] Test: Render the Edit Vendor form with a mock vendor having `vendorAlternatePhone1: '888-000-0001'`. Assert `#vendorAlternatePhone1` has `value="888-000-0001"`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Components):**
+  - [ ] [Types] In `src/types/vendor.ts`, add `vendorAlternatePhone1?: string | null` and `vendorAlternatePhone2?: string | null` to `Vendor`, `VendorCreateInput`, and `VendorUpdateInput`.
+  - [ ] [Component — `src/app/vendors/new/page.tsx` (or its client form component)] Add two optional `<input type="tel">` fields with IDs `vendorAlternatePhone1` and `vendorAlternatePhone2` below the primary `vendorPhone` input.
+  - [ ] [Component — `src/app/vendors/[id]/edit/page.tsx` (or its client form component)] Apply the same two fields, pre-populated from the fetched vendor data.
+  - [ ] [Component — `src/app/vendors/[id]/page.tsx`] Display both alternate phone numbers as labeled rows in the vendor contact info section of the detail page.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin navigates to Add Vendor → fills in primary phone, Alternate Phone 1, Alternate Phone 2 → saves → vendor detail page shows all three phone numbers in the contact section → admin edits the vendor → alternate phone fields are pre-populated → admin clears Alternate Phone 2 and saves → detail page shows only two phone numbers → ✅ Done.
+
+---
+
+#### W-2403 — Database: Vendor Country, State & Payment Mode Fields
+
+**Root cause / Goal:**
+`crm_vendors` has no geographic information or payment preference fields. Agents and managers need to know which country and state/province a vendor operates in (US or Canada), and which payment mode the vendor accepts (Card or Link). The country → state cascade is a static frontend mapping — no DB lookup table is needed.
+
+**Approach:**
+Add three nullable columns to `crm_vendors`: `vendor_country VARCHAR(50)`, `vendor_state VARCHAR(100)`, `vendor_payment_mode VARCHAR(10)`. These are bundled into the same migration as W-2402 (`add_vendor_extended_fields`). The country/state cascade is implemented as a static hardcoded constant map in `src/lib/geography.ts`.
+
+---
+
+- [ ] **RED — Integration (`src/tests/vendors.test.ts`):**
+  - [ ] Test: `POST /api/vendors` with `{ vendorCountry: 'US', vendorState: 'Pennsylvania', vendorPaymentMode: 'Card', ...requiredFields }`. Assert `201 Created`. Then `GET /api/vendors/:id` and assert `vendorCountry: 'US'`, `vendorState: 'Pennsylvania'`, `vendorPaymentMode: 'Card'`.
+  - [ ] Test: `POST /api/vendors` with `vendorCountry: 'Canada'` and `vendorState: 'Ontario'`. Assert both are stored correctly.
+  - [ ] Test: `POST /api/vendors` omitting all three fields. Assert `201 Created` with all three returning as `null`.
+  - [ ] Test: `PATCH /api/vendors/:id` with `{ vendorCountry: 'Canada', vendorState: 'British Columbia' }`. Assert the update is persisted and `vendorPaymentMode` is unchanged.
+  - [ ] **Run — confirm RED (columns do not exist; POST will ignore fields).**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [ ] [Schema] In `prisma/schema.prisma`, inside the `CrmVendors` model (after the W-2402 alternate phone fields), add:
+    ```prisma
+    vendorCountry     String? @map("vendor_country")      @db.VarChar(50)
+    vendorState       String? @map("vendor_state")        @db.VarChar(100)
+    vendorPaymentMode String? @map("vendor_payment_mode") @db.VarChar(10)
+    ```
+  - [ ] [Migration] Now run the combined vendor migration: `npx prisma migrate dev --name add_vendor_extended_fields`. This single migration adds all 5 new vendor columns (2 alternate phones + country + state + payment mode). Verify the generated SQL contains only `ADD COLUMN` statements and **no DROP or ALTER on any existing column**.
+  - [ ] [Repository] In `src/repository/vendor.repository.ts`, update `create(data)`, `update(id, data)`, and `findById(id)` to include `vendorCountry`, `vendorState`, and `vendorPaymentMode`.
+  - [ ] [Service] Pass the three fields through `vendor.service.ts` with no additional server-side validation (allowed values are enforced at the frontend select level).
+  - [ ] [Controller] Accept all three fields from `POST /api/vendors` and `PATCH /api/vendors/:id` bodies.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/VendorForm.test.tsx`):**
+  - [ ] Test: Render the Add Vendor form. Assert a `<select id="vendorCountry">` is present containing exactly the options `"US"` and `"Canada"` (plus an empty placeholder option).
+  - [ ] Test: Render the Add Vendor form. Simulate selecting `"US"` in `#vendorCountry`. Assert `#vendorState` now contains `"Pennsylvania"` as one of its options and does not contain `"Ontario"`.
+  - [ ] Test: Simulate selecting `"Canada"` in `#vendorCountry`. Assert `#vendorState` options change to include `"Ontario"` and `"British Columbia"` but NOT `"Pennsylvania"`.
+  - [ ] Test: Render the Add Vendor form. Assert a `<select id="vendorPaymentMode">` is present containing exactly `"Card"` and `"Link"` options.
+  - [ ] Test: Render the Edit Vendor form with mock vendor `{ vendorCountry: 'Canada', vendorState: 'Ontario', vendorPaymentMode: 'Link' }`. Assert `#vendorCountry` value is `"Canada"`, `#vendorState` value is `"Ontario"`, `#vendorPaymentMode` value is `"Link"`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Static Map → Components):**
+  - [ ] [Types] In `src/types/vendor.ts`, add `vendorCountry?: string | null`, `vendorState?: string | null`, `vendorPaymentMode?: string | null` to `Vendor`, `VendorCreateInput`, and `VendorUpdateInput`.
+  - [ ] [Static Map] Create `src/lib/geography.ts` with an exported constant `COUNTRY_STATE_MAP: Record<string, string[]>` containing all 50 US states under key `'US'` and all 13 Canadian provinces/territories under key `'Canada'`.
+  - [ ] [Component — Add Vendor form] Add a `<select id="vendorCountry">` with options `""` (placeholder), `"US"`, `"Canada"`. Add a `<select id="vendorState">` whose options are derived from `COUNTRY_STATE_MAP[selectedCountry] ?? []` — renders empty when no country is selected, resets `vendorState` to `""` when country changes. Add a `<select id="vendorPaymentMode">` with options `""` (placeholder), `"Card"`, `"Link"`.
+  - [ ] [Component — Edit Vendor form] Apply the same three selects pre-populated from fetched vendor data. When country is pre-selected, the state dropdown pre-loads the correct state list so the saved state value is visible and selected.
+  - [ ] [Component — `src/app/vendors/[id]/page.tsx`] Display `vendorCountry`, `vendorState`, and `vendorPaymentMode` as labeled rows in the vendor information section.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Admin opens Add Vendor form → selects `"US"` from Country dropdown → State dropdown populates with 50 US states → admin selects `"Texas"` → selects `"Card"` from Payment Mode → saves vendor → vendor detail page shows Country: US, State: Texas, Payment Mode: Card → admin edits the vendor → changes Country to `"Canada"` → State dropdown re-renders with Canadian provinces → `"Texas"` is no longer an option → admin selects `"Ontario"` → saves → detail page shows updated values → ✅ Done.
+
+---
+
+#### W-2404 — Database & UI: Multi-Card Support in Orders (Add More Cards + amount_to_charge)
+
+**Root cause / Goal:**
+Sometimes a customer cannot pay the full order amount with a single card and provides multiple cards to be charged different amounts. The `crm_customer_cards` table already supports multiple rows per customer (one-to-many). However, the Add Order and Edit Order forms currently only render a single, fixed card input block, making it impossible to enter more than one card. Additionally, there is no `amount_to_charge` field to record how much should be charged from each specific card — this is only meaningful (and only shown in the UI) when more than one card is present.
+
+**Approach:**
+1. Add `amount_to_charge VARCHAR(25) NULL` to `crm_customer_cards` via migration `add_amount_to_charge_to_customer_cards`.
+2. Replace the single static card block in `AddOrderForm.tsx` and `EditOrderForm.tsx` with a dynamic `cards` state array. An `"Add Another Card"` button appends a blank card. A `×` remove button (only shown when more than one card exists) removes a card from the array.
+3. The `amountToCharge` input is shown inside each card block **only when `cards.length > 1`**.
+4. The order repository's `createWithCustomerAndCard` transaction is updated to `createMany` all cards from the array in a single atomic `prisma.$transaction`.
+
+---
+
+- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with `cards: [{ customerNameOncard: 'A', customerCardNumber: '4111111111111111', customerCardExpDate: '12/28', customerCardCvv: '123', amountToCharge: '500.00' }, { customerNameOncard: 'A', customerCardNumber: '5500005555555559', customerCardExpDate: '06/27', customerCardCvv: '456', amountToCharge: '300.00' }]`. Assert `201 Created`. Then `SELECT COUNT(*) FROM crm_customer_cards WHERE card_customer_id = :customerId` returns exactly `2`.
+  - [ ] Test: `POST /api/orders` with a single-card payload `cards: [{ customerNameOncard: 'B', customerCardNumber: '4111111111111111', customerCardExpDate: '01/29', amountToCharge: null }]`. Assert `201 Created`. Assert exactly `1` row in `crm_customer_cards` for that customer.
+  - [ ] Test: `POST /api/orders` with a two-card payload where the second card is missing `customerCardNumber`. Assert the entire transaction rolls back — `SELECT COUNT(*) FROM crm_customers WHERE customer_email = :email` returns `0` (no orphan customer row).
+  - [ ] Test: `GET /api/orders/:id` for an order whose customer has 2 cards. Assert the response `customer.cards` array has length `2`. Assert each card object contains an `amountToCharge` field.
+  - [ ] **Run — confirm RED (`amountToCharge` column does not exist; API only accepts a single flat card object, not an array).**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [ ] [Schema] In `prisma/schema.prisma`, inside the `CrmCustomerCards` model (after `customerCardPhotoStatus`), add:
+    ```prisma
+    amountToCharge String? @map("amount_to_charge") @db.VarChar(25)
+    ```
+  - [ ] [Migration] Run `npx prisma migrate dev --name add_amount_to_charge_to_customer_cards`. Verify SQL contains only `ADD COLUMN amount_to_charge VARCHAR(25) NULL` — **no modifications to any existing column**.
+  - [ ] [Repository — `src/repository/order.repository.ts`] Update `createWithCustomerAndCard(data)` to accept `cards: CardCreateInput[]` (array). Inside `prisma.$transaction`, replace the single `crmCustomerCards.create(...)` call with `crmCustomerCards.createMany({ data: cards.map(c => ({ cardCustomerId: customer.customerId, ...c })) })`. Ensure the full transaction rolls back if any insert fails.
+  - [ ] [Repository] Update `findById(id)` to include `amountToCharge` in the `customer.cards` select.
+  - [ ] [Service — `src/service/order.service.ts`] Update `createOrder` to accept and forward `cards[]` to the repository. Validate: each card must have `customerNameOncard` and `customerCardNumber` — throw `400 Bad Request` if missing. Validate `amountToCharge` is a valid decimal string when provided.
+  - [ ] [Types — `src/types/order.ts`] Update `OrderCreateInput` to replace flat card fields with `cards: CardCreateInput[]`. Update `OrderDetail` so `customer.cards` is typed as `CustomerCardDetail[]` including `amountToCharge?: string | null`.
+  - [ ] [Controller — `src/app/api/orders/route.ts` POST] Parse `cards` from the request body as an array. Forward to service.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [ ] Test: Render `AddOrderForm`. Assert exactly one card block is rendered initially.
+  - [ ] Test: Render `AddOrderForm`. Assert an `"Add Another Card"` button is present.
+  - [ ] Test: Click `"Add Another Card"`. Assert two card blocks are now rendered.
+  - [ ] Test: Click `"Add Another Card"`. Assert an `amountToCharge` input is visible in each card block.
+  - [ ] Test: With two card blocks rendered, click the `×` remove button on the second card. Assert only one card block remains and no `amountToCharge` input is visible.
+  - [ ] Test: With one card block, assert no `×` remove button is present on that block.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **RED — Unit (`src/tests/EditOrderForm.test.tsx`):**
+  - [ ] Test: Render `EditOrderForm` with a mock order whose `customer.cards` array has 2 entries. Assert two card blocks are rendered.
+  - [ ] Test: Render `EditOrderForm` with a mock order whose `customer.cards` array has 2 entries. Assert `amountToCharge` inputs are visible on both card blocks.
+  - [ ] Test: Render `EditOrderForm` with a mock order whose `customer.cards` array has 1 entry. Assert no `amountToCharge` input is visible.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → AddOrderForm → EditOrderForm):**
+  - [ ] [Types] In `src/types/customer.ts`, add `amountToCharge?: string | null` to `CustomerCard` and `CustomerCardDetail`.
+  - [ ] [Component — `src/components/AddOrderForm.tsx`] Replace the four flat card state variables with a `cards` state array: `useState([{ customerNameOncard: '', customerCardNumber: '', customerCardExpDate: '', customerCardCvv: '', amountToCharge: '' }])`. Replace the single-card JSX block with a `.map((card, index) => ...)` render loop. Add `"Add Another Card"` button that appends a blank card object. Show `×` remove button per card only when `cards.length > 1`. Show `amountToCharge` input per card only when `cards.length > 1`. Update `handleSubmit` to send `cards` as an array.
+  - [ ] [Component — `src/components/EditOrderForm.tsx`] Initialize `cards` state from `order.customer.cards`. Apply the same dynamic render loop, `"Add Another Card"` button, `×` remove buttons, and conditional `amountToCharge` visibility. Update `handleSubmit` to include the full `cards` array.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → single card block shown, no `amountToCharge` field → clicks `"Add Another Card"` → two card blocks appear, both show `amountToCharge` input → agent fills both cards with different amounts → submits → `GET /api/orders/:id` returns `customer.cards` with 2 entries, each containing `amountToCharge` → Order Detail page shows a card list with both cards and their charge amounts → ✅ Done.
+  - [ ] Agent clicks `×` on second card → collapses to one card → `amountToCharge` disappears → submits → only 1 card row is stored → ✅ Done.
+
+---
+
+#### W-2405 — Database & UI: Card Copy Received & Photo ID Received Image Uploads (Base64)
+
+**Root cause / Goal:**
+`crm_customer_cards` has `customer_card_copy_status` and `customer_card_photo_status` (Yes/No flags) but no way to attach the actual document images. The UI labels "Card Copy Verified" and "Photo ID Checked" are also misleading — the correct labels per business requirement are **"Card copy received"** and **"Photo ID received"**. Managers need to view the uploaded scanned images during audits.
+
+Images are stored as **Base64-encoded strings in `LONGTEXT` columns** in MySQL. Image columns are **excluded from all list/`findMany` queries** — fetched only for single-card detail views — to prevent JSON response bloat.
+
+**Approach:**
+Add `customer_card_copy_image LONGTEXT NULL` and `customer_photo_id_image LONGTEXT NULL` to `crm_customer_cards`. Add file `<input type="file">` elements to each card block in the order forms. On file selection, use `FileReader.readAsDataURL()` to convert to Base64 on the client and store in state. Include Base64 strings in the submit payload. Display thumbnail previews in forms and on the Order Detail page.
+
+---
+
+- [ ] **RED — Integration (`src/tests/customers.test.ts`):**
+  - [ ] Test: `POST /api/orders` with `cards[0].customerCardCopyImage: 'data:image/png;base64,abc123'`. Assert `201 Created`. Then `SELECT customer_card_copy_image FROM crm_customer_cards WHERE card_id = :cardId` returns `'data:image/png;base64,abc123'`.
+  - [ ] Test: `GET /api/orders/:id` for an order whose card has `customerCardCopyImage` set. Assert the response `customer.cards[0]` does **NOT** include `customerCardCopyImage` (excluded from standard order payload).
+  - [ ] Test: `GET /api/customers/:id/cards/:cardId` (single card fetch) for a card with `customerCardCopyImage` set. Assert response includes `customerCardCopyImage` as a non-null string. Guard: assert this endpoint returns `403 Forbidden` without `customers:view-cards` permission.
+  - [ ] Test: `POST /api/orders` with `cards[0].customerCardCopyImage` omitted. Assert `201 Created` — the field is optional.
+  - [ ] **Run — confirm RED (columns do not exist; image fields not in schema; single-card fetch endpoint may not exist).**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [ ] [Schema] In `prisma/schema.prisma`, inside the `CrmCustomerCards` model (after `amountToCharge`), add:
+    ```prisma
+    customerCardCopyImage String? @map("customer_card_copy_image") @db.LongText
+    customerPhotoIdImage  String? @map("customer_photo_id_image")  @db.LongText
+    ```
+  - [ ] [Migration] Run `npx prisma migrate dev --name add_card_image_fields_to_customer_cards`. Verify SQL contains only `ADD COLUMN customer_card_copy_image LONGTEXT NULL` and `ADD COLUMN customer_photo_id_image LONGTEXT NULL` — **no DROP or ALTER on any existing column**.
+  - [ ] [Repository — `src/repository/customer.repository.ts`] Update `findCardsByCustomerId(customerId)` to use an explicit Prisma `select` that excludes `customerCardCopyImage` and `customerPhotoIdImage` (set both to `false`). Add `findCardById(cardId: number)` method that fetches a single card with **all fields** including both image columns (no select exclusion).
+  - [ ] [Repository — `src/repository/order.repository.ts`] Update `createWithCustomerAndCard` to accept and persist `customerCardCopyImage` and `customerPhotoIdImage` per card in the `cards[]` array.
+  - [ ] [Service — `src/service/customer.service.ts`] Pass both image fields through create and update pipelines.
+  - [ ] [Controller] Create or update `src/app/api/customers/[id]/cards/[cardId]/route.ts` GET handler to call `findCardById` and return the full card including image fields. Guard with `customers:view-cards` permission.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx` and `src/tests/EditOrderForm.test.tsx`):**
+  - [ ] Test (`AddOrderForm`): Render the form. Assert the card copy label reads `"Card copy received"` (not `"Card Copy Verified"`).
+  - [ ] Test (`AddOrderForm`): Render the form. Assert the photo ID label reads `"Photo ID received"` (not `"Photo ID Checked"`).
+  - [ ] Test (`AddOrderForm`): Render the form. Assert `<input type="file" id="customerCardCopyImage-0">` is present in the first card block.
+  - [ ] Test (`AddOrderForm`): Render the form. Assert `<input type="file" id="customerPhotoIdImage-0">` is present in the first card block.
+  - [ ] Test (`EditOrderForm`): Render the form. Assert the card copy label reads `"Card copy received"` and photo ID label reads `"Photo ID received"`.
+  - [ ] **Run — confirm RED (labels have old values; no file input elements exist).**
+
+- [ ] **GREEN — Frontend (Types → Components → Order Detail Page):**
+  - [ ] [Types] In `src/types/customer.ts`, add `customerCardCopyImage?: string | null` and `customerPhotoIdImage?: string | null` to `CustomerCard` and `CustomerCardDetail`.
+  - [ ] [Component — `src/components/AddOrderForm.tsx`] Inside each card block in the `cards.map()` render:
+    - Rename the `customerCardCopyStatus` label from `"Card Copy Verified"` to **`"Card copy received"`**.
+    - Rename the `customerCardPhotoStatus` label from `"Photo ID Checked"` to **`"Photo ID received"`**.
+    - Add `<input type="file" id={`customerCardCopyImage-${index}`} accept="image/*,.pdf">`. On `onChange`, use `FileReader.readAsDataURL(file)` to convert to Base64 and store in `cards[index].customerCardCopyImage` state.
+    - Add `<input type="file" id={`customerPhotoIdImage-${index}`} accept="image/*,.pdf">`. Same `FileReader` pattern for `customerPhotoIdImage`.
+    - If Base64 string is present in state, show an `<img>` thumbnail preview (max height 80px) below the respective file input.
+    - Include `customerCardCopyImage` and `customerPhotoIdImage` per card in the submit payload.
+  - [ ] [Component — `src/components/EditOrderForm.tsx`] Apply identical label renames, file inputs, `FileReader` pattern, and thumbnail previews. On form load, fetch each existing card's image via `GET /api/customers/:id/cards/:cardId` if the card has an existing `cardId`. Show existing image thumbnail when present. Include both image fields in the submit payload.
+  - [ ] [Page — `src/app/orders/[id]/page.tsx`] In the Ledger / Verification checklist section:
+    - Rename `"Card Copy Verified"` label to **`"Card copy received"`**.
+    - Rename `"Photo ID Checked"` label to **`"Photo ID received"`**.
+    - Below each status badge, if the card image URL is present (fetched from `GET /api/customers/:id/cards/:cardId`), display it as a clickable thumbnail: `<a href={imageUrl} target="_blank" rel="noreferrer"><img src={imageUrl} style={{ maxHeight: '100px', borderRadius: '4px' }} alt="..." /></a>`.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → Card Details section shows `"Card copy received"` label with a file upload input and `"Photo ID received"` label with a file upload input → agent uploads a JPEG → thumbnail preview appears immediately → agent submits → `GET /api/customers/:id/cards/:cardId` returns the Base64 image string → Order Detail page shows `"Card copy received"` row with a clickable thumbnail → clicking opens the full image in a new browser tab → ✅ Done.
+  - [ ] Agent opens Edit Order form for an order with an existing card copy image → thumbnail is pre-displayed → agent uploads a replacement image → saves → new image is displayed → ✅ Done.
+
+---
+
+#### W-2406 — UI Only: Label Rename — "Normal Checklist" → "Checklist by backend"
+
+**Root cause / Goal:**
+The `orderChecklist` field on `crm_orders` is labeled `"Normal Checklist"` (or just `"Checklist"`) in the Add Order form, Edit Order form, and Order Detail page. This label is unclear. The business requires it to be renamed to **"Checklist by backend"** across all views. This is a pure string rename — zero database schema changes required.
+
+**Approach:**
+Find and replace the label string for the `orderChecklist` field with `"Checklist by backend"` in `AddOrderForm.tsx`, `EditOrderForm.tsx`, and `src/app/orders/[id]/page.tsx`. Update any test assertions that check for the old label text.
+
+---
+
+- [ ] **RED — Integration:** `N/A` — this is a frontend-only label change. No API or database behavior is altered.
+
+- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx` and `src/tests/EditOrderForm.test.tsx`):**
+  - [ ] Test (`AddOrderForm`): Render the form. Assert a `<label>` with text `"Checklist by backend"` is present. Assert no element with text `"Normal Checklist"` exists anywhere in the rendered output.
+  - [ ] Test (`EditOrderForm`): Render the form. Assert a `<label>` with text `"Checklist by backend"` is present. Assert no element with text `"Normal Checklist"` exists.
+  - [ ] **Run — confirm RED (label currently reads `"Normal Checklist"` or `"Checklist"`).**
+
+- [ ] **GREEN — Frontend (Components → Order Detail Page):**
+  - [ ] [Component — `src/components/AddOrderForm.tsx`] Find the `<label>` element for the `orderChecklist` field. Replace its text with `"Checklist by backend"`.
+  - [ ] [Component — `src/components/EditOrderForm.tsx`] Find the `<label>` element for the `orderChecklist` field. Replace its text with `"Checklist by backend"`.
+  - [ ] [Page — `src/app/orders/[id]/page.tsx`] In the Ledger / Verification checklist section, find the display label for `orderChecklist` and replace it with `"Checklist by backend"`.
+  - [ ] Run unit tests — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] Agent opens Add Order form → the checklist field label reads `"Checklist by backend"` → agent opens Edit Order form → same label → admin opens Order Detail page → the verification checklist row reads `"Checklist by backend"` → no instance of `"Normal Checklist"` exists anywhere in the UI → ✅ Done.
+
+---
+
+#### W-2407 — Documentation & Schema Reference Updates
+
+**Root cause / Goal:**
+All CONTEXT documentation files must be updated to reflect the Phase 24 schema additions and design decisions, keeping them as the authoritative source of truth for all future development phases.
+
+**Approach:**
+Update `CONTEXT/database_schema.md` table rows and the Prisma schema code block. Append Decision 25 to `CONTEXT/decision_log.md`.
+
+---
+
+- [ ] **RED:** `N/A` — documentation updates have no automated test coverage.
+
+- [ ] **GREEN — Documentation:**
+  - [ ] [Schema Doc — `CONTEXT/database_schema.md`]
+    - In the `crm_customers` table section, add rows for `customer_alternate_phone_1 VARCHAR(25) NULL` and `customer_alternate_phone_2 VARCHAR(25) NULL`.
+    - In the `crm_vendors` table section, add rows for `vendor_alternate_phone_1 VARCHAR(15) NULL`, `vendor_alternate_phone_2 VARCHAR(15) NULL`, `vendor_country VARCHAR(50) NULL`, `vendor_state VARCHAR(100) NULL`, `vendor_payment_mode VARCHAR(10) NULL`.
+    - In the `crm_customer_cards` table section, add rows for `amount_to_charge VARCHAR(25) NULL`, `customer_card_copy_image LONGTEXT NULL`, `customer_photo_id_image LONGTEXT NULL`.
+    - Update the Prisma schema code block in Section 3 to match the new `schema.prisma` exactly (all three models updated).
+  - [ ] [Decision Log — `CONTEXT/decision_log.md`] Append **Decision 25: Phase 24 Schema Additions — Base64 Image Storage, Multi-Card Design, Vendor Geo Fields** documenting:
+    - Why Base64 `LONGTEXT` was chosen over filesystem storage (VPS persistence, single `mysqldump` backup, no cloud config required).
+    - The mandatory `select: { customerCardCopyImage: false }` exclusion rule in all `findMany` / list queries.
+    - The `COUNTRY_STATE_MAP` static frontend map approach (no DB lookup table for a fixed 2-country list).
+    - The `amountToCharge` field design (nullable `VARCHAR(25)`, only meaningful when `cards.length > 1`, UI hidden for single-card orders).
+    - The UI-only label renames: "Card Copy Verified" → "Card copy received", "Photo ID Checked" → "Photo ID received", "Normal Checklist" → "Checklist by backend".
+  - [ ] [Progress Table — `CONTEXT/current_state.md`] Update Phase 24 status from `**[ ] NOT STARTED**` to `**[x] COMPLETED**` once all W-2401 through W-2406 items are verified.
+
+- [ ] **Verification chain:**
+  - [ ] Developer opens `CONTEXT/database_schema.md` → all 9 new columns are listed under their respective tables → Prisma schema code block matches the live `prisma/schema.prisma` → Developer opens `decision_log.md` → Decision 25 is present and accurately describes the Base64 storage design and all Phase 24 decisions → ✅ Done.
+
+---

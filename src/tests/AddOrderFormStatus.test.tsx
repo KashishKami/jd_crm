@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
+import { useSession } from 'next-auth/react';
 import AddOrderForm from '../components/AddOrderForm';
 
 // Mock next/navigation
@@ -11,11 +12,22 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
 afterEach(() => {
   cleanup();
 });
 
 describe('AddOrderForm Status Upgrade Unit Tests', () => {
+  beforeEach(() => {
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as any);
+  });
+
   const mockVendors = [{ vendorId: 1, vendorName: 'Vendor A' }];
   const mockGateways = [{ gatewayId: 1, gatewayName: 'Gateway A' }];
   const mockAgents = [{ uid: 1, name: 'Agent A', nickname: 'AgentNickname' }];

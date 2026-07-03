@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { fadeInPage } from '../lib/animations';
 import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 import DealSummarySidebar from './DealSummarySidebar';
@@ -16,7 +17,9 @@ interface AddOrderFormProps {
 
 export default function AddOrderForm({ vendors, gateways, agents }: AddOrderFormProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const containerRef = useRef<HTMLDivElement>(null);
+  const defaultAgentSet = useRef(false);
 
   // Form states
   const [customerName, setCustomerName] = useState('');
@@ -77,6 +80,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       fadeInPage(containerRef.current);
     }
   }, []);
+
+  // Auto-select logged-in user as Sales Agent by default
+  useEffect(() => {
+    if (session?.user?.id && agents.length > 0 && !defaultAgentSet.current) {
+      const userId = Number(session.user.id);
+      const userExists = agents.some((a) => a.uid === userId);
+      if (userExists) {
+        setOrderSalesAgentId(String(userId));
+      }
+      defaultAgentSet.current = true;
+    }
+  }, [session, agents]);
 
   // Auto-advance workflow queue if vendor is selected
   // Auto-advance workflow queue if sale status is refunded/chargebacked/void
