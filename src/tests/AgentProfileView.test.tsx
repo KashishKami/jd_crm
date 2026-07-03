@@ -167,4 +167,45 @@ describe('AgentProfileView Component Unit Tests', () => {
     expect(screen.getByText('Big Bank')).not.toBeNull();
     expect(screen.getByText('111222333')).not.toBeNull();
   });
+
+  it('should render full details and edit button successfully when session lacks permissions but user is viewing their own profile (isSelf)', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: '10', // Matches mockAgent.uid (isSelf = true)
+          name: 'John Doe',
+          userPermissions: 'agents:view', // Lacks agents:view-details and agents:edit
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<AgentProfileView agent={mockAgent} />);
+
+    // Edit Profile button should be visible since it is their own profile
+    expect(screen.getByRole('link', { name: /Edit Profile/i })).not.toBeNull();
+
+    // Click on Academic Record Tab
+    const academicTabBtn = screen.getByRole('button', { name: /Academic Record/i });
+    fireEvent.click(academicTabBtn);
+
+    // Should show details and NOT "Access Restricted" because it's their own profile
+    expect(screen.queryByText('Access Restricted')).toBeNull();
+    expect(screen.getByText('Oxford High School')).not.toBeNull();
+
+    // Click on Work History Tab
+    const workTabBtn = screen.getByRole('button', { name: /Work History/i });
+    fireEvent.click(workTabBtn);
+
+    expect(screen.queryByText('Access Restricted')).toBeNull();
+    expect(screen.getByText('Old Tech Corp')).not.toBeNull();
+
+    // Click on Bank & Emergency Tab
+    const bankTabBtn = screen.getByRole('button', { name: /Bank & Emergency/i });
+    fireEvent.click(bankTabBtn);
+
+    expect(screen.queryByText('Access Restricted')).toBeNull();
+    expect(screen.getByText('Big Bank')).not.toBeNull();
+    expect(screen.getByText('111222333')).not.toBeNull();
+  });
 });

@@ -79,10 +79,8 @@ describe('AgentList Component Unit Tests', () => {
 
     // Wait for the table data to be loaded and rendered
     await waitFor(() => {
-      expect(screen.queryByText('Agent Ten')).not.toBeNull();
-      expect(screen.queryByText('Agent Eleven')).not.toBeNull();
-      expect(screen.queryByText('agent_ten')).not.toBeNull();
-      expect(screen.queryByText('agent_eleven')).not.toBeNull();
+      expect(screen.queryByText('Ten')).not.toBeNull();
+      expect(screen.queryByText('Eleven')).not.toBeNull();
       expect(screen.queryAllByText('Sales Agent').length).toBeGreaterThan(0);
       expect(screen.queryAllByText('Sales Manager').length).toBeGreaterThan(0);
       expect(screen.queryAllByText('IT Park').length).toBeGreaterThan(0);
@@ -165,7 +163,7 @@ describe('AgentList Component Unit Tests', () => {
     });
   });
 
-  it('should display the alias (nickname) first and real name below it', async () => {
+  it('should display the alias (nickname) only and NOT the real name to protect privacy', async () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
@@ -180,18 +178,16 @@ describe('AgentList Component Unit Tests', () => {
     render(<AgentList />);
 
     await waitFor(() => {
-      // Check that the alias "Ten" is rendered in quotes
-      const aliasElement = screen.queryByText(/"Ten"/);
+      // Check that the alias "Ten" is rendered
+      const aliasElement = screen.queryByText('Ten');
       expect(aliasElement).not.toBeNull();
       
       // Get container displaying name elements and verify layout hierarchy
       const cell = aliasElement!.closest('td');
       expect(cell).not.toBeNull();
       
-      // Verify alias is on top of real name
-      const nameDivs = cell!.querySelectorAll('div > div');
-      expect(nameDivs[2].textContent).toContain('"Ten"');
-      expect(nameDivs[3].textContent).toBe('Agent Ten');
+      // Verify that the real name "Agent Ten" is NOT in the cell content
+      expect(cell!.textContent).not.toContain('Agent Ten');
     });
   });
 
@@ -223,8 +219,8 @@ describe('AgentList Component Unit Tests', () => {
     fireEvent.change(searchInput, { target: { value: 'Eleven' } });
 
     await waitFor(() => {
-      expect(screen.queryByText('Agent Ten')).toBeNull();
-      expect(screen.queryByText('Agent Eleven')).not.toBeNull();
+      expect(screen.queryByText('Ten')).toBeNull();
+      expect(screen.queryByText('Eleven')).not.toBeNull();
     });
   });
 

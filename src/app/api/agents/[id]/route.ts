@@ -90,6 +90,12 @@ export async function PATCH(
       delete body.status;
     }
 
+    // Force strip roleId if not super-admin
+    const isSuperAdmin = hasPermission(session.user.userPermissions, 'super-admin');
+    if (!isSuperAdmin) {
+      delete body.roleId;
+    }
+
     const updatedAgent = await agentService.updateAgent(uid, body);
     return NextResponse.json(updatedAgent);
   } catch (error: unknown) {

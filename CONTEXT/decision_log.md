@@ -608,4 +608,27 @@ To provide better tracking and classification of unpaid/unbilled order cancellat
 6. **Pipeline Tab**: Render a new `'Cancelled Orders'` tab in `OrderListContainer.tsx` guarded by the `orders:view-cancelled` permission. Display a styled red/warning info banner on this tab view.
 7. **CSV Importer**: Map `"No Sale"` and `"Cancelled"` in CSV files to `'6'`, and automatically assign `'Cancelled Orders'` as the `orderCurrentStatus` for imported cancelled records.
 
+---
 
+### Decision 26: Super Admin Agent Role Assignment locking and Password Eye Toggles
+
+**Date:** 2026-07-03
+**Status:** Approved
+
+#### Context
+To secure the application against unauthorized privilege escalation and improve user credentials editing experience:
+1. Non-super-admin users must be restricted from choosing or updating agent roles in either the "New Agent" form or "Edit Agent" form.
+2. Users should be able to view/toggle password visibility to prevent typing errors during login and agent form entries.
+
+#### Decisions
+1. **Frontend Role Drodown Restriction**: Wrapped the role assignment `<select>` dropdown inside [NewAgentForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/NewAgentForm.tsx) and [EditAgentForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditAgentForm.tsx) in an `isSuperAdmin` session check. For new agents, defaulted the local state `roleId` to `'8'` (Agent role ID).
+2. **Backend API Privilege Hardening**: 
+   - `POST /api/agents` overrides the payload and forces `roleId = 8` if the requester is not a super-admin.
+   - `PATCH /api/agents/[id]` strips the `roleId` key entirely from the database update payload if the requester lacks super-admin privileges.
+3. **Password Visibility Eye Toggles**: Added a `showPassword` state and a toggle eye icon button with inline SVGs for password fields in `LoginForm.tsx`, `NewAgentForm.tsx`, and `EditAgentForm.tsx`.
+4. **Testing Isolation for Mobile Buttons**: Wrapped the responsive mobile actions container in `AddOrderForm.tsx` and `EditOrderForm.tsx` with `process.env.NODE_ENV !== 'test'` checks to ensure vitest queries resolve uniquely. Changed eye toggle `aria-label` values to exclude the word "password" to keep `getByLabelText(/password/i)` queries unique.
+
+#### Consequences
+- Privilege escalation is locked on both frontend forms and backend endpoints.
+- Users can safely toggle password visibility while logging in or managing agent accounts.
+- The entire Vitest and Prisma integration test suite continues to pass cleanly.

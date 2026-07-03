@@ -295,7 +295,6 @@ export default function AgentList() {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Username</th>
                 <th>Email</th>
                 <th>Designation</th>
                 <th>Team</th>
@@ -309,20 +308,16 @@ export default function AgentList() {
                 <tr key={agent.uid} style={{ opacity: 0 }}>
                   <td>
                     <div className="name-cell">
-                      <div className="avatar-circle">{agent.name[0]?.toUpperCase()}</div>
+                      <div className="avatar-circle">{(agent.nickname || agent.name)[0]?.toUpperCase()}</div>
                       <div>
                         {agent.nickname ? (
-                          <>
-                            <div className="font-medium text-slate-800">&quot;{agent.nickname}&quot;</div>
-                            <div className="nickname text-slate-400 text-xs">{agent.name}</div>
-                          </>
+                          <div className="font-medium text-slate-800">{agent.nickname}</div>
                         ) : (
                           <div className="font-medium text-slate-800">{agent.name}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td><code className="username-code">{agent.username}</code></td>
                   <td>{agent.email || <span className="text-slate-400">—</span>}</td>
                   <td>{agent.designation || <span className="text-slate-400">—</span>}</td>
                   <td>

@@ -156,4 +156,58 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     });
   });
+
+  describe('W-1902: Alias Name Visible Everywhere, Real Name Only on Profile', () => {
+    it('should display the agent/verifier/executive nickname/alias instead of their real name in the list', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 49,
+          orderDate: '2026-06-30',
+          orderMakeModel: '2026 Toyota Camry',
+          orderPart: 'Alternator',
+          orderTotalPitched: '500',
+          orderVendorPrice: '300',
+          orderAmountCharged: '200',
+          orderCurrentStatus: 'Pending Booking',
+          customer: {
+            customerName: 'Alice Green',
+            customerEmail: 'alice.g@example.com',
+          },
+          salesAgent: {
+            name: 'John RealAgent',
+            nickname: 'AgentAlias',
+          },
+          salesVerifier: {
+            name: 'Bob RealVerifier',
+            nickname: 'VerifierAlias',
+          },
+          backendExecutive: {
+            name: 'Carol RealExecutive',
+            nickname: 'ExecutiveAlias',
+          },
+          verifier: {
+            name: 'Dave RealQA',
+            nickname: 'QAAlias',
+          },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const row = screen.getByRole('row', { name: /#49/i });
+      const text = row.textContent || '';
+
+      // Verify that aliases are present
+      expect(text).toContain('AgentAlias');
+      expect(text).toContain('VerifierAlias');
+      expect(text).toContain('ExecutiveAlias');
+      expect(text).toContain('QAAlias');
+
+      // Verify that real names are NOT present in the row
+      expect(text).not.toContain('John RealAgent');
+      expect(text).not.toContain('Bob RealVerifier');
+      expect(text).not.toContain('Carol RealExecutive');
+      expect(text).not.toContain('Dave RealQA');
+    });
+  });
 });

@@ -549,18 +549,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
             return (
               <div 
                 data-testid="tab-totals-summary"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: 'rgba(255, 255, 255, 0.75)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '12px 20px',
-                  marginBottom: '16px',
-                  boxShadow: 'var(--card-shadow)'
-                }}
+                className="tab-totals-summary"
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>

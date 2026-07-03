@@ -161,7 +161,7 @@ describe('EditOrderForm Unit Tests', () => {
     );
 
     // Verify fields are masked on rendering
-    const cardNumberInput = screen.getByText('Card Number').nextElementSibling as HTMLInputElement;
+    const cardNumberInput = screen.getAllByText('Card Number')[0].nextElementSibling as HTMLInputElement;
     const cardCvvInput = screen.getByText('CVV Code').nextElementSibling as HTMLInputElement;
     expect(cardNumberInput.value).toBe('**** **** **** 4444');
     expect(cardCvvInput.value).toBe('***');

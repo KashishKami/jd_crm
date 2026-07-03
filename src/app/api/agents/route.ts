@@ -53,6 +53,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    
+    // Force role to Agent (8) if not super-admin
+    const isSuperAdmin = hasPermission(session.user.userPermissions, 'super-admin');
+    if (!isSuperAdmin) {
+      body.roleId = 8;
+    }
+    
     const newAgent = await agentService.createAgent(body);
     return NextResponse.json(newAgent, { status: 201 });
   } catch (error: unknown) {

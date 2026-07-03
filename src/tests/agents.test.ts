@@ -223,7 +223,7 @@ describe('Agent Management CRUD Endpoints Integration Tests', () => {
     it('should return 403 Forbidden if user lacks agents:view permission', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: {
-          id: '1',
+          id: '999',
           name: 'Restricted User',
           userPermissions: 'vendors:view', // Lacks agents:view
         },

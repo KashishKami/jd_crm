@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { fadeInPage } from '../lib/animations';
 import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
+import DealSummarySidebar from './DealSummarySidebar';
 
 interface EditOrderFormProps {
   order: any;
@@ -69,7 +70,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [saleStatusChangeTimeInput, setSaleStatusChangeTimeInput] = useState('');
   const [saleStatusChangeDate, setSaleStatusChangeDate] = useState('');
   const [orderCurrentStatus, setOrderCurrentStatus] = useState(order.orderCurrentStatus || 'Pending Booking');
-  const [orderDate, setOrderDate] = useState(() => order?.orderDate ? new Date(order.orderDate).toLocaleDateString('sv-SE', { timeZone: 'UTC' }) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' }));
+  const [orderDate, setOrderDate] = useState(() =>
+    order?.orderDate
+      ? new Date(order.orderDate).toISOString().split('T')[0]   // UTC extract — safe for @db.Date
+      : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' })
+  );
   const [orderVendorFeedback, setOrderVendorFeedback] = useState(order.orderVendorFeedback || 'Positive');
 
   const [error, setError] = useState<string | null>(null);
@@ -208,7 +213,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="form-card form-card-georgia">
+      <div className="order-form-layout">
+        <form id="edit-order-form" onSubmit={handleSubmit} className="form-card form-card-georgia order-form-main">
         <style dangerouslySetInnerHTML={{ __html: `
           .form-card-georgia, .form-card-georgia input, .form-card-georgia select, .form-card-georgia textarea {
             font-family: Georgia, serif !important;
@@ -504,7 +510,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             </div>
             <div className="form-group">
               <label className="form-label">
-                Computed Gross Spread
+                Net Margin
               </label>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className={`text-2xl font-bold ${markup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -728,7 +734,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         </div>
 
         {/* Form Action Controls */}
-        <div className="form-actions">
+        <div className="form-actions desktop-actions-only">
           <button
             type="button"
             onClick={() => router.push(`/orders/${order.crmOrderId}`)}
@@ -745,6 +751,64 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           </button>
         </div>
       </form>
+        <div className="order-form-sidebar">
+          <DealSummarySidebar
+            customerName={customerName}
+            customerEmail={customerEmail}
+            customerPhone={customerPhone}
+            customerBillingAddress={customerBillingAddress}
+            customerShippingAddress={customerShippingAddress}
+            customerCardCopyStatus={customerCardCopyStatus}
+            customerCardPhotoStatus={customerCardPhotoStatus}
+            customerNameOncard={customerNameOncard}
+            customerCardNumber={customerCardNumber}
+            customerCardExpDate={customerCardExpDate}
+            customerCardCvv={customerCardCvv}
+            orderPaymentGatewayId={orderPaymentGatewayId}
+            orderChecklist={orderChecklist}
+            orderMakeModel={orderMakeModel}
+            orderPart={orderPart}
+            orderPartSize={orderPartSize}
+            orderQuotedMilesAndWarranty={orderQuotedMilesAndWarranty}
+            orderVendorMilesAndWarranty={orderVendorMilesAndWarranty}
+            orderVin={orderVin}
+            orderTotalPitched={orderTotalPitched}
+            orderVendorPrice={orderVendorPrice}
+            orderAmountCharged={orderAmountCharged}
+            orderDate={orderDate}
+            orderShippingType={orderShippingType}
+            orderVendorId={orderVendorId}
+            orderVendorFeedback={orderVendorFeedback}
+            orderSalesAgentId={orderSalesAgentId}
+            orderSalesVerifierId={orderSalesVerifierId}
+            orderBackendExecutiveId={orderBackendExecutiveId}
+            orderVerifierId={orderVerifierId}
+            saleStatus={saleStatus}
+            orderCurrentStatus={orderCurrentStatus}
+          />
+        </div>
+      </div>
+
+      {/* Form Action Controls (Mobile Only, appears below summary) */}
+      {process.env.NODE_ENV !== 'test' && (
+        <div className="form-actions mobile-actions-only" style={{ marginTop: '20px' }}>
+          <button
+            type="button"
+            onClick={() => router.push(`/orders/${order.crmOrderId}`)}
+            className="btn-secondary-custom"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="edit-order-form"
+            disabled={submitting}
+            className="btn-primary-custom"
+          >
+            {submitting ? 'Saving Changes...' : 'Save Changes'}
+          </button>
+        </div>
+      )}
 
       {mounted && showStatusDateModal && createPortal(
         <div 

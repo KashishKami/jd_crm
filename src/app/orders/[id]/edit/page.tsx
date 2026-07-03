@@ -69,7 +69,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const canViewCards = hasPermission(permissions, 'customers:view-cards');
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8">
+    <div className="w-full">
       <EditOrderForm order={order} vendors={vendors} gateways={gateways} agents={agents} canViewCards={canViewCards} />
     </div>
   );

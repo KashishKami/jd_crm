@@ -187,7 +187,7 @@
 .custom-table td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--text-main);
   vertical-align: middle;
   white-space: nowrap;
@@ -284,7 +284,7 @@
 }
 
 .action-link-btn {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-decoration: none;
   transition: var(--transition-smooth);
@@ -350,8 +350,8 @@
 }
 
 .form-section-title {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.35rem;
+  font-weight: 700;
   color: var(--text-main);
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
@@ -382,10 +382,10 @@
 }
 
 .form-input, .form-select, .form-textarea {
-  padding: 10px 14px;
+  padding: 7px 11px;
   border-radius: 6px;
   border: 1px solid var(--border-color);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: var(--text-main);
   background-color: white;
   transition: var(--transition-smooth);
@@ -1428,4 +1428,262 @@
 @media (max-width: 900px) {
   .settings-layout { grid-template-columns: 1fr; }
   .perm-items-grid { grid-template-columns: 1fr; }
+}
+
+/* Responsive Tab Totals Summary Card */
+.tab-totals-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+@media (max-width: 576px) {
+  .tab-totals-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+}
+
+/* Order Form Side-by-Side Layout */
+.order-form-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 30px;
+  width: 100%;
+}
+
+.order-form-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.order-form-sidebar {
+  width: 340px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 90px;
+  z-index: 10;
+}
+
+@media (max-width: 1024px) {
+  .order-form-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .order-form-sidebar {
+    width: 100%;
+    position: static;
+  }
+}
+
+/* Deal Summary Card */
+.deal-summary-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  font-family: Georgia, serif !important;
+}
+
+.deal-summary-header {
+  margin-bottom: 20px;
+}
+
+.deal-summary-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.deal-summary-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.deal-summary-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.metric-label {
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.summary-boxes-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.charged-now-box {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+.balance-due-box {
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #ea580c;
+}
+
+.box-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.box-amount {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.projected-margin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+}
+
+.margin-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.margin-value {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.margin-pos {
+  color: #16a34a;
+}
+
+.margin-neg {
+  color: #dc2626;
+}
+
+.progress-segments {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.progress-segment {
+  flex: 1;
+  height: 6px;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  transition: background-color 0.2s ease;
+}
+
+.progress-segment.active {
+  background-color: #10b981;
+}
+
+.required-fields-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.required-fields-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.required-fields-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  transition: color 0.2s ease;
+}
+
+.field-item.filled {
+  color: var(--text-main);
+}
+
+.field-item.empty {
+  color: var(--text-muted);
+}
+
+.field-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.empty-circle-dot {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+  background: transparent;
+}
+
+@media (min-width: 1025px) {
+  .mobile-actions-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .desktop-actions-only {
+    display: none !important;
+  }
 }

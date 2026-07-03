@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { fadeInPage } from '../lib/animations';
 import { FormAcademicRecord, FormProfessionalRecord } from '../types/agent';
 import { useLenis } from './LenisProvider';
+import { hasPermission } from '../service/permission.service';
+import { localDateStringToUtcNoon } from '../lib/date';
 
 interface NewAgentFormProps {
   teams: { teamId: number; teamName: string }[];
@@ -15,8 +18,10 @@ interface NewAgentFormProps {
 
 export default function NewAgentForm({ teams, roles, designations }: NewAgentFormProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'profile' | 'academic' | 'professional'>('basic');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [userData, setUserData] = useState({
     name: '',
@@ -33,8 +38,11 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
     agentTarget: '',
     agentSalary: '',
     teamId: '',
-    roleId: '',
+    roleId: '8',
   });
+
+  const permissions = session?.user?.userPermissions || '';
+  const isSuperAdmin = hasPermission(permissions, 'super-admin');
 
   const [profileData, setProfileData] = useState({
     profileLocalAddress: '',
@@ -182,11 +190,11 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
         age: userData.age ? Number(userData.age) : null,
         teamId: Number(userData.teamId),
         roleId: Number(userData.roleId),
-        dateOfJoining: userData.dateOfJoining ? new Date(userData.dateOfJoining).toISOString() : null,
+        dateOfJoining: userData.dateOfJoining ? localDateStringToUtcNoon(userData.dateOfJoining) : null,
         // Nested profile details
         profile: {
           ...profileData,
-          profileDob: profileData.profileDob ? new Date(profileData.profileDob).toISOString() : null,
+          profileDob: profileData.profileDob ? localDateStringToUtcNoon(profileData.profileDob) : null,
         },
         // Nested dynamic records
         academicRecord: academicRecords,
@@ -308,33 +316,68 @@ export default function NewAgentForm({ teams, roles, designations }: NewAgentFor
                 </div>
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={userData.password}
-                    onChange={handleUserChange}
-                    className="form-input"
-                    required
-                    placeholder="Enter password"
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={userData.password}
+                      onChange={handleUserChange}
+                      className="form-input"
+                      required
+                      placeholder="Enter password"
+                      style={{ paddingRight: '40px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0',
+                      }}
+                      aria-label={showPassword ? "Hide text" : "Show text"}
+                    >
+                      {showPassword ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Role Assignment *</label>
-                  <select
-                    name="roleId"
-                    value={userData.roleId}
-                    onChange={handleUserChange}
-                    className="form-select"
-                    required
-                  >
-                    <option value="">-- Select Role --</option>
-                    {roles.map((role) => (
-                      <option key={role.roleId} value={role.roleId}>
-                        {role.roleName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {isSuperAdmin && (
+                  <div className="form-group">
+                    <label className="form-label">Role Assignment *</label>
+                    <select
+                      name="roleId"
+                      value={userData.roleId}
+                      onChange={handleUserChange}
+                      className="form-select"
+                      required
+                    >
+                      <option value="">-- Select Role --</option>
+                      {roles.map((role) => (
+                        <option key={role.roleId} value={role.roleId}>
+                          {role.roleName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">Team Assignment *</label>
                   <select

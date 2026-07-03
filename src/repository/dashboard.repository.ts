@@ -231,6 +231,7 @@ export async function getRecentOrders(limit = 10) {
       orderAmountCharged: true,
       orderRefundAmount: true,
       saleStatus: true,
+      orderSalesAgentName: true,
       customer: {
         select: {
           customerName: true,

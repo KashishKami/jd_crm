@@ -160,7 +160,6 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           data-testid="user-profile-btn"
         >
           <span className="user-avatar-small">{username[0]?.toUpperCase()}</span>
-          <span className="user-name-small">{username}</span>
         </button>
 
         {dropdownOpen && (

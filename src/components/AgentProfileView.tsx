@@ -18,8 +18,9 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
   const [activeTab, setActiveTab] = useState<'basic' | 'academic' | 'professional' | 'bank_emergency'>('basic');
 
   const permissions = session?.user?.userPermissions || '';
-  const canEdit = hasPermission(permissions, 'agents:edit');
-  const canViewDetails = hasPermission(permissions, 'agents:view-details');
+  const isSelf = session?.user?.id ? Number(session.user.id) === agent.uid : false;
+  const canEdit = hasPermission(permissions, 'agents:edit') || isSelf;
+  const canViewDetails = hasPermission(permissions, 'agents:view-details') || isSelf;
 
   useEffect(() => {
     if (containerRef.current) {

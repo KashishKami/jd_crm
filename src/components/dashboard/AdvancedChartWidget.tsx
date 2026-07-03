@@ -12,6 +12,7 @@ interface AgentOption {
   uid: number;
   name: string;
   teamId: number;
+  nickname?: string | null;
 }
 
 export default function AdvancedChartWidget() {
@@ -278,7 +279,7 @@ export default function AdvancedChartWidget() {
             <option value="">All Agents</option>
             {filteredAgents.map((a) => (
               <option key={a.uid} value={a.uid}>
-                {a.name}
+                {a.nickname || a.name}
               </option>
             ))}
           </select>

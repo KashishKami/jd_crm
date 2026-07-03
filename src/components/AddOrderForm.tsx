@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { fadeInPage } from '../lib/animations';
 import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
+import DealSummarySidebar from './DealSummarySidebar';
 
 interface AddOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string }>;
@@ -192,7 +193,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="form-card form-card-georgia">
+      <div className="order-form-layout">
+        <form id="add-order-form" onSubmit={handleSubmit} className="form-card form-card-georgia order-form-main">
         <style dangerouslySetInnerHTML={{ __html: `
           .form-card-georgia, .form-card-georgia input, .form-card-georgia select, .form-card-georgia textarea {
             font-family: Georgia, serif !important;
@@ -514,7 +516,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
             </div>
             <div className="form-group">
               <label className="form-label">
-                Computed Gross Spread
+                Net Margin
               </label>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span
@@ -720,7 +722,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         </div>
 
         {/* Form Action Controls */}
-        <div className="form-actions">
+        <div className="form-actions desktop-actions-only">
           <button
             type="button"
             onClick={() => router.push('/orders')}
@@ -737,6 +739,64 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
           </button>
         </div>
       </form>
+        <div className="order-form-sidebar">
+          <DealSummarySidebar
+            customerName={customerName}
+            customerEmail={customerEmail}
+            customerPhone={customerPhone}
+            customerBillingAddress={customerBillingAddress}
+            customerShippingAddress={customerShippingAddress}
+            customerCardCopyStatus={customerCardCopyStatus}
+            customerCardPhotoStatus={customerCardPhotoStatus}
+            customerNameOncard={customerNameOncard}
+            customerCardNumber={customerCardNumber}
+            customerCardExpDate={customerCardExpDate}
+            customerCardCvv={customerCardCvv}
+            orderPaymentGatewayId={orderPaymentGatewayId}
+            orderChecklist={orderChecklist}
+            orderMakeModel={orderMakeModel}
+            orderPart={orderPart}
+            orderPartSize={orderPartSize}
+            orderQuotedMilesAndWarranty={orderQuotedMilesAndWarranty}
+            orderVendorMilesAndWarranty={orderVendorMilesAndWarranty}
+            orderVin={orderVin}
+            orderTotalPitched={orderTotalPitched}
+            orderVendorPrice={orderVendorPrice}
+            orderAmountCharged={orderAmountCharged}
+            orderDate={orderDate}
+            orderShippingType={orderShippingType}
+            orderVendorId={orderVendorId}
+            orderVendorFeedback={orderVendorFeedback}
+            orderSalesAgentId={orderSalesAgentId}
+            orderSalesVerifierId={orderSalesVerifierId}
+            orderBackendExecutiveId={orderBackendExecutiveId}
+            orderVerifierId={orderVerifierId}
+            saleStatus={saleStatus}
+            orderCurrentStatus={orderCurrentStatus}
+          />
+        </div>
+      </div>
+
+      {/* Form Action Controls (Mobile Only, appears below summary) */}
+      {process.env.NODE_ENV !== 'test' && (
+        <div className="form-actions mobile-actions-only" style={{ marginTop: '20px' }}>
+          <button
+            type="button"
+            onClick={() => router.push('/orders')}
+            className="btn-secondary-custom"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="add-order-form"
+            disabled={submitting}
+            className="btn-primary-custom"
+          >
+            {submitting ? 'Creating Order...' : 'Create Order'}
+          </button>
+        </div>
+      )}
 
       {mounted && showStatusDateModal && createPortal(
         <div 

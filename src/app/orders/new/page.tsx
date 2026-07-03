@@ -28,7 +28,7 @@ export default async function NewOrderPage() {
   ]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8">
+    <div className="w-full">
       <AddOrderForm vendors={vendors} gateways={gateways} agents={agents} />
     </div>
   );

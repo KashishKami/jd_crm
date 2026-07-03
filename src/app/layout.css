@@ -30,12 +30,12 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html, .app-container {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Base Page Layout Wrapper */
@@ -57,19 +57,19 @@ html, .app-container {
 
 @media (min-width: 768px) {
   .main-content {
-    padding: 24px 4%;
+    padding: 24px 10%;
   }
 }
 
 @media (min-width: 1024px) {
   .main-content {
-    padding: 32px 8%;
+    padding: 32px 10%;
   }
 }
 
 @media (min-width: 1440px) {
   .main-content {
-    padding: 40px 15%;
+    padding: 40px 10%;
   }
 }
 
@@ -406,19 +406,19 @@ html, .app-container {
 
 @media (min-width: 768px) {
   .app-container.sidebar-closed .main-content {
-    padding-left: 4%;
+    padding-left: 10%;
   }
 }
 
 @media (min-width: 1024px) {
   .app-container.sidebar-closed .main-content {
-    padding-left: 8%;
+    padding-left: 10%;
   }
 }
 
 @media (min-width: 1440px) {
   .app-container.sidebar-closed .main-content {
-    padding-left: 15%;
+    padding-left: 10%;
   }
 }
 
@@ -606,7 +606,7 @@ html, .app-container {
     top: 0;
     bottom: 0;
     pointer-events: none;
-    padding: 0 8%;
+    padding: 0 10%;
     margin: 0;
     flex: none;
   }
@@ -617,7 +617,7 @@ html, .app-container {
 
 @media (min-width: 1440px) {
   .navbar-aligned-content {
-    padding: 0 15%;
+    padding: 0 10%;
   }
 }
 
@@ -713,17 +713,16 @@ html, .app-container {
 .user-profile-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background-color: #f1f5f9;
-  padding: 6px 16px 6px 12px;
-  border-radius: 50px;
-  border: 1px solid transparent;
+  background: transparent;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: opacity 0.2s ease;
 }
 
 .user-profile-btn:hover {
-  background-color: #e2e8f0;
+  opacity: 0.85;
 }
 
 .user-avatar-small {

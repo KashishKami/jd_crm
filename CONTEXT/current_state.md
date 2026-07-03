@@ -30,8 +30,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 15** | Sprint 1 — Critical Schema Surgery (P0) | **[x] COMPLETED** | `schema.prisma`, 3 migrations, `order.repository.ts`, `customer.repository.ts`, `search.repository.ts`, `order.service.ts`, `dashboard.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `AdvancedChartWidget.tsx`, `seed.sql` |
 | **Phase 16** | Sprint 2 — Pre-Go-Live Features (P1) | **[x] COMPLETED** | 2 new DB tables, `order.repository.ts`, `order.service.ts`, `OrderList.tsx`, `OrderStatusTimeline.tsx`, `OrderViewLog.tsx`, order detail page, `seed.sql` |
 | **Phase 17** | Sprint 3 — Sale Status Overhaul (Partial Refund, Final Margin & Returned Orders) | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.service.ts`, `EditOrderForm.tsx`, `OrderListContainer.tsx`, `OrderList.tsx`, `PendingCountsRow.tsx`, `dashboard_client_page.tsx`, `types/order.ts`, `types/dashboard.ts`, new page `pending/returned/page.tsx` |
-| **Phase 18** | Sprint 3 — Post-Launch Features | **[/] IN PROGRESS** | `dashboard.repository.ts`, `dashboard.service.ts`, `TeamMonthlyScoresWidget.tsx`, `OrderListContainer.tsx`, `vendor.repository.ts`, `vendor.service.ts`, settings/roles pages |
-| **Phase 19** | Sprint 4 — Polish & Table Column Additions | **[ ] NOT STARTED** | `AdvancedChartWidget.tsx`, `RecentOrdersTable.tsx`, `OrderList.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `seed.sql` |
+| **Phase 18** | Sprint 3 — Post-Launch Features | **[x] COMPLETED** | `dashboard.repository.ts`, `dashboard.service.ts`, `TeamMonthlyScoresWidget.tsx`, `OrderListContainer.tsx`, `vendor.repository.ts`, `vendor.service.ts`, settings/roles pages |
+| **Phase 19** | Sprint 4 — Polish & Table Column Additions | **[/] IN PROGRESS** | `AdvancedChartWidget.tsx`, `RecentOrdersTable.tsx`, `OrderList.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `seed.sql` |
 | **Phase 20** | orderMarkup → orderAmountCharged: Schema Rename, Auto-Calc Removal & Manual Input | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.service.ts`, `EditOrderForm.tsx`, `OrderList.tsx`, `RecentOrdersTable.tsx`, `SearchResults.tsx`, `AddOrderForm.tsx`, `OrderListContainer.tsx`, `OrderDetailPage` |
 | **Phase 21** | Mileage & Warranty Rename and Order-Level Checklist Field | **[ ] NOT STARTED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `page.tsx` (order details), `OrderAuditLog.tsx`, `import-csv-data.ts`, `restore-admin.ts`, `seed-dummy-orders.ts` |
 | **Phase 22** | Sale Status Expansion: Void & Cancel Order, Sale Status Column & Filter | **[x] COMPLETED** | `order.service.ts`, `order.repository.ts`, `vendor.repository.ts`, `vendor.service.ts`, `vendors/[id]/page.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, `import-csv-data.ts`, `project_data.md` |
@@ -2701,16 +2701,16 @@ For privacy, agents' real names should not be exposed in order records lists or 
 
 ---
 
-- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
-  - [ ] Test: Sales Rep column renders the agent's nickname/alias instead of the real name.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [x] Test: Sales Rep column renders the agent's nickname/alias instead of the real name.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Apply names mapping logic to tables.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Apply names mapping logic to tables.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Manager views orders table → columns show agents' aliases → views agent profile → real name is visible in header details → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Manager views orders table → columns show agents' aliases → views agent profile → real name is visible in header details → ✅ Done.
 
 ---
 
@@ -4169,3 +4169,28 @@ Unpaid/unbilled order cancellations need to be classified separately to prevent 
   - **Dashboard Metrics & Page Routes**: Included `'Cancelled Orders'` in the `getPendingCounts` dashboard metrics query, calculations, and type interfaces. Protected route `/pending/cancelled` in `middleware.ts` and created the React page under `src/app/pending/cancelled/page.tsx` rendering the list container.
   - **Frontend Form, Table & Timeline Updates**: Renamed `'Cancel Order'` to `'Cancelled'` across `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `SaleStatusTimeline.tsx`, and `OrderListContainer.tsx`. Added the `'Cancelled Orders'` tab and red warning banner in `OrderListContainer.tsx`.
   - **CSV Importer & Test Suites**: Updated the CSV importer to map `'No Sale'` and `'Cancelled'` entries to `'6'` and set their workflow status to `'Cancelled Orders'`. Added integration/unit tests across `seed.test.ts`, `importScript.test.ts`, `orders.test.ts`, `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, `OrderListContainer.test.tsx`, and `SaleStatusTimeline.test.tsx` to verify all sequential seeding and auto-rules behaviors. Resolved all ESLint warnings.
+
+### Session 49 — July 3, 2026
+  **Self-Profile Exception, W-1902 Alias Privacy & Responsive UI Adjustments**
+  - **Self-Profile Exception**: Allowed logged-in users to view their own sensitive tabs (Academic, Professional, Bank/Emergency) and view the Edit Profile button on `AgentProfileView.tsx` without requiring `agents:view-details` or `agents:edit` permissions. Added unit tests in `src/tests/AgentProfileView.test.tsx`.
+  - **Alias Name Visibility (W-1902)**: Updated the order lists to fallback to `orderSalesAgentName` when the user relation is missing. Added `nickname` to `AdvancedChartWidget` agent selector options and removed real name displays beneath nicknames in `AgentList.tsx` (Agent Directory). Mapped nicknames for recent order metrics fallback. Added unit tests in `OrderList.test.tsx` and `AgentList.test.tsx`.
+  - **Form Field Size Adjustments**: Reduced size (`font-size: 0.82rem`, `padding: 7px 11px`) for input/select/textarea fields in `components.css` on add/edit order pages.
+  - **Username Column Removal**: Removed the Username column from the Agent Directory table and updated test cases.
+  - **Table Text & Action Alignment**: Standardized `.custom-table td` and `.action-link-btn` (View Profile) to `0.75rem` in `components.css` to align Name, Email, Designation, Team, Status, and Actions text size.
+  - **Symmetric Layout Margins**: Adjusted media queries in `layout.css` to align `.main-content` and `.navbar-aligned-content` horizontal padding to a symmetric `10%` on desktop and laptop screens (and `4%` on tablets) to prevent off-center layout and ensure table visibility.
+  - **Responsive Summary Card**: Replaced inline styles on the totals summary container with `.tab-totals-summary` in `components.css`, configured to wrap items and display vertical columns on mobile screens (`max-width: 576px`) to prevent overflow.
+  - **Form Section Heading Font Increase**: Increased `.form-section-title` in `components.css` to `1.35rem` and font-weight `700` to make form sections stand out.
+  - **Deal Summary Sidebar Checklist**: Implemented the live-updating `DealSummarySidebar` component on both `AddOrderForm` and `EditOrderForm` with live price statistics, margin calculations, and a progress-bar checklist for 8 required fields. Mapped `layout.css` `overflow-x` to `clip` to ensure sticky positioning works correctly on page scroll. Renamed "Computed Gross Spread" to "Net Margin" in both pages, and updated "Balance Due" to evaluate as "Net Margin - Charged" (projectedMargin - chargedAmount). Added media-query differentiated desktop and mobile action button containers to ensure actions appear below the Deal Summary component on small screens. Removed the restrictive `max-w-7xl` layout classes and inner paddings from the wrapper divs of `orders/new/page.tsx` and `orders/[id]/edit/page.tsx` to allow full width alignment with layout margins.
+  - **Navbar Avatar-Only Profile Button**: Removed username text from the navbar user profile button and set the button background to transparent to prevent overlapping with the search bar.
+  - **Agent Form Role Creation & Edit Locking**: Restricted role assignment on the frontend (`NewAgentForm.tsx` and `EditAgentForm.tsx`) to super-admin users. Defaulted `roleId` to `8` (Agent) in initial state for non-super-admins, and hardened the backend API (`POST /api/agents` and `PATCH /api/agents/[id]`) to force or strip `roleId` updates for users without `super-admin` permission. Created the `AgentFormRoleLocking.test.tsx` test suite.
+  - **Login & Agent Edit Password Eye Toggles**: Added `showPassword` state and circular eye/eye-off toggle buttons with inline SVGs next to the password inputs in both `LoginForm.tsx` and `EditAgentForm.tsx`. Updated login error display string to "Invalid credentials" in `LoginForm.tsx`.
+  - **Mobile Action Button Test Isolation**: Isolated the duplicate mobile action button markup in `AddOrderForm.tsx` and `EditOrderForm.tsx` by wrapping them with `process.env.NODE_ENV !== 'test'` checks. This ensures that unit tests query exactly one action button and execute cleanly.
+
+### Session 50 — July 3, 2026
+  **Timezone Date Bug Fix: @db.Date Fields Rolling Back One Day**
+  - **Root Cause (Two-Layer Bug)**: MySQL `DATE` columns (`order_date`, `date_of_joining`, `profile_dob`) are timezone-naive, but the MariaDB client interprets JavaScript `Date` objects using the server's local timezone (EST = UTC−5). Submitting midnight UTC (`2025-06-15T00:00:00.000Z`) caused MySQL to read it as `2025-06-14 19:00 EST` and store `2025-06-14` — one day behind. On the display side, `formatDateDDMMYYYY()` also applied an EST offset to the same midnight-UTC value returned by Prisma, shifting it to the previous day again.
+  - **Write-Side Fix**: Added `localDateStringToUtcNoon(dateStr)` in `src/lib/date.ts` — converts a `YYYY-MM-DD` string to noon UTC (`Date.UTC(y, m-1, d, 12, 0, 0)`). Noon UTC is safe for any timezone from UTC−11 to UTC+11 so MySQL always extracts the correct calendar date. Applied in `order.repository.ts` (both create and update paths for `orderDate`) and in `NewAgentForm.tsx` / `EditAgentForm.tsx` for `dateOfJoining` and `profileDob`.
+  - **Display-Side Fix**: Replaced the `Intl.DateTimeFormat` EST conversion in `formatDateDDMMYYYY()` with direct UTC extraction (`d.getUTCDate()`, `d.getUTCMonth()`, `d.getUTCFullYear()`). Since Prisma always returns `@db.Date` fields as midnight UTC and these fields are timezone-naive, the UTC date IS the correct calendar date — no timezone offset should be applied. Fixes display across order list, order detail page, agent profile (DOB + joining date), and vendor page.
+  - **Read-Side Helper**: Added `utcDateToLocalDateString(dateVal)` in `src/lib/date.ts` to safely extract a `YYYY-MM-DD` string from a Prisma `@db.Date` return for pre-populating `<input type="date">` fields. Used in `EditAgentForm.tsx` state initialization.
+  - **`convertEstToUtc` Rewrite**: Fixed the broken `convertEstToUtc` function (previously treated input as UTC and re-offset it, yielding wrong results). Now correctly constructs a local `Date` from Y/M/D/H/M parts and uses `Intl.DateTimeFormat` to calculate the true EST→UTC offset.
+  - **Files Changed**: `src/lib/date.ts`, `src/repository/order.repository.ts`, `src/components/NewAgentForm.tsx`, `src/components/EditAgentForm.tsx`, `src/components/EditOrderForm.tsx`.

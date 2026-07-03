@@ -145,7 +145,7 @@ export async function getMetricsForUser(session: any) {
     metrics.recentOrders = rawOrders.map(o => ({
       crmOrderId: o.crmOrderId,
       customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
-      salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : 'Unknown Agent',
+      salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : (o.orderSalesAgentName || 'Unknown Agent'),
       saleStatus: o.saleStatus,
       orderAmountCharged: o.orderAmountCharged,
       orderRefundAmount: o.orderRefundAmount,

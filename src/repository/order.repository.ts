@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
+import { localDateStringToUtcNoon } from '../lib/date';
 
 export async function createWithCustomerAndCard(
   data: OrderCreateInput,
@@ -127,7 +128,8 @@ export async function createWithCustomerAndCard(
           ? (data.orderAmountCharged || null)
           : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
-        orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
+        // Use noon UTC for @db.Date to avoid EST midnight rollback (2025-06-15T00:00Z → 2025-06-14 EST)
+        orderDate: data.orderDate ? localDateStringToUtcNoon(String(data.orderDate)) : new Date(),
         orderVendorFeedback: data.orderVendorFeedback || 'Positive',
         orderClientFeedback: 'Positive',
         orderResolution: 'Resolved',
@@ -302,7 +304,8 @@ export async function findById(crmOrderId: number) {
 export async function update(crmOrderId: number, data: OrderUpdateInput) {
   const updateData = { ...data };
   if (updateData.orderDate) {
-    updateData.orderDate = new Date(updateData.orderDate);
+    // Use noon UTC for @db.Date to avoid EST midnight rollback
+    updateData.orderDate = localDateStringToUtcNoon(String(updateData.orderDate));
   }
   return await prisma.crmOrders.update({
     where: { crmOrderId },
