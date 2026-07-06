@@ -1,6 +1,7 @@
 import * as orderRepository from '../repository/order.repository';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
+import { hasPermission } from './permission.service';
 
 export async function createOrder(
   data: OrderCreateInput,
@@ -13,9 +14,18 @@ export async function createOrder(
   if (!data.customerEmail) {
     throw new Error('Customer email is required');
   }
-  if (!data.customerNameOncard || !data.customerCardNumber || !data.customerCardExpDate) {
+
+  // W-2404: Accept either multi-card array or legacy flat card fields
+  const hasCardsArray = Array.isArray(data.cards);
+  const hasFlatCard = data.customerNameOncard && data.customerCardNumber && data.customerCardExpDate;
+
+  if (hasCardsArray && data.cards!.length === 0) {
+    throw new Error('At least one payment card is required');
+  }
+  if (!hasCardsArray && !hasFlatCard) {
     throw new Error('Sensitive payment details (name on card, card number, expiry date) are required');
   }
+
   if (!data.orderPart) {
     throw new Error('Order vehicle part description is required');
   }
@@ -27,6 +37,7 @@ export async function createOrder(
 
   return await orderRepository.createWithCustomerAndCard(data, actingUser);
 }
+
 
 export async function getOrderDetails(crmOrderId: number) {
   const order = await orderRepository.findById(crmOrderId);
@@ -45,17 +56,24 @@ export async function updateOrder(
   data: OrderUpdateInput,
   changedByUserId: number,
   changedByName: string,
+  userPermissions: string | null | undefined = 'super-admin'
 ) {
   const existingOrder = await orderRepository.findById(crmOrderId);
   if (!existingOrder) {
     throw new Error('Order not found');
   }
 
+  const canViewPhone = hasPermission(userPermissions, 'customers:view-phone');
+  const canViewEmail = hasPermission(userPermissions, 'customers:view-email');
+  const canViewCards = hasPermission(userPermissions, 'customers:view-cards');
+
   // ─── Separate customer & card fields from the order-level payload ───────────
   const {
     // Customer fields
     customerName,
     customerPhone,
+    customerAlternatePhone1,
+    customerAlternatePhone2,
     customerEmail,
     customerBillingAddress,
     customerShippingAddress,
@@ -66,6 +84,10 @@ export async function updateOrder(
     customerCardCvv,
     customerCardCopyStatus,
     customerCardPhotoStatus,
+    amountToCharge,
+    customerCardCopyImage,
+    customerPhotoIdImage,
+    cards, // New: support list of cards
     // Audit fields
     saleStatusChangeDate,
     // Everything else belongs to the crm_orders row
@@ -285,19 +307,166 @@ export async function updateOrder(
 
   if (existingOrder.customer) {
     checkStrDiff('customerName', existingOrder.customer.customerName, customerName);
-    checkStrDiff('customerPhone', existingOrder.customer.customerPhone, customerPhone);
-    checkStrDiff('customerEmail', existingOrder.customer.customerEmail, customerEmail);
+    if (customerPhone !== undefined && customerPhone !== null && !customerPhone.includes('*')) {
+      checkStrDiff('customerPhone', existingOrder.customer.customerPhone, customerPhone);
+    }
+    if (customerAlternatePhone1 !== undefined && customerAlternatePhone1 !== null && (!customerAlternatePhone1 || !customerAlternatePhone1.includes('*'))) {
+      checkStrDiff('customerAlternatePhone1', existingOrder.customer.customerAlternatePhone1, customerAlternatePhone1);
+    }
+    if (customerAlternatePhone2 !== undefined && customerAlternatePhone2 !== null && (!customerAlternatePhone2 || !customerAlternatePhone2.includes('*'))) {
+      checkStrDiff('customerAlternatePhone2', existingOrder.customer.customerAlternatePhone2, customerAlternatePhone2);
+    }
+    if (customerEmail !== undefined && customerEmail !== null && (!customerEmail || !customerEmail.includes('*'))) {
+      checkStrDiff('customerEmail', existingOrder.customer.customerEmail, customerEmail);
+    }
     checkStrDiff('customerBillingAddress', existingOrder.customer.customerBillingAddress, customerBillingAddress);
     checkStrDiff('customerShippingAddress', existingOrder.customer.customerShippingAddress, customerShippingAddress);
   }
 
-  const firstCard = existingOrder.customer?.cards?.[0];
-  checkStrDiff('customerNameOncard', firstCard?.customerNameOncard ?? null, customerNameOncard);
-  checkStrDiff('customerCardNumber', firstCard?.customerCardNumber ?? null, customerCardNumber);
-  checkStrDiff('customerCardExpDate', firstCard?.customerCardExpDate ?? null, customerCardExpDate);
-  checkStrDiff('customerCardCvv', firstCard?.customerCardCvv ?? null, customerCardCvv);
-  checkStrDiff('customerCardCopyStatus', firstCard?.customerCardCopyStatus ?? 'No', customerCardCopyStatus);
-  checkStrDiff('customerCardPhotoStatus', firstCard?.customerCardPhotoStatus ?? 'No', customerCardPhotoStatus);
+  if (cards !== undefined && Array.isArray(cards)) {
+    const existingCards = existingOrder.customer?.cards || [];
+    const incomingCardIds = cards.map((c: any) => c.cardId).filter(Boolean);
+
+    // 1. Process updates and additions
+    cards.forEach((c: any, index: number) => {
+      const label = ` (Card #${index + 1})`;
+      
+      const checkCardField = (field: string, oldVal: any, newVal: any) => {
+        if (newVal === undefined) return;
+        const oldStr = oldVal !== null && oldVal !== undefined ? String(oldVal) : null;
+        const newStr = newVal !== null && newVal !== undefined ? String(newVal) : null;
+        if ((oldStr || '') !== (newStr || '')) {
+          auditEntries.push({ fieldName: `${field}${label}`, oldValue: oldStr, newValue: newStr });
+        }
+      };
+
+      if (c.cardId) {
+        const existingCard = existingCards.find(ec => ec.cardId === c.cardId);
+        if (existingCard) {
+          checkCardField('customerNameOncard', existingCard.customerNameOncard, c.customerNameOncard);
+          
+          // Card number check: only compare and update if not masked placeholder
+          if (c.customerCardNumber !== undefined && !c.customerCardNumber.includes('*')) {
+            checkCardField('customerCardNumber', existingCard.customerCardNumber, c.customerCardNumber);
+          }
+          
+          checkCardField('customerCardExpDate', existingCard.customerCardExpDate, c.customerCardExpDate);
+          
+          // CVV check: only compare and update if not masked placeholder
+          if (c.customerCardCvv !== undefined && !c.customerCardCvv.includes('*')) {
+            checkCardField('customerCardCvv', existingCard.customerCardCvv, c.customerCardCvv);
+          }
+          
+          checkCardField('customerCardCopyStatus', existingCard.customerCardCopyStatus, c.customerCardCopyStatus);
+          checkCardField('customerCardPhotoStatus', existingCard.customerCardPhotoStatus, c.customerCardPhotoStatus);
+          checkCardField('amountToCharge', existingCard.amountToCharge, c.amountToCharge);
+
+          // Card image changes: compare and audit if we have permission OR if a new image was uploaded
+          if (c.customerCardCopyImage !== undefined) {
+            if (canViewCards || c.customerCardCopyImage) {
+              if (existingCard.customerCardCopyImage !== c.customerCardCopyImage) {
+                const oldImg = existingCard.customerCardCopyImage ? '[Uploaded]' : null;
+                const newImg = c.customerCardCopyImage 
+                  ? (existingCard.customerCardCopyImage ? '[Changed]' : '[Uploaded]') 
+                  : null;
+                auditEntries.push({ fieldName: `customerCardCopyImage${label}`, oldValue: oldImg, newValue: newImg });
+              }
+            }
+          }
+          if (c.customerPhotoIdImage !== undefined) {
+            if (canViewCards || c.customerPhotoIdImage) {
+              if (existingCard.customerPhotoIdImage !== c.customerPhotoIdImage) {
+                const oldImg = existingCard.customerPhotoIdImage ? '[Uploaded]' : null;
+                const newImg = c.customerPhotoIdImage 
+                  ? (existingCard.customerPhotoIdImage ? '[Changed]' : '[Uploaded]') 
+                  : null;
+                auditEntries.push({ fieldName: `customerPhotoIdImage${label}`, oldValue: oldImg, newValue: newImg });
+              }
+            }
+          }
+        }
+      } else {
+        // Newly added card
+        checkCardField('customerNameOncard', null, c.customerNameOncard);
+        checkCardField('customerCardNumber', null, c.customerCardNumber);
+        checkCardField('customerCardExpDate', null, c.customerCardExpDate);
+        checkCardField('customerCardCvv', null, c.customerCardCvv);
+        checkCardField('customerCardCopyStatus', 'No', c.customerCardCopyStatus || 'No');
+        checkCardField('customerCardPhotoStatus', 'No', c.customerCardPhotoStatus || 'No');
+        checkCardField('amountToCharge', null, c.amountToCharge);
+
+        if (c.customerCardCopyImage) {
+          auditEntries.push({ fieldName: `customerCardCopyImage${label}`, oldValue: null, newValue: '[Uploaded]' });
+        }
+        if (c.customerPhotoIdImage) {
+          auditEntries.push({ fieldName: `customerPhotoIdImage${label}`, oldValue: null, newValue: '[Uploaded]' });
+        }
+      }
+    });
+
+    // 2. Process deletions
+    existingCards.forEach((existingCard, index: number) => {
+      if (!incomingCardIds.includes(existingCard.cardId)) {
+        const label = ` (Card #${index + 1})`;
+        const addDeletionEntry = (field: string, oldVal: any) => {
+          const oldStr = oldVal !== null && oldVal !== undefined ? String(oldVal) : null;
+          auditEntries.push({ fieldName: `${field}${label}`, oldValue: oldStr, newValue: null });
+        };
+
+        addDeletionEntry('customerNameOncard', existingCard.customerNameOncard);
+        addDeletionEntry('customerCardNumber', existingCard.customerCardNumber);
+        addDeletionEntry('addDeletionEntryExpDate', existingCard.customerCardExpDate);
+        addDeletionEntry('customerCardCvv', existingCard.customerCardCvv);
+        addDeletionEntry('customerCardCopyStatus', existingCard.customerCardCopyStatus);
+        addDeletionEntry('customerCardPhotoStatus', existingCard.customerCardPhotoStatus);
+        addDeletionEntry('amountToCharge', existingCard.amountToCharge);
+
+        if (existingCard.customerCardCopyImage) {
+          auditEntries.push({ fieldName: `customerCardCopyImage${label}`, oldValue: '[Uploaded]', newValue: null });
+        }
+        if (existingCard.customerPhotoIdImage) {
+          auditEntries.push({ fieldName: `customerPhotoIdImage${label}`, oldValue: '[Uploaded]', newValue: null });
+        }
+      }
+    });
+  } else {
+    // Legacy fallback
+    const firstCard = existingOrder.customer?.cards?.[0];
+    checkStrDiff('customerNameOncard', firstCard?.customerNameOncard ?? null, customerNameOncard);
+    if (customerCardNumber !== undefined && customerCardNumber !== null && !customerCardNumber.includes('*')) {
+      checkStrDiff('customerCardNumber', firstCard?.customerCardNumber ?? null, customerCardNumber);
+    }
+    checkStrDiff('customerCardExpDate', firstCard?.customerCardExpDate ?? null, customerCardExpDate);
+    if (customerCardCvv !== undefined && customerCardCvv !== null && !customerCardCvv.includes('*')) {
+      checkStrDiff('customerCardCvv', firstCard?.customerCardCvv ?? null, customerCardCvv);
+    }
+    checkStrDiff('customerCardCopyStatus', firstCard?.customerCardCopyStatus ?? 'No', customerCardCopyStatus);
+    checkStrDiff('customerCardPhotoStatus', firstCard?.customerCardPhotoStatus ?? 'No', customerCardPhotoStatus);
+    checkStrDiff('amountToCharge', firstCard?.amountToCharge ?? null, amountToCharge);
+
+    if (customerCardCopyImage !== undefined) {
+      if (canViewCards || customerCardCopyImage) {
+        if (firstCard?.customerCardCopyImage !== customerCardCopyImage) {
+          const oldImg = firstCard?.customerCardCopyImage ? '[Uploaded]' : null;
+          const newImg = customerCardCopyImage 
+            ? (firstCard?.customerCardCopyImage ? '[Changed]' : '[Uploaded]') 
+            : null;
+          auditEntries.push({ fieldName: 'customerCardCopyImage', oldValue: oldImg, newValue: newImg });
+        }
+      }
+    }
+    if (customerPhotoIdImage !== undefined) {
+      if (canViewCards || customerPhotoIdImage) {
+        if (firstCard?.customerPhotoIdImage !== customerPhotoIdImage) {
+          const oldImg = firstCard?.customerPhotoIdImage ? '[Uploaded]' : null;
+          const newImg = customerPhotoIdImage 
+            ? (firstCard?.customerPhotoIdImage ? '[Changed]' : '[Uploaded]') 
+            : null;
+          auditEntries.push({ fieldName: 'customerPhotoIdImage', oldValue: oldImg, newValue: newImg });
+        }
+      }
+    }
+  }
 
   if (auditEntries.length > 0) {
     await orderRepository.createAuditLogEntries(crmOrderId, auditEntries, changedByUserId, changedByName);
@@ -339,8 +508,10 @@ export async function updateOrder(
   // ─── Persist customer fields ──────────────────────────────────────────────────
   const customerUpdate: Record<string, unknown> = {};
   if (customerName !== undefined) customerUpdate.customerName = customerName;
-  if (customerPhone !== undefined) customerUpdate.customerPhone = customerPhone;
-  if (customerEmail !== undefined) customerUpdate.customerEmail = customerEmail;
+  if (customerPhone !== undefined && (!customerPhone || !customerPhone.includes('*'))) customerUpdate.customerPhone = customerPhone;
+  if (customerAlternatePhone1 !== undefined && (!customerAlternatePhone1 || !customerAlternatePhone1.includes('*'))) customerUpdate.customerAlternatePhone1 = customerAlternatePhone1;
+  if (customerAlternatePhone2 !== undefined && (!customerAlternatePhone2 || !customerAlternatePhone2.includes('*'))) customerUpdate.customerAlternatePhone2 = customerAlternatePhone2;
+  if (customerEmail !== undefined && (!customerEmail || !customerEmail.includes('*'))) customerUpdate.customerEmail = customerEmail;
   if (customerBillingAddress !== undefined) customerUpdate.customerBillingAddress = customerBillingAddress;
   if (customerShippingAddress !== undefined) customerUpdate.customerShippingAddress = customerShippingAddress;
 
@@ -353,37 +524,112 @@ export async function updateOrder(
     });
   }
 
-  // ─── Persist card fields (first card only) ───────────────────────────────────
-  const cardUpdate: Record<string, any> = {};
-  if (customerNameOncard !== undefined) cardUpdate.customerNameOncard = customerNameOncard;
-  if (customerCardNumber !== undefined) cardUpdate.customerCardNumber = customerCardNumber;
-  if (customerCardExpDate !== undefined) cardUpdate.customerCardExpDate = customerCardExpDate;
-  if (customerCardCvv !== undefined) cardUpdate.customerCardCvv = customerCardCvv;
-  if (customerCardCopyStatus !== undefined) cardUpdate.customerCardCopyStatus = customerCardCopyStatus;
-  if (customerCardPhotoStatus !== undefined) cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus;
-
-  if (Object.keys(cardUpdate).length > 0) {
+  // ─── Persist card fields ───────────────────────────────────
+  if (cards !== undefined && Array.isArray(cards)) {
     const { prisma } = await import('../lib/db');
-    if (existingOrder.customer?.cards?.length) {
-      const firstCardId = existingOrder.customer.cards[0].cardId;
-      cardUpdate.customerCardUpdated = new Date();
-      await prisma.crmCustomerCards.update({
-        where: { cardId: firstCardId },
-        data: cardUpdate,
-      });
-    } else if (
-      existingOrder.orderCustomerId &&
-      (customerCardNumber || customerNameOncard || customerCardExpDate || customerCardCvv ||
-       customerCardCopyStatus === 'Yes' || customerCardPhotoStatus === 'Yes')
-    ) {
-      cardUpdate.cardCustomerId = existingOrder.orderCustomerId;
-      cardUpdate.customerCardCopyStatus = customerCardCopyStatus || 'No';
-      cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus || 'No';
-      cardUpdate.customerCardCreatedAt = new Date();
-      cardUpdate.customerCardUpdated = new Date();
-      await prisma.crmCustomerCards.create({
-        data: cardUpdate as any,
-      });
+    if (existingOrder.orderCustomerId) {
+      // 1. Delete cards that are no longer in the list
+      const incomingCardIds = cards.map((c: any) => c.cardId).filter(Boolean);
+      const existingCardIds = existingOrder.customer?.cards.map((c: any) => c.cardId) || [];
+      const cardIdsToDelete = existingCardIds.filter(id => !incomingCardIds.includes(id));
+      if (cardIdsToDelete.length > 0) {
+        await prisma.crmCustomerCards.deleteMany({
+          where: { cardId: { in: cardIdsToDelete } }
+        });
+      }
+
+      // 2. Update existing cards and create new ones
+      for (const c of cards) {
+        const cardData = {
+          customerNameOncard: c.customerNameOncard,
+          customerCardExpDate: c.customerCardExpDate,
+          customerCardCopyStatus: c.customerCardCopyStatus || 'No',
+          customerCardPhotoStatus: c.customerCardPhotoStatus || 'No',
+          amountToCharge: c.amountToCharge || null,
+          customerCardUpdated: new Date()
+        } as Record<string, any>;
+
+        if (c.customerCardNumber && !c.customerCardNumber.includes('*')) cardData.customerCardNumber = c.customerCardNumber;
+        if (c.customerCardCvv && !c.customerCardCvv.includes('*')) cardData.customerCardCvv = c.customerCardCvv;
+
+        if (c.cardId) {
+          const existingCard = existingOrder.customer?.cards.find(ec => ec.cardId === c.cardId);
+          
+          // Only update images if truthy (meaning a new file was uploaded), keeping original otherwise
+          if (canViewCards) {
+            cardData.customerCardCopyImage = c.customerCardCopyImage || null;
+            cardData.customerPhotoIdImage = c.customerPhotoIdImage || null;
+          } else {
+            if (c.customerCardCopyImage) {
+              cardData.customerCardCopyImage = c.customerCardCopyImage;
+            } else if (existingCard) {
+              cardData.customerCardCopyImage = existingCard.customerCardCopyImage;
+            }
+            
+            if (c.customerPhotoIdImage) {
+              cardData.customerPhotoIdImage = c.customerPhotoIdImage;
+            } else if (existingCard) {
+              cardData.customerPhotoIdImage = existingCard.customerPhotoIdImage;
+            }
+          }
+
+          await prisma.crmCustomerCards.update({
+            where: { cardId: c.cardId },
+            data: cardData,
+          });
+        } else {
+          // New card copy/photo ID
+          cardData.customerCardCopyImage = c.customerCardCopyImage || null;
+          cardData.customerPhotoIdImage = c.customerPhotoIdImage || null;
+
+          await prisma.crmCustomerCards.create({
+            data: {
+              ...cardData,
+              cardCustomerId: existingOrder.orderCustomerId,
+              customerCardCreatedAt: new Date(),
+            } as any,
+          });
+        }
+      }
+    }
+  } else {
+    // Legacy fallback (first card only)
+    const cardUpdate: Record<string, any> = {};
+    if (customerNameOncard !== undefined) cardUpdate.customerNameOncard = customerNameOncard;
+    if (customerCardNumber !== undefined && customerCardNumber !== null && !customerCardNumber.includes('*')) cardUpdate.customerCardNumber = customerCardNumber;
+    if (customerCardExpDate !== undefined) cardUpdate.customerCardExpDate = customerCardExpDate;
+    if (customerCardCvv !== undefined && customerCardCvv !== null && !customerCardCvv.includes('*')) cardUpdate.customerCardCvv = customerCardCvv;
+    if (customerCardCopyStatus !== undefined) cardUpdate.customerCardCopyStatus = customerCardCopyStatus;
+    if (customerCardPhotoStatus !== undefined) cardUpdate.customerCardPhotoStatus = customerCardPhotoStatus;
+    if (amountToCharge !== undefined) cardUpdate.amountToCharge = amountToCharge;
+    
+    const { prisma } = await import('../lib/db');
+    const firstCard = existingOrder.customer?.cards?.[0];
+
+    if (firstCard) {
+      if (canViewCards) {
+        cardUpdate.customerCardCopyImage = customerCardCopyImage !== undefined ? customerCardCopyImage : firstCard.customerCardCopyImage;
+        cardUpdate.customerPhotoIdImage = customerPhotoIdImage !== undefined ? customerPhotoIdImage : firstCard.customerPhotoIdImage;
+      } else {
+        if (customerCardCopyImage) {
+          cardUpdate.customerCardCopyImage = customerCardCopyImage;
+        } else {
+          cardUpdate.customerCardCopyImage = firstCard.customerCardCopyImage;
+        }
+        if (customerPhotoIdImage) {
+          cardUpdate.customerPhotoIdImage = customerPhotoIdImage;
+        } else {
+          cardUpdate.customerPhotoIdImage = firstCard.customerPhotoIdImage;
+        }
+      }
+
+      if (Object.keys(cardUpdate).length > 0) {
+        cardUpdate.customerCardUpdated = new Date();
+        await prisma.crmCustomerCards.update({
+          where: { cardId: firstCard.cardId },
+          data: cardUpdate,
+        });
+      }
     }
   }
 

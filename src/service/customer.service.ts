@@ -21,6 +21,7 @@ export async function updateCustomer(customerId: number, data: Prisma.CrmCustome
  * Fetch cards for a customer, conditionally masking sensitive card number and CVV.
  * Masked format: **** **** **** 1234 (replaces everything except last 4 digits)
  * Masked CVV: ***
+ * Note: Base64 image fields are never returned by this function (excluded at DB query level).
  */
 export async function getCards(customerId: number, maskSensitive: boolean) {
   const cards = await customerRepository.findCardsByCustomerId(customerId);
@@ -40,3 +41,12 @@ export async function getCards(customerId: number, maskSensitive: boolean) {
     };
   });
 }
+
+/**
+ * Fetch a single card WITH full Base64 image fields.
+ * Should only be called from a permission-guarded single-record endpoint.
+ */
+export async function getCardById(cardId: number) {
+  return customerRepository.findCardById(cardId);
+}
+

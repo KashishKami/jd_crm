@@ -1,18 +1,36 @@
+export interface CardInput {
+  customerNameOncard: string;
+  customerCardNumber: string;
+  customerCardExpDate: string;
+  customerCardCvv?: string | null;
+  customerCardCopyStatus?: string | null;
+  customerCardPhotoStatus?: string | null;
+  amountToCharge?: string | null;
+  customerCardCopyImage?: string | null;
+  customerPhotoIdImage?: string | null;
+}
+
 export interface OrderCreateInput {
   // Customer Info
   customerName: string;
   customerPhone?: string;
+  customerAlternatePhone1?: string | null;
+  customerAlternatePhone2?: string | null;
   customerEmail: string;
   customerBillingAddress?: string;
   customerShippingAddress?: string;
 
-  // Customer Card Details
-  customerNameOncard: string;
-  customerCardNumber: string;
-  customerCardExpDate: string;
+  // Multi-card support (preferred path — replaces flat card fields below)
+  cards?: CardInput[];
+
+  // Legacy single-card flat fields (kept for backward compat with existing callers)
+  customerNameOncard?: string;
+  customerCardNumber?: string;
+  customerCardExpDate?: string;
   customerCardCvv?: string;
   customerCardCopyStatus?: string;
   customerCardPhotoStatus?: string;
+  amountToCharge?: string | null;
 
   // Order Details
   orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
@@ -82,6 +100,8 @@ export interface OrderUpdateInput {
   // --- Customer fields (written to crm_customers via separate update) ---
   customerName?: string;
   customerPhone?: string | null;
+  customerAlternatePhone1?: string | null;
+  customerAlternatePhone2?: string | null;
   customerEmail?: string;
   customerBillingAddress?: string | null;
   customerShippingAddress?: string | null;
@@ -93,6 +113,21 @@ export interface OrderUpdateInput {
   customerCardCvv?: string | null;
   customerCardCopyStatus?: string;
   customerCardPhotoStatus?: string;
+  amountToCharge?: string | null;
+  customerCardCopyImage?: string | null;
+  customerPhotoIdImage?: string | null;
+  cards?: Array<{
+    cardId?: number;
+    customerNameOncard?: string;
+    customerCardNumber?: string;
+    customerCardExpDate?: string;
+    customerCardCvv?: string | null;
+    customerCardCopyStatus?: string;
+    customerCardPhotoStatus?: string;
+    amountToCharge?: string | null;
+    customerCardCopyImage?: string | null;
+    customerPhotoIdImage?: string | null;
+  }>;
 }
 
 export interface OrderFilters {

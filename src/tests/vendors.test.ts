@@ -376,4 +376,91 @@ describe('Vendor Management Integration Tests', () => {
       await prisma.crmCustomers.deleteMany({ where: { customerEmail: 'vendor_cust@example.com' } });
     });
   });
+
+  describe('POST /api/vendors extended fields', () => {
+    it('should create a vendor with country, state, payment mode, and alternate phones', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Admin User',
+          userPermissions: 'vendors:create',
+        },
+      });
+
+      const { POST } = await import('../app/api/vendors/route');
+      const req = new Request('http://localhost/api/vendors', {
+        method: 'POST',
+        body: JSON.stringify({
+          vendorName: 'Extended Vendor',
+          vendorPhone: '111-222-3333',
+          vendorAlternatePhone1: '444-555-6666',
+          vendorAlternatePhone2: '777-888-9999',
+          vendorContactPerson: 'Bob Ross',
+          vendorCountry: 'US',
+          vendorState: 'California',
+          vendorPaymentMode: '["Customer Card","Link"]',
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+
+      expect(data.vendorCountry).toBe('US');
+      expect(data.vendorState).toBe('California');
+      expect(data.vendorPaymentMode).toBe('["Customer Card","Link"]');
+      expect(data.vendorAlternatePhone1).toBe('444-555-6666');
+      expect(data.vendorAlternatePhone2).toBe('777-888-9999');
+
+      // Cleanup
+      await prisma.crmVendors.deleteMany({
+        where: { vendorName: 'Extended Vendor' },
+      });
+    });
+  });
+
+  describe('PATCH /api/vendors/:id extended fields', () => {
+    it('should update a vendor with alternate phones, country, state, and payment modes', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Admin User',
+          userPermissions: 'vendors:edit',
+        },
+      });
+
+      const { PATCH } = await import('../app/api/vendors/[id]/route');
+      const req = new Request(`http://localhost/api/vendors/${testVendor.vendorId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          vendorAlternatePhone1: '999-111-2222',
+          vendorAlternatePhone2: '888-222-3333',
+          vendorCountry: 'Canada',
+          vendorState: 'Ontario',
+          vendorPaymentMode: '["Company Card"]',
+        }),
+      });
+
+      const res = await PATCH(req, { params: { id: String(testVendor.vendorId) } });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      expect(data.vendorAlternatePhone1).toBe('999-111-2222');
+      expect(data.vendorAlternatePhone2).toBe('888-222-3333');
+      expect(data.vendorCountry).toBe('Canada');
+      expect(data.vendorState).toBe('Ontario');
+      expect(data.vendorPaymentMode).toBe('["Company Card"]');
+
+      // Verify DB persistence
+      const dbVendor = await prisma.crmVendors.findUnique({
+        where: { vendorId: testVendor.vendorId },
+      });
+      expect(dbVendor?.vendorAlternatePhone1).toBe('999-111-2222');
+      expect(dbVendor?.vendorAlternatePhone2).toBe('888-222-3333');
+      expect(dbVendor?.vendorCountry).toBe('Canada');
+      expect(dbVendor?.vendorState).toBe('Ontario');
+      expect(dbVendor?.vendorPaymentMode).toBe('["Company Card"]');
+    });
+  });
 });
+

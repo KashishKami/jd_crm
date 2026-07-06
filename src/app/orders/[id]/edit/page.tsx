@@ -11,6 +11,30 @@ export const metadata = {
   description: 'Modify sales order parameters, customer contact details, and allocations',
 };
 
+// Mask helpers
+function maskCardNumber(num: string | null | undefined): string {
+  if (!num) return '';
+  const clean = num.replace(/\s+/g, '');
+  if (clean.length < 4) return '****';
+  return `**** **** **** ${clean.slice(-4)}`;
+}
+
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  if (phone.length < 4) return '***';
+  return `***-***-${phone.slice(-4)}`;
+}
+
+function maskEmail(email: string | null | undefined): string {
+  if (!email) return '';
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***@***.***';
+  const name = parts[0];
+  const domain = parts[1];
+  if (name.length <= 2) return `${name[0]}***@${domain}`;
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
 export default async function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
 
@@ -66,7 +90,33 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     notFound();
   }
 
+  const canViewPhone = hasPermission(permissions, 'customers:view-phone');
+  const canViewEmail = hasPermission(permissions, 'customers:view-email');
   const canViewCards = hasPermission(permissions, 'customers:view-cards');
+
+  if (order && order.customer) {
+    if (!canViewPhone) {
+      order.customer.customerPhone = maskPhone(order.customer.customerPhone);
+      if (order.customer.customerAlternatePhone1) {
+        order.customer.customerAlternatePhone1 = maskPhone(order.customer.customerAlternatePhone1);
+      }
+      if (order.customer.customerAlternatePhone2) {
+        order.customer.customerAlternatePhone2 = maskPhone(order.customer.customerAlternatePhone2);
+      }
+    }
+    if (!canViewEmail) {
+      order.customer.customerEmail = maskEmail(order.customer.customerEmail);
+    }
+    if (!canViewCards && order.customer.cards) {
+      order.customer.cards = order.customer.cards.map((c) => ({
+        ...c,
+        customerCardNumber: maskCardNumber(c.customerCardNumber),
+        customerCardCvv: c.customerCardCvv ? '***' : null,
+        customerCardCopyImage: null,
+        customerPhotoIdImage: null,
+      }));
+    }
+  }
 
   return (
     <div className="w-full">

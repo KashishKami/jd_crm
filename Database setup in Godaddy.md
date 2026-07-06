@@ -126,4 +126,49 @@ npm run import:csv
 
 ---
 
-Use local-to-remote SQL Dump (Fastest): Run the ingestion script locally against your local MySQL Docker container (which takes just seconds because network latency is zero). Once the local database is populated, export a compressed SQL dump file (using mysqldump or phpMyAdmin) and import/run that SQL file directly on your GoDaddy database. This uploads the entire dataset in a single compressed file.
+
+## Prisma P3014 Error — Shadow Database Permission Issue when using prisma migrate dev in GoDaddy database
+
+This error occurs because **Prisma Migrate requires permission to create a temporary "shadow database"** to safely calculate and validate migrations. GoDaddy shared hosting typically **does not grant `CREATE DATABASE` privileges** to regular users.
+
+### The Fix Options
+
+**Option 1: Use `--create-only` + `db execute` (Recommended for shared hosts)**
+
+Instead of `migrate dev`, use a two-step approach:
+```bash
+# Step 1: Generate the SQL without applying
+npx prisma migrate dev --create-only --name your_migration_name
+
+# Step 2: Apply it directly (no shadow DB needed)
+npx prisma db execute --file prisma/migrations/<timestamp>_your_migration_name/migration.sql --schema prisma/schema.prisma
+```
+
+**Option 2: Use `migrate deploy` instead of `migrate dev`**
+
+`migrate deploy` does **not** create a shadow database — it simply applies pending migrations:
+```bash
+npx prisma migrate deploy
+```
+> Best for production/shared hosts. Use `migrate dev` locally, `migrate deploy` on the server.
+
+**Option 3: Provide a `shadowDatabaseUrl` in your schema**
+
+If you can create a second database on GoDaddy, add it to `prisma/schema.prisma`:
+```prisma
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+```
+Then set `SHADOW_DATABASE_URL` in your `.env` pointing to that second DB.
+
+---
+
+### What Actually Worked for You
+
+You can see from the last command output that it succeeded against **`127.0.0.1:3306`** (your local MySQL). The GoDaddy remote DB doesn't have CREATE DATABASE permissions — so the workflow is:
+
+1. ✅ Run `migrate dev` **locally** to generate & test migrations
+2. ✅ Run `migrate deploy` on the **GoDaddy/remote** server to apply them without needing a shadow DB

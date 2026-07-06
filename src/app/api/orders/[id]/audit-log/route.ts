@@ -33,13 +33,31 @@ export async function GET(
 
     // Check if user has permission to view unmasked card details
     const canViewCards = hasPermission(session.user.userPermissions, 'customers:view-cards');
+    const canViewPhone = hasPermission(session.user.userPermissions, 'customers:view-phone');
+    const canViewEmail = hasPermission(session.user.userPermissions, 'customers:view-email');
 
-    // Dynamic masking helper
+    // Dynamic masking helpers
     const maskCardNumber = (num: string | null) => {
       if (!num) return null;
       const clean = num.replace(/\s+/g, '');
       const last4 = clean.slice(-4);
       return `**** **** **** ${last4}`;
+    };
+
+    const maskPhone = (phone: string | null | undefined): string => {
+      if (!phone) return '—';
+      if (phone.length < 4) return '***';
+      return `***-***-${phone.slice(-4)}`;
+    };
+
+    const maskEmail = (email: string | null | undefined): string => {
+      if (!email) return '—';
+      const parts = email.split('@');
+      if (parts.length !== 2) return '***@***.***';
+      const name = parts[0];
+      const domain = parts[1];
+      if (name.length <= 2) return `${name[0]}***@${domain}`;
+      return `${name.slice(0, 2)}***@${domain}`;
     };
 
     const processedLogs = rawLogs.map((log: any) => {
@@ -55,12 +73,29 @@ export async function GET(
       };
 
       if (!canViewCards) {
-        if (log.fieldName === 'customerCardNumber') {
+        if (log.fieldName && log.fieldName.startsWith('customerCardNumber')) {
           processed.oldValue = maskCardNumber(log.oldValue);
           processed.newValue = maskCardNumber(log.newValue);
-        } else if (log.fieldName === 'customerCardCvv') {
+        } else if (log.fieldName && log.fieldName.startsWith('customerCardCvv')) {
           processed.oldValue = log.oldValue ? '***' : null;
           processed.newValue = log.newValue ? '***' : null;
+        } else if (log.fieldName && (log.fieldName.startsWith('customerCardCopyImage') || log.fieldName.startsWith('customerPhotoIdImage'))) {
+          processed.oldValue = log.oldValue ? '[Uploaded]' : null;
+          processed.newValue = log.newValue ? '[Uploaded]' : null;
+        }
+      }
+
+      if (!canViewPhone) {
+        if (log.fieldName === 'customerPhone' || log.fieldName === 'customerAlternatePhone1' || log.fieldName === 'customerAlternatePhone2') {
+          processed.oldValue = log.oldValue ? maskPhone(log.oldValue) : null;
+          processed.newValue = log.newValue ? maskPhone(log.newValue) : null;
+        }
+      }
+
+      if (!canViewEmail) {
+        if (log.fieldName === 'customerEmail') {
+          processed.oldValue = log.oldValue ? maskEmail(log.oldValue) : null;
+          processed.newValue = log.newValue ? maskEmail(log.newValue) : null;
         }
       }
 

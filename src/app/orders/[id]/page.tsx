@@ -12,6 +12,7 @@ import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
 import DeleteOrderButton from '../../../components/DeleteOrderButton';
 import OrderViewLog from '../../../components/OrderViewLog';
 import OrderAuditLog from '../../../components/OrderAuditLog';
+import LedgerCardItem from '../../../components/LedgerCardItem';
 
 
 export const metadata = {
@@ -97,6 +98,30 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
   const canViewEmail = hasPermission(permissions, 'customers:view-email');
   const canViewCards = hasPermission(permissions, 'customers:view-cards');
+
+  if (order && order.customer) {
+    if (!canViewPhone) {
+      order.customer.customerPhone = maskPhone(order.customer.customerPhone);
+      if (order.customer.customerAlternatePhone1) {
+        order.customer.customerAlternatePhone1 = maskPhone(order.customer.customerAlternatePhone1);
+      }
+      if (order.customer.customerAlternatePhone2) {
+        order.customer.customerAlternatePhone2 = maskPhone(order.customer.customerAlternatePhone2);
+      }
+    }
+    if (!canViewEmail) {
+      order.customer.customerEmail = maskEmail(order.customer.customerEmail);
+    }
+    if (!canViewCards && order.customer.cards) {
+      order.customer.cards = order.customer.cards.map((c) => ({
+        ...c,
+        customerCardNumber: maskCardNumber(c.customerCardNumber),
+        customerCardCvv: c.customerCardCvv ? '***' : null,
+        customerCardCopyImage: null,
+        customerPhotoIdImage: null,
+      }));
+    }
+  }
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
   const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
@@ -164,34 +189,55 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
     }
   }
-
-  if (!canViewCards && auditLogs.length > 0) {
-    const maskCardNumber = (num: string | null) => {
+  
+  if (auditLogs.length > 0) {
+    const maskCardNumHelper = (num: string | null) => {
       if (!num) return null;
       const clean = num.replace(/\s+/g, '');
       const last4 = clean.slice(-4);
       return `**** **** **** ${last4}`;
     };
     auditLogs = auditLogs.map((log: any) => {
-      if (log.fieldName === 'customerCardNumber') {
-        return {
-          ...log,
-          oldValue: maskCardNumber(log.oldValue),
-          newValue: maskCardNumber(log.newValue),
-        };
-      } else if (log.fieldName === 'customerCardCvv') {
-        return {
-          ...log,
-          oldValue: log.oldValue ? '***' : null,
-          newValue: log.newValue ? '***' : null,
-        };
+      let oldValue = log.oldValue;
+      let newValue = log.newValue;
+
+      if (!canViewCards) {
+        if (log.fieldName && log.fieldName.startsWith('customerCardNumber')) {
+          oldValue = maskCardNumHelper(oldValue);
+          newValue = maskCardNumHelper(newValue);
+        } else if (log.fieldName && log.fieldName.startsWith('customerCardCvv')) {
+          oldValue = oldValue ? '***' : null;
+          newValue = newValue ? '***' : null;
+        } else if (log.fieldName && (log.fieldName.startsWith('customerCardCopyImage') || log.fieldName.startsWith('customerPhotoIdImage'))) {
+          oldValue = oldValue ? '[Uploaded]' : null;
+          newValue = newValue ? '[Uploaded]' : null;
+        }
       }
-      return log;
+
+      if (!canViewPhone) {
+        if (log.fieldName === 'customerPhone' || log.fieldName === 'customerAlternatePhone1' || log.fieldName === 'customerAlternatePhone2') {
+          oldValue = oldValue ? maskPhone(oldValue) : null;
+          newValue = newValue ? maskPhone(newValue) : null;
+        }
+      }
+
+      if (!canViewEmail) {
+        if (log.fieldName === 'customerEmail') {
+          oldValue = oldValue ? maskEmail(oldValue) : null;
+          newValue = newValue ? maskEmail(newValue) : null;
+        }
+      }
+
+      return {
+        ...log,
+        oldValue,
+        newValue,
+      };
     });
   }
 
-  const customerPhoneDisplay = canViewPhone ? order.customer.customerPhone : maskPhone(order.customer.customerPhone);
-  const customerEmailDisplay = canViewEmail ? order.customer.customerEmail : maskEmail(order.customer.customerEmail);
+  const customerPhoneDisplay = order.customer.customerPhone;
+  const customerEmailDisplay = order.customer.customerEmail;
 
   // Status labels
   const saleStatuses: Record<string, string> = {
@@ -264,6 +310,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span className="info-label">Phone Number</span>
                 <span className="info-value font-mono">{customerPhoneDisplay}</span>
               </div>
+              {order.customer.customerAlternatePhone1 && (
+                <div className="info-group">
+                  <span className="info-label">Alternate Phone 1</span>
+                  <span className="info-value font-mono">
+                    {order.customer.customerAlternatePhone1}
+                  </span>
+                </div>
+              )}
+              {order.customer.customerAlternatePhone2 && (
+                <div className="info-group">
+                  <span className="info-label">Alternate Phone 2</span>
+                  <span className="info-value font-mono">
+                    {order.customer.customerAlternatePhone2}
+                  </span>
+                </div>
+              )}
               <div className="info-group" style={{ gridColumn: 'span 2' }}>
                 <span className="info-label">Billing Address</span>
                 <span className="info-value">{order.customer.customerBillingAddress || '—'}</span>
@@ -355,48 +417,29 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
             {order.customer.cards.length === 0 ? (
               <p className="text-xs text-slate-400">No payment card recorded for this customer.</p>
-            ) : (
-              <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '16px' }}>
-                <div className="info-group">
-                  <span className="info-label">Cardholder</span>
-                  <span className="info-value font-mono">{order.customer.cards[0].customerNameOncard}</span>
-                </div>
-                <div className="info-group">
-                  <span className="info-label">Card Number</span>
-                  <span className="info-value font-mono">
-                    {canViewCards ? order.customer.cards[0].customerCardNumber : maskCardNumber(order.customer.cards[0].customerCardNumber)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="info-group">
-                    <span className="info-label">Expiry</span>
-                    <span className="info-value font-mono">{order.customer.cards[0].customerCardExpDate}</span>
-                  </div>
-                  <div className="info-group">
-                    <span className="info-label">CVV</span>
-                    <span className="info-value font-mono">
-                      {canViewCards ? order.customer.cards[0].customerCardCvv || '—' : '***'}
-                    </span>
-                  </div>
-                </div>
+) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {order.customer.cards.map((card, idx) => {
+                  const sanitizedCard = {
+                    ...card,
+                    customerCardCopyImage: canViewCards ? card.customerCardCopyImage : null,
+                    customerPhotoIdImage: canViewCards ? card.customerPhotoIdImage : null,
+                  };
+                  return (
+                    <LedgerCardItem
+                      key={card.cardId}
+                      card={sanitizedCard}
+                      idx={idx}
+                      canViewCards={canViewCards}
+                    />
+                  );
+                })}
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+            <div className="grid grid-cols-1 gap-2 pt-4" style={{ borderTop: '1px solid var(--border-color)', marginTop: '24px' }}>
               <div className="info-group">
-                <span className="info-label" style={{ fontSize: '10px' }}>Card Copy</span>
-                <span className={`status-dot-badge ${order.customer.cards[0]?.customerCardCopyStatus === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
-                  {order.customer.cards[0]?.customerCardCopyStatus === 'Yes' ? 'Yes' : 'No'}
-                </span>
-              </div>
-              <div className="info-group">
-                <span className="info-label" style={{ fontSize: '10px' }}>Photo ID</span>
-                <span className={`status-dot-badge ${order.customer.cards[0]?.customerCardPhotoStatus === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
-                  {order.customer.cards[0]?.customerCardPhotoStatus === 'Yes' ? 'Yes' : 'No'}
-                </span>
-              </div>
-              <div className="info-group">
-                <span className="info-label" style={{ fontSize: '10px' }}>Checklist</span>
+                <span className="info-label" style={{ fontSize: '10px' }}>Checklist by backend</span>
                 <span className={`status-dot-badge ${order.orderChecklist === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
                   {order.orderChecklist === 'Yes' ? 'Yes' : 'No'}
                 </span>

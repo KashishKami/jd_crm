@@ -346,4 +346,49 @@ describe('AddOrderForm Unit Tests', () => {
       expect(options.map(o => o.text)).toEqual(['Residential', 'Commercial']);
     });
   });
+
+  describe('Phase 24: Alternate Phones, Multi-Card, Image Upload, and Label Renames', () => {
+    it('should render customerAlternatePhone1 and customerAlternatePhone2 inputs', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      expect(screen.getByLabelText(/alternate phone 1/i)).toBeDefined();
+      expect(screen.getByLabelText(/alternate phone 2/i)).toBeDefined();
+    });
+
+    it('should support adding and removing multiple card blocks and show amountToCharge when multiple cards exist', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      
+      // Initially, one card block exists, and amountToCharge input is not visible
+      expect(screen.queryByLabelText(/amount to charge/i)).toBeNull();
+      
+      // Click Add Another Card
+      const addBtn = screen.getByText(/\+ add another card/i);
+      fireEvent.click(addBtn);
+
+      // Now amountToCharge inputs are rendered for the cards
+      const amountInputs = screen.getAllByLabelText(/amount to charge/i);
+      expect(amountInputs.length).toBe(2);
+
+      // Remove the second card
+      const removeBtns = screen.getAllByTitle(/remove card/i);
+      expect(removeBtns.length).toBe(1);
+      fireEvent.click(removeBtns[0]);
+
+      // amountToCharge should disappear as only 1 card remains
+      expect(screen.queryByLabelText(/amount to charge/i)).toBeNull();
+    });
+
+    it('should rename Card Copy Verified & Photo ID Checked labels to Card copy received and Photo ID received', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      expect(screen.getByText('Card copy received')).toBeDefined();
+      expect(screen.getByText('Photo ID received')).toBeDefined();
+      expect(screen.queryByText('Card Copy Verified')).toBeNull();
+      expect(screen.queryByText('Photo ID Checked')).toBeNull();
+    });
+
+    it('should rename Checklist label to Checklist by backend', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      expect(screen.getByText('Checklist by backend')).toBeDefined();
+      expect(screen.queryByText(/^checklist$/i)).toBeNull();
+    });
+  });
 });

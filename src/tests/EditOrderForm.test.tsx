@@ -133,12 +133,12 @@ describe('EditOrderForm Unit Tests', () => {
     expect(sentBody).toHaveProperty('customerBillingAddress', '123 Street');
     expect(sentBody).toHaveProperty('customerShippingAddress', '123 Street');
 
-    // Card fields MUST be present in the sent payload
-    expect(sentBody).toHaveProperty('customerNameOncard', 'John Doe');
-    expect(sentBody).toHaveProperty('customerCardNumber', '4111222233334444');
-    expect(sentBody).toHaveProperty('customerCardExpDate', '12/29');
-    expect(sentBody).toHaveProperty('customerCardCopyStatus', 'No');
-    expect(sentBody).toHaveProperty('customerCardPhotoStatus', 'No');
+    // Card fields MUST be present in the sent payload cards array
+    expect(sentBody.cards[0]).toHaveProperty('customerNameOncard', 'John Doe');
+    expect(sentBody.cards[0]).toHaveProperty('customerCardNumber', '4111222233334444');
+    expect(sentBody.cards[0]).toHaveProperty('customerCardExpDate', '12/29');
+    expect(sentBody.cards[0]).toHaveProperty('customerCardCopyStatus', 'No');
+    expect(sentBody.cards[0]).toHaveProperty('customerCardPhotoStatus', 'No');
 
     vi.unstubAllGlobals();
   });
@@ -176,12 +176,12 @@ describe('EditOrderForm Unit Tests', () => {
     const sentBody = JSON.parse(fetchOptions.body);
 
     // Masked fields must not be present in the sent payload to prevent database corruption
-    expect(sentBody.customerCardNumber).toBeUndefined();
-    expect(sentBody.customerCardCvv).toBeUndefined();
+    expect(sentBody.cards[0].customerCardNumber).toBeUndefined();
+    expect(sentBody.cards[0].customerCardCvv).toBeUndefined();
 
     // Other customer/card details should still be submitted
-    expect(sentBody).toHaveProperty('customerNameOncard', 'John Doe');
-    expect(sentBody).toHaveProperty('customerCardExpDate', '12/29');
+    expect(sentBody.cards[0]).toHaveProperty('customerNameOncard', 'John Doe');
+    expect(sentBody.cards[0]).toHaveProperty('customerCardExpDate', '12/29');
 
     vi.unstubAllGlobals();
   });
@@ -441,6 +441,71 @@ describe('EditOrderForm Unit Tests', () => {
       expect(options.length).toBe(2);
       expect(options.map(o => o.value)).toEqual(['Residential', 'Commercial']);
       expect(options.map(o => o.text)).toEqual(['Residential', 'Commercial']);
+    });
+  });
+
+  describe('Phase 24: Alternate Phones, Multi-Card, Image Upload, and Label Renames (Edit)', () => {
+    it('should render customerAlternatePhone1 and customerAlternatePhone2 inputs', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      expect(screen.getByLabelText(/alternate phone 1/i)).toBeDefined();
+      expect(screen.getByLabelText(/alternate phone 2/i)).toBeDefined();
+    });
+
+    it('should render amountToCharge input', () => {
+      const orderWithMultipleCards = getMockOrder('Pending Shipment');
+      orderWithMultipleCards.customer.cards.push({
+        cardId: 100,
+        customerNameOncard: 'Jane Doe',
+        customerCardNumber: '5111222233334444',
+        customerCardExpDate: '11/30',
+        customerCardCvv: '456',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+      });
+      render(
+        <EditOrderForm
+          order={orderWithMultipleCards}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      expect(screen.getAllByLabelText(/amount to charge/i)[0]).toBeDefined();
+    });
+
+    it('should rename Card Copy Verified & Photo ID Checked labels to Card copy received and Photo ID received', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      expect(screen.getByText('Card copy received')).toBeDefined();
+      expect(screen.getByText('Photo ID received')).toBeDefined();
+      expect(screen.queryByText('Card Copy Verified')).toBeNull();
+      expect(screen.queryByText('Photo ID Checked')).toBeNull();
+    });
+
+    it('should rename Checklist label to Checklist by backend', () => {
+      render(
+        <EditOrderForm
+          order={getMockOrder('Pending Shipment')}
+          vendors={[]}
+          gateways={[]}
+          agents={[]}
+        />
+      );
+      expect(screen.getByText('Checklist by backend')).toBeDefined();
+      expect(screen.queryByText(/^checklist$/i)).toBeNull();
     });
   });
 });

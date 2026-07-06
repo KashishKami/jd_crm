@@ -2135,7 +2135,181 @@ describe('Order Management Integration Tests', () => {
       expect(dbRows[0].order_checklist).toBe('No');
     });
   });
+
+  // ─── W-2404: Multi-Card Orders ────────────────────────────────────────────
+  describe('W-2404 — POST /api/orders with multiple cards', () => {
+    it('should create an order with two cards, each with amountToCharge', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create',
+          uid: testUser.uid,
+          nickname: testUser.nickname,
+        },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerName: 'Multi-Card Buyer',
+          customerEmail: 'new.buyer@example.com',
+          customerPhone: '555-0000',
+          cards: [
+            {
+              customerNameOncard: 'MULTI CARD BUYER',
+              customerCardNumber: '4111111111111111',
+              customerCardExpDate: '01/30',
+              customerCardCvv: '999',
+              amountToCharge: '500',
+            },
+            {
+              customerNameOncard: 'MULTI CARD BUYER',
+              customerCardNumber: '5500005555555559',
+              customerCardExpDate: '06/31',
+              customerCardCvv: '888',
+              amountToCharge: '250',
+            },
+          ],
+          orderPart: 'Engine',
+          saleStatus: '1',
+          orderSalesAgentId: testUser.uid,
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data).toHaveProperty('crmOrderId');
+
+      // Verify both cards persisted in DB
+      const customer = await prisma.crmCustomers.findFirst({
+        where: { customerEmail: 'new.buyer@example.com' },
+        include: { cards: { orderBy: { cardId: 'asc' } } },
+      });
+      expect(customer).not.toBeNull();
+      expect(customer!.cards.length).toBe(2);
+      expect(customer!.cards[0].amountToCharge).toBe('500');
+      expect(customer!.cards[1].amountToCharge).toBe('250');
+    });
+
+    it('should reject order creation with zero cards', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create',
+          uid: testUser.uid,
+          nickname: testUser.nickname,
+        },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerName: 'No Card Buyer',
+          customerEmail: 'new.buyer@example.com',
+          cards: [],
+          orderPart: 'Engine',
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ─── W-2405: Card Image Upload ─────────────────────────────────────────────
+  describe('W-2405 — Card image fields', () => {
+    it('should persist card copy image and photo ID image when creating a card', async () => {
+      const customer = await prisma.crmCustomers.create({
+        data: { customerName: 'Image Test Cust', customerEmail: 'img_test@example.com' },
+      });
+
+      const fakeBase64 = 'data:image/png;base64,abc123==';
+      const card = await prisma.crmCustomerCards.create({
+        data: {
+          cardCustomerId: customer.customerId,
+          customerNameOncard: 'IMAGE TEST',
+          customerCardNumber: '4111111111111111',
+          customerCardExpDate: '12/30',
+          customerCardCopyImage: fakeBase64,
+          customerPhotoIdImage: fakeBase64,
+        },
+      });
+
+      // findCardsByCustomerId (list) should NOT include image fields
+      const { findCardsByCustomerId } = await import('../repository/customer.repository');
+      const listCards = await findCardsByCustomerId(customer.customerId);
+      expect(listCards.length).toBe(1);
+      expect((listCards[0] as any).customerCardCopyImage).toBeUndefined();
+      expect((listCards[0] as any).customerPhotoIdImage).toBeUndefined();
+
+      // findCardById (single record) SHOULD include image fields
+      const { findCardById } = await import('../repository/customer.repository');
+      const fullCard = await findCardById(card.cardId);
+      expect(fullCard).not.toBeNull();
+      expect(fullCard!.customerCardCopyImage).toBe(fakeBase64);
+      expect(fullCard!.customerPhotoIdImage).toBe(fakeBase64);
+
+      // Cleanup
+      await prisma.crmCustomerCards.delete({ where: { cardId: card.cardId } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+    });
+
+    it('GET /api/customers/:id/cards/:cardId should return image fields with view-cards permission', async () => {
+      const customer = await prisma.crmCustomers.create({
+        data: { customerName: 'Image Test Cust 2', customerEmail: 'img_test2@example.com' },
+      });
+      const fakeBase64 = 'data:image/jpeg;base64,xyz789==';
+      const card = await prisma.crmCustomerCards.create({
+        data: {
+          cardCustomerId: customer.customerId,
+          customerNameOncard: 'IMAGE TEST 2',
+          customerCardNumber: '4111111111111111',
+          customerCardExpDate: '12/30',
+          customerCardCopyImage: fakeBase64,
+          customerPhotoIdImage: fakeBase64,
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Manager',
+          userPermissions: 'customers:view-cards',
+        },
+      });
+
+      const { GET } = await import('../app/api/customers/[id]/cards/[cardId]/route');
+      const req = new Request(`http://localhost/api/customers/${customer.customerId}/cards/${card.cardId}`);
+      const res = await GET(req, { params: { id: String(customer.customerId), cardId: String(card.cardId) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.customerCardCopyImage).toBe(fakeBase64);
+      expect(data.customerPhotoIdImage).toBe(fakeBase64);
+
+      // Cleanup
+      await prisma.crmCustomerCards.delete({ where: { cardId: card.cardId } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+    });
+
+    it('GET /api/customers/:id/cards/:cardId should return 403 without view-cards permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Agent',
+          userPermissions: 'customers:view', // Missing view-cards
+        },
+      });
+
+      const { GET } = await import('../app/api/customers/[id]/cards/[cardId]/route');
+      const req = new Request(`http://localhost/api/customers/1/cards/1`);
+      const res = await GET(req, { params: { id: '1', cardId: '1' } });
+      expect(res.status).toBe(403);
+    });
+  });
 });
-
-
-

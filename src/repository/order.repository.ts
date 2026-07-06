@@ -69,6 +69,8 @@ export async function createWithCustomerAndCard(
       data: {
         customerName: data.customerName,
         customerPhone: data.customerPhone || null,
+        customerAlternatePhone1: data.customerAlternatePhone1 || null,
+        customerAlternatePhone2: data.customerAlternatePhone2 || null,
         customerEmail: data.customerEmail,
         customerBillingAddress: data.customerBillingAddress || null,
         customerShippingAddress: data.customerShippingAddress || null,
@@ -77,19 +79,42 @@ export async function createWithCustomerAndCard(
       },
     });
 
-    // 2. Create customer card
-    const card = await tx.crmCustomerCards.create({
-      data: {
+    // 2. Create customer card(s)
+    // W-2404: If data.cards array is provided, use createMany for multi-card support.
+    // Otherwise fall back to single-card flat fields for backward compatibility.
+    const cardsToCreate = (data.cards && data.cards.length > 0)
+      ? data.cards
+      : (data.customerNameOncard && data.customerCardNumber && data.customerCardExpDate)
+        ? [{
+            customerNameOncard: data.customerNameOncard,
+            customerCardNumber: data.customerCardNumber,
+            customerCardExpDate: data.customerCardExpDate,
+            customerCardCvv: data.customerCardCvv || null,
+            customerCardCopyStatus: data.customerCardCopyStatus || 'No',
+            customerCardPhotoStatus: data.customerCardPhotoStatus || 'No',
+            amountToCharge: data.amountToCharge || null,
+          }]
+        : [];
+
+    if (cardsToCreate.length === 0) {
+      throw new Error('At least one payment card is required');
+    }
+
+    await tx.crmCustomerCards.createMany({
+      data: cardsToCreate.map((c) => ({
         cardCustomerId: customer.customerId,
-        customerNameOncard: data.customerNameOncard,
-        customerCardNumber: data.customerCardNumber,
-        customerCardExpDate: data.customerCardExpDate,
-        customerCardCvv: data.customerCardCvv || null,
-        customerCardCopyStatus: data.customerCardCopyStatus || 'No',
-        customerCardPhotoStatus: data.customerCardPhotoStatus || 'No',
+        customerNameOncard: c.customerNameOncard,
+        customerCardNumber: c.customerCardNumber,
+        customerCardExpDate: c.customerCardExpDate,
+        customerCardCvv: c.customerCardCvv || null,
+        customerCardCopyStatus: c.customerCardCopyStatus || 'No',
+        customerCardPhotoStatus: c.customerCardPhotoStatus || 'No',
+        amountToCharge: c.amountToCharge || null,
+        customerCardCopyImage: c.customerCardCopyImage || null,
+        customerPhotoIdImage: c.customerPhotoIdImage || null,
         customerCardCreatedAt: new Date(),
         customerCardUpdated: new Date(),
-      },
+      })),
     });
 
     // 3. Create order
@@ -138,7 +163,14 @@ export async function createWithCustomerAndCard(
       },
     });
 
-    // 4. Create initial histories if actingUser is provided
+    // 4. Fetch first card to restore cardId in return for backward compatibility
+    const firstCard = await tx.crmCustomerCards.findFirst({
+      where: { cardCustomerId: customer.customerId },
+      orderBy: { cardId: 'asc' },
+      select: { cardId: true },
+    });
+
+    // 5. Create initial histories if actingUser is provided
     if (actingUser) {
       const saleChangedAt = data.saleStatusChangeDate
         ? new Date(data.saleStatusChangeDate)
@@ -167,9 +199,10 @@ export async function createWithCustomerAndCard(
     }
 
     return {
-      orderId: order.crmOrderId,
+      orderId: order.crmOrderId,      // backward-compatible alias used by existing tests
+      crmOrderId: order.crmOrderId,   // explicit field checked by W-2404 tests
       customerId: customer.customerId,
-      cardId: card.cardId,
+      cardId: firstCard?.cardId ?? null, // backward-compatible: first card's ID
     };
   });
 }

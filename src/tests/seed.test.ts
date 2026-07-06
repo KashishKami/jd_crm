@@ -58,6 +58,7 @@ describe('CSV Importer Integration Test (W-1808)', () => {
       await prisma.crmCustomers.deleteMany();
       await prisma.users.deleteMany({ where: { uid: { not: 1 } } });
       await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;');
+      execSync('npx tsx src/scripts/run-seed.ts');
       execSync('npx tsx src/scripts/restore-admin.ts');
     }
   }, 60000);

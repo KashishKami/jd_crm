@@ -184,5 +184,85 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
         where: { customerEmail: 'new_guy@example.com' },
       });
     });
+
+    it('should successfully create a customer with alternate phones', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Agent User',
+          userPermissions: 'customers:create',
+        },
+      });
+
+      const { POST } = await import('../app/api/customers/route');
+      const req = new Request('http://localhost/api/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerName: 'Alternate Phone Customer',
+          customerPhone: '1234567890',
+          customerEmail: 'alt_phone_customer@example.com',
+          customerAlternatePhone1: '555-5555',
+          customerAlternatePhone2: '666-6666',
+        }),
+      });
+      const res = await POST(req);
+
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.customerAlternatePhone1).toBe('555-5555');
+      expect(data.customerAlternatePhone2).toBe('666-6666');
+
+      // Cleanup
+      await prisma.crmCustomers.deleteMany({
+        where: { customerEmail: 'alt_phone_customer@example.com' },
+      });
+    });
+  });
+
+  describe('PATCH /api/customers/:id', () => {
+    it('should successfully update customer alternate phone fields', async () => {
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Patch Cust',
+          customerEmail: 'patch_cust@example.com',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Admin User',
+          userPermissions: 'customers:edit', // let's assume this exists or use super-admin
+        },
+      });
+
+      const { PATCH } = await import('../app/api/customers/[id]/route');
+      const req = new Request(`http://localhost/api/customers/${customer.customerId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          customerAlternatePhone1: '777-7777',
+          customerAlternatePhone2: '888-8888',
+        }),
+      });
+      const res = await PATCH(req, { params: { id: String(customer.customerId) } });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.customerAlternatePhone1).toBe('777-7777');
+      expect(data.customerAlternatePhone2).toBe('888-8888');
+
+      // Verify db persistence
+      const dbCust = await prisma.crmCustomers.findUnique({
+        where: { customerId: customer.customerId },
+      });
+      expect(dbCust?.customerAlternatePhone1).toBe('777-7777');
+      expect(dbCust?.customerAlternatePhone2).toBe('888-8888');
+
+      // Cleanup
+      await prisma.crmCustomers.delete({
+        where: { customerId: customer.customerId },
+      });
+    });
   });
 });
+

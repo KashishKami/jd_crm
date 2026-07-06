@@ -392,12 +392,42 @@ export default function VendorDetailPage() {
               <span className="profile-meta-value font-mono">{vendor.vendorPhone}</span>
             </div>
             <div className="profile-meta-item">
+              <span className="profile-meta-label">Alternate Phone 1</span>
+              <span className="profile-meta-value font-mono">{vendor.vendorAlternatePhone1 || '—'}</span>
+            </div>
+            <div className="profile-meta-item">
+              <span className="profile-meta-label">Alternate Phone 2</span>
+              <span className="profile-meta-value font-mono">{vendor.vendorAlternatePhone2 || '—'}</span>
+            </div>
+            <div className="profile-meta-item">
               <span className="profile-meta-label">Email</span>
               <span className="profile-meta-value font-mono">{vendor.vendorEmail || '—'}</span>
             </div>
             <div className="profile-meta-item">
               <span className="profile-meta-label">Fax Number</span>
               <span className="profile-meta-value font-mono">{vendor.vendorFax || '—'}</span>
+            </div>
+            <div className="profile-meta-item">
+              <span className="profile-meta-label">Country</span>
+              <span className="profile-meta-value">{vendor.vendorCountry || '—'}</span>
+            </div>
+            <div className="profile-meta-item">
+              <span className="profile-meta-label">State/Province</span>
+              <span className="profile-meta-value">{vendor.vendorState || '—'}</span>
+            </div>
+            <div className="profile-meta-item">
+              <span className="profile-meta-label">Payment Methods</span>
+              <span className="profile-meta-value">{(() => {
+                try {
+                  if (vendor.vendorPaymentMode) {
+                    const parsed = JSON.parse(vendor.vendorPaymentMode);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      return parsed.join(', ');
+                    }
+                  }
+                } catch (e) {}
+                return '—';
+              })()}</span>
             </div>
           </div>
         </div>

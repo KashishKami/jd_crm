@@ -2,6 +2,8 @@ export interface Customer {
   customerId: number;
   customerName: string;
   customerPhone?: string | null;
+  customerAlternatePhone1?: string | null;
+  customerAlternatePhone2?: string | null;
   customerEmail: string;
   customerBillingAddress?: string | null;
   customerShippingAddress?: string | null;
@@ -18,6 +20,10 @@ export interface CustomerCard {
   customerCardCvv?: string | null;
   customerCardCopyStatus?: string | null;
   customerCardPhotoStatus?: string | null;
+  amountToCharge?: string | null;
+  customerCardCopyImage?: string | null;
+  customerPhotoIdImage?: string | null;
   customerCardCreatedAt?: Date | string | null;
   customerCardUpdated?: Date | string | null;
 }
+

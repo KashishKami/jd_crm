@@ -24,16 +24,25 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   // Form states
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAlternatePhone1, setCustomerAlternatePhone1] = useState('');
+  const [customerAlternatePhone2, setCustomerAlternatePhone2] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerBillingAddress, setCustomerBillingAddress] = useState('');
   const [customerShippingAddress, setCustomerShippingAddress] = useState('');
 
-  const [customerNameOncard, setCustomerNameOncard] = useState('');
-  const [customerCardNumber, setCustomerCardNumber] = useState('');
-  const [customerCardExpDate, setCustomerCardExpDate] = useState('');
-  const [customerCardCvv, setCustomerCardCvv] = useState('');
-  const [customerCardCopyStatus, setCustomerCardCopyStatus] = useState('No');
-  const [customerCardPhotoStatus, setCustomerCardPhotoStatus] = useState('No');
+  const [cards, setCards] = useState([
+    {
+      customerNameOncard: '',
+      customerCardNumber: '',
+      customerCardExpDate: '',
+      customerCardCvv: '',
+      customerCardCopyStatus: 'No',
+      customerCardPhotoStatus: 'No',
+      amountToCharge: '',
+      customerCardCopyImage: null as string | null,
+      customerPhotoIdImage: null as string | null,
+    }
+  ]);
 
   const [orderMakeModel, setOrderMakeModel] = useState('');
   const [orderPart, setOrderPart] = useState('');
@@ -118,10 +127,13 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       setSubmitting(false);
       return;
     }
-    if (!customerNameOncard || !customerCardNumber || !customerCardExpDate) {
-      setError('Please provide card billing information.');
-      setSubmitting(false);
-      return;
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      if (!card.customerNameOncard || !card.customerCardNumber || !card.customerCardExpDate) {
+        setError(`Please provide card billing information for Card ${i + 1}.`);
+        setSubmitting(false);
+        return;
+      }
     }
     if (!orderPart) {
       setError('Please enter the part requested.');
@@ -132,15 +144,22 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
     const payload = {
       customerName,
       customerPhone,
+      customerAlternatePhone1: customerAlternatePhone1 || null,
+      customerAlternatePhone2: customerAlternatePhone2 || null,
       customerEmail,
       customerBillingAddress,
       customerShippingAddress,
-      customerNameOncard,
-      customerCardNumber,
-      customerCardExpDate,
-      customerCardCvv,
-      customerCardCopyStatus,
-      customerCardPhotoStatus,
+      cards: cards.map((c) => ({
+        customerNameOncard: c.customerNameOncard,
+        customerCardNumber: c.customerCardNumber,
+        customerCardExpDate: c.customerCardExpDate,
+        customerCardCvv: c.customerCardCvv || null,
+        customerCardCopyStatus: c.customerCardCopyStatus || 'No',
+        customerCardPhotoStatus: c.customerCardPhotoStatus || 'No',
+        amountToCharge: cards.length > 1 ? c.amountToCharge || null : null,
+        customerCardCopyImage: c.customerCardCopyImage || null,
+        customerPhotoIdImage: c.customerPhotoIdImage || null,
+      })),
       orderMakeModel,
       orderPart,
       orderPartSize,
@@ -258,6 +277,30 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 className="form-input font-mono"
               />
             </div>
+            <div className="form-group">
+              <label htmlFor="customerAlternatePhone1" className="form-label">
+                Alternate Phone 1
+              </label>
+              <input
+                type="text"
+                id="customerAlternatePhone1"
+                value={customerAlternatePhone1}
+                onChange={(e) => setCustomerAlternatePhone1(e.target.value)}
+                className="form-input font-mono"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="customerAlternatePhone2" className="form-label">
+                Alternate Phone 2
+              </label>
+              <input
+                type="text"
+                id="customerAlternatePhone2"
+                value={customerAlternatePhone2}
+                onChange={(e) => setCustomerAlternatePhone2(e.target.value)}
+                className="form-input font-mono"
+              />
+            </div>
             <div className="form-group form-grid-full">
               <label htmlFor="customerBillingAddress" className="form-label">
                 Billing Address
@@ -289,82 +332,288 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         <div className="form-section">
           <h3 className="form-section-title">2. Payment Card Details</h3>
           
-          {/* Checkboxes placed under heading */}
-          <div className="flex gap-6 items-center py-2 mb-4 border-b border-slate-100">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={customerCardCopyStatus === 'Yes'}
-                onChange={(e) => setCustomerCardCopyStatus(e.target.checked ? 'Yes' : 'No')}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Card Copy Verified</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={customerCardPhotoStatus === 'Yes'}
-                onChange={(e) => setCustomerCardPhotoStatus(e.target.checked ? 'Yes' : 'No')}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Photo ID Checked</span>
-            </label>
-          </div>
+          {cards.map((card, index) => (
+            <div key={index} style={{ position: 'relative', border: '1px solid #cbd5e1', borderRadius: '10px', marginBottom: '24px', backgroundColor: '#f8fafc', overflow: 'hidden', boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                <h4 className="font-semibold text-slate-700 text-sm">Payment Card #{index + 1}</h4>
+                {index > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newCards = [...cards];
+                      newCards.splice(index, 1);
+                      setCards(newCards);
+                    }}
+                    className="text-red-500 hover:text-red-700 font-semibold text-xs"
+                    title="Remove Card"
+                    style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                  >
+                    Remove Card
+                  </button>
+                )}
+              </div>
+              
+              <div style={{ padding: '24px' }}>
+                <div className="form-grid">
+                  <div className="form-group form-grid-full">
+                    <label htmlFor={`customerNameOncard-${index}`} className="form-label">
+                      Name On Card <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id={`customerNameOncard-${index}`}
+                      value={card.customerNameOncard}
+                      onChange={(e) => {
+                        const newCards = [...cards];
+                        newCards[index].customerNameOncard = e.target.value;
+                        setCards(newCards);
+                      }}
+                      required
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor={`customerCardNumber-${index}`} className="form-label">
+                      Card Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id={`customerCardNumber-${index}`}
+                      value={card.customerCardNumber}
+                      onChange={(e) => {
+                        const newCards = [...cards];
+                        newCards[index].customerCardNumber = e.target.value;
+                        setCards(newCards);
+                      }}
+                      required
+                      className="form-input font-mono"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor={`customerCardExpDate-${index}`} className="form-label">
+                      Expiry Date (MM/YY) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id={`customerCardExpDate-${index}`}
+                      placeholder="MM/YY"
+                      value={card.customerCardExpDate}
+                      onChange={(e) => {
+                        const newCards = [...cards];
+                        newCards[index].customerCardExpDate = e.target.value;
+                        setCards(newCards);
+                      }}
+                      required
+                      className="form-input font-mono"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor={`customerCardCvv-${index}`} className="form-label">
+                      CVV Code
+                    </label>
+                    <input
+                      type="password"
+                      id={`customerCardCvv-${index}`}
+                      maxLength={4}
+                      value={card.customerCardCvv}
+                      onChange={(e) => {
+                        const newCards = [...cards];
+                        newCards[index].customerCardCvv = e.target.value;
+                        setCards(newCards);
+                      }}
+                      className="form-input font-mono"
+                    />
+                  </div>
+                  
+                  {cards.length > 1 && (
+                    <div className="form-group">
+                      <label htmlFor={`amountToCharge-${index}`} className="form-label">
+                        Amount to Charge
+                      </label>
+                      <input
+                        type="text"
+                        id={`amountToCharge-${index}`}
+                        placeholder="0.00"
+                        value={card.amountToCharge || ''}
+                        onChange={(e) => {
+                          const newCards = [...cards];
+                          newCards[index].amountToCharge = e.target.value;
+                          setCards(newCards);
+                        }}
+                        className="form-input font-mono"
+                      />
+                    </div>
+                  )}
+                </div>
 
-          <div className="form-grid">
-            <div className="form-group form-grid-full">
-              <label htmlFor="customerNameOncard" className="form-label">
-                Name On Card <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="customerNameOncard"
-                value={customerNameOncard}
-                onChange={(e) => setCustomerNameOncard(e.target.value)}
-                required
-                className="form-input"
-              />
+                {/* Checkboxes and Image Upload triggers placed at the end */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+                  <div className="flex flex-col gap-2">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={card.customerCardCopyStatus === 'Yes'}
+                        onChange={(e) => {
+                          const newCards = [...cards];
+                          const checked = e.target.checked;
+                          newCards[index].customerCardCopyStatus = checked ? 'Yes' : 'No';
+                          if (!checked) {
+                            newCards[index].customerCardCopyImage = null;
+                          }
+                          setCards(newCards);
+                        }}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <span className="text-sm font-semibold text-slate-700">Card copy received</span>
+                    </label>
+
+                    {card.customerCardCopyStatus === 'Yes' && (
+                      <div style={{ marginTop: '10px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', padding: '10px 16px', border: '1px dashed #94a3b8', borderRadius: '6px', backgroundColor: '#ffffff', color: '#475569', fontWeight: 600, fontSize: '0.82rem', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', transition: 'all 0.15s ease-in-out' }} className="hover-upload-btn">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          <span className="text-xs font-semibold">
+                            {card.customerCardCopyImage ? 'Change Card Scan' : 'Upload Card Scan'}
+                          </span>
+                          <input
+                            type="file"
+                            id={`customerCardCopyImage-${index}`}
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  const newCards = [...cards];
+                                  newCards[index].customerCardCopyImage = reader.result as string;
+                                  setCards(newCards);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        {card.customerCardCopyImage && (
+                          <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={card.customerCardCopyImage} alt="Card Copy Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newCards = [...cards];
+                                newCards[index].customerCardCopyImage = null;
+                                setCards(newCards);
+                              }}
+                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-2xs hover:bg-red-600 transition"
+                              style={{ border: 'none', cursor: 'pointer', width: '18px', height: '18px', fontSize: '10px', lineHeight: 1 }}
+                              title="Remove Image"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={card.customerCardPhotoStatus === 'Yes'}
+                        onChange={(e) => {
+                          const newCards = [...cards];
+                          const checked = e.target.checked;
+                          newCards[index].customerCardPhotoStatus = checked ? 'Yes' : 'No';
+                          if (!checked) {
+                            newCards[index].customerPhotoIdImage = null;
+                          }
+                          setCards(newCards);
+                        }}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <span className="text-sm font-semibold text-slate-700">Photo ID received</span>
+                    </label>
+
+                    {card.customerCardPhotoStatus === 'Yes' && (
+                      <div style={{ marginTop: '10px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', padding: '10px 16px', border: '1px dashed #94a3b8', borderRadius: '6px', backgroundColor: '#ffffff', color: '#475569', fontWeight: 600, fontSize: '0.82rem', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', transition: 'all 0.15s ease-in-out' }} className="hover-upload-btn">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          <span className="text-xs font-semibold">
+                            {card.customerPhotoIdImage ? 'Change Photo ID' : 'Upload Photo ID'}
+                          </span>
+                          <input
+                            type="file"
+                            id={`customerPhotoIdImage-${index}`}
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  const newCards = [...cards];
+                                  newCards[index].customerPhotoIdImage = reader.result as string;
+                                  setCards(newCards);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        {card.customerPhotoIdImage && (
+                          <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={card.customerPhotoIdImage} alt="Photo ID Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newCards = [...cards];
+                                newCards[index].customerPhotoIdImage = null;
+                                setCards(newCards);
+                              }}
+                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-2xs hover:bg-red-600 transition"
+                              style={{ border: 'none', cursor: 'pointer', width: '18px', height: '18px', fontSize: '10px', lineHeight: 1 }}
+                              title="Remove Image"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="form-group">
-              <label htmlFor="customerCardNumber" className="form-label">
-                Card Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="customerCardNumber"
-                value={customerCardNumber}
-                onChange={(e) => setCustomerCardNumber(e.target.value)}
-                required
-                className="form-input font-mono"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="customerCardExpDate" className="form-label">
-                Expiry Date (MM/YY) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="customerCardExpDate"
-                placeholder="MM/YY"
-                value={customerCardExpDate}
-                onChange={(e) => setCustomerCardExpDate(e.target.value)}
-                required
-                className="form-input font-mono"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="customerCardCvv" className="form-label">
-                CVV Code
-              </label>
-              <input
-                type="password"
-                id="customerCardCvv"
-                maxLength={4}
-                value={customerCardCvv}
-                onChange={(e) => setCustomerCardCvv(e.target.value)}
-                className="form-input font-mono"
-              />
-            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => {
+              setCards([...cards, {
+                customerNameOncard: '',
+                customerCardNumber: '',
+                customerCardExpDate: '',
+                customerCardCvv: '',
+                customerCardCopyStatus: 'No',
+                customerCardPhotoStatus: 'No',
+                amountToCharge: '',
+                customerCardCopyImage: null,
+                customerPhotoIdImage: null
+              }]);
+            }}
+            className="btn-secondary-custom w-full mt-2 py-2"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+          >
+            <span>+ Add Another Card</span>
+          </button>
+
+          <div className="form-grid mt-4">
             <div className="form-group">
               <label htmlFor="orderPaymentGatewayId" className="form-label">
                 Billing Gateway
@@ -397,7 +646,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 onChange={(e) => setOrderChecklist(e.target.checked ? 'Yes' : 'No')}
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
               />
-              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist</span>
+              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist by backend</span>
             </label>
           </div>
 
@@ -759,12 +1008,12 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
             customerPhone={customerPhone}
             customerBillingAddress={customerBillingAddress}
             customerShippingAddress={customerShippingAddress}
-            customerCardCopyStatus={customerCardCopyStatus}
-            customerCardPhotoStatus={customerCardPhotoStatus}
-            customerNameOncard={customerNameOncard}
-            customerCardNumber={customerCardNumber}
-            customerCardExpDate={customerCardExpDate}
-            customerCardCvv={customerCardCvv}
+            customerCardCopyStatus={cards[0]?.customerCardCopyStatus || 'No'}
+            customerCardPhotoStatus={cards[0]?.customerCardPhotoStatus || 'No'}
+            customerNameOncard={cards[0]?.customerNameOncard || ''}
+            customerCardNumber={cards[0]?.customerCardNumber || ''}
+            customerCardExpDate={cards[0]?.customerCardExpDate || ''}
+            customerCardCvv={cards[0]?.customerCardCvv || ''}
             orderPaymentGatewayId={orderPaymentGatewayId}
             orderChecklist={orderChecklist}
             orderMakeModel={orderMakeModel}

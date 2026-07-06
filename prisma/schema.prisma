@@ -152,17 +152,22 @@ model CrmGateway {
 }
 
 model CrmVendors {
-  vendorId            Int         @id @default(autoincrement()) @map("vendor_id")
-  vendorName          String      @map("vendor_name") @db.VarChar(255)
-  vendorPhone         String      @map("vendor_phone") @db.VarChar(15)
-  vendorFax           String?     @map("vendor_fax") @db.VarChar(20)
-  vendorEmail         String?     @map("vendor_email") @db.VarChar(255)
-  vendorContactPerson String      @map("vendor_contact_person") @db.VarChar(255)
-  vendorRemark        String?     @map("vendor_remark") @db.Text
-  vendorStatus        Int         @default(1) @map("vendor_status")
-  createdAt           DateTime?   @map("created_at") @db.DateTime(0)
-  updatedAt           DateTime?   @map("updated_at") @db.DateTime(0)
-  orders              CrmOrders[]
+  vendorId              Int         @id @default(autoincrement()) @map("vendor_id")
+  vendorName            String      @map("vendor_name") @db.VarChar(255)
+  vendorPhone           String      @map("vendor_phone") @db.VarChar(15)
+  vendorAlternatePhone1 String?     @map("vendor_alternate_phone_1") @db.VarChar(15)
+  vendorAlternatePhone2 String?     @map("vendor_alternate_phone_2") @db.VarChar(15)
+  vendorFax             String?     @map("vendor_fax") @db.VarChar(20)
+  vendorEmail           String?     @map("vendor_email") @db.VarChar(255)
+  vendorContactPerson   String      @map("vendor_contact_person") @db.VarChar(255)
+  vendorRemark          String?     @map("vendor_remark") @db.Text
+  vendorStatus          Int         @default(1) @map("vendor_status")
+  vendorCountry         String?     @map("vendor_country") @db.VarChar(50)
+  vendorState           String?     @map("vendor_state") @db.VarChar(100)
+  vendorPaymentMode     String?     @map("vendor_payment_mode") @db.VarChar(255)
+  createdAt             DateTime?   @map("created_at") @db.DateTime(0)
+  updatedAt             DateTime?   @map("updated_at") @db.DateTime(0)
+  orders                CrmOrders[]
 
   @@map("crm_vendors")
 }
@@ -171,6 +176,8 @@ model CrmCustomers {
   customerId              Int                @id @default(autoincrement()) @map("customer_id")
   customerName            String             @map("customer_name") @db.VarChar(511)
   customerPhone           String?            @map("customer_phone") @db.VarChar(25)
+  customerAlternatePhone1 String?            @map("customer_alternate_phone_1") @db.VarChar(25)
+  customerAlternatePhone2 String?            @map("customer_alternate_phone_2") @db.VarChar(25)
   customerEmail           String             @map("customer_email") @db.VarChar(255)
   customerBillingAddress  String?            @map("customer_billing_address") @db.VarChar(255)
   customerShippingAddress String?            @map("customer_shipping_address") @db.VarChar(255)
@@ -192,6 +199,9 @@ model CrmCustomerCards {
   customerCardCvv         String?      @map("customer_card_cvv") @db.VarChar(5)
   customerCardCopyStatus  String?      @map("customer_card_copy_status") @db.VarChar(20)
   customerCardPhotoStatus String?      @map("customer_card_photo_status") @db.VarChar(20)
+  amountToCharge          String?      @map("amount_to_charge") @db.VarChar(25)
+  customerCardCopyImage   String?      @map("customer_card_copy_image") @db.LongText
+  customerPhotoIdImage    String?      @map("customer_photo_id_image") @db.LongText
   customerCardCreatedAt   DateTime?    @map("customer_card_created_at") @db.DateTime(0)
   customerCardUpdated     DateTime?    @map("customer_card_updated") @db.DateTime(0)
   customer                CrmCustomers @relation(fields: [cardCustomerId], references: [customerId], onDelete: Cascade)
