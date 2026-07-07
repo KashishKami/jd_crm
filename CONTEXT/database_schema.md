@@ -343,6 +343,10 @@ The following standard permissions are seeded in the system:
 | `order_resolution` | `varchar(25)` | NO | `'Resolved'`| Resolution status for dispute queue |
 | `order_created_date` | `datetime` | YES | `NULL` | Creation date |
 | `order_updated_date` | `datetime` | YES | `NULL` | Last modified date |
+| `order_part_found_by_id` | `int(11)` | YES | `NULL` | **[Phase 25]** FK to `users.uid` — team member who located/sourced the part. `ON DELETE SET NULL`. |
+| `order_part_found_by_name` | `varchar(55)` | YES | `NULL` | **[Phase 25]** Denormalized snapshot of Part Found By agent's nickname/name. Auto-populated by the repository when `order_part_found_by_id` is set. |
+| `order_liftgate_needed` | `varchar(20)` | NO | `'No'` | **[Phase 25]** Whether a liftgate truck is required for delivery. Values: `'Yes'` / `'No'`. |
+| `parent_order_id` | `int(11)` | YES | `NULL` | **[Phase 26]** Self-referential FK to `crm_orders.crm_order_id`. `NULL` = this is a primary/parent order. Non-NULL = this is a child/additional part belonging to the referenced parent order. `ON DELETE CASCADE`. Used to group multiple parts for a single customer deal. |
 
 ### crm_vendors
 *   **Engine:** MyISAM
@@ -814,6 +818,11 @@ model CrmOrders {
   orderSalesVerifierName        String?       @map("order_sales_verifier_name") @db.VarChar(55)
   orderBackendExecutiveId       Int?          @map("order_backend_executive_id")
   orderBackendExecutiveName     String?       @map("order_backend_executive_name") @db.VarChar(55)
+  // Phase 25 — Part Found By
+  orderPartFoundById            Int?          @map("order_part_found_by_id")
+  orderPartFoundByName          String?       @map("order_part_found_by_name") @db.VarChar(55)
+  // Phase 25 — Liftgate Needed
+  orderLiftgateNeeded           String?       @default("No") @map("order_liftgate_needed") @db.VarChar(20)
   orderDocumentation            String?       @map("order_documentation") @db.VarChar(255)
   orderBooked                   String?       @map("order_booked") @db.VarChar(255)
   orderChecklist                String?       @map("order_checklist") @db.VarChar(20)
@@ -831,6 +840,8 @@ model CrmOrders {
   orderResolution               String        @default("Resolved") @map("order_resolution") @db.VarChar(25)
   orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
   orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
+  // Phase 26 — Multi-Part Orders grouping
+  parentOrderId                 Int?          @map("parent_order_id")
   comments                      CrmComments[]
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]
@@ -843,11 +854,18 @@ model CrmOrders {
   verifier                      Users?        @relation("Verifier", fields: [orderVerifierId], references: [uid], onDelete: SetNull)
   salesVerifier                 Users?        @relation("SalesVerifier", fields: [orderSalesVerifierId], references: [uid], onDelete: SetNull)
   backendExecutive              Users?        @relation("BackendExecutive", fields: [orderBackendExecutiveId], references: [uid], onDelete: SetNull)
+  // Phase 25 — Part Found By relation
+  partFoundBy                   Users?        @relation("PartFoundBy", fields: [orderPartFoundById], references: [uid], onDelete: SetNull)
+  // Phase 26 — Self-referential parent/child relations
+  parentOrder                   CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Cascade)
+  childOrders                   CrmOrders[]   @relation("OrderParts")
 
   @@index([orderCustomerId])
   @@index([orderSalesAgentId])
   @@index([orderCurrentStatus])
   @@index([saleStatus])
+  @@index([orderPartFoundById])   // Phase 25
+  @@index([parentOrderId])        // Phase 26
   @@map("crm_orders")
 }
 

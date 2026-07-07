@@ -62,6 +62,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderSalesVerifierId, setOrderSalesVerifierId] = useState('');
   const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState('');
   const [orderVerifierId, setOrderVerifierId] = useState('');
+  const [orderPartFoundById, setOrderPartFoundById] = useState('');
+  const [orderLiftgateNeeded, setOrderLiftgateNeeded] = useState('No');
   const [saleStatus, setSaleStatus] = useState('1'); // Default Sold
   const [priorSaleStatus, setPriorSaleStatus] = useState('1');
   const [orderRefundAmount, setOrderRefundAmount] = useState('');
@@ -177,6 +179,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderSalesVerifierId: orderSalesVerifierId ? Number(orderSalesVerifierId) : null,
       orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
       orderVerifierId: orderVerifierId ? Number(orderVerifierId) : null,
+      orderPartFoundById: orderPartFoundById ? Number(orderPartFoundById) : null,
+      orderLiftgateNeeded,
       saleStatus,
       orderRefundAmount: saleStatus === '4' ? orderRefundAmount : null,
       orderCurrentStatus,
@@ -648,6 +652,16 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               />
               <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Checklist by backend</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                id="orderLiftgateNeeded"
+                checked={orderLiftgateNeeded === 'Yes'}
+                onChange={(e) => setOrderLiftgateNeeded(e.target.checked ? 'Yes' : 'No')}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span className="form-label text-slate-700 font-medium" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Liftgate Needed</span>
+            </label>
           </div>
 
           <div className="form-grid">
@@ -897,6 +911,22 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 id="orderBackendExecutiveId"
                 value={orderBackendExecutiveId}
                 onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select or type name</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="orderPartFoundById" className="form-label">
+                Part Found By
+              </label>
+              <select
+                id="orderPartFoundById"
+                value={orderPartFoundById}
+                onChange={(e) => setOrderPartFoundById(e.target.value)}
                 className="form-select"
               >
                 <option value="">Select or type name</option>

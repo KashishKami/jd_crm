@@ -508,5 +508,78 @@ describe('EditOrderForm Unit Tests', () => {
       expect(screen.queryByText(/^checklist$/i)).toBeNull();
     });
   });
+
+  describe('W-2501: Part Found By & Liftgate Needed', () => {
+    it('should pre-populate Part Found By select dropdown and Liftgate Needed checkbox from order data', () => {
+      const order = getMockOrder('Pending Shipment');
+      (order as any).orderPartFoundById = 5;
+      (order as any).orderLiftgateNeeded = 'Yes';
+
+      const mockAgents = [
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo' }
+      ];
+
+      render(
+        <EditOrderForm
+          order={order}
+          vendors={[]}
+          gateways={[]}
+          agents={mockAgents}
+        />
+      );
+
+      const pfbSelect = document.getElementById('orderPartFoundById') as HTMLSelectElement;
+      expect(pfbSelect).not.toBeNull();
+      expect(pfbSelect.value).toBe('5');
+
+      const liftgateCheckbox = document.getElementById('orderLiftgateNeeded') as HTMLInputElement;
+      expect(liftgateCheckbox).not.toBeNull();
+      expect(liftgateCheckbox.checked).toBe(true);
+    });
+
+    it('should submit form with updated orderPartFoundById and orderLiftgateNeeded', async () => {
+      const order = getMockOrder('Pending Shipment');
+      (order as any).orderPartFoundById = null;
+      (order as any).orderLiftgateNeeded = 'No';
+
+      const mockAgents = [
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo' }
+      ];
+
+      render(
+        <EditOrderForm
+          order={order}
+          vendors={[]}
+          gateways={[]}
+          agents={mockAgents}
+        />
+      );
+
+      // Change agent and check liftgate
+      const pfbSelect = document.getElementById('orderPartFoundById') as HTMLSelectElement;
+      fireEvent.change(pfbSelect, { target: { value: '5' } });
+
+      const liftgateCheckbox = document.getElementById('orderLiftgateNeeded') as HTMLInputElement;
+      fireEvent.click(liftgateCheckbox);
+
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const saveButton = screen.getByText('Save Changes');
+      fireEvent.click(saveButton);
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const [, fetchOptions] = fetchSpy.mock.calls[0];
+      const sentBody = JSON.parse(fetchOptions.body);
+
+      expect(sentBody).toHaveProperty('orderPartFoundById', 5);
+      expect(sentBody).toHaveProperty('orderLiftgateNeeded', 'Yes');
+
+      vi.unstubAllGlobals();
+    });
+  });
 });
 

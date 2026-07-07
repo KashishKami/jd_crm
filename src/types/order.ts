@@ -56,6 +56,9 @@ export interface OrderCreateInput {
   saleStatusChangeDate?: string | null;
   orderVendorFeedback?: string;
   orderChecklist?: string;
+  orderPartFoundById?: number | null;
+  orderPartFoundByName?: string | null;
+  orderLiftgateNeeded?: string | null;
 }
 
 export interface OrderUpdateInput {
@@ -81,6 +84,9 @@ export interface OrderUpdateInput {
   orderSalesVerifierName?: string | null;
   orderBackendExecutiveId?: number | null;
   orderBackendExecutiveName?: string | null;
+  orderPartFoundById?: number | null;
+  orderPartFoundByName?: string | null;
+  orderLiftgateNeeded?: string | null;
   orderDocumentation?: string;
   orderBooked?: string;
   orderAmountCharged?: string;

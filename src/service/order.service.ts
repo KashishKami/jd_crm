@@ -213,6 +213,22 @@ export async function updateOrder(
     }
   }
 
+  // 4.7. Resolve Part Found By nickname snapshot if ID is changed
+  if (data.orderPartFoundById !== undefined && data.orderPartFoundById !== existingOrder.orderPartFoundById) {
+    if (data.orderPartFoundById === null) {
+      updatedData.orderPartFoundById = null;
+      updatedData.orderPartFoundByName = null;
+    } else {
+      const { prisma } = await import('../lib/db');
+      const pfb = await prisma.users.findUnique({
+        where: { uid: data.orderPartFoundById },
+      });
+      if (pfb) {
+        updatedData.orderPartFoundByName = pfb.nickname || pfb.name;
+      }
+    }
+  }
+
   // 5. Resolve vendor name snapshot if ID is changed
   if (data.orderVendorId && data.orderVendorId !== existingOrder.orderVendorId) {
     const { prisma } = await import('../lib/db');
@@ -262,10 +278,11 @@ export async function updateOrder(
     'orderShippingType', 'orderRefundAmount',
     'orderSalesAgentName', 'orderVerifierName',
     'orderSalesVerifierName', 'orderBackendExecutiveName',
+    'orderPartFoundById', 'orderPartFoundByName',
     'orderCurrentStatus', 'orderTrackingNumber', 'orderDeliveryStatus',
     'orderVendorFeedback', 'orderClientFeedback', 'orderResolution', 'orderDocumentation',
     'orderBooked', 'orderAmountCharged', 'orderQualifiedIncentiveStatus', 'orderQualifiedIncentiveAmount',
-    'orderStatus', 'orderChecklist'
+    'orderStatus', 'orderChecklist', 'orderLiftgateNeeded'
   ];
 
   for (const key of orderKeysToAudit) {

@@ -41,6 +41,7 @@ model Users {
   verifiedOrders     CrmOrders[]                @relation("Verifier")
   salesVerifierOrders  CrmOrders[]              @relation("SalesVerifier")
   backendExecutiveOrders CrmOrders[]            @relation("BackendExecutive")
+  partFoundOrders        CrmOrders[]            @relation("PartFoundBy")
   saleStatusChanges    CrmSaleStatusHistory[]          @relation("SaleStatusChanges")
   workflowStatusChanges CrmOrderCurrentStatusHistory[] @relation("WorkflowStatusChanges")
   orderViews            CrmOrderViews[]
@@ -237,6 +238,9 @@ model CrmOrders {
   orderSalesVerifierName        String?       @map("order_sales_verifier_name") @db.VarChar(55)
   orderBackendExecutiveId       Int?          @map("order_backend_executive_id")
   orderBackendExecutiveName     String?       @map("order_backend_executive_name") @db.VarChar(55)
+  orderPartFoundById            Int?          @map("order_part_found_by_id")
+  orderPartFoundByName          String?       @map("order_part_found_by_name") @db.VarChar(55)
+  orderLiftgateNeeded           String?       @default("No") @map("order_liftgate_needed") @db.VarChar(20)
   orderDocumentation            String?       @map("order_documentation") @db.VarChar(255)
   orderBooked                   String?       @map("order_booked") @db.VarChar(255)
   orderTrackingNumber           String?       @map("order_tracking_number") @db.VarChar(55)
@@ -265,6 +269,7 @@ model CrmOrders {
   verifier                      Users?        @relation("Verifier", fields: [orderVerifierId], references: [uid])
   salesVerifier                 Users?        @relation("SalesVerifier", fields: [orderSalesVerifierId], references: [uid])
   backendExecutive              Users?        @relation("BackendExecutive", fields: [orderBackendExecutiveId], references: [uid])
+  partFoundBy                   Users?        @relation("PartFoundBy", fields: [orderPartFoundById], references: [uid], onDelete: SetNull)
 
   @@index([orderCustomerId])
   @@index([orderSalesAgentId])
@@ -273,6 +278,7 @@ model CrmOrders {
   @@index([orderDate])
   @@index([orderSalesVerifierId])
   @@index([orderBackendExecutiveId])
+  @@index([orderPartFoundById])
   @@index([orderPaymentGatewayId], map: "crm_orders_order_payment_gateway_fkey")
   @@index([orderVendorId], map: "crm_orders_order_vendor_id_fkey")
   @@index([orderVerifierId], map: "crm_orders_order_verifier_id_fkey")

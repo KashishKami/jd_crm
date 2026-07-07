@@ -437,11 +437,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-2 pt-4" style={{ borderTop: '1px solid var(--border-color)', marginTop: '24px' }}>
+            <div className="grid grid-cols-2 gap-2 pt-4" style={{ borderTop: '1px solid var(--border-color)', marginTop: '24px' }}>
               <div className="info-group">
                 <span className="info-label" style={{ fontSize: '10px' }}>Checklist by backend</span>
                 <span className={`status-dot-badge ${order.orderChecklist === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
                   {order.orderChecklist === 'Yes' ? 'Yes' : 'No'}
+                </span>
+              </div>
+              <div className="info-group">
+                <span className="info-label" style={{ fontSize: '10px' }}>Liftgate Needed</span>
+                <span className={`status-dot-badge ${order.orderLiftgateNeeded === 'Yes' ? 'status-active' : 'status-inactive'}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                  {order.orderLiftgateNeeded === 'Yes' ? '✓ Yes' : '✗ No'}
                 </span>
               </div>
             </div>
@@ -534,6 +540,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Backend Executive</span>
                 <span className="info-value" style={{ fontWeight: '600' }}>{order.orderBackendExecutiveName || 'Unassigned'}</span>
+              </div>
+              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span className="info-label">Part Found By</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderPartFoundByName || '—'}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Quality Verifier</span>

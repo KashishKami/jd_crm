@@ -18,6 +18,7 @@ interface OrderListProps {
     orderRefundAmount?: string | null;
     orderCurrentStatus: string | null;
     saleStatus?: string | null;
+    orderLiftgateNeeded?: string | null;
     customer: {
       customerName: string;
       customerEmail: string;
@@ -163,8 +164,8 @@ export default function OrderList({ orders }: OrderListProps) {
                       <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>
                         {order.orderMakeModel || 'Unknown Vehicle'}
                       </div>
-                      <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em' }}>
-                        {order.orderPart || '—'}
+                      <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span>{order.orderPart || '—'}</span>
                       </div>
                     </div>
                   </td>

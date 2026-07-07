@@ -42,7 +42,7 @@ describe('AddOrderForm Unit Tests', () => {
     expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/name on card/i)).toBeDefined();
     expect(screen.getByLabelText(/card number/i)).toBeDefined();
-    expect(screen.getByLabelText(/part/i)).toBeDefined();
+    expect(screen.getByLabelText(/part description/i)).toBeDefined();
     expect(screen.getByLabelText(/total price pitched/i)).toBeDefined();
     expect(screen.getByLabelText(/vendor buying price/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /create order/i })).toBeDefined();
@@ -100,7 +100,7 @@ describe('AddOrderForm Unit Tests', () => {
     fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
     fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
     fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-    fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+    fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
     fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -146,7 +146,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
       
@@ -199,7 +199,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -275,7 +275,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -389,6 +389,57 @@ describe('AddOrderForm Unit Tests', () => {
       render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
       expect(screen.getByText('Checklist by backend')).toBeDefined();
       expect(screen.queryByText(/^checklist$/i)).toBeNull();
+    });
+  });
+
+  describe('W-2501: Part Found By & Liftgate Needed', () => {
+    it('should render Part Found By select dropdown and Liftgate Needed checkbox', () => {
+      render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+      expect(document.getElementById('orderPartFoundById')).not.toBeNull();
+      expect(document.getElementById('orderLiftgateNeeded')).not.toBeNull();
+    });
+
+    it('should submit form with orderPartFoundById and orderLiftgateNeeded', async () => {
+      const mockVendors = [{ vendorId: 1, vendorName: 'Test Vendor' }];
+      const mockAgents = [{ uid: 3, name: 'Agent Smith', nickname: 'Smithy' }];
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ orderId: 10, customerId: 20, cardId: 30 }),
+      } as Response);
+
+      render(<AddOrderForm vendors={mockVendors} gateways={[]} agents={mockAgents} />);
+
+      // Fill out required fields
+      fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+      fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
+      fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
+      fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
+      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
+      fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
+
+      // Select agent and toggle liftgate
+      const pfbSelect = document.getElementById('orderPartFoundById') as HTMLSelectElement;
+      fireEvent.change(pfbSelect, { target: { value: '3' } });
+
+      const liftgateCheckbox = document.getElementById('orderLiftgateNeeded') as HTMLInputElement;
+      fireEvent.click(liftgateCheckbox);
+
+      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalled();
+      });
+
+      const [, fetchOptions] = vi.mocked(fetch).mock.calls[0];
+      const bodyStr = fetchOptions?.body as string;
+      const sentBody = JSON.parse(bodyStr);
+
+      expect(sentBody).toHaveProperty('orderPartFoundById', 3);
+      expect(sentBody).toHaveProperty('orderLiftgateNeeded', 'Yes');
     });
   });
 });

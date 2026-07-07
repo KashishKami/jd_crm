@@ -2312,4 +2312,126 @@ describe('Order Management Integration Tests', () => {
       expect(res.status).toBe(403);
     });
   });
+
+  // ─── W-2501: Part Found By & Liftgate Needed ──────────────────────────────
+  describe('W-2501 — Part Found By and Liftgate Needed', () => {
+    it('should create an order with orderPartFoundById and orderLiftgateNeeded', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create',
+          uid: testUser.uid,
+          nickname: testUser.nickname,
+        },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerName: 'Liftgate Buyer',
+          customerEmail: 'new.buyer@example.com',
+          customerPhone: '555-9876',
+          cards: [
+            {
+              customerNameOncard: 'LIFTGATE BUYER',
+              customerCardNumber: '4111111111111111',
+              customerCardExpDate: '01/30',
+              customerCardCvv: '999',
+              amountToCharge: '100',
+            },
+          ],
+          orderPart: 'Hood',
+          saleStatus: '1',
+          orderSalesAgentId: testUser.uid,
+          orderPartFoundById: testUser.uid,
+          orderLiftgateNeeded: 'Yes',
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data).toHaveProperty('crmOrderId');
+
+      // Verify DB storage
+      const order = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: data.crmOrderId },
+      });
+      expect(order).not.toBeNull();
+      expect(order!.orderPartFoundById).toBe(testUser.uid);
+      expect(order!.orderPartFoundByName).toBe(testUser.nickname || testUser.name);
+      expect(order!.orderLiftgateNeeded).toBe('Yes');
+    });
+
+    it('should update and snapshot Part Found By name and Liftgate flag via PATCH', async () => {
+      // Create a secondary user for part found by
+      const otherUser = await prisma.users.create({
+        data: {
+          name: 'Johnny Solder',
+          username: 'johnny_solder',
+          teamId: testTeam.teamId,
+          roleId: testRole.roleId,
+          nickname: 'Johnny',
+        },
+      });
+
+      // Create an initial order to update
+      const order = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Fender',
+          saleStatus: '1',
+          orderLiftgateNeeded: 'No',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${order.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderPartFoundById: otherUser.uid,
+          orderLiftgateNeeded: 'Yes',
+        }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(order.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // Verify update in DB
+      const updatedOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: order.crmOrderId },
+      });
+      expect(updatedOrder!.orderPartFoundById).toBe(otherUser.uid);
+      expect(updatedOrder!.orderPartFoundByName).toBe('Johnny');
+      expect(updatedOrder!.orderLiftgateNeeded).toBe('Yes');
+
+      // Verify audit logs are created for orderLiftgateNeeded and orderPartFoundByName
+      const auditLogs = await prisma.crmOrderAuditLog.findMany({
+        where: { orderId: order.crmOrderId },
+        orderBy: { id: 'desc' },
+      });
+
+      const liftgateAudit = auditLogs.find(a => a.fieldName === 'orderLiftgateNeeded');
+      expect(liftgateAudit).toBeDefined();
+      expect(liftgateAudit!.oldValue).toBe('No');
+      expect(liftgateAudit!.newValue).toBe('Yes');
+
+      const nameAudit = auditLogs.find(a => a.fieldName === 'orderPartFoundByName');
+      expect(nameAudit).toBeDefined();
+      expect(nameAudit!.newValue).toBe('Johnny');
+
+      // Cleanup
+      await prisma.crmOrderAuditLog.deleteMany({ where: { orderId: order.crmOrderId } });
+      await prisma.crmOrders.delete({ where: { crmOrderId: order.crmOrderId } });
+      await prisma.users.delete({ where: { uid: otherUser.uid } });
+    });
+  });
 });
+

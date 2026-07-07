@@ -694,3 +694,115 @@ All database changes are **purely additive** — new nullable columns only. No e
 - `src/lib/geography.ts` is a new file — the `COUNTRY_STATE_MAP` export is the single source of truth for country/state options across all vendor forms.
 - The `findCardById` repository method becomes the authoritative way to fetch card data including images. Any code path that needs card images must call this method, not the general `findCardsByCustomerId` list query.
 - Existing card rows silently receive `NULL` for all new columns — no data migration script needed.
+
+---
+
+## Decision 28 — Part Found By Agent + Liftgate Needed Flag (Phase 25)
+
+**Context:** The business needs to track which team member located/sourced a specific part, and whether a liftgate-equipped delivery truck is required for an order.
+
+**Decisions:**
+
+**D28.1 — Part Found By follows the established denormalized snapshot pattern (Decision 18)**
+- Two columns added to `crm_orders`: `order_part_found_by_id INT NULL` (FK to `users.uid`, `ON DELETE SET NULL`) and `order_part_found_by_name VARCHAR(55) NULL`.
+- The `order_part_found_by_name` field is auto-populated by the repository layer on every create and update where `order_part_found_by_id` changes. It stores `users.nickname ?? users.name` at the time of the operation.
+- This is the exact same pattern as `order_sales_agent_name`, `order_verifier_name`, etc. (Decision 18). No deviation from established practice.
+- The relation in Prisma is named `"PartFoundBy"` to avoid collision with the four existing `users` relations on `CrmOrders`.
+- The `partFoundBy` relation is included in `findById` (detail view) but NOT in `findAll` (list view) — the list view uses only the denormalized `orderPartFoundByName` string, consistent with all other agent snapshot fields.
+
+**D28.2 — Liftgate Needed follows the established checklist flag pattern**
+- One column added to `crm_orders`: `order_liftgate_needed VARCHAR(20) NOT NULL DEFAULT 'No'`.
+- Values are `'Yes'` or `'No'`, identical to `order_checklist`.
+- All existing rows silently receive the `'No'` default. No data migration needed.
+
+**D28.3 — Both fields are audit-tracked**
+- `'orderPartFoundById'`, `'orderPartFoundByName'`, and `'orderLiftgateNeeded'` are added to the `orderKeysToAudit` array in `order.service.ts`. All changes to these fields via `PATCH /api/orders/{id}` are automatically recorded in `crm_order_audit_log`.
+
+#### Consequences
+- One Prisma migration: `add_part_found_by_and_liftgate_to_orders`.
+- The `Users` model in Prisma gains a `partFoundOrders CrmOrders[] @relation("PartFoundBy")` back-relation.
+- UI changes required in: `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, order detail `page.tsx`.
+
+---
+
+## Decision 29 — Multi-Part Orders via parent_order_id Self-Reference (Phase 26)
+
+**Context:** A single customer call can result in multiple auto parts being sourced and billed. Each part has its own vendor, pricing, staff allocation, sale status, and workflow status. Previously, each part was a completely separate order with no link back to the same customer deal.
+
+**Decisions:**
+
+**D29.1 — Self-referential parent_order_id on crm_orders (Option A chosen over Option B)**
+- One nullable column added: `parent_order_id INT NULL` on `crm_orders`, self-referential FK to `crm_orders.crm_order_id`, `ON DELETE CASCADE`, with an index.
+- `NULL` = primary (parent) order row. Non-NULL = child/additional part row belonging to the referenced parent.
+- **Rejected Option B (separate crm_order_parts table):** Would require migrating all ~30 existing columns and every repository method, service, controller, type, and form. Weeks of work. Option A is additive and non-breaking.
+- All existing rows receive `NULL` — zero data impact.
+
+**D29.2 — Order list always shows only parent orders**
+- `findAll()` in `order.repository.ts` unconditionally adds `where: { parentOrderId: null }`. Child parts never appear directly in any list view.
+- The list row includes a `childOrders` summary (subset of fields) via `include: { childOrders: { select: {...} } }` for the `(+N more)` badge and summed financial amount.
+
+**D29.3 — Each part has fully independent status and staff allocation**
+- Sale status (`saleStatus`) and workflow status (`orderCurrentStatus`) are per-part. Each part progresses through the pipeline independently.
+- Staff allocation (Sales Agent, Verifier, Sales Verifier, Backend Executive, Part Found By) is stored on each `crm_orders` row independently. The "auto-fill" when adding Part 2+ is a **UI convenience only** — the user can change any field per part before saving.
+- The pipeline tab filters (Pending Booking, Pending Shipment, etc.) filter on the **parent order's** `orderCurrentStatus` only. Child order statuses are visible only in the detail page.
+
+**D29.4 — Financial Summary on the detail page is always aggregate**
+- The order detail page computes `totalPitched`, `totalVendorPrice`, `totalAmountCharged`, `totalRefundAmount`, and `netMargin` as sums across `[parentOrder, ...childOrders]`. Individual per-part amounts are visible by selecting the part from the Part Selector dropdown.
+
+**D29.5 — Audit logging for structural operations**
+- Adding a child part (`addPart`) writes an audit entry on the **parent order** with `fieldName: 'childPart'`, `oldValue: null`, `newValue: 'Part added: "..." (Child Order ID: X)'`.
+- Removing a child part (`removePart`) writes an audit entry on the **parent order** with `fieldName: 'childPart'`, `oldValue: 'Part removed: "..." (Child Order ID: X)'`, `newValue: null`.
+- Child order field edits (via `PATCH /api/orders/{childId}`) are handled by the same `updateOrder` flow and automatically logged to `crm_order_audit_log` under the child's own `orderId`.
+
+**D29.6 — EditOrderForm submit strategy (sequential, not parallel)**
+- On form submit in `EditOrderForm`, the calls for updating existing parts, deleting removed parts, and creating new parts are executed **sequentially** (not in parallel with `Promise.all`). This prevents race conditions where a part deletion could conflict with a simultaneous create on the same parent.
+
+#### Consequences
+- One Prisma migration: `add_parent_order_id_to_orders`.
+- Two new API routes: `POST /api/orders/[id]/parts` and `DELETE /api/orders/[id]/parts/[partId]`.
+- `POST /api/orders` now accepts `parts: OrderPartInput[]` array (with backward-compatible single-item support).
+- `GET /api/orders` response shape gains `childOrders?: ChildPartSummary[]` per row.
+- `GET /api/orders/[id]` response shape gains `childOrders?: ChildPartDetail[]`.
+- `AddOrderForm.tsx` and `EditOrderForm.tsx` are significantly refactored to render dynamic PartCard arrays.
+- Order detail `page.tsx` gains a Part Selector dropdown and an aggregate Financial Summary section.
+
+---
+
+## Decision 30 — Super-Admin CSV Export/Import & Automated Weekly Backup (Phases 27 & 28)
+
+**Context:** Before any schema migrations that touch existing data, the super-admin needs the ability to download the entire database as clean CSV files. Additionally, an automated weekly backup provides a safety net for data loss scenarios.
+
+**Decisions:**
+
+**D30.1 — CSV export is gated on the existing `super-admin` permission key**
+- No new permission code is introduced. The existing `99999` (`super-admin`) bypass already covers this restricted operation.
+- The new `/api/admin/export`, `/api/admin/export/all`, and `/api/admin/import` routes all check `hasPermission(session, 'super-admin')`.
+
+**D30.2 — Base64 image columns are excluded from the default CSV export**
+- `customer_card_copy_image` and `customer_photo_id_image` on `crm_customer_cards` are excluded from the standard CSV output via the `EXCLUDED_COLUMNS` constant in `csv-exporter.ts`.
+- These columns can be very large (LONGTEXT Base64 data). Including them in routine CSV exports would produce multi-GB files that are impractical for data management purposes.
+- A separate endpoint can be added in the future if binary image export is required.
+
+**D30.3 — FK-safe import order is a hardcoded constant (`ALLOWED_EXPORT_TABLES`)**
+- The 18-table ordered list in `csv-exporter.ts` is the single source of truth for both export order and import validation. Any addition of new tables must also update this list.
+- For `crm_orders`, parents (`parent_order_id IS NULL`) are exported before children to satisfy the self-referential FK on import.
+
+**D30.4 — Import validates FK dependencies before inserting any rows**
+- The import service pre-fetches all existing PKs for referenced tables and validates every row before performing any INSERT. If any row fails validation, zero rows are inserted (all-or-nothing per CSV upload).
+- Raw SQL is used via `db.$executeRawUnsafe` with parameterized values — user-supplied CSV data is never string-interpolated into SQL.
+
+**D30.5 — Automated backup has two delivery mechanisms**
+- **Docker/self-hosted:** A `crm_backup` cron service in `docker-compose.yml` runs `mysqldump` every Saturday at 13:30 UTC (7:00 PM IST), saving to a volume-mounted `./backups/` directory. Last 4 SQL dumps are kept; older files are automatically pruned.
+- **Vercel/serverless:** A cron entry in `vercel.json` calls `POST /api/admin/backup/trigger` at the same schedule. The route is also callable manually by a super-admin. It uses the same CSV ZIP export (Phase 27) internally.
+- The two mechanisms are complementary — the Docker `mysqldump` provides full SQL fidelity for disaster recovery, while the CSV ZIP provides clean data for re-import via the Data Management UI.
+
+**D30.6 — Vercel cron authentication uses CRON_SECRET header**
+- Vercel's cron runner calls the backup route without a user session. The route accepts either a valid super-admin session OR a matching `X-Cron-Secret: {CRON_SECRET}` header. The `CRON_SECRET` environment variable is set in the Vercel project settings and is never exposed to the client.
+
+#### Consequences
+- New files: `src/lib/csv-exporter.ts`, `src/service/data-management.service.ts`, `src/service/backup.service.ts`, `src/app/api/admin/export/route.ts`, `src/app/api/admin/export/all/route.ts`, `src/app/api/admin/import/route.ts`, `src/app/api/admin/backup/trigger/route.ts`, `src/app/settings/data-management/page.tsx`, `BACKUPS.md`.
+- New npm dependency: `jszip`.
+- New environment variables: `BACKUP_OUTPUT_PATH`, `BACKUP_WEBHOOK_URL`, `CRON_SECRET`.
+- `docker-compose.yml` gains a `crm_backup` service.
+- `vercel.json` gains a `crons` entry.
+- `Sidebar.tsx` gains a "Data Management" link visible only to `super-admin` users.

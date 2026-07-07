@@ -37,6 +37,10 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 22** | Sale Status Expansion: Void & Cancel Order, Sale Status Column & Filter | **[x] COMPLETED** | `order.service.ts`, `order.repository.ts`, `vendor.repository.ts`, `vendor.service.ts`, `vendors/[id]/page.tsx`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, `import-csv-data.ts`, `project_data.md` |
 | **Phase 23** | Cancelled Orders Workflow & Renaming (Cancelled Status & Cancelled Orders Queue) | **[x] COMPLETED** | `seed.sql`, `order.repository.ts`, `order.service.ts`, `dashboard.repository.ts`, `dashboard.ts`, `import-csv-data.ts`, `middleware.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `OrderListContainer.tsx`, `SaleStatusTimeline.tsx`, new page `/pending/cancelled/page.tsx` |
 | **Phase 24** | Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Card Image Uploads & UI Label Renames | **[x] COMPLETED** | `schema.prisma`, 3 migrations, `customer.repository.ts`, `vendor.repository.ts`, `order.repository.ts`, `customer.service.ts`, `vendor.service.ts`, `order.service.ts`, `types/customer.ts`, `types/vendor.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `VendorForm` (new/edit), `page.tsx` (order detail), `api/upload/card-images/route.ts` |
+| **Phase 25** | Part Found By + Liftgate Needed — New Team Allocation Role & Order Flag | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail) |
+| **Phase 26** | Multi-Part Orders — parent_order_id Grouping, Multi-Part Add/Edit UI, Aggregate Financial Summary | **[ ] NOT STARTED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail), `api/orders/[id]/parts/route.ts` (new), `api/orders/[id]/parts/[partId]/route.ts` (new) |
+| **Phase 27** | Super-Admin CSV Data Export & Import — All Tables, FK-Safe Order, ZIP Download | **[ ] NOT STARTED** | `api/admin/export/route.ts` (new), `api/admin/import/route.ts` (new), `lib/csv-exporter.ts` (new), `service/data-management.service.ts` (new), `app/settings/data-management/page.tsx` (new) |
+| **Phase 28** | Automated Weekly Backup — Saturday Evening Cron (Docker & Vercel) | **[ ] NOT STARTED** | `docker-compose.yml`, `api/admin/backup/trigger/route.ts` (new), `service/backup.service.ts` (new), `vercel.json` |
 
 ---
 
@@ -3960,6 +3964,540 @@ Update `CONTEXT/database_schema.md` table rows and the Prisma schema code block.
 
 ---
 
+---
+
+### Phase 25 — Part Found By + Liftgate Needed
+
+#### W-2501 — Part Found By Role + Liftgate Needed Flag on crm_orders
+
+**Goal:**
+Add two new business fields to the order model:
+1. **Part Found By** — a nullable FK reference to `users.uid`, identifying which team member located/sourced the part. It follows the identical denormalized snapshot pattern already used by `orderSalesAgentId`/`orderSalesAgentName`, `orderVerifierId`/`orderVerifierName`, etc. (Decision 18).
+2. **Liftgate Needed** — a `VARCHAR(20)` flag defaulting to `'No'`, indicating whether a liftgate truck is required for delivery. Follows the identical pattern of `order_checklist` (Decision 21).
+
+Both appear in: Add Order form, Edit Order form, Order detail page, and the Order list view (Liftgate badge only).
+
+**Approach:**
+Run one Prisma migration adding three new nullable columns to `crm_orders`. Update the repository to auto-resolve `orderPartFoundByName` from the user's `nickname || name` field whenever `orderPartFoundById` is set. Update the service to include these fields in audit key tracking. Add UI controls to both forms and the detail page.
+
+---
+
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: `POST /api/orders` with payload containing `orderPartFoundById: {validUserId}` returns `201 Created`. Assert response body contains `orderPartFoundByName` equal to that user's `nickname` (or `name` if nickname is null).
+  - [x] Test: `POST /api/orders` with payload containing `orderLiftgateNeeded: 'Yes'` returns `201 Created`. Assert `SELECT order_liftgate_needed FROM crm_orders WHERE crm_order_id = {newOrderId}` returns `'Yes'`.
+  - [x] Test: `GET /api/orders/{id}` where the order has `orderPartFoundById` set returns response containing both `orderPartFoundById` and `orderPartFoundByName` fields.
+  - [x] Test: `PATCH /api/orders/{id}` with `{ orderPartFoundById: {differentUserId} }` returns `200 OK`. Assert `SELECT order_part_found_by_name FROM crm_orders WHERE crm_order_id = {id}` returns the new user's `nickname || name`, confirming the snapshot was automatically updated.
+  - [x] Test: `POST /api/orders` without `orderPartFoundById` (field omitted) returns `201 Created`. Assert `order_part_found_by_id IS NULL` and `order_part_found_by_name IS NULL` in the DB.
+  - [x] Test: `PATCH /api/orders/{id}` changing `orderLiftgateNeeded` from `'No'` to `'Yes'` returns `200 OK`. Assert `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = {id} ORDER BY id DESC LIMIT 5` contains a row where `field_name = 'orderLiftgateNeeded'`, `old_value = 'No'`, `new_value = 'Yes'`.
+  - [x] Test: `PATCH /api/orders/{id}` changing `orderPartFoundById` to `{userId}` (where that user has `nickname = 'Johnny'`) returns `200 OK`. Assert the audit log for `order_id = {id}` contains a row where `field_name = 'orderPartFoundByName'`, `old_value` is the previous name (or `NULL`), and `new_value = 'Johnny'`.
+  - [x] **Run — confirm RED (columns do not exist yet, migration has not been applied).**
+
+- [x] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [x] **[Schema]** In `prisma/schema.prisma`, inside model `CrmOrders`, add after the `orderBackendExecutiveName` field:
+    ```prisma
+    orderPartFoundById     Int?          @map("order_part_found_by_id")
+    orderPartFoundByName   String?       @map("order_part_found_by_name") @db.VarChar(55)
+    orderLiftgateNeeded    String?       @default("No") @map("order_liftgate_needed") @db.VarChar(20)
+    ```
+    Add the relation field after the existing `backendExecutive` relation:
+    ```prisma
+    partFoundBy            Users?        @relation("PartFoundBy", fields: [orderPartFoundById], references: [uid], onDelete: SetNull)
+    ```
+    Add a new index after `@@index([orderSalesAgentId])`:
+    ```prisma
+    @@index([orderPartFoundById])
+    ```
+    In model `Users`, add a new relation array after `backendExecutiveOrders`:
+    ```prisma
+    partFoundOrders        CrmOrders[]   @relation("PartFoundBy")
+    ```
+  - [x] **[Migration]** Run `npx prisma migrate dev --name add_part_found_by_and_liftgate_to_orders`. Verify migration SQL contains:
+    - `ALTER TABLE crm_orders ADD COLUMN order_part_found_by_id INT NULL;`
+    - `ALTER TABLE crm_orders ADD COLUMN order_part_found_by_name VARCHAR(55) NULL;`
+    - `ALTER TABLE crm_orders ADD COLUMN order_liftgate_needed VARCHAR(20) NOT NULL DEFAULT 'No';`
+    - `ALTER TABLE crm_orders ADD CONSTRAINT fk_part_found_by FOREIGN KEY (order_part_found_by_id) REFERENCES users(uid) ON DELETE SET NULL;`
+    - `CREATE INDEX idx_crm_orders_part_found_by_id ON crm_orders(order_part_found_by_id);`
+    - Confirm via `SHOW CREATE TABLE crm_orders;` — all three columns present. Confirm `DESCRIBE crm_orders;` shows `order_liftgate_needed` with `Default: No`.
+  - [x] **[Repository]** In `src/repository/order.repository.ts`:
+    - In `createWithCustomerAndCard()`: Accept `orderPartFoundById?: number` and `orderLiftgateNeeded?: string` in the order data input. Before the transaction, if `orderPartFoundById` is provided, query `db.users.findUnique({ where: { uid: orderPartFoundById }, select: { nickname: true, name: true } })` and set `orderPartFoundByName = user.nickname ?? user.name`. Pass `orderPartFoundById`, `orderPartFoundByName`, and `orderLiftgateNeeded` into the `db.crmOrders.create({ data: { ... } })` call inside the transaction.
+    - In `update(id, data)`: If `data.orderPartFoundById` is defined and changed, perform the same nickname lookup (`db.users.findUnique`) and set `data.orderPartFoundByName = user.nickname ?? user.name`. If `data.orderPartFoundById === null`, explicitly set `data.orderPartFoundByName = null`. Pass `orderLiftgateNeeded` through directly (no lookup needed).
+    - In `findById(id)`: Add `partFoundBy: { select: { uid: true, nickname: true, name: true } }` inside the `include` block. Assert the returned type now contains `orderPartFoundById`, `orderPartFoundByName`, and `orderLiftgateNeeded`.
+    - In `findAll(filters)`: Add `orderLiftgateNeeded: true` to the `select` block so the list view can render the badge. Do NOT include `partFoundBy` relation in `findAll` — use the denormalized `orderPartFoundByName` string field instead (consistent with `orderSalesAgentName` pattern).
+  - [x] **[Service]** In `src/service/order.service.ts`:
+    - In `orderKeysToAudit` array (the list of fields tracked in `CrmOrderAuditLog`), add: `'orderPartFoundById'`, `'orderPartFoundByName'`, `'orderLiftgateNeeded'`.
+    - No additional business logic is needed — the name resolution is handled in the repository layer.
+  - [x] **[Controller]** In `src/app/api/orders/route.ts` (POST) and `src/app/api/orders/[id]/route.ts` (PATCH): No changes required — these routes already pass the full parsed body to the service/repository. Confirm `orderPartFoundById` and `orderLiftgateNeeded` are not blocked by any explicit field whitelist.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **RED — Unit / Component (`AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`):**
+  - [x] **`AddOrderForm.test.tsx`**: Test: Render `AddOrderForm`. Assert a `<select>` element with `id="orderPartFoundById"` is present in the DOM inside the Team Allocation section. Assert a `<input type="checkbox">` or `<select>` with `id="orderLiftgateNeeded"` is present.
+  - [x] **`AddOrderForm.test.tsx`**: Test: Select user ID `3` from the `orderPartFoundById` dropdown. Assert the form state contains `orderPartFoundById: 3` when submitted.
+  - [x] **`AddOrderForm.test.tsx`**: Test: Toggle the Liftgate Needed checkbox/select to `'Yes'`. Assert the form state contains `orderLiftgateNeeded: 'Yes'` when submitted.
+  - [x] **`EditOrderForm.test.tsx`**: Test: Render `EditOrderForm` with a mock order where `orderPartFoundById: 5` and `orderLiftgateNeeded: 'Yes'`. Assert `orderPartFoundById` dropdown shows the pre-selected value `'5'`. Assert Liftgate Needed field shows `'Yes'`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Components → Pages):**
+  - [x] **[Types]** In `src/types/order.ts`, add to the `Order`, `OrderDetail`, and `OrderCreateInput` interfaces:
+    ```typescript
+    orderPartFoundById?:   number | null;
+    orderPartFoundByName?: string | null;
+    orderLiftgateNeeded?:  string | null;
+    ```
+  - [x] **[AddOrderForm.tsx]** Inside the "Team Allocation" section (after the Backend Executive `<select>` dropdown):
+    - Add a new agent-picker `<select id="orderPartFoundById">` labeled **"Part Found By"**. Populate it from the same active agents list already fetched for the other team dropdowns. Include an empty `<option value="">-- Select Agent --</option>` as default (field is optional). On change: `setOrderPartFoundById(Number(e.target.value) || null)`.
+    - Add a new Liftgate Needed control **after** the existing Checklist checkbox. Use the identical markup pattern as the existing `orderChecklist` field: a `<input type="checkbox" id="orderLiftgateNeeded">` that maps checked state to `'Yes'` / `'No'`. Label: **"Liftgate Needed"**.
+  - [x] **[EditOrderForm.tsx]** Make identical additions as `AddOrderForm.tsx` in the Team Allocation section and Checklist section. Pre-populate both fields from the fetched order data: `defaultValue={order.orderPartFoundById?.toString() ?? ''}` and `defaultChecked={order.orderLiftgateNeeded === 'Yes'}`.
+  - [x] **[OrderList.tsx]** In the order row rendering, after the existing Checklist badge (or in the flags column): if `order.orderLiftgateNeeded === 'Yes'`, render a small badge with text `"Liftgate"` and class `badge-liftgate` (amber background, white text, same pill style as other badges). If `'No'` or null, render nothing.
+  - [x] **[page.tsx — order detail]** In the Team Allocation section (where Sales Agent, Verifier, Sales Verifier, Backend Executive are displayed): add a new row labeled **"Part Found By"** displaying `order.orderPartFoundByName ?? '—'`. In the Checklist/Verification section (where Card copy received, Photo ID received, Checklist by backend are shown): add a fourth status indicator row labeled **"Liftgate Needed"** displaying `order.orderLiftgateNeeded === 'Yes' ? '✓ Yes' : '✗ No'`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent navigates to `/orders/new` → Team Allocation section shows "Part Found By" dropdown → agent selects a team member → Liftgate Needed checkbox is ticked → agent submits form → new order created → Order list view shows "Liftgate" amber badge on the row → agent clicks order → detail page shows "Part Found By: [Name]" in Team section and "Liftgate Needed: ✓ Yes" in Checklist section → agent navigates to Edit Order → both fields are pre-populated with the saved values → agent changes Part Found By to a different user → saves → detail page now shows updated name → ✅ Done.
+
+---
+
+### Phase 26 — Multi-Part Orders
+
+#### W-2601 — parent_order_id Grouping, Multi-Part Forms, Per-Part Staff Allocation & Aggregate Financial Summary
+
+**Goal:**
+Allow a single customer deal to contain multiple independently-sourced auto parts, each with its own: part details, vendor, pricing, sale status, workflow status, and staff allocation. In the order list, only the primary (parent) order row is shown, with a `(+N)` badge when child parts exist. In the detail page, parts are shown in a dropdown selector with per-part fields, and a combined financial summary totals all parts. The `AddOrderForm` and `EditOrderForm` gain an "Add Another Part" button that creates new part cards with specified auto-fill behaviour.
+
+**Approach:**
+Add a single nullable `parent_order_id INT` self-referential column to `crm_orders`. All existing rows receive `NULL` (no impact). Restructure `order.repository.ts` so `findAll` always filters `parentOrderId: null` and includes child summaries. Update `createWithCustomerAndCard` to accept a `parts[]` array. Add two new API routes for adding and removing child parts from existing orders. Overhaul `AddOrderForm.tsx` and `EditOrderForm.tsx` to render a dynamic list of PartCard sub-forms with auto-fill logic. Rework the order detail page to show a part selector dropdown and aggregate financial section.
+
+---
+
+- [ ] **RED — Integration (`orders.test.ts`):**
+  - [ ] Test: `POST /api/orders` with `parts: [part1Data, part2Data]` returns `201 Created` with body `{ orderId: <parentId>, customerId, cardIds, partOrderIds: [<parentId>, <childId>] }`. Assert `SELECT COUNT(*) FROM crm_orders WHERE order_customer_id = {customerId}` returns `2`. Assert child row has `parent_order_id = parentId`.
+  - [ ] Test: `POST /api/orders` with `parts: [singlePartData]` (single-element array) returns `201 Created` with `partOrderIds: [<id>]`. Assert only 1 row in DB for this customer. Assert `parent_order_id IS NULL` for that row. (Backward compatibility.)
+  - [ ] Test: `GET /api/orders` (list) — after creating an order with 2 parts, the list response contains **exactly 1 item** for this customer's order. Assert that item has `childOrders` array with length `1`. Assert the item's `crmOrderId` matches the parent.
+  - [ ] Test: `GET /api/orders/{parentId}` — response includes `childOrders` array. The child order object inside has all fields including `orderPart`, `saleStatus`, `orderCurrentStatus`, `orderAmountCharged`, `orderSalesAgentId`.
+  - [ ] Test: `POST /api/orders/{parentId}/parts` with a valid `partData` body (containing `orderPart`, `orderVendorId`, `orderAmountCharged`, etc.) returns `201 Created` with body `{ partOrderId: <newChildId> }`. Assert new row in DB has `parent_order_id = parentId`.
+  - [ ] Test: `POST /api/orders/{childId}/parts` (attempting to add a child to a child order) returns `400 Bad Request` with body `{ error: "Cannot add a part to an order that is itself a child part. Use the parent order ID." }`.
+  - [ ] Test: `DELETE /api/orders/{parentId}/parts/{childId}` returns `200 OK`. Assert `SELECT COUNT(*) FROM crm_orders WHERE crm_order_id = {childId}` returns `0`. Assert parent row still exists.
+  - [ ] Test: `DELETE /api/orders/{parentId}/parts/{parentId}` (attempting to delete the parent via the parts endpoint) returns `400 Bad Request` with body `{ error: "Cannot delete the primary order via the parts endpoint. Use DELETE /api/orders/{id} to delete the entire order." }`.
+  - [ ] Test: `GET /api/orders?status=Pending+Booking` — a parent order with `orderCurrentStatus = 'Pending Booking'` appears in results. Its child order (even if its own `orderCurrentStatus = 'Pending Shipment'`) does NOT appear separately in the results.
+  - [ ] Test (audit — addPart): `POST /api/orders/{parentId}/parts` with `{ orderPart: 'Transmission', ... }` returns `201 Created` with body `{ partOrderId: <newChildId> }`. Assert `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = {parentId} ORDER BY id DESC LIMIT 1` returns a row where `field_name = 'childPart'`, `old_value IS NULL`, and `new_value LIKE '%Transmission%'` and `new_value LIKE '%Child Order ID: {newChildId}%'`.
+  - [ ] Test (audit — removePart): `DELETE /api/orders/{parentId}/parts/{childId}` (where child has `orderPart = 'Transmission'`) returns `200 OK`. Assert `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = {parentId} ORDER BY id DESC LIMIT 1` returns a row where `field_name = 'childPart'`, `old_value LIKE '%Transmission%'` and `old_value LIKE '%Child Order ID: {childId}%'`, and `new_value IS NULL`.
+  - [ ] **Run — confirm RED (parent_order_id column does not exist; POST /api/orders does not accept `parts[]` array; new routes do not exist).**
+
+- [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
+  - [ ] **[Schema]** In `prisma/schema.prisma`, inside model `CrmOrders`, add after `orderCreatedDate`:
+    ```prisma
+    parentOrderId   Int?          @map("parent_order_id")
+    ```
+    Add the self-referential relations after the `verifier` relation line:
+    ```prisma
+    parentOrder     CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Cascade)
+    childOrders     CrmOrders[]   @relation("OrderParts")
+    ```
+    Add a new index:
+    ```prisma
+    @@index([parentOrderId])
+    ```
+  - [ ] **[Migration]** Run `npx prisma migrate dev --name add_parent_order_id_to_orders`. Verify migration SQL contains:
+    - `ALTER TABLE crm_orders ADD COLUMN parent_order_id INT NULL;`
+    - `CREATE INDEX idx_crm_orders_parent_order_id ON crm_orders(parent_order_id);`
+    - `ALTER TABLE crm_orders ADD CONSTRAINT fk_parent_order FOREIGN KEY (parent_order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE;`
+    - Confirm via `SHOW CREATE TABLE crm_orders;` that the column and FK constraint are present. Confirm all existing rows: `SELECT COUNT(*) FROM crm_orders WHERE parent_order_id IS NOT NULL` returns `0`.
+  - [ ] **[Repository — findAll]** In `src/repository/order.repository.ts`, in the `findAll(filters)` method:
+    - Add `parentOrderId: null` to the `where` object **unconditionally** so the list always returns only primary (non-child) orders.
+    - Add a `childOrders` include block to the `include` object: `childOrders: { select: { crmOrderId: true, orderPart: true, saleStatus: true, orderCurrentStatus: true, orderAmountCharged: true, orderRefundAmount: true, orderLiftgateNeeded: true } }`. This gives the list view the data it needs for the `(+N)` badge and summed financial amount.
+  - [ ] **[Repository — findById]** In `findById(id)`, add `childOrders: { include: { salesAgent: { select: { uid: true, nickname: true, name: true } }, verifier: { select: { uid: true, nickname: true, name: true } }, salesVerifier: { select: { uid: true, nickname: true, name: true } }, backendExecutive: { select: { uid: true, nickname: true, name: true } }, partFoundBy: { select: { uid: true, nickname: true, name: true } }, vendor: { select: { vendorId: true, vendorName: true } }, gateway: { select: { gatewayId: true, gatewayName: true } } } }` inside the existing `include` block.
+  - [ ] **[Repository — createWithCustomerAndCard]** Rename the existing method's order parameter from a single order object to accept a `parts: OrderPartInput[]` array. Restructure the `prisma.$transaction` as follows:
+    1. Create customer (if new) — same as before.
+    2. Create cards — same as before (using `createMany`).
+    3. Create Part 1 (the parent): `const parentOrder = await tx.crmOrders.create({ data: { ...parts[0], orderCustomerId: customer.customerId, parentOrderId: null } })`.
+    4. If `parts.length > 1`: for each `parts[i]` where `i >= 1`: `await tx.crmOrders.create({ data: { ...parts[i], orderCustomerId: customer.customerId, parentOrderId: parentOrder.crmOrderId } })`. Collect all created order IDs.
+    5. Return `{ orderId: parentOrder.crmOrderId, customerId: customer.customerId, cardIds: [...], partOrderIds: [parentOrder.crmOrderId, ...childIds] }`.
+    - Resolve `orderPartFoundByName` for each part independently inside the transaction using `tx.users.findUnique({ where: { uid: part.orderPartFoundById }, select: { nickname, name } })`.
+  - [ ] **[Repository — addPartToExistingOrder (NEW METHOD)]** Add method `addPartToExistingOrder(parentOrderId: number, partData: OrderPartInput): Promise<{ partOrderId: number }>`:
+    - Fetch `const parentOrder = await db.crmOrders.findUnique({ where: { crmOrderId: parentOrderId }, select: { parentOrderId: true, orderCustomerId: true } })`.
+    - If `!parentOrder`, throw `Error('Parent order not found')`.
+    - If `parentOrder.parentOrderId !== null`, throw `Error('Cannot add a part to an order that is itself a child part. Use the parent order ID.')`.
+    - Resolve `orderPartFoundByName` if `partData.orderPartFoundById` is set (same lookup as above).
+    - `const newPart = await db.crmOrders.create({ data: { ...partData, orderCustomerId: parentOrder.orderCustomerId, parentOrderId: parentOrderId } })`.
+    - Return `{ partOrderId: newPart.crmOrderId }`.
+  - [ ] **[Repository — removeChildPart (NEW METHOD)]** Add method `removeChildPart(parentOrderId: number, childOrderId: number): Promise<void>`:
+    - Fetch `const childOrder = await db.crmOrders.findUnique({ where: { crmOrderId: childOrderId }, select: { parentOrderId: true } })`.
+    - If `!childOrder`, throw `Error('Part not found')`.
+    - If `childOrder.parentOrderId === null`, throw `Error('Cannot delete the primary order via the parts endpoint. Use DELETE /api/orders/{id} to delete the entire order.')`.
+    - If `childOrder.parentOrderId !== parentOrderId`, throw `Error('This part does not belong to the specified parent order.')`.
+    - `await db.crmOrders.delete({ where: { crmOrderId: childOrderId } })`.
+  - [ ] **[Service]** In `src/service/order.service.ts`:
+    - Update `createOrder(payload)`: Accept `payload.parts: OrderPartInput[]`. For each part in the array, apply the existing auto-status-transition logic (Pending Booking vs Pending Shipment based on vendorId, etc.) and the `saleStatus` auto-rules (`orderRefundAmount` logic) independently before calling `createWithCustomerAndCard`. Pass the processed `parts[]` array to the repository.
+    - Add new method `addPart(parentOrderId: number, partData: OrderPartInput, session: Session): Promise<{ partOrderId: number }>`:
+      - Call `requirePermission(session, 'orders:edit')`.
+      - Apply the auto-status logic to `partData` (same as for a single order).
+      - Call `orderRepository.addPartToExistingOrder(parentOrderId, partData)` and store the result as `const result`.
+      - **[Audit]** After successful creation, write an audit log entry on the **parent order** (not the child): call `orderRepository.createAuditEntry({ orderId: parentOrderId, changedByUserId: Number(session.user.uid), fieldName: 'childPart', oldValue: null, newValue: \`Part added: "${partData.orderPart ?? 'Unknown'}" (Child Order ID: ${result.partOrderId})\` })`. This records the structural change on the parent so operators can see the order's full part history in one timeline.
+      - Return `result`.
+    - Add new method `removePart(parentOrderId: number, childOrderId: number, session: Session): Promise<void>`:
+      - Call `requirePermission(session, 'orders:edit')`.
+      - **Before deletion**, fetch the child order's part name to record it in the audit log: `const childOrder = await orderRepository.findById(childOrderId)`. Store `const partName = childOrder?.orderPart ?? 'Unknown'`.
+      - Call `orderRepository.removeChildPart(parentOrderId, childOrderId)`.
+      - **[Audit]** After successful deletion, write an audit log entry on the **parent order**: call `orderRepository.createAuditEntry({ orderId: parentOrderId, changedByUserId: Number(session.user.uid), fieldName: 'childPart', oldValue: \`Part removed: "${partName}" (Child Order ID: ${childOrderId})\`, newValue: null })`.
+    - **[Child order field edits — automatically audited]** When `PATCH /api/orders/{childOrderId}` is called for a child part, it flows through the same `updateOrder` service method used for all orders. The existing `orderKeysToAudit` array already tracks field-level changes (vendor, pricing, status, liftgate, part found by, etc.) for **every** `crm_orders` row regardless of whether `parentOrderId` is null or set. No additional code is required — child part edits are written automatically to `crm_order_audit_log` with the child's own `orderId` as the identifier.
+  - [ ] **[Controller — POST /api/orders]** In `src/app/api/orders/route.ts`, update the POST handler:
+    - Parse `parts` from the request body. If the body has a `parts` array, use it directly. For backward compatibility, if the body has the old flat structure (no `parts` array), wrap: `const parts = [{ ...body }]`.
+    - Pass `{ customer, cards, parts }` to `orderService.createOrder()`.
+    - Return the new response shape: `{ orderId, customerId, cardIds, partOrderIds }` with status `201`.
+  - [ ] **[Controller — POST /api/orders/[id]/parts (NEW ROUTE)]** Create `src/app/api/orders/[id]/parts/route.ts`:
+    - Export `POST` handler.
+    - Resolve session. Call `requirePermission(session, 'orders:edit')`.
+    - Parse `id` from params as `Number(params.id)`.
+    - Parse request body as `partData: OrderPartInput`.
+    - Call `orderService.addPart(id, partData, session)`.
+    - On success: return `NextResponse.json({ partOrderId }, { status: 201 })`.
+    - On `Error('Cannot add a part to an order that is itself a child part...')`: return `NextResponse.json({ error: e.message }, { status: 400 })`.
+  - [ ] **[Controller — DELETE /api/orders/[id]/parts/[partId] (NEW ROUTE)]** Create `src/app/api/orders/[id]/parts/[partId]/route.ts`:
+    - Export `DELETE` handler.
+    - Resolve session. Call `requirePermission(session, 'orders:edit')`.
+    - Parse `id` (parentOrderId) and `partId` (childOrderId) from params.
+    - Call `orderService.removePart(Number(id), Number(partId), session)`.
+    - On success: return `NextResponse.json({ success: true }, { status: 200 })`.
+    - On `Error('Cannot delete the primary order...')`: return `NextResponse.json({ error: e.message }, { status: 400 })`.
+    - On `Error('Part not found')`: return `NextResponse.json({ error: e.message }, { status: 404 })`.
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **RED — Unit / Component (`AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`):**
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Render `AddOrderForm`. Assert exactly one part card section is visible (labelled "Part 1" or contains `data-testid="part-card-0"`). Assert a button with text "Add Another Part" is present.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Add Another Part" button. Assert a second part card (`data-testid="part-card-1"`) is now visible. Assert the second part card's `id="orderMakeModel-1"` input has the same value as `id="orderMakeModel-0"` (auto-filled from Part 1). Assert `id="orderSalesAgentId-1"` select has the same value as `id="orderSalesAgentId-0"` (auto-filled). Assert `id="orderPart-1"` input is empty. Assert `id="orderVendorId-1"` select is empty / default.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Add Another Part". Assert a "Remove" button is visible on Part 2's card but NOT on Part 1's card.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Remove" on Part 2. Assert Part 2 card is removed and only one part card remains.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: With two parts present, fill Part 1 `orderTotalPitched: "400"` and Part 2 `orderTotalPitched: "200"`. Assert the Deal Summary section (labelled `data-testid="deal-summary"`) shows a combined Total Pitched of `$600.00`.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Submit form with 2 parts. Assert `fetch` is called once with `POST /api/orders` and request body containing `parts: [{ orderPart: "Engine", ... }, { orderPart: "Transmission", ... }]`.
+  - [ ] **`EditOrderForm.test.tsx`**: Test: Render `EditOrderForm` with a mock order that has `childOrders: [{ crmOrderId: 102, orderPart: "Transmission", ... }]`. Assert two part cards are visible: Part 1 (the parent) and Part 2 (the child).
+  - [ ] **`EditOrderForm.test.tsx`**: Test: "Remove" button is visible on Part 2 (child) card but NOT on Part 1 (parent) card.
+  - [ ] **`EditOrderForm.test.tsx`**: Test: Submit `EditOrderForm` after modifying Part 2's `orderPart`. Assert `PATCH /api/orders/102` is called with updated `orderPart` value for the child order.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → AddOrderForm → EditOrderForm → OrderList → Order Detail Page):**
+  - [ ] **[Types — `src/types/order.ts`]:**
+    - Add `parentOrderId?: number | null` to the `Order` and `OrderDetail` interfaces.
+    - Create new interface `ChildPartSummary`: `{ crmOrderId: number; orderPart: string | null; saleStatus: string | null; orderCurrentStatus: string | null; orderAmountCharged: string | null; orderRefundAmount: string | null; orderLiftgateNeeded: string | null; }`.
+    - Create new interface `ChildPartDetail` — identical shape to `OrderDetail` (all fields), representing a fully-loaded child order.
+    - Add `childOrders?: ChildPartSummary[]` to the `Order` interface (list view).
+    - Add `childOrders?: ChildPartDetail[]` to the `OrderDetail` interface (detail view).
+    - Add `parts: OrderPartInput[]` to `OrderCreateInput`. `OrderPartInput` is a new interface containing all per-part fields: `orderMakeModel`, `orderVin`, `orderPart`, `orderPartSize`, `orderVendorId`, `orderVendorName`, `orderPartFoundById`, `orderPartFoundByName`, `orderVendorPrice`, `orderTotalPitched`, `orderAmountCharged`, `orderRefundAmount`, `orderShippingType`, `orderLiftgateNeeded`, `orderChecklist`, `orderQuotedMilesAndWarranty`, `orderVendorMilesAndWarranty`, `orderSalesAgentId`, `orderVerifierId`, `orderSalesVerifierId`, `orderBackendExecutiveId`, `orderPartFoundById`, `orderPaymentGatewayId`, `orderDate`, `saleStatus`, `orderCurrentStatus`.
+  - [ ] **[AddOrderForm.tsx — major refactor]:**
+    - Define a `PartFormState` type locally (same fields as `OrderPartInput`).
+    - Replace all current per-order state variables (`orderPart`, `orderMakeModel`, etc.) with a single `const [parts, setParts] = useState<PartFormState[]>([defaultPart])` where `defaultPart` is an object with all fields at their default empty/null values.
+    - Extract the fields for a single part into a sub-component or render helper `renderPartCard(part: PartFormState, index: number)` that renders a visually distinct card with title **"Part {index + 1}"** and all per-part fields:
+      - Year/Make & Model (`orderMakeModel-{index}`), VIN (`orderVin-{index}`)
+      - Part Name (`orderPart-{index}`), Part Size (`orderPartSize-{index}`)
+      - Vendor selector (`orderVendorId-{index}`), Part Found By selector (`orderPartFoundById-{index}`)
+      - Quoted Miles & Warranty (`orderQuotedMilesAndWarranty-{index}`), Vendor Miles & Warranty (`orderVendorMilesAndWarranty-{index}`)
+      - Vendor Price (`orderVendorPrice-{index}`), Total Pitched (`orderTotalPitched-{index}`), Amount Charged (`orderAmountCharged-{index}`)
+      - Shipping Type (`orderShippingType-{index}`), Liftgate Needed checkbox (`orderLiftgateNeeded-{index}`)
+      - Checklist checkbox (`orderChecklist-{index}`)
+      - Sale Status select (`saleStatus-{index}`) with existing sale status options
+      - Workflow Status select (`orderCurrentStatus-{index}`) with existing workflow options
+      - Sales Agent select (`orderSalesAgentId-{index}`)
+      - Sales Verifier select (`orderSalesVerifierId-{index}`)
+      - Backend Executive select (`orderBackendExecutiveId-{index}`)
+      - QA Verifier select (`orderVerifierId-{index}`)
+      - Payment Gateway select (`orderPaymentGatewayId-{index}`)
+      - Part Found By select (`orderPartFoundById-{index}`)
+      - Remove Part button — rendered only when `index > 0`: `onClick={() => setParts(parts.filter((_, i) => i !== index))}`
+    - "Add Another Part" button (outside and below all part cards):
+      ```typescript
+      const addAnotherPart = () => {
+        const first = parts[0];
+        const newPart: PartFormState = {
+          ...defaultPart, // start with all defaults
+          // Auto-fill from Part 1:
+          orderMakeModel: first.orderMakeModel,
+          orderVin: first.orderVin,
+          orderSalesAgentId: first.orderSalesAgentId,
+          orderVerifierId: first.orderVerifierId,
+          orderSalesVerifierId: first.orderSalesVerifierId,
+          orderBackendExecutiveId: first.orderBackendExecutiveId,
+          orderPaymentGatewayId: first.orderPaymentGatewayId,
+          orderDate: first.orderDate,
+          // NOT auto-filled (left at defaults):
+          // orderPart, orderPartSize, orderVendorId, orderPartFoundById,
+          // orderVendorPrice, orderTotalPitched, orderAmountCharged,
+          // orderShippingType, orderLiftgateNeeded, orderChecklist,
+          // saleStatus (defaults '1'), orderCurrentStatus (defaults 'Pending Booking')
+        };
+        setParts([...parts, newPart]);
+      };
+      ```
+    - Deal Summary section (`data-testid="deal-summary"`) rendered below all part cards:
+      - **Total Parts:** `{parts.length}`
+      - **Combined Total Pitched:** `${ parts.reduce((s, p) => s + (parseFloat(p.orderTotalPitched || '0')), 0).toFixed(2) }`
+      - **Combined Vendor Price:** `${ parts.reduce((s, p) => s + (parseFloat(p.orderVendorPrice || '0')), 0).toFixed(2) }`
+      - **Combined Amount Charged:** `${ parts.reduce((s, p) => s + (parseFloat(p.orderAmountCharged || '0')), 0).toFixed(2) }`
+    - Customer Info section and Cards section remain as-is (unchanged — still shared once at the top).
+    - On submit: build body as `{ customer: {...}, cards: [...], parts: parts.map(p => ({ ...p })) }` and `POST /api/orders`.
+  - [ ] **[EditOrderForm.tsx — major refactor]:**
+    - On load, fetch `GET /api/orders/{id}` which now returns `childOrders[]` in the response.
+    - Initialize state: `const [parts, setParts] = useState<EditPartState[]>([orderToEditPartState(order), ...order.childOrders.map(c => childToEditPartState(c))])` where each `EditPartState` includes all per-part fields plus `crmOrderId: number | null` (null = new, unsaved part).
+    - Render all parts the same way as `AddOrderForm.tsx` using the same `renderPartCard(part, index)` pattern (share code or duplicate for type safety).
+    - "Add Another Part" button: same auto-fill logic as `AddOrderForm.tsx`.
+    - "Remove Part" button on child parts (index > 0): marks the part as `pendingDeletion: true` in state (visual: collapse/grey-out the card with a "Will be removed on save" message). Do NOT call the API immediately.
+    - On submit:
+      1. For the parent (index 0): `PATCH /api/orders/{order.crmOrderId}` with Part 1 fields.
+      2. For each existing child part (has `crmOrderId`, `pendingDeletion: false`): `PATCH /api/orders/{part.crmOrderId}` with updated fields.
+      3. For each existing child part (has `crmOrderId`, `pendingDeletion: true`): `DELETE /api/orders/{order.crmOrderId}/parts/{part.crmOrderId}`.
+      4. For each new part (no `crmOrderId`): `POST /api/orders/{order.crmOrderId}/parts` with the part data.
+      - Run all PATCH/DELETE/POST calls in sequence (not parallel) to avoid race conditions.
+  - [ ] **[OrderList.tsx]:**
+    - Compute `allParts` for each row: `const allParts = [order, ...(order.childOrders ?? [])]`.
+    - In the Part Name cell: render `{order.orderPart ?? '—'}` followed by — if `order.childOrders && order.childOrders.length > 0` — a small badge: `<span className="badge-multi-parts">(+{order.childOrders.length} more)</span>`.
+    - In the financial amount column: replace the current single `order.orderAmountCharged` display with the computed sum: `const totalCharged = allParts.reduce((s, p) => s + parseFloat(p.orderAmountCharged ?? '0'), 0);` → display `${ totalCharged.toFixed(2) }`.
+    - Liftgate badge (from Phase 25): check `order.orderLiftgateNeeded === 'Yes'` to render the badge (already done in Phase 25, but ensure it remains).
+  - [ ] **[page.tsx — order detail (`src/app/orders/[id]/page.tsx`)]:**
+    - Build `const allParts = [order, ...(order.childOrders ?? [])]`.
+    - Add a **Part Selector** control above the Part Details section:
+      - `const [selectedPartIndex, setSelectedPartIndex] = useState(0)`.
+      - Render `<select id="partSelector" value={selectedPartIndex} onChange={e => setSelectedPartIndex(Number(e.target.value))}>` with options: `allParts.map((p, i) => <option value={i}>Part {i+1}: {p.orderPart ?? 'Unknown'} — {getSaleStatusLabel(p.saleStatus)}</option>)`.
+    - The **Part Details section** (Make/Model, VIN, Part, Part Size, Vendor, Part Found By, Miles/Warranty, Shipping, Liftgate, Checklist, Sale Status, Workflow Status, Tracking, etc.) now reads from `allParts[selectedPartIndex]` instead of directly from `order`.
+    - The **Staff Allocation section** (Sales Agent, Verifier, Sales Verifier, Backend Executive, Part Found By) now also reads from `allParts[selectedPartIndex]`, since staff allocation is per-part.
+    - Replace the existing **Financial Summary / Ledger** section with an **Aggregate Financial Summary**:
+      - `const totalPitched = allParts.reduce((s, p) => s + parseFloat(p.orderTotalPitched ?? '0'), 0)`.
+      - `const totalVendorPrice = allParts.reduce((s, p) => s + parseFloat(p.orderVendorPrice ?? '0'), 0)`.
+      - `const totalCharged = allParts.reduce((s, p) => s + parseFloat(p.orderAmountCharged ?? '0'), 0)`.
+      - `const totalRefund = allParts.reduce((s, p) => s + parseFloat(p.orderRefundAmount ?? '0'), 0)`.
+      - `const netMargin = totalCharged - totalRefund`.
+      - Display these five values in the Financial Summary card. Add a sub-note: "Totals across all {allParts.length} part(s)."
+  - [ ] Run unit test — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Agent navigates to `/orders/new` → sees "Part 1" card with all fields → fills Part 1 (Engine, VIN: ABC123, Sales Agent: John, Amount: $400) → clicks "Add Another Part" → Part 2 card appears with Make/Model and VIN auto-filled as ABC123, Sales Agent pre-filled as John, Part field empty → agent fills Part 2 (Transmission, Vendor: Smith Parts, Amount: $200) → Deal Summary shows Combined Amount: $600 → agent submits → list view shows one row for this customer with "(+1 more)" badge and amount "$600.00" → agent clicks the row → detail page shows Part Selector dropdown "Part 1: Engine — Sold" and "Part 2: Transmission — Pending Booking" → selecting Part 2 updates all per-part fields shown → Financial Summary shows Total Charged: $600.00 and Net Margin: $600.00 → agent navigates to Edit Order → both part cards are shown, Part 1 pre-filled, Part 2 pre-filled → agent modifies Part 2's vendor → saves → Part 2 detail view shows updated vendor → ✅ Done.
+
+---
+
+### Phase 27 — Super-Admin CSV Data Export & Import
+
+#### W-2701 — Full Database Export to CSV, ZIP Archive Download & FK-Safe Re-Import
+
+**Goal:**
+Allow users with the `super-admin` permission to export every table in the database as a CSV file, download all tables as a single ZIP archive, and re-upload CSV files to restore or migrate data. The export respects the FK constraint order so re-imports succeed. The import validates FK dependencies before inserting rows. Base64 image columns (`customer_card_copy_image`, `customer_photo_id_image`) are excluded from the default CSV export (exported separately to avoid bloated files).
+
+**Approach:**
+Create a `csv-exporter.ts` library with serialization helpers. Create a `data-management.service.ts` that knows the FK-safe table export/import order. Create API routes for export and import. Add a new super-admin Settings page at `/settings/data-management`. Gate everything on the `super-admin` session permission key.
+
+---
+
+- [ ] **RED — Integration (`data-management.test.ts`):**
+  - [ ] Test: `GET /api/admin/export?table=crm_teams` without a super-admin session returns `403 Forbidden`.
+  - [ ] Test: `GET /api/admin/export?table=crm_teams` with a super-admin session returns `200 OK` with headers `Content-Type: text/csv` and `Content-Disposition: attachment; filename="crm_teams.csv"`. Assert response body first line (header row) equals `"team_id,team_name,team_created,team_updated"`. Assert second line contains the seeded team's data.
+  - [ ] Test: `GET /api/admin/export?table=nonexistent_table` with super-admin returns `400 Bad Request` with body `{ error: "Table 'nonexistent_table' is not in the allowed export list." }`.
+  - [ ] Test: `GET /api/admin/export?table=crm_customer_cards` with super-admin returns `200 OK` CSV where the header row does **NOT** contain `customer_card_copy_image` or `customer_photo_id_image` columns.
+  - [ ] Test: `GET /api/admin/export/all` with super-admin returns `200 OK` with `Content-Type: application/zip`. Assert response body is a valid ZIP archive (first 4 bytes are `PK\x03\x04`).
+  - [ ] Test: Seed a new team (`INSERT INTO crm_teams SET team_name='TestExport'`). `GET /api/admin/export?table=crm_teams` — assert the CSV response body contains a row with `TestExport`. Then `DELETE FROM crm_teams WHERE team_name='TestExport'`. `POST /api/admin/import?table=crm_teams` with the exported CSV file as multipart body. Assert `SELECT COUNT(*) FROM crm_teams WHERE team_name='TestExport'` returns `1`.
+  - [ ] Test: `POST /api/admin/import?table=users` with a CSV containing a row referencing `team_id=99999` (non-existent) returns `422 Unprocessable Entity` with body `{ error: "Row 2: team_id '99999' does not exist in crm_teams. Resolve FK dependencies first." }`.
+  - [ ] **Run — confirm RED (routes do not exist).**
+
+- [ ] **GREEN — Backend (Library → Service → Controller → New Routes):**
+  - [ ] **[Library — `src/lib/csv-exporter.ts` (NEW FILE)]:**
+    - Export constant `ALLOWED_EXPORT_TABLES: string[]` — the complete ordered list of 18 tables in FK-safe sequence:
+      ```
+      ['crm_teams', 'crm_roles', 'crm_permissions', 'crm_designations', 'crm_gateway',
+       'admin', 'users', 'crm_role_permissions', 'crm_vendors', 'crm_customers',
+       'users_profile', 'users_profile_academic', 'users_profile_professional',
+       'usercheck', 'crm_attendance', 'crm_orders', 'crm_customer_cards', 'crm_comments']
+      ```
+    - Export constant `EXCLUDED_COLUMNS: Record<string, string[]>` — columns to exclude per table:
+      ```typescript
+      { 'crm_customer_cards': ['customer_card_copy_image', 'customer_photo_id_image'] }
+      ```
+    - Export function `objectsToCsvString(rows: Record<string, unknown>[], excludeColumns?: string[]): string`:
+      - If `rows` is empty, return an empty string (no header, no rows).
+      - Build headers from `Object.keys(rows[0])` filtered by `excludeColumns`.
+      - Serialize each row: wrap each cell value in double-quotes, escape internal double-quotes by doubling them (`"` → `""`), convert `null`/`undefined` to empty string.
+      - Return `header_line\n` + `data_lines\n` joined by `\n`.
+    - Export function `csvStringToObjects(csvString: string): Record<string, string>[]`:
+      - Parse the CSV: first line = headers, subsequent lines = data rows.
+      - Handle quoted fields correctly (RFC 4180 compliant: quoted fields may contain commas and escaped quotes).
+      - Return array of objects with header keys and string values.
+    - Export function `getRawTableRows(tableName: string): Promise<Record<string, unknown>[]>`:
+      - Use `db.$queryRawUnsafe(`SELECT * FROM \`${tableName}\`` )` to fetch all rows.
+      - This uses raw SQL to bypass Prisma's camelCase mapping and return actual database column names.
+      - **Security note:** `tableName` MUST be validated against `ALLOWED_EXPORT_TABLES` before calling this function — validation happens in the service layer.
+    - Export function `validateImportRow(tableName: string, row: Record<string, string>, existingIds: Map<string, Set<string>>): string | null`:
+      - Checks FK columns for the given table against `existingIds` (a pre-built map of `{ 'crm_teams': Set(['1','2','3']) }`, etc.).
+      - Returns `null` if valid, or an error string like `"team_id '99999' does not exist in crm_teams"` if invalid.
+      - Define `FK_MAP: Record<string, { column: string; referencedTable: string; referencedColumn: string }[]>` mapping each table to its FK columns.
+  - [ ] **[Service — `src/service/data-management.service.ts` (NEW FILE)]:**
+    - Method `exportTable(tableName: string): Promise<string>`:
+      - Validate `tableName` is in `ALLOWED_EXPORT_TABLES`. Throw `Error("Table '...' is not in the allowed export list.")` if not.
+      - Call `getRawTableRows(tableName)`.
+      - Call `objectsToCsvString(rows, EXCLUDED_COLUMNS[tableName] ?? [])`.
+      - Return the CSV string.
+    - Method `exportAllAsZip(): Promise<Buffer>`:
+      - For each table in `ALLOWED_EXPORT_TABLES` (in order), call `exportTable(tableName)`.
+      - Use the `jszip` npm package: `const zip = new JSZip(); zip.file(`${tableName}.csv`, csvString)` for each table.
+      - For `crm_orders`: export parents first (WHERE parent_order_id IS NULL), then children (WHERE parent_order_id IS NOT NULL), in the same file (parents listed first, then children).
+      - `return await zip.generateAsync({ type: 'nodebuffer' })`.
+    - Method `importTable(tableName: string, csvString: string): Promise<{ insertedCount: number; errors: string[] }>`:
+      - Validate `tableName` against `ALLOWED_EXPORT_TABLES`.
+      - Parse CSV using `csvStringToObjects(csvString)`.
+      - Pre-build `existingIds` map: for each FK-referenced table, query its PK values.
+      - Validate each row using `validateImportRow`. Collect all validation errors.
+      - If any validation errors, return `{ insertedCount: 0, errors }` without inserting.
+      - If valid, insert rows using `db.$executeRawUnsafe` with parameterized `INSERT INTO ... VALUES (?)` (never string-interpolate user data into SQL).
+      - Return `{ insertedCount: rows.length, errors: [] }`.
+  - [ ] **[Controller — `src/app/api/admin/export/route.ts` (NEW FILE)]:**
+    - Export `GET` handler.
+    - Resolve session. If `!hasPermission(session, 'super-admin')` → return `NextResponse.json({ error: 'Forbidden' }, { status: 403 })`.
+    - Read `tableName` from `searchParams.get('table')`.
+    - Call `dataManagementService.exportTable(tableName)`. Catch `Error` → return `400` with `{ error: e.message }`.
+    - Return `new NextResponse(csvString, { status: 200, headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${tableName}.csv"` } })`.
+  - [ ] **[Controller — `src/app/api/admin/export/all/route.ts` (NEW FILE)]:**
+    - Export `GET` handler.
+    - Resolve session. Guard with `super-admin`.
+    - Call `dataManagementService.exportAllAsZip()`. Returns a `Buffer`.
+    - Return `new NextResponse(zipBuffer, { status: 200, headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="jd_crm_export_all.zip"' } })`.
+  - [ ] **[Controller — `src/app/api/admin/import/route.ts` (NEW FILE)]:**
+    - Export `POST` handler.
+    - Resolve session. Guard with `super-admin`.
+    - Read `tableName` from `searchParams.get('table')`.
+    - Parse the multipart form body using `await req.formData()`. Get the uploaded file: `const file = formData.get('file') as File`. Read its text: `const csvString = await file.text()`.
+    - Call `dataManagementService.importTable(tableName, csvString)`.
+    - If `result.errors.length > 0` → return `NextResponse.json({ error: result.errors[0], allErrors: result.errors }, { status: 422 })`.
+    - On success → return `NextResponse.json({ insertedCount: result.insertedCount }, { status: 200 })`.
+  - [ ] **[npm dependency]** Run `npm install jszip`. Run `npm install --save-dev @types/jszip` if needed.
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **RED — Unit / Component (`DataManagement.test.tsx`):**
+  - [ ] Test: Render `DataManagementPage` with a super-admin session. Assert a heading "Data Management" is visible. Assert exactly 18 download buttons are present (one per table in `ALLOWED_EXPORT_TABLES`). Assert a "Download All (ZIP)" button is present.
+  - [ ] Test: Render `DataManagementPage` without super-admin session. Assert the page renders an "Access Denied" message and no download buttons.
+  - [ ] Test: Click the "Download All (ZIP)" button. Assert `fetch` is called with `GET /api/admin/export/all`.
+  - [ ] Test: Click the "Download CSV" button for `crm_orders`. Assert `fetch` is called with `GET /api/admin/export?table=crm_orders`.
+  - [ ] Test: An upload `<input type="file">` is present for each table. Simulate file selection and click "Import". Assert `fetch` is called with `POST /api/admin/import?table={tableName}` and body is `FormData` containing the file.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Page → Components):**
+  - [ ] **[Types]** Create `src/types/data-management.ts`:
+    ```typescript
+    export interface ExportTableInfo {
+      tableName: string;
+      displayName: string;
+      rowCount?: number;
+    }
+    export interface ImportResult {
+      insertedCount: number;
+      errors?: string[];
+    }
+    ```
+  - [ ] **[Page — `src/app/settings/data-management/page.tsx` (NEW FILE)]:**
+    - Server component. Fetch session. If `!hasPermission(session, 'super-admin')` → render `<AccessDenied />` component.
+    - Render `<DataManagementClient tables={ALLOWED_EXPORT_TABLES} />`.
+  - [ ] **[Component — `src/components/DataManagement/DataManagementClient.tsx` (NEW FILE)]:**
+    - `'use client'` component.
+    - Renders a page heading **"Data Management — Export & Import"** and a warning callout: *"This page is restricted to Super Administrators. Downloads contain all database records including sensitive personal data."*
+    - Renders a **"Download All Tables (ZIP)"** button. `onClick`: `window.location.href = '/api/admin/export/all'`.
+    - Renders a table with columns: Table Name | Rows | Download CSV | Upload CSV | Import Status.
+    - For each table in `ALLOWED_EXPORT_TABLES`:
+      - **Download CSV** button: `onClick` → `window.location.href = '/api/admin/export?table=${tableName}'`.
+      - **Upload CSV** section: `<input type="file" accept=".csv" id="upload-{tableName}">` + **"Import"** button.
+      - **Import** button `onClick`:
+        1. Read file from `<input>`.
+        2. Build `FormData` with `formData.append('file', file)`.
+        3. `fetch POST /api/admin/import?table=${tableName}` with the FormData body.
+        4. On `200`: show success toast `"Imported {insertedCount} rows into {tableName}."`.
+        5. On `422`: show error toast with the first validation error message.
+      - Show last import result inline (success row count or error text).
+  - [ ] **[Sidebar / Navigation]** In `src/components/Sidebar.tsx`, in the Settings section (visible when user has `settings:manage-permissions`), add a new link item **"Data Management"** pointing to `/settings/data-management`. Wrap visibility in `hasPermission(permissions, 'super-admin')`.
+  - [ ] Run unit test — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Super Admin navigates to `/settings/data-management` → sees table list with 18 rows, "Download All (ZIP)" button → clicks "Download All (ZIP)" → browser downloads `jd_crm_export_all.zip` containing 18 `.csv` files → super admin unzips, verifies `crm_orders.csv` contains all order rows and does NOT have `customer_card_copy_image` column → super admin deletes a test team from DB → navigates back to page → uploads the previously downloaded `crm_teams.csv` → clicks Import → success toast "Imported N rows into crm_teams" → confirms deleted team is restored in the DB → super admin attempts to import `users.csv` with an invalid `team_id` → import fails with a clear FK validation error message → non-super-admin user navigates to `/settings/data-management` → sees "Access Denied" page → ✅ Done.
+
+---
+
+### Phase 28 — Automated Weekly Backup
+
+#### W-2801 — Saturday Evening Cron Backup (Docker mysqldump + Vercel Cron Trigger)
+
+**Goal:**
+Automatically back up the entire database every Saturday evening at 19:00 IST (13:30 UTC). Two delivery mechanisms are implemented:
+1. **Docker/self-hosted:** A `cron` container in `docker-compose.yml` runs `mysqldump` weekly and saves `.sql` dump files to a mounted local volume, keeping the last 4 backups.
+2. **Vercel/serverless:** A `vercel.json` cron job calls `POST /api/admin/backup/trigger` at the same time, which runs the CSV-based export (Phase 27) and saves a ZIP file or sends it to a configured webhook URL.
+
+**Approach:**
+Add a `crm_backup` service to `docker-compose.yml` using a lightweight MySQL-capable cron image. Add `POST /api/admin/backup/trigger` route guarded by `super-admin`. Create `backup.service.ts` reusing Phase 27's export logic. Add `vercel.json` cron entry. Document backup file naming and retention in a new `BACKUPS.md` file.
+
+---
+
+- [ ] **RED — Integration (`backup.test.ts`):**
+  - [ ] Test: `POST /api/admin/backup/trigger` without a super-admin session returns `403 Forbidden`.
+  - [ ] Test: `POST /api/admin/backup/trigger` with a super-admin session returns `200 OK` with body `{ success: true, timestamp: <ISO string>, tablesExported: 18, message: "Backup complete." }`. Assert the response `timestamp` is a valid ISO date string.
+  - [ ] **Run — confirm RED (route does not exist).**
+
+- [ ] **GREEN — Backend (Service → Controller → Docker → Vercel Config):**
+  - [ ] **[Service — `src/service/backup.service.ts` (NEW FILE)]:**
+    - Method `runBackup(): Promise<{ timestamp: string; tablesExported: number; filePath: string | null }>`:
+      - Get `timestamp = new Date().toISOString()`.
+      - Call `dataManagementService.exportAllAsZip()` (from Phase 27) to get the ZIP `Buffer`.
+      - If `process.env.BACKUP_OUTPUT_PATH` is set: write the buffer to `path.join(BACKUP_OUTPUT_PATH, `jd_crm_backup_${timestamp.replace(/:/g, '-')}.zip`)` using Node.js `fs.writeFileSync`. Delete backup files older than the 4 most recent in that directory.
+      - If `process.env.BACKUP_WEBHOOK_URL` is set: `fetch(BACKUP_WEBHOOK_URL, { method: 'POST', body: zipBuffer, headers: { 'Content-Type': 'application/zip', 'X-Backup-Timestamp': timestamp } })`.
+      - Return `{ timestamp, tablesExported: 18, filePath: savedPath ?? null }`.
+  - [ ] **[Controller — `src/app/api/admin/backup/trigger/route.ts` (NEW FILE)]:**
+    - Export `POST` handler.
+    - Resolve session. If `!hasPermission(session, 'super-admin')` → return `NextResponse.json({ error: 'Forbidden' }, { status: 403 })`.
+    - Call `backupService.runBackup()`.
+    - Return `NextResponse.json({ success: true, timestamp: result.timestamp, tablesExported: result.tablesExported, message: 'Backup complete.' }, { status: 200 })`.
+  - [ ] **[Docker — `docker-compose.yml`]:** Add a new service after the existing `db` service:
+    ```yaml
+    crm_backup:
+      image: mysql:8.0
+      depends_on:
+        - db
+      volumes:
+        - ./backups:/backups
+      environment:
+        MYSQL_PWD: root_password
+      entrypoint: ["/bin/sh", "-c"]
+      command:
+        - |
+          echo "0 13 * * 6 mysqldump -h db -u root jd_crm > /backups/jd_crm_backup_$$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S).sql && ls -t /backups/jd_crm_backup_*.sql | tail -n +5 | xargs -r rm" | crontab -
+          crond -f -l 2
+    ```
+    This runs `mysqldump` every Saturday at 13:30 UTC (7:00 PM IST), saves to `/backups/` volume, and automatically prunes all but the 4 most recent backup files.
+  - [ ] **[Local volume]** Create an empty `backups/` directory in the project root (if not already present). Add `backups/*.sql` and `backups/*.zip` to `.gitignore`.
+  - [ ] **[Vercel config — `vercel.json`]:** Create or update `vercel.json` in the project root to include:
+    ```json
+    {
+      "crons": [
+        {
+          "path": "/api/admin/backup/trigger",
+          "schedule": "30 13 * * 6"
+        }
+      ]
+    }
+    ```
+    This triggers the backup route every Saturday at 13:30 UTC (7:00 PM IST). Note: Vercel cron jobs call the route without a user session, so the route must also accept requests authenticated by a `CRON_SECRET` header as an alternative to session-based super-admin auth. Update the route handler: `if (!hasPermission(session, 'super-admin') && req.headers.get('x-cron-secret') !== process.env.CRON_SECRET) { return 403 }`.
+  - [ ] **[Environment variables]** Add to `.env.example`:
+    ```env
+    BACKUP_OUTPUT_PATH="./backups"
+    BACKUP_WEBHOOK_URL=""
+    CRON_SECRET=""
+    ```
+  - [ ] **[Documentation — `BACKUPS.md` (NEW FILE in project root)]:** Create a concise reference document explaining:
+    - Backup schedule: Every Saturday at 7:00 PM IST (13:30 UTC).
+    - Docker backup: `mysqldump` to `./backups/jd_crm_backup_YYYYMMDD_HHMMSS.sql`. Last 4 kept.
+    - Vercel backup: ZIP export sent to `BACKUP_WEBHOOK_URL` or stored at `BACKUP_OUTPUT_PATH`. Triggered via cron.
+    - Manual backup: Call `POST /api/admin/backup/trigger` with super-admin session.
+    - Restore from SQL dump: `docker exec -i jd_crm_db mysql -u root -proot_password jd_crm < ./backups/{file}.sql`
+    - Restore from CSV ZIP: Unzip, upload each CSV via `/settings/data-management` import in FK-safe order listed in Phase 27.
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **RED — Unit (No frontend component — backup is fully server-side):**
+  - [ ] N/A — `backup.service.ts` is a pure server-side service. No React component is introduced. The existing `DataManagementClient.tsx` (Phase 27) can optionally surface a "Run Backup Now" button that calls `POST /api/admin/backup/trigger` — but this is a UI enhancement, not a required unit test target for this phase.
+
+- [ ] **GREEN — Frontend (Optional Enhancement):**
+  - [ ] **[Optional — DataManagementClient.tsx]** Add a **"Run Backup Now"** button at the top of the Data Management page that calls `POST /api/admin/backup/trigger`. On success, show a toast: `"Backup complete. {tablesExported} tables exported at {timestamp}."`. This reuses the same page from Phase 27 — no new page or route is needed.
+
+- [ ] **Verification chain:**
+  - [ ] Developer runs `docker compose up -d` → `crm_backup` service starts → wait for Saturday 7:00 PM IST OR manually trigger via `POST /api/admin/backup/trigger` with super-admin session → backup file `jd_crm_backup_*.sql` (Docker) or `jd_crm_backup_*.zip` (Vercel) appears in `./backups/` → developer verifies backup is non-empty and readable → developer simulates data loss by truncating a table → runs restore command from `BACKUPS.md` → confirms data is restored → On Vercel: `vercel.json` cron is deployed → Vercel Cron dashboard shows the scheduled job → cron fires at 13:30 UTC Saturday → backup route responds 200 → ✅ Done.
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -4558,3 +5096,13 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Image Update Auditing Enhancements**: Updated card copy and photo ID change history logging to distinguish between newly uploaded scans and modified scans. If an image is changed/updated (replacing an existing raw value in the database with a different one), the new value in the audit log is recorded as `"[Changed]"` instead of `"[Uploaded]"`, making image modification records explicit and clear to users.
   - **Restricted Agent Data Preservation**: Hardened the backend update loop in `order.service.ts` to preserve existing raw database values (images, phone numbers, and email addresses) whenever an agent without view permissions submits an edit. Ensured that no false change log entries are generated for these preserved values.
   - **Verification**: Verified that both the typescript compiler (`npm run typecheck`) and the linter (`npm run lint`) execute with 0 errors/warnings, and the integration test suite passes 100% green.
+
+### Session 55 — July 7, 2026
+  **Phase 25 Implementation: Part Found By Role + Liftgate Needed Flag on crm_orders**
+  - **Database Migration**: Added `orderPartFoundById`, `orderPartFoundByName`, and `orderLiftgateNeeded` (default `'No'`) fields to the `CrmOrders` model, verified they are applied via Prisma migration, and added necessary relation and indexes in `schema.prisma`.
+  - **Repository & Service Nickname Resolution**: Mapped the nickname snapshot resolution in `order.repository.ts` and enabled audit trails for all new fields in `order.service.ts`.
+  - **UI Controls & Detail Displays**: Updated `AddOrderForm` and `EditOrderForm` with dropdown selectors for "Part Found By" and checkbox controls for "Liftgate Needed". Rendered both fields on the Order Details page.
+  - **UI Layout Adjustments**: Removed the Liftgate Needed badge from the main `OrderList` pipeline view per requirements. Swapped the checklist grid on the Order Details page to `grid-cols-2` to render the "Checklist by backend" and "Liftgate Needed" indicators side-by-side.
+  - **TDD Test Suites**: Added new unit and integration test assertions across `orders.test.ts`, `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, and `OrderList.test.tsx`, fixing regex conflicts on the `/part/i` label selector by specifying `/part description/i`. Updated the `OrderList` unit test suite to verify that the Liftgate badge is NOT rendered in the row. Confirmed all 42 unit tests are green.
+
+

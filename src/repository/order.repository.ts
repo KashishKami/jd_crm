@@ -51,6 +51,17 @@ export async function createWithCustomerAndCard(
     }
   }
 
+  // Resolve part found by name if present
+  let partFoundByName: string | null = null;
+  if (data.orderPartFoundById) {
+    const pfb = await prisma.users.findUnique({
+      where: { uid: data.orderPartFoundById },
+    });
+    if (pfb) {
+      partFoundByName = pfb.nickname || pfb.name;
+    }
+  }
+
   // Resolve vendor name if present
   let vendorName: string | null = null;
   if (data.orderVendorId) {
@@ -143,6 +154,9 @@ export async function createWithCustomerAndCard(
         orderSalesVerifierName: salesVerifierName,
         orderBackendExecutiveId: data.orderBackendExecutiveId || null,
         orderBackendExecutiveName: backendExecutiveName,
+        orderPartFoundById: data.orderPartFoundById || null,
+        orderPartFoundByName: partFoundByName,
+        orderLiftgateNeeded: data.orderLiftgateNeeded || 'No',
         saleStatus: data.saleStatus || '1', // Default to Sold
         orderCurrentStatus: data.orderCurrentStatus
           ? data.orderCurrentStatus
@@ -329,6 +343,13 @@ export async function findById(crmOrderId: number) {
       verifier: true,
       salesVerifier: true,
       backendExecutive: true,
+      partFoundBy: {
+        select: {
+          uid: true,
+          nickname: true,
+          name: true,
+        },
+      },
       comments: true,
     },
   });
@@ -339,6 +360,18 @@ export async function update(crmOrderId: number, data: OrderUpdateInput) {
   if (updateData.orderDate) {
     // Use noon UTC for @db.Date to avoid EST midnight rollback
     updateData.orderDate = localDateStringToUtcNoon(String(updateData.orderDate));
+  }
+  if (updateData.orderPartFoundById !== undefined) {
+    if (updateData.orderPartFoundById === null) {
+      updateData.orderPartFoundByName = null;
+    } else {
+      const pfb = await prisma.users.findUnique({
+        where: { uid: updateData.orderPartFoundById },
+      });
+      if (pfb) {
+        updateData.orderPartFoundByName = pfb.nickname || pfb.name;
+      }
+    }
   }
   return await prisma.crmOrders.update({
     where: { crmOrderId },

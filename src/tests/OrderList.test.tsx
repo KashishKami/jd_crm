@@ -210,4 +210,31 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(text).not.toContain('Dave RealQA');
     });
   });
+
+  describe('W-2501: Liftgate Badge Rendering', () => {
+    it('should NOT render Liftgate badge in the order list row', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 200,
+          orderDate: '2026-06-30',
+          orderMakeModel: '2026 Toyota Camry',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderVendorPrice: '700',
+          orderAmountCharged: '300',
+          orderCurrentStatus: 'Pending Booking',
+          orderLiftgateNeeded: 'Yes',
+          customer: {
+            customerName: 'Alice L',
+            customerEmail: 'alice.l@example.com',
+          },
+        }
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const rowYes = screen.getByRole('row', { name: /#200/i });
+      expect(rowYes.textContent).not.toContain('Liftgate');
+    });
+  });
 });
