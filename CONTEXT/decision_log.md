@@ -732,8 +732,9 @@ All database changes are **purely additive** — new nullable columns only. No e
 **Decisions:**
 
 **D29.1 — Self-referential parent_order_id on crm_orders (Option A chosen over Option B)**
-- One nullable column added: `parent_order_id INT NULL` on `crm_orders`, self-referential FK to `crm_orders.crm_order_id`, `ON DELETE CASCADE`, with an index.
+- One nullable column added: `parent_order_id INT NULL` on `crm_orders`, self-referential FK to `crm_orders.crm_order_id`, `ON DELETE RESTRICT`, with an index.
 - `NULL` = primary (parent) order row. Non-NULL = child/additional part row belonging to the referenced parent.
+- **Rejected CASCADE:** In a financial CRM, silently deleting all child part rows (with their audit trails) when a parent is deleted is unacceptably destructive. `RESTRICT` forces intentional action.
 - **Rejected Option B (separate crm_order_parts table):** Would require migrating all ~30 existing columns and every repository method, service, controller, type, and form. Weeks of work. Option A is additive and non-breaking.
 - All existing rows receive `NULL` — zero data impact.
 
@@ -757,14 +758,38 @@ All database changes are **purely additive** — new nullable columns only. No e
 **D29.6 — EditOrderForm submit strategy (sequential, not parallel)**
 - On form submit in `EditOrderForm`, the calls for updating existing parts, deleting removed parts, and creating new parts are executed **sequentially** (not in parallel with `Promise.all`). This prevents race conditions where a part deletion could conflict with a simultaneous create on the same parent.
 
+**D29.7 — ON DELETE RESTRICT + user-friendly delete guard + Primary Part selector**
+
+**D29.7a — ON DELETE RESTRICT (not CASCADE) on the parent_order_id FK**
+- Deleting a parent order row that still has child parts is rejected by the DB constraint.
+- The service-layer `deleteOrder` method calls `orderRepository.countChildren(id)` before attempting deletion. If count > 0, it throws a user-friendly `Error` message. The DB RESTRICT is a last-resort safety net, never the primary error path.
+- The `DELETE /api/orders/{id}` controller catches this error and returns `409 Conflict` with the exact error message as the response body.
+- The UI (order list delete action) checks for `status === 409` and renders the error message in a `toast.error(...)` notification — NOT a generic "Something went wrong" message. The user sees exactly what to do next.
+
+**D29.7b — Primary Part selector (radio button) on Add and Edit order forms**
+- Each part card in `AddOrderForm` and `EditOrderForm` has a radio button (`name="primaryPart"`) that marks one part as the primary order (the one with `parentOrderId = null`).
+- Default = Part 1 is always primary on initial load.
+- Visual distinction: the selected card gets a CSS class `part-card--primary` and a `★ Primary` badge. Non-selected cards show a `Set as Primary` link.
+- **On `AddOrderForm` submit:** The `parts[]` array is reordered client-side so the selected primary moves to index 0. The backend always treats `parts[0]` as the parent. No extra API field needed.
+- **On `EditOrderForm` submit (primary changed):** A `PATCH /api/orders/{currentParentId}/promote-part` call with `{ newPrimaryPartId }` is made **first**, before any field PATCH calls. This call triggers the `promotePrimaryPart` repository method inside a `prisma.$transaction`:
+  1. Set `newPrimaryPartId.parentOrderId = null` (becomes root).
+  2. Set `currentParentId.parentOrderId = newPrimaryPartId` (demoted to child).
+  3. `updateMany` all remaining siblings (parentOrderId = currentParentId) to point to `newPrimaryPartId`.
+  The transaction prevents any circular-reference window during the swap.
+- Audit entries are written on both the old parent and the new primary with `fieldName: 'primaryPart'`.
+
 #### Consequences
 - One Prisma migration: `add_parent_order_id_to_orders`.
-- Two new API routes: `POST /api/orders/[id]/parts` and `DELETE /api/orders/[id]/parts/[partId]`.
+- Three new API routes: `POST /api/orders/[id]/parts`, `DELETE /api/orders/[id]/parts/[partId]`, `PATCH /api/orders/[id]/promote-part`.
+- Two new repository methods: `countChildren(parentOrderId)`, `promotePrimaryPart(currentParentId, newPrimaryPartId)`.
+- One new service method: `promotePrimary(currentParentId, newPrimaryPartId, session)`.
 - `POST /api/orders` now accepts `parts: OrderPartInput[]` array (with backward-compatible single-item support).
 - `GET /api/orders` response shape gains `childOrders?: ChildPartSummary[]` per row.
 - `GET /api/orders/[id]` response shape gains `childOrders?: ChildPartDetail[]`.
-- `AddOrderForm.tsx` and `EditOrderForm.tsx` are significantly refactored to render dynamic PartCard arrays.
+- `AddOrderForm.tsx` and `EditOrderForm.tsx` are significantly refactored to render dynamic PartCard arrays with primary radio buttons.
 - Order detail `page.tsx` gains a Part Selector dropdown and an aggregate Financial Summary section.
+- `DELETE /api/orders/[id]` gains a `409` response path for the child-present guard.
+- UI delete flow gains a `toast.error(message)` handler for `409` responses.
 
 ---
 

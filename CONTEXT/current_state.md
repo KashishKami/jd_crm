@@ -3,6 +3,7 @@
 This file tracks our migration progress. It is divided into logical execution phases.
 The core development checklist items follow the **Test-Driven Development (TDD) Phase Format** specified in [TDD_INSTRUCTION_GUIDE.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/TDD_INSTRUCTION_GUIDE.md).
 
+
 ---
 
 ## 1. Migration Progress Summary
@@ -4080,6 +4081,11 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
   - [ ] Test: `GET /api/orders?status=Pending+Booking` — a parent order with `orderCurrentStatus = 'Pending Booking'` appears in results. Its child order (even if its own `orderCurrentStatus = 'Pending Shipment'`) does NOT appear separately in the results.
   - [ ] Test (audit — addPart): `POST /api/orders/{parentId}/parts` with `{ orderPart: 'Transmission', ... }` returns `201 Created` with body `{ partOrderId: <newChildId> }`. Assert `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = {parentId} ORDER BY id DESC LIMIT 1` returns a row where `field_name = 'childPart'`, `old_value IS NULL`, and `new_value LIKE '%Transmission%'` and `new_value LIKE '%Child Order ID: {newChildId}%'`.
   - [ ] Test (audit — removePart): `DELETE /api/orders/{parentId}/parts/{childId}` (where child has `orderPart = 'Transmission'`) returns `200 OK`. Assert `SELECT field_name, old_value, new_value FROM crm_order_audit_log WHERE order_id = {parentId} ORDER BY id DESC LIMIT 1` returns a row where `field_name = 'childPart'`, `old_value LIKE '%Transmission%'` and `old_value LIKE '%Child Order ID: {childId}%'`, and `new_value IS NULL`.
+  - [ ] Test (delete guard — RESTRICT): Create an order with 2 parts (parent + child). `DELETE /api/orders/{parentId}` returns `409 Conflict` with body `{ error: "This order has 1 additional part(s) attached to it. Please remove all child parts from the Edit Order page before deleting the primary order." }`. Assert `SELECT COUNT(*) FROM crm_orders WHERE crm_order_id = {parentId}` returns `1` (parent NOT deleted).
+  - [ ] Test (delete guard — after child removed): `DELETE /api/orders/{parentId}/parts/{childId}` → `200 OK`. Then `DELETE /api/orders/{parentId}` → `200 OK`. Assert `SELECT COUNT(*) FROM crm_orders WHERE crm_order_id = {parentId}` returns `0`.
+  - [ ] Test (promote-part — happy path): Create an order with 2 parts: parent (ID: P) and child (ID: C). `PATCH /api/orders/{P}/promote-part` with body `{ newPrimaryPartId: C }` returns `200 OK`. Assert `SELECT parent_order_id FROM crm_orders WHERE crm_order_id = {C}` returns `NULL` (C is now the primary). Assert `SELECT parent_order_id FROM crm_orders WHERE crm_order_id = {P}` returns `{C}` (P is now a child of C). Assert `SELECT COUNT(*) FROM crm_order_audit_log WHERE order_id = {P} AND field_name = 'primaryPart'` returns `1`. Assert `SELECT COUNT(*) FROM crm_order_audit_log WHERE order_id = {C} AND field_name = 'primaryPart'` returns `1`.
+  - [ ] Test (promote-part — wrong group): Create two separate orders (no parent/child relationship). `PATCH /api/orders/{order1Id}/promote-part` with `{ newPrimaryPartId: order2Id }` returns `400 Bad Request` with body `{ error: "The selected part does not belong to this order group." }`.
+  - [ ] Test (promote-part — 3 parts, re-parenting): Create an order with 3 parts: parent P, child C1 (parentOrderId = P), child C2 (parentOrderId = P). `PATCH /api/orders/{P}/promote-part` with `{ newPrimaryPartId: C1 }` returns `200 OK`. Assert C1 has `parent_order_id = NULL`. Assert P has `parent_order_id = C1`. Assert C2 has `parent_order_id = C1` (re-parented from P to C1).
   - [ ] **Run — confirm RED (parent_order_id column does not exist; POST /api/orders does not accept `parts[]` array; new routes do not exist).**
 
 - [ ] **GREEN — Backend (Schema → Migration → Repository → Service → Controller):**
@@ -4089,9 +4095,10 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
     ```
     Add the self-referential relations after the `verifier` relation line:
     ```prisma
-    parentOrder     CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Cascade)
+    parentOrder     CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Restrict)
     childOrders     CrmOrders[]   @relation("OrderParts")
     ```
+    **Decision:** `onDelete: Restrict` (not Cascade). Deleting a parent order that still has child parts will be rejected by the DB. The service layer performs an explicit child-count check before any delete attempt so the UI receives a user-friendly error instead of a raw constraint exception. See D29.7.
     Add a new index:
     ```prisma
     @@index([parentOrderId])
@@ -4099,8 +4106,8 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
   - [ ] **[Migration]** Run `npx prisma migrate dev --name add_parent_order_id_to_orders`. Verify migration SQL contains:
     - `ALTER TABLE crm_orders ADD COLUMN parent_order_id INT NULL;`
     - `CREATE INDEX idx_crm_orders_parent_order_id ON crm_orders(parent_order_id);`
-    - `ALTER TABLE crm_orders ADD CONSTRAINT fk_parent_order FOREIGN KEY (parent_order_id) REFERENCES crm_orders(crm_order_id) ON DELETE CASCADE;`
-    - Confirm via `SHOW CREATE TABLE crm_orders;` that the column and FK constraint are present. Confirm all existing rows: `SELECT COUNT(*) FROM crm_orders WHERE parent_order_id IS NOT NULL` returns `0`.
+    - `ALTER TABLE crm_orders ADD CONSTRAINT fk_parent_order FOREIGN KEY (parent_order_id) REFERENCES crm_orders(crm_order_id) ON DELETE RESTRICT;`
+    - Confirm via `SHOW CREATE TABLE crm_orders;` that the column and FK constraint are present and shows `ON DELETE RESTRICT`. Confirm all existing rows: `SELECT COUNT(*) FROM crm_orders WHERE parent_order_id IS NOT NULL` returns `0`.
   - [ ] **[Repository — findAll]** In `src/repository/order.repository.ts`, in the `findAll(filters)` method:
     - Add `parentOrderId: null` to the `where` object **unconditionally** so the list always returns only primary (non-child) orders.
     - Add a `childOrders` include block to the `include` object: `childOrders: { select: { crmOrderId: true, orderPart: true, saleStatus: true, orderCurrentStatus: true, orderAmountCharged: true, orderRefundAmount: true, orderLiftgateNeeded: true } }`. This gives the list view the data it needs for the `(+N)` badge and summed financial amount.
@@ -4125,8 +4132,19 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
     - If `childOrder.parentOrderId === null`, throw `Error('Cannot delete the primary order via the parts endpoint. Use DELETE /api/orders/{id} to delete the entire order.')`.
     - If `childOrder.parentOrderId !== parentOrderId`, throw `Error('This part does not belong to the specified parent order.')`.
     - `await db.crmOrders.delete({ where: { crmOrderId: childOrderId } })`.
+  - [ ] **[Repository — countChildren (NEW METHOD)]** Add method `countChildren(parentOrderId: number): Promise<number>`:
+    - `return await db.crmOrders.count({ where: { parentOrderId } })`.
+    - Used by the delete guard in `order.service.ts` to give a user-friendly error before the DB RESTRICT constraint would fire.
+  - [ ] **[Repository — promotePrimaryPart (NEW METHOD)]** Add method `promotePrimaryPart(currentParentId: number, newPrimaryPartId: number): Promise<void>`:
+    - Validate: `const newPrimary = await db.crmOrders.findUnique({ where: { crmOrderId: newPrimaryPartId }, select: { parentOrderId: true } })`. If `!newPrimary`, throw `Error('Part not found')`. If `newPrimary.parentOrderId !== currentParentId`, throw `Error('The selected part does not belong to this order group.')`.
+    - Execute inside a single `prisma.$transaction` to prevent a circular-reference window:
+      1. `await tx.crmOrders.update({ where: { crmOrderId: newPrimaryPartId }, data: { parentOrderId: null } })` — promote the new part to root (no FK violation since we're removing a reference, not adding one).
+      2. `await tx.crmOrders.update({ where: { crmOrderId: currentParentId }, data: { parentOrderId: newPrimaryPartId } })` — demote the old parent to child of the new primary.
+      3. For each remaining child (all other rows with `parentOrderId = currentParentId` except `newPrimaryPartId`, which was already updated in step 1): `await tx.crmOrders.updateMany({ where: { parentOrderId: currentParentId }, data: { parentOrderId: newPrimaryPartId } })` — re-parent all other children to the new primary.
+    - No return value needed.
   - [ ] **[Service]** In `src/service/order.service.ts`:
-    - Update `createOrder(payload)`: Accept `payload.parts: OrderPartInput[]`. For each part in the array, apply the existing auto-status-transition logic (Pending Booking vs Pending Shipment based on vendorId, etc.) and the `saleStatus` auto-rules (`orderRefundAmount` logic) independently before calling `createWithCustomerAndCard`. Pass the processed `parts[]` array to the repository.
+    - Update `createOrder(payload)`: Accept `payload.parts: OrderPartInput[]` and `payload.primaryPartIndex?: number` (default `0`). Reorder the `parts` array so `parts[primaryPartIndex]` is placed at index 0 before passing to the repository (the repository always treats index 0 as the parent). Apply the existing auto-status-transition logic to every part independently.
+    - **[Delete guard]** In `deleteOrder(id, session)`: Before calling `orderRepository.remove(id)`, add: `const childCount = await orderRepository.countChildren(id);` — if `childCount > 0`, throw `Error('This order has ${childCount} additional part(s) attached to it. Please remove all child parts from the Edit Order page before deleting the primary order.')`. This check happens entirely in application code; the DB RESTRICT constraint is a safety net, never the primary error path.
     - Add new method `addPart(parentOrderId: number, partData: OrderPartInput, session: Session): Promise<{ partOrderId: number }>`:
       - Call `requirePermission(session, 'orders:edit')`.
       - Apply the auto-status logic to `partData` (same as for a single order).
@@ -4139,6 +4157,12 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
       - Call `orderRepository.removeChildPart(parentOrderId, childOrderId)`.
       - **[Audit]** After successful deletion, write an audit log entry on the **parent order**: call `orderRepository.createAuditEntry({ orderId: parentOrderId, changedByUserId: Number(session.user.uid), fieldName: 'childPart', oldValue: \`Part removed: "${partName}" (Child Order ID: ${childOrderId})\`, newValue: null })`.
     - **[Child order field edits — automatically audited]** When `PATCH /api/orders/{childOrderId}` is called for a child part, it flows through the same `updateOrder` service method used for all orders. The existing `orderKeysToAudit` array already tracks field-level changes (vendor, pricing, status, liftgate, part found by, etc.) for **every** `crm_orders` row regardless of whether `parentOrderId` is null or set. No additional code is required — child part edits are written automatically to `crm_order_audit_log` with the child's own `orderId` as the identifier.
+    - Add new method `promotePrimary(currentParentId: number, newPrimaryPartId: number, session: Session): Promise<void>`:
+      - Call `requirePermission(session, 'orders:edit')`.
+      - Call `orderRepository.promotePrimaryPart(currentParentId, newPrimaryPartId)`.
+      - **[Audit]** Write two audit entries using `orderRepository.createAuditEntry`:
+        1. On `currentParentId`: `{ fieldName: 'primaryPart', oldValue: 'Primary (Order ID: ${currentParentId})', newValue: 'Child of Order ID: ${newPrimaryPartId}' }`.
+        2. On `newPrimaryPartId`: `{ fieldName: 'primaryPart', oldValue: 'Child of Order ID: ${currentParentId}', newValue: 'Primary (Order ID: ${newPrimaryPartId})' }`.
   - [ ] **[Controller — POST /api/orders]** In `src/app/api/orders/route.ts`, update the POST handler:
     - Parse `parts` from the request body. If the body has a `parts` array, use it directly. For backward compatibility, if the body has the old flat structure (no `parts` array), wrap: `const parts = [{ ...body }]`.
     - Pass `{ customer, cards, parts }` to `orderService.createOrder()`.
@@ -4159,16 +4183,34 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
     - On success: return `NextResponse.json({ success: true }, { status: 200 })`.
     - On `Error('Cannot delete the primary order...')`: return `NextResponse.json({ error: e.message }, { status: 400 })`.
     - On `Error('Part not found')`: return `NextResponse.json({ error: e.message }, { status: 404 })`.
+  - [ ] **[Controller — PATCH /api/orders/[id]/promote-part (NEW ROUTE)]** Create `src/app/api/orders/[id]/promote-part/route.ts`:
+    - Export `PATCH` handler.
+    - Resolve session. Call `requirePermission(session, 'orders:edit')`.
+    - Parse `id` (currentParentId) from params as `Number(params.id)`.
+    - Parse request body: `const { newPrimaryPartId } = await req.json()`.
+    - Validate `newPrimaryPartId` is a positive integer, else return `NextResponse.json({ error: 'newPrimaryPartId is required and must be a number.' }, { status: 400 })`.
+    - Call `orderService.promotePrimary(Number(id), newPrimaryPartId, session)`.
+    - On success: return `NextResponse.json({ success: true }, { status: 200 })`.
+    - On `Error('Part not found')`: return `NextResponse.json({ error: e.message }, { status: 404 })`.
+    - On `Error('The selected part does not belong to this order group.')`: return `NextResponse.json({ error: e.message }, { status: 400 })`.
+  - [ ] **[Controller — DELETE /api/orders/[id] — delete guard]** In the existing `DELETE` handler for `src/app/api/orders/[id]/route.ts`:
+    - Catch the user-friendly error from the service: `On Error('This order has ... additional part(s)...')` — return `NextResponse.json({ error: e.message }, { status: 409 })`.
+    - In the UI (`OrderList.tsx` or wherever a delete action is triggered): if the API response is `409`, display the error message in a toast notification (e.g. `toast.error(response.error)`). Do NOT show a generic error; surface the exact message so the user knows what action to take.
   - [ ] Run integration test — **confirm GREEN.**
 
 - [ ] **RED — Unit / Component (`AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`):**
   - [ ] **`AddOrderForm.test.tsx`**: Test: Render `AddOrderForm`. Assert exactly one part card section is visible (labelled "Part 1" or contains `data-testid="part-card-0"`). Assert a button with text "Add Another Part" is present.
   - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Add Another Part" button. Assert a second part card (`data-testid="part-card-1"`) is now visible. Assert the second part card's `id="orderMakeModel-1"` input has the same value as `id="orderMakeModel-0"` (auto-filled from Part 1). Assert `id="orderSalesAgentId-1"` select has the same value as `id="orderSalesAgentId-0"` (auto-filled). Assert `id="orderPart-1"` input is empty. Assert `id="orderVendorId-1"` select is empty / default.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Render `AddOrderForm` with two parts. Assert a radio input with `name="primaryPart"` and `value="0"` is present on Part 1's card. Assert a radio input with `name="primaryPart"` and `value="1"` is present on Part 2's card. Assert Part 1's radio is checked by default (`data-testid="primary-radio-0"` is checked).
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Click the radio `data-testid="primary-radio-1"` (select Part 2 as primary). Assert Part 2's card gains a visual indicator class `part-card--primary` and Part 1's card loses it. Assert Part 1's card shows a label "Primary" badge before the click and Part 2's shows it after.
+  - [ ] **`AddOrderForm.test.tsx`**: Test: With Part 2 selected as primary, submit the form. Assert `fetch` is called with `POST /api/orders` and request body where `parts[0].orderPart` equals Part 2's part name (the selected primary was reordered to index 0) and `primaryPartIndex` is either absent or `0` (since the array was already reordered client-side).
   - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Add Another Part". Assert a "Remove" button is visible on Part 2's card but NOT on Part 1's card.
   - [ ] **`AddOrderForm.test.tsx`**: Test: Click "Remove" on Part 2. Assert Part 2 card is removed and only one part card remains.
   - [ ] **`AddOrderForm.test.tsx`**: Test: With two parts present, fill Part 1 `orderTotalPitched: "400"` and Part 2 `orderTotalPitched: "200"`. Assert the Deal Summary section (labelled `data-testid="deal-summary"`) shows a combined Total Pitched of `$600.00`.
-  - [ ] **`AddOrderForm.test.tsx`**: Test: Submit form with 2 parts. Assert `fetch` is called once with `POST /api/orders` and request body containing `parts: [{ orderPart: "Engine", ... }, { orderPart: "Transmission", ... }]`.
-  - [ ] **`EditOrderForm.test.tsx`**: Test: Render `EditOrderForm` with a mock order that has `childOrders: [{ crmOrderId: 102, orderPart: "Transmission", ... }]`. Assert two part cards are visible: Part 1 (the parent) and Part 2 (the child).
+  - [ ] **`AddOrderForm.test.tsx`**: Test: Submit form with 2 parts (Part 1 as primary). Assert `fetch` is called once with `POST /api/orders` and request body containing `parts: [{ orderPart: "Engine", ... }, { orderPart: "Transmission", ... }]`.
+  - [ ] **`EditOrderForm.test.tsx`**: Test: Render `EditOrderForm` with a mock order that has `childOrders: [{ crmOrderId: 102, orderPart: "Transmission", ... }]`. Assert two part cards are visible: Part 1 (the parent) and Part 2 (the child). Assert Part 1's `data-testid="primary-radio-0"` is checked.
+  - [ ] **`EditOrderForm.test.tsx`**: Test: Click `data-testid="primary-radio-1"` to select Part 2 as primary. Assert Part 2's card gains `part-card--primary` class and Part 1 loses it.
+  - [ ] **`EditOrderForm.test.tsx`**: Test: Submit `EditOrderForm` after selecting Part 2 (crmOrderId 102) as primary. Assert `fetch` is called with `PATCH /api/orders/{parentId}/promote-part` and body `{ newPrimaryPartId: 102 }` as the **first** call in the submit sequence (before any PATCH for field updates).
   - [ ] **`EditOrderForm.test.tsx`**: Test: "Remove" button is visible on Part 2 (child) card but NOT on Part 1 (parent) card.
   - [ ] **`EditOrderForm.test.tsx`**: Test: Submit `EditOrderForm` after modifying Part 2's `orderPart`. Assert `PATCH /api/orders/102` is called with updated `orderPart` value for the child order.
   - [ ] **Run — confirm RED.**
@@ -4231,19 +4273,41 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
       - **Combined Vendor Price:** `${ parts.reduce((s, p) => s + (parseFloat(p.orderVendorPrice || '0')), 0).toFixed(2) }`
       - **Combined Amount Charged:** `${ parts.reduce((s, p) => s + (parseFloat(p.orderAmountCharged || '0')), 0).toFixed(2) }`
     - Customer Info section and Cards section remain as-is (unchanged — still shared once at the top).
-    - On submit: build body as `{ customer: {...}, cards: [...], parts: parts.map(p => ({ ...p })) }` and `POST /api/orders`.
+    - Primary Part radio state: `const [primaryPartIndex, setPrimaryPartIndex] = useState(0)`. The selected radio determines which part is the parent on submit.
+    - Each part card rendered by `renderPartCard(part, index)` includes at the top of the card:
+      ```tsx
+      <label className={`primary-part-radio ${primaryPartIndex === index ? 'part-card--primary' : ''}`}>
+        <input
+          type="radio"
+          name="primaryPart"
+          value={index}
+          data-testid={`primary-radio-${index}`}
+          checked={primaryPartIndex === index}
+          onChange={() => setPrimaryPartIndex(index)}
+        />
+        {primaryPartIndex === index && <span className="badge-primary-part">★ Primary</span>}
+        {primaryPartIndex !== index && <span className="badge-set-primary">Set as Primary</span>}
+      </label>
+      ```
+    - On submit: before sending, reorder the parts array so the selected primary is at index 0: `const orderedParts = [parts[primaryPartIndex], ...parts.filter((_, i) => i !== primaryPartIndex)]`. Send `orderedParts` as the `parts` array in the POST body. The backend always treats `parts[0]` as the parent.
+    - On submit: build body as `{ customer: {...}, cards: [...], parts: orderedParts }` and `POST /api/orders`.
   - [ ] **[EditOrderForm.tsx — major refactor]:**
     - On load, fetch `GET /api/orders/{id}` which now returns `childOrders[]` in the response.
-    - Initialize state: `const [parts, setParts] = useState<EditPartState[]>([orderToEditPartState(order), ...order.childOrders.map(c => childToEditPartState(c))])` where each `EditPartState` includes all per-part fields plus `crmOrderId: number | null` (null = new, unsaved part).
-    - Render all parts the same way as `AddOrderForm.tsx` using the same `renderPartCard(part, index)` pattern (share code or duplicate for type safety).
+    - Initialize state:
+      - `const [parts, setParts] = useState<EditPartState[]>([orderToEditPartState(order), ...order.childOrders.map(c => childToEditPartState(c))])` where each `EditPartState` includes all per-part fields plus `crmOrderId: number | null` (null = new, unsaved part) and `pendingDeletion: boolean`.
+      - `const [primaryPartIndex, setPrimaryPartIndex] = useState(0)` — index 0 is always the parent on load (since the parent row is always at index 0 in the loaded array).
+    - Render all parts using the same `renderPartCard(part, index)` pattern as `AddOrderForm`, **including** the primary radio button:
+      - Same `<input type="radio" name="primaryPart" data-testid={\`primary-radio-${index}\`}>` control.
+      - On radio change: `setPrimaryPartIndex(index)`.
     - "Add Another Part" button: same auto-fill logic as `AddOrderForm.tsx`.
-    - "Remove Part" button on child parts (index > 0): marks the part as `pendingDeletion: true` in state (visual: collapse/grey-out the card with a "Will be removed on save" message). Do NOT call the API immediately.
-    - On submit:
-      1. For the parent (index 0): `PATCH /api/orders/{order.crmOrderId}` with Part 1 fields.
-      2. For each existing child part (has `crmOrderId`, `pendingDeletion: false`): `PATCH /api/orders/{part.crmOrderId}` with updated fields.
-      3. For each existing child part (has `crmOrderId`, `pendingDeletion: true`): `DELETE /api/orders/{order.crmOrderId}/parts/{part.crmOrderId}`.
-      4. For each new part (no `crmOrderId`): `POST /api/orders/{order.crmOrderId}/parts` with the part data.
-      - Run all PATCH/DELETE/POST calls in sequence (not parallel) to avoid race conditions.
+    - "Remove Part" button on child parts (index > 0, where `!part.pendingDeletion`): marks the part as `pendingDeletion: true` in state (visual: collapse/grey-out the card with a "Will be removed on save" message). Do NOT call the API immediately.
+    - On submit — execute the following steps **sequentially** (await each before starting the next):
+      1. **[Primary promotion — only if primary changed]** If `primaryPartIndex !== 0` AND `parts[primaryPartIndex].crmOrderId` is not null: call `PATCH /api/orders/{order.crmOrderId}/promote-part` with body `{ newPrimaryPartId: parts[primaryPartIndex].crmOrderId }`. This must be the **first** API call so the DB reflects the correct parent/child structure before field updates.
+      2. For the original parent row (index 0, `crmOrderId = order.crmOrderId`, `pendingDeletion: false`): `PATCH /api/orders/{order.crmOrderId}` with Part 1 fields.
+      3. For each existing child part (has `crmOrderId`, `pendingDeletion: false`): `PATCH /api/orders/{part.crmOrderId}` with updated fields.
+      4. For each existing child part (has `crmOrderId`, `pendingDeletion: true`): `DELETE /api/orders/{order.crmOrderId}/parts/{part.crmOrderId}`.
+      5. For each new part (no `crmOrderId`): `POST /api/orders/{order.crmOrderId}/parts` with the part data.
+      - If `primaryPartIndex !== 0` AND `parts[primaryPartIndex].crmOrderId` is null (brand-new unsaved part marked as primary): the new part must first be created via step 5 (which returns a `partOrderId`), then immediately promote it via `PATCH /api/orders/{order.crmOrderId}/promote-part` with `{ newPrimaryPartId: partOrderId }`. In this case, steps 1 and 5 for that specific part are sequenced: create first, then promote.
   - [ ] **[OrderList.tsx]:**
     - Compute `allParts` for each row: `const allParts = [order, ...(order.childOrders ?? [])]`.
     - In the Part Name cell: render `{order.orderPart ?? '—'}` followed by — if `order.childOrders && order.childOrders.length > 0` — a small badge: `<span className="badge-multi-parts">(+{order.childOrders.length} more)</span>`.
@@ -4266,7 +4330,9 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
   - [ ] Run unit test — **confirm GREEN.**
 
 - [ ] **Verification chain:**
-  - [ ] Agent navigates to `/orders/new` → sees "Part 1" card with all fields → fills Part 1 (Engine, VIN: ABC123, Sales Agent: John, Amount: $400) → clicks "Add Another Part" → Part 2 card appears with Make/Model and VIN auto-filled as ABC123, Sales Agent pre-filled as John, Part field empty → agent fills Part 2 (Transmission, Vendor: Smith Parts, Amount: $200) → Deal Summary shows Combined Amount: $600 → agent submits → list view shows one row for this customer with "(+1 more)" badge and amount "$600.00" → agent clicks the row → detail page shows Part Selector dropdown "Part 1: Engine — Sold" and "Part 2: Transmission — Pending Booking" → selecting Part 2 updates all per-part fields shown → Financial Summary shows Total Charged: $600.00 and Net Margin: $600.00 → agent navigates to Edit Order → both part cards are shown, Part 1 pre-filled, Part 2 pre-filled → agent modifies Part 2's vendor → saves → Part 2 detail view shows updated vendor → ✅ Done.
+  - [ ] Agent navigates to `/orders/new` → sees "Part 1" card with all fields → fills Part 1 (Engine, VIN: ABC123, Sales Agent: John, Amount: $400) → clicks "Add Another Part" → Part 2 card appears with Make/Model and VIN auto-filled as ABC123, Sales Agent pre-filled as John, Part field empty → agent fills Part 2 (Transmission, Vendor: Smith Parts, Amount: $200) → agent clicks "Set as Primary" radio on Part 2 → Part 2 card shows "★ Primary" badge and Part 1 shows "Set as Primary" → Deal Summary shows Combined Amount: $600 → agent submits → network request sends `parts[0] = Transmission` (reordered), `parts[1] = Engine` → DB: Transmission row has `parent_order_id = NULL`, Engine row has `parent_order_id = Transmission.crm_order_id` → list view shows "Transmission" as the main part name with "(+1 more)" badge and amount "$600.00" → agent clicks the row → detail page shows Part Selector dropdown "Part 1: Transmission — Pending Booking" and "Part 2: Engine — Sold" → Financial Summary shows Total Charged: $600.00 → ✅ Done.
+  - [ ] Agent navigates to Edit Order (an existing 2-part order where Engine is primary, Transmission is child) → both part cards shown, Engine has "★ Primary" radio checked → agent clicks "Set as Primary" radio on the Transmission card → agent saves → first API call is `PATCH /api/orders/{engineOrderId}/promote-part` with `{ newPrimaryPartId: transmissionOrderId }` → DB swaps: Transmission becomes `parent_order_id = NULL`, Engine becomes `parent_order_id = Transmission.crm_order_id` → list view now shows "Transmission" as the primary part name → ✅ Done.
+  - [ ] Agent navigates to list view → clicks delete on a parent order that has 1 child part → API returns `409` → UI shows toast: "This order has 1 additional part(s) attached to it. Please remove all child parts from the Edit Order page before deleting the primary order." → order is NOT deleted → agent navigates to Edit Order → marks child part as "Remove" → saves → child deleted → agent returns to list and deletes the (now childless) order successfully → ✅ Done.
 
 ---
 
@@ -5104,5 +5170,38 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **UI Controls & Detail Displays**: Updated `AddOrderForm` and `EditOrderForm` with dropdown selectors for "Part Found By" and checkbox controls for "Liftgate Needed". Rendered both fields on the Order Details page.
   - **UI Layout Adjustments**: Removed the Liftgate Needed badge from the main `OrderList` pipeline view per requirements. Swapped the checklist grid on the Order Details page to `grid-cols-2` to render the "Checklist by backend" and "Liftgate Needed" indicators side-by-side.
   - **TDD Test Suites**: Added new unit and integration test assertions across `orders.test.ts`, `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, and `OrderList.test.tsx`, fixing regex conflicts on the `/part/i` label selector by specifying `/part description/i`. Updated the `OrderList` unit test suite to verify that the Liftgate badge is NOT rendered in the row. Confirmed all 42 unit tests are green.
+
+---
+
+## Session 56 — 2026-07-08 (Performance Optimizations)
+
+**Context:** Application was deployed on Vercel + GoDaddy shared hosting (~30 MySQL workers) and was experiencing severe slowness under concurrent load. The following backend code changes were made to address all identified performance bottlenecks. **No schema changes. No API contract changes. No test changes.** All 300 tests should continue to pass.
+
+### Files Changed
+
+#### `src/lib/db.ts`
+- Raised `connectionLimit` from `5` → `20`. The old pool of 5 connections would queue most requests under concurrent load.
+- Moved `log: ['query']` behind a `NODE_ENV !== 'production'` guard. Verbose query logging in production was generating heavy stdout I/O on every single request.
+
+#### `src/repository/order.repository.ts`
+- Replaced 5 sequential `await prisma.users.findUnique(...)` calls at the top of `createWithCustomerAndCard()` (for sales agent, verifier, sales verifier, backend executive, part found by, and vendor name resolution) with a single `await Promise.all([...])`. All lookups are independent and can run in parallel. Return values are identical.
+
+#### `src/repository/search.repository.ts`
+- Added `take: 100` to both `searchOrders()` and `searchCustomers()`. Without a limit, a single-letter query could return thousands of rows. Tests use small datasets and are unaffected.
+
+#### `src/repository/dashboard.repository.ts`
+- **`getSalesBetweenDates()`** — replaced `findMany` + JS loop with a single `$queryRaw` using `SUM()` and `COUNT(*)`. Return shape `{ amount, count }` is unchanged.
+- **`getNetSalesBetweenDates()`** — same treatment. SQL `WHERE sale_status IN ('1','4')` replaces JS filtering. Return shape unchanged.
+- **`getChargebackThisMonth()`** — replaced `findMany` + JS sum with `$queryRaw SUM()`. Return shape unchanged.
+- **`getRefundThisMonth()`** — same treatment. Return shape unchanged.
+- **`getNetSales()`** — for the common no-filter case, replaced with `$queryRaw SUM()`. Kept the original JS-aggregation fallback for the custom `whereClause` path (used by edge callers and tests).
+- **`getTeamMonthlyTopPerformers()`** — replaced old pattern of fetching all agents with their full order arrays and looping in JS to sum them, with a single `$queryRaw` using `LEFT JOIN` + `GROUP BY` + `ORDER BY amount DESC` + `LIMIT`. Return shape `{ agentId, agentName, amount }[]` is unchanged.
+- **`getTeamMonthlyBottomPerformers()`** — identical refactor, sorted `ASC`. Return shape unchanged.
+
+#### `src/service/dashboard.service.ts`
+- Rewrote `getMetricsForUser()` to fire all permitted metric queries **concurrently** using `Promise.all`. Previously 10+ queries ran sequentially (each awaiting the last), meaning dashboard response time was the sum of all query times. Now it is the time of the slowest single query. The returned `metrics` object shape is identical.
+
+### One Remaining Known Issue (Not Fixed — Requires UI Audit First)
+- `findAll()` in `order.repository.ts` does a deep 8-join `include` (customer, vendor, gateway, salesAgent+team, verifier, salesVerifier, backendExecutive) on every order list page load. Replacing with a lean `select` of only the columns the list UI renders would further reduce query weight, but requires auditing `OrderList.tsx`, `OrderListContainer.tsx`, and all 7 queue pages first to avoid breaking rendered columns.
 
 

@@ -7,71 +7,41 @@ export async function createWithCustomerAndCard(
   data: OrderCreateInput,
   actingUser?: { uid: number; name: string; nickname?: string | null }
 ) {
-  // Resolve sales agent name if present
-  let salesAgentName: string | null = null;
-  if (data.orderSalesAgentId) {
-    const agent = await prisma.users.findUnique({
-      where: { uid: data.orderSalesAgentId },
-    });
-    if (agent) {
-      salesAgentName = agent.nickname || agent.name;
-    }
-  }
+  // Resolve all lookup names in parallel — these queries are independent of each other.
+  const [
+    agentRecord,
+    verifierRecord,
+    salesVerifierRecord,
+    backendExecRecord,
+    partFoundByRecord,
+    vendorRecord,
+  ] = await Promise.all([
+    data.orderSalesAgentId
+      ? prisma.users.findUnique({ where: { uid: data.orderSalesAgentId } })
+      : Promise.resolve(null),
+    data.orderVerifierId
+      ? prisma.users.findUnique({ where: { uid: data.orderVerifierId } })
+      : Promise.resolve(null),
+    data.orderSalesVerifierId
+      ? prisma.users.findUnique({ where: { uid: data.orderSalesVerifierId } })
+      : Promise.resolve(null),
+    data.orderBackendExecutiveId
+      ? prisma.users.findUnique({ where: { uid: data.orderBackendExecutiveId } })
+      : Promise.resolve(null),
+    data.orderPartFoundById
+      ? prisma.users.findUnique({ where: { uid: data.orderPartFoundById } })
+      : Promise.resolve(null),
+    data.orderVendorId
+      ? prisma.crmVendors.findUnique({ where: { vendorId: data.orderVendorId } })
+      : Promise.resolve(null),
+  ]);
 
-  // Resolve verifier name if present
-  let verifierName: string | null = null;
-  if (data.orderVerifierId) {
-    const verifier = await prisma.users.findUnique({
-      where: { uid: data.orderVerifierId },
-    });
-    if (verifier) {
-      verifierName = verifier.nickname || verifier.name;
-    }
-  }
-
-  // Resolve sales verifier name if present
-  let salesVerifierName: string | null = null;
-  if (data.orderSalesVerifierId) {
-    const sv = await prisma.users.findUnique({
-      where: { uid: data.orderSalesVerifierId },
-    });
-    if (sv) {
-      salesVerifierName = sv.nickname || sv.name;
-    }
-  }
-
-  // Resolve backend executive name if present
-  let backendExecutiveName: string | null = null;
-  if (data.orderBackendExecutiveId) {
-    const be = await prisma.users.findUnique({
-      where: { uid: data.orderBackendExecutiveId },
-    });
-    if (be) {
-      backendExecutiveName = be.nickname || be.name;
-    }
-  }
-
-  // Resolve part found by name if present
-  let partFoundByName: string | null = null;
-  if (data.orderPartFoundById) {
-    const pfb = await prisma.users.findUnique({
-      where: { uid: data.orderPartFoundById },
-    });
-    if (pfb) {
-      partFoundByName = pfb.nickname || pfb.name;
-    }
-  }
-
-  // Resolve vendor name if present
-  let vendorName: string | null = null;
-  if (data.orderVendorId) {
-    const vendor = await prisma.crmVendors.findUnique({
-      where: { vendorId: data.orderVendorId },
-    });
-    if (vendor) {
-      vendorName = vendor.vendorName;
-    }
-  }
+  const salesAgentName: string | null = agentRecord ? (agentRecord.nickname || agentRecord.name) : null;
+  const verifierName: string | null = verifierRecord ? (verifierRecord.nickname || verifierRecord.name) : null;
+  const salesVerifierName: string | null = salesVerifierRecord ? (salesVerifierRecord.nickname || salesVerifierRecord.name) : null;
+  const backendExecutiveName: string | null = backendExecRecord ? (backendExecRecord.nickname || backendExecRecord.name) : null;
+  const partFoundByName: string | null = partFoundByRecord ? (partFoundByRecord.nickname || partFoundByRecord.name) : null;
+  const vendorName: string | null = vendorRecord ? vendorRecord.vendorName : null;
 
   // Perform database inserts in an atomic transaction
   return await prisma.$transaction(async (tx) => {

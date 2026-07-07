@@ -346,7 +346,7 @@ The following standard permissions are seeded in the system:
 | `order_part_found_by_id` | `int(11)` | YES | `NULL` | **[Phase 25]** FK to `users.uid` — team member who located/sourced the part. `ON DELETE SET NULL`. |
 | `order_part_found_by_name` | `varchar(55)` | YES | `NULL` | **[Phase 25]** Denormalized snapshot of Part Found By agent's nickname/name. Auto-populated by the repository when `order_part_found_by_id` is set. |
 | `order_liftgate_needed` | `varchar(20)` | NO | `'No'` | **[Phase 25]** Whether a liftgate truck is required for delivery. Values: `'Yes'` / `'No'`. |
-| `parent_order_id` | `int(11)` | YES | `NULL` | **[Phase 26]** Self-referential FK to `crm_orders.crm_order_id`. `NULL` = this is a primary/parent order. Non-NULL = this is a child/additional part belonging to the referenced parent order. `ON DELETE CASCADE`. Used to group multiple parts for a single customer deal. |
+| `parent_order_id` | `int(11)` | YES | `NULL` | **[Phase 26]** Self-referential FK to `crm_orders.crm_order_id`. `NULL` = this is a primary/parent order. Non-NULL = this is a child/additional part belonging to the referenced parent order. `ON DELETE RESTRICT` — the DB rejects deletion of a parent row that still has children; the service layer enforces a user-friendly check first (see D29.7). Used to group multiple parts for a single customer deal. |
 
 ### crm_vendors
 *   **Engine:** MyISAM
@@ -857,7 +857,7 @@ model CrmOrders {
   // Phase 25 — Part Found By relation
   partFoundBy                   Users?        @relation("PartFoundBy", fields: [orderPartFoundById], references: [uid], onDelete: SetNull)
   // Phase 26 — Self-referential parent/child relations
-  parentOrder                   CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Cascade)
+  parentOrder                   CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Restrict)
   childOrders                   CrmOrders[]   @relation("OrderParts")
 
   @@index([orderCustomerId])

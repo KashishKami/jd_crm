@@ -2,54 +2,44 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 
 export async function getSalesBetweenDates(start: Date, end: Date) {
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: { in: ['1', '4'] },
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: { orderAmountCharged: true, orderRefundAmount: true },
-  });
-  let amount = 0;
-  for (const order of orders) {
-    const charged = parseFloat(order.orderAmountCharged || '0');
-    const refund = parseFloat(order.orderRefundAmount || '0');
-    amount += (charged - refund);
-  }
-  return { amount, count: orders.length };
+  // Push SUM and COUNT into SQL instead of fetching all rows into Node.js
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(
+        CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+      ) AS amount,
+      COUNT(*) AS count
+    FROM crm_orders
+    WHERE sale_status IN ('1', '4')
+      AND order_date >= ${start}
+      AND order_date < ${end}
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
 }
 
 export async function getNetSalesBetweenDates(start: Date, end: Date) {
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: { in: ['1', '2', '3', '4'] },
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: {
-      saleStatus: true,
-      orderAmountCharged: true,
-      orderRefundAmount: true,
-    },
-  });
-
-  let amount = 0;
-  let count = 0;
-  for (const order of orders) {
-    if (order.saleStatus === '1' || order.saleStatus === '4') {
-      const charged = parseFloat(order.orderAmountCharged || '0');
-      const refund = parseFloat(order.orderRefundAmount || '0');
-      amount += (charged - refund);
-      count += 1;
-    } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-      // Refunded/Chargebacked contribute 0 to net sales, count is not decremented
-    }
-  }
-  return { amount, count };
+  // Only sold/partial-refund orders count toward net sales amount and count.
+  // Refunded (2) and chargebacked (3) orders contribute 0 — they are filtered out of SUM/COUNT.
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(
+        CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+      ) AS amount,
+      COUNT(*) AS count
+    FROM crm_orders
+    WHERE sale_status IN ('1', '4')
+      AND order_date >= ${start}
+      AND order_date < ${end}
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
 }
 
 export async function getThisYearSales() {
@@ -74,63 +64,73 @@ export async function getTodaySales() {
 }
 
 export async function getChargebackThisMonth(start: Date, end: Date) {
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: '3',
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: { orderRefundAmount: true },
-  });
-  let amount = 0;
-  for (const order of orders) {
-    amount += parseFloat(order.orderRefundAmount || '0');
-  }
-  return { amount, count: orders.length };
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))) AS amount,
+      COUNT(*) AS count
+    FROM crm_orders
+    WHERE sale_status = '3'
+      AND order_date >= ${start}
+      AND order_date < ${end}
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
 }
 
 export async function getRefundThisMonth(start: Date, end: Date) {
-  const orders = await prisma.crmOrders.findMany({
-    where: {
-      saleStatus: '2',
-      orderDate: {
-        gte: start,
-        lt: end,
-      },
-    },
-    select: { orderRefundAmount: true },
-  });
-  let amount = 0;
-  for (const order of orders) {
-    amount += parseFloat(order.orderRefundAmount || '0');
-  }
-  return { amount, count: orders.length };
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))) AS amount,
+      COUNT(*) AS count
+    FROM crm_orders
+    WHERE sale_status = '2'
+      AND order_date >= ${start}
+      AND order_date < ${end}
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
 }
 
 export async function getNetSales(whereClause?: any) {
+  // getNetSales is called without a date range filter to get all-time net sales.
+  // When called with a custom whereClause we fall back to JS aggregation for flexibility.
+  // For the common no-filter case, push into SQL.
+  if (!whereClause) {
+    const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+      SELECT
+        SUM(
+          CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+          CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+        ) AS amount,
+        COUNT(*) AS count
+      FROM crm_orders
+      WHERE sale_status IN ('1', '4')
+    `;
+    return {
+      amount: parseFloat(rows[0]?.amount ?? '0'),
+      count: Number(rows[0]?.count ?? 0),
+    };
+  }
+
+  // Fallback: custom whereClause (used by some tests / edge callers)
   const orders = await prisma.crmOrders.findMany({
-    where: whereClause || {
-      saleStatus: { in: ['1', '2', '3', '4'] },
-    },
+    where: whereClause,
     select: {
       saleStatus: true,
       orderAmountCharged: true,
       orderRefundAmount: true,
     },
   });
-
   let amount = 0;
   let count = 0;
   for (const order of orders) {
     if (order.saleStatus === '1' || order.saleStatus === '4') {
-      const charged = parseFloat(order.orderAmountCharged || '0');
-      const refund = parseFloat(order.orderRefundAmount || '0');
-      amount += (charged - refund);
+      amount += parseFloat(order.orderAmountCharged || '0') - parseFloat(order.orderRefundAmount || '0');
       count += 1;
-    } else if (order.saleStatus === '2' || order.saleStatus === '3') {
-      // Contribute 0, count is not decremented
     }
   }
   return { amount, count };
@@ -288,6 +288,8 @@ export async function getPendingCounts(filters?: {
   dateTo?: string;
   saleStatus?: string;
 }) {
+  // Fetch only 4 lightweight columns; the small select avoids shipping unnecessary data to Node.js.
+  // The classification logic below must match findAll() status rules exactly.
   const where: Prisma.CrmOrdersWhereInput = {
     orderCurrentStatus: {
       in: [
@@ -311,9 +313,7 @@ export async function getPendingCounts(filters?: {
       where.orderSalesAgentId = filters.agentId;
     }
     if (filters.teamId) {
-      where.salesAgent = {
-        teamId: filters.teamId,
-      };
+      where.salesAgent = { teamId: filters.teamId };
     }
     if (filters.backendExecutiveId) {
       where.orderBackendExecutiveId = filters.backendExecutiveId;
@@ -435,93 +435,70 @@ export async function getTeamMonthlyScores(month: number, year: number) {
 }
 
 export async function getTeamMonthlyTopPerformers(teamId: number, month: number, year: number, limit = 3) {
-  // Use UTC month boundaries to avoid machine-timezone drift
+  // Use UTC month boundaries to match how order_date is stored.
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
 
-  const agents = await prisma.users.findMany({
-    where: { teamId },
-    include: {
-      salesOrders: {
-        where: {
-          saleStatus: { in: ['1', '2', '3', '4'] },
-          orderDate: {
-            gte: start,
-            lt: end,
-          },
-        },
-        select: {
-          saleStatus: true,
-          orderAmountCharged: true,
-          orderRefundAmount: true,
-        },
-      },
-    },
-  });
+  // SQL GROUP BY replaces the previous "fetch all agents + their orders, loop in JS" pattern.
+  // COALESCE(nickname, name) mirrors the JS fallback used in the old version.
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT
+      u.uid              AS agentId,
+      COALESCE(u.nickname, u.name) AS agentName,
+      SUM(
+        CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+      ) AS amount
+    FROM users u
+    LEFT JOIN crm_orders o
+      ON  o.order_sales_agent_id = u.uid
+      AND o.sale_status IN ('1', '4')
+      AND o.order_date >= ${start}
+      AND o.order_date <  ${end}
+    WHERE u.team_id = ${teamId}
+    GROUP BY u.uid, u.nickname, u.name
+    ORDER BY amount DESC
+    LIMIT ${limit}
+  `;
 
-  const agentScores = [];
-  for (const agent of agents) {
-    let total = 0;
-    for (const order of agent.salesOrders) {
-      if (order.saleStatus === '1' || order.saleStatus === '4') {
-        const chargedAmount = parseFloat(order.orderAmountCharged || '0');
-        const refund = parseFloat(order.orderRefundAmount || '0');
-        total += (chargedAmount - refund);
-      }
-    }
-    agentScores.push({
-      agentId: agent.uid,
-      agentName: agent.nickname || agent.name,
-      amount: total,
-    });
-  }
-
-  return agentScores.sort((a, b) => b.amount - a.amount).slice(0, limit);
+  return rows.map((r) => ({
+    agentId:   Number(r.agentId),
+    agentName: String(r.agentName),
+    amount:    parseFloat(r.amount?.toString() || '0'),
+  }));
 }
 
 export async function getTeamMonthlyBottomPerformers(teamId: number, month: number, year: number, limit = 3) {
-  // Use UTC month boundaries to avoid machine-timezone drift
+  // Use UTC month boundaries to match how order_date is stored.
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
 
-  const agents = await prisma.users.findMany({
-    where: { teamId },
-    include: {
-      salesOrders: {
-        where: {
-          saleStatus: { in: ['1', '2', '3', '4'] },
-          orderDate: {
-            gte: start,
-            lt: end,
-          },
-        },
-        select: {
-          saleStatus: true,
-          orderAmountCharged: true,
-          orderRefundAmount: true,
-        },
-      },
-    },
-  });
+  // Identical to getTeamMonthlyTopPerformers but sorted ASC for bottom performers.
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT
+      u.uid              AS agentId,
+      COALESCE(u.nickname, u.name) AS agentName,
+      SUM(
+        CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+      ) AS amount
+    FROM users u
+    LEFT JOIN crm_orders o
+      ON  o.order_sales_agent_id = u.uid
+      AND o.sale_status IN ('1', '4')
+      AND o.order_date >= ${start}
+      AND o.order_date <  ${end}
+    WHERE u.team_id = ${teamId}
+    GROUP BY u.uid, u.nickname, u.name
+    ORDER BY amount ASC
+    LIMIT ${limit}
+  `;
 
-  const agentScores = [];
-  for (const agent of agents) {
-    let total = 0;
-    for (const order of agent.salesOrders) {
-      if (order.saleStatus === '1' || order.saleStatus === '4') {
-        const chargedAmount = parseFloat(order.orderAmountCharged || '0');
-        const refund = parseFloat(order.orderRefundAmount || '0');
-        total += (chargedAmount - refund);
-      }
-    }
-    agentScores.push({
-      agentId: agent.uid,
-      agentName: agent.nickname || agent.name,
-      amount: total,
-    });
-  }
-
-  return agentScores.sort((a, b) => a.amount - b.amount).slice(0, limit);
+  return rows.map((r) => ({
+    agentId:   Number(r.agentId),
+    agentName: String(r.agentName),
+    amount:    parseFloat(r.amount?.toString() || '0'),
+  }));
 }
 
 export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {

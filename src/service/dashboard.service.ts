@@ -62,7 +62,6 @@ function getEstDateUTC(d: Date = new Date()): Date {
 
 export async function getMetricsForUser(session: any) {
   const permissions = session?.user?.userPermissions || '';
-  const metrics: Record<string, any> = {};
 
   const now = getEstDate(new Date());
 
@@ -84,80 +83,125 @@ export async function getMetricsForUser(session: any) {
   const prevDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   const prevDayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
+  // Build a list of concurrent tasks — only for permissions the user actually has.
+  // Each task is a tuple of [key, promise]. They all fire in parallel, then we assemble
+  // the metrics object from the settled results.
+  type MetricTask = [string, Promise<any>];
+  const tasks: MetricTask[] = [];
+
   if (hasPermission(permissions, 'dashboard:total-sales')) {
-    const current = await dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd);
-    const previous = await dashboardRepository.getSalesBetweenDates(prevYearStart, prevYearEnd);
-    metrics.thisYearSales = {
-      amount: current.amount,
-      count: current.count,
-      lastAmount: previous.amount,
-      lastCount: previous.count,
-      percentageChange: calcPctChange(current.amount, previous.amount),
-    };
+    tasks.push([
+      'thisYearSales',
+      Promise.all([
+        dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd),
+        dashboardRepository.getSalesBetweenDates(prevYearStart, prevYearEnd),
+      ]).then(([current, previous]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+      })),
+    ]);
   }
+
   if (hasPermission(permissions, 'dashboard:monthly-sales')) {
-    const current = await dashboardRepository.getSalesBetweenDates(curMonthStart, curMonthEnd);
-    const previous = await dashboardRepository.getSalesBetweenDates(prevMonthStart, prevMonthEnd);
-    metrics.totalSalesThisMonth = {
-      amount: current.amount,
-      count: current.count,
-      lastAmount: previous.amount,
-      lastCount: previous.count,
-      percentageChange: calcPctChange(current.amount, previous.amount),
-    };
+    tasks.push([
+      'totalSalesThisMonth',
+      Promise.all([
+        dashboardRepository.getSalesBetweenDates(curMonthStart, curMonthEnd),
+        dashboardRepository.getSalesBetweenDates(prevMonthStart, prevMonthEnd),
+      ]).then(([current, previous]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+      })),
+    ]);
   }
+
   if (hasPermission(permissions, 'dashboard:today-sales')) {
-    const current = await dashboardRepository.getSalesBetweenDates(curDayStart, curDayEnd);
-    const previous = await dashboardRepository.getSalesBetweenDates(prevDayStart, prevDayEnd);
-    metrics.todaySales = {
-      amount: current.amount,
-      count: current.count,
-      lastAmount: previous.amount,
-      lastCount: previous.count,
-      percentageChange: calcPctChange(current.amount, previous.amount),
-    };
+    tasks.push([
+      'todaySales',
+      Promise.all([
+        dashboardRepository.getSalesBetweenDates(curDayStart, curDayEnd),
+        dashboardRepository.getSalesBetweenDates(prevDayStart, prevDayEnd),
+      ]).then(([current, previous]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+      })),
+    ]);
   }
+
   if (hasPermission(permissions, 'dashboard:chargeback')) {
-    metrics.chargebackThisMonth = await dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd);
+    tasks.push(['chargebackThisMonth', dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd)]);
   }
+
   if (hasPermission(permissions, 'dashboard:refund')) {
-    metrics.refundThisMonth = await dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd);
+    tasks.push(['refundThisMonth', dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd)]);
   }
+
   if (hasPermission(permissions, 'dashboard:net-sales')) {
-    const current = await dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd);
-    const previous = await dashboardRepository.getNetSalesBetweenDates(prevMonthStart, prevMonthEnd);
-    metrics.netSales = {
-      amount: current.amount,
-      count: current.count,
-      lastAmount: previous.amount,
-      lastCount: previous.count,
-      percentageChange: calcPctChange(current.amount, previous.amount),
-    };
+    tasks.push([
+      'netSales',
+      Promise.all([
+        dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd),
+        dashboardRepository.getNetSalesBetweenDates(prevMonthStart, prevMonthEnd),
+      ]).then(([current, previous]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+      })),
+    ]);
   }
+
   if (hasPermission(permissions, 'dashboard:top-performer')) {
-    metrics.topPerformers = await dashboardRepository.getTopPerformers();
+    tasks.push(['topPerformers', dashboardRepository.getTopPerformers()]);
   }
+
   if (hasPermission(permissions, 'dashboard:bottom-performer')) {
-    metrics.bottomPerformers = await dashboardRepository.getBottomPerformers();
+    tasks.push(['bottomPerformers', dashboardRepository.getBottomPerformers()]);
   }
+
   if (hasPermission(permissions, 'dashboard:recent-orders')) {
-    const rawOrders = await dashboardRepository.getRecentOrders();
-    metrics.recentOrders = rawOrders.map(o => ({
-      crmOrderId: o.crmOrderId,
-      customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
-      salesAgentName: o.salesAgent ? (o.salesAgent.nickname || o.salesAgent.name) : (o.orderSalesAgentName || 'Unknown Agent'),
-      saleStatus: o.saleStatus,
-      orderAmountCharged: o.orderAmountCharged,
-      orderRefundAmount: o.orderRefundAmount,
-      orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
-    }));
+    tasks.push([
+      'recentOrders',
+      dashboardRepository.getRecentOrders().then((rawOrders) =>
+        rawOrders.map((o) => ({
+          crmOrderId: o.crmOrderId,
+          customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
+          salesAgentName: o.salesAgent
+            ? (o.salesAgent.nickname || o.salesAgent.name)
+            : (o.orderSalesAgentName || 'Unknown Agent'),
+          saleStatus: o.saleStatus,
+          orderAmountCharged: o.orderAmountCharged,
+          orderRefundAmount: o.orderRefundAmount,
+          orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
+        }))
+      ),
+    ]);
   }
+
   if (hasPermission(permissions, 'dashboard:attendance-summary')) {
-    metrics.attendanceSummary = await dashboardRepository.getAttendanceSummary(new Date());
+    tasks.push(['attendanceSummary', dashboardRepository.getAttendanceSummary(new Date())]);
   }
+
   if (hasPermission(permissions, 'dashboard:pending-counts')) {
-    metrics.pendingCounts = await dashboardRepository.getPendingCounts();
+    tasks.push(['pendingCounts', dashboardRepository.getPendingCounts()]);
   }
+
+  // Fire all permitted queries concurrently, then assemble the metrics object.
+  const results = await Promise.all(tasks.map(([, promise]) => promise));
+  const metrics: Record<string, any> = {};
+  tasks.forEach(([key], index) => {
+    metrics[key] = results[index];
+  });
 
   return metrics;
 }

@@ -22,7 +22,7 @@ if (globalForPrisma.prisma) {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: decodeURIComponent(url.pathname.replace(/^\//, '')),
-    connectionLimit: 5,
+    connectionLimit: 20,
     allowPublicKeyRetrieval: true,
     connectTimeout: 30000,   // 30s socket connect timeout (default is ~1s, too short for remote DBs)
     acquireTimeout: 60000,   // 60s max wait to acquire a pooled connection
@@ -30,7 +30,7 @@ if (globalForPrisma.prisma) {
 
   prismaInstance = new PrismaClient({
     adapter,
-    log: ['query'],
+    log: process.env.NODE_ENV !== 'production' ? ['query'] : [],
   });
 
   if (process.env.NODE_ENV !== 'production') {

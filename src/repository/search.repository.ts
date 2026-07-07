@@ -34,7 +34,8 @@ export async function searchOrders(query: string) {
     },
     include: {
       customer: true
-    }
+    },
+    take: 100,
   });
 }
 
@@ -66,6 +67,7 @@ export async function searchCustomers(query: string) {
   return await prisma.crmCustomers.findMany({
     where: {
       OR: orConditions
-    }
+    },
+    take: 100,
   });
 }
