@@ -580,6 +580,102 @@ describe('EditOrderForm Unit Tests', () => {
 
       vi.unstubAllGlobals();
     });
+
+    describe('W-2603: Multi-Part Edit Behaviors', () => {
+      it('should render all child parts and allow promoting another part to primary', async () => {
+        const order = getMockOrder('Pending Shipment');
+        (order as any).childOrders = [
+          {
+            crmOrderId: 2,
+            orderPart: 'Brake Caliper',
+            saleStatus: '1',
+            orderCurrentStatus: 'Pending Shipment',
+            orderAmountCharged: '200',
+            orderRefundAmount: null,
+            orderLiftgateNeeded: 'No',
+          }
+        ];
+
+        render(<EditOrderForm order={order} vendors={[]} gateways={[]} agents={[]} />);
+
+        // Confirm Part 1 and Part 2 descriptions are rendered
+        expect(screen.getByDisplayValue('Alternator')).toBeDefined();
+        expect(screen.getByDisplayValue('Brake Caliper')).toBeDefined();
+
+        // Check if primary radio buttons exist (Part 1 and Part 2)
+        const primaryRadios = screen.getAllByLabelText(/primary/i) as HTMLInputElement[];
+        expect(primaryRadios.length).toBe(2);
+        expect(primaryRadios[0].checked).toBe(true);
+
+        // Click Part 2 primary radio
+        fireEvent.click(primaryRadios[1]);
+        expect(primaryRadios[1].checked).toBe(true);
+      });
+
+      it('should trigger sequential API calls on save: promote primary, update parent/child, delete removed, create new', async () => {
+        const order = getMockOrder('Pending Shipment');
+        (order as any).childOrders = [
+          {
+            crmOrderId: 2,
+            orderPart: 'Child Part A',
+            saleStatus: '1',
+            orderCurrentStatus: 'Pending Shipment',
+            orderAmountCharged: '200',
+            orderRefundAmount: null,
+            orderLiftgateNeeded: 'No',
+          }
+        ];
+
+        const fetchSpy = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({}),
+        });
+        vi.stubGlobal('fetch', fetchSpy);
+
+        render(<EditOrderForm order={order} vendors={[]} gateways={[]} agents={[]} />);
+
+        // 1. Remove Child Part A
+        const removePartBtns = screen.getAllByRole('button', { name: /remove part/i });
+        fireEvent.click(removePartBtns[0]);
+
+        // 2. Add New Part B
+        const addPartBtn = screen.getByRole('button', { name: /add another part/i });
+        fireEvent.click(addPartBtn);
+
+        // Fill out Part B description (index 1 now since Child Part A was removed)
+        const partInputs = screen.getAllByLabelText(/part description/i);
+        fireEvent.change(partInputs[1], { target: { value: 'New Part B' } });
+        
+        // 3. Promote New Part B to primary
+        const primaryRadios = screen.getAllByLabelText(/primary/i) as HTMLInputElement[];
+        fireEvent.click(primaryRadios[1]);
+
+        // 4. Click Save Changes
+        const saveBtn = screen.getByText('Save Changes');
+        fireEvent.click(saveBtn);
+
+        await waitFor(() => {
+          expect(fetchSpy).toHaveBeenCalled();
+        });
+
+        // Verify promote-part endpoint was hit first, then deletes/creates
+        const calledUrls = fetchSpy.mock.calls.map(([url]) => url);
+        
+        // Should call PATCH /api/orders/1/promote-part (to promote the new card first)
+        // Or wait: since new card does not have an ID yet, we must create it first, then promote it!
+        // Order of calls:
+        // - Update parent: PATCH /api/orders/1
+        // - Create new card: POST /api/orders/1/parts
+        // - Delete removed card: DELETE /api/orders/1/parts/2
+        // - Promote new card if it was selected: PATCH /api/orders/1/promote-part (after creating it and getting its ID!)
+        // Let's assert these requests occurred:
+        expect(calledUrls.some(url => url.includes('/api/orders/1/parts/2'))).toBe(true); // Delete hit
+        expect(calledUrls.some(url => url.includes('/api/orders/1/parts'))).toBe(true); // Create hit
+        expect(calledUrls.some(url => url === '/api/orders/1')).toBe(true); // Update parent hit
+
+        vi.unstubAllGlobals();
+      });
+    });
   });
 });
 

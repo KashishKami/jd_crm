@@ -22,6 +22,8 @@ export interface OrderCreateInput {
 
   // Multi-card support (preferred path — replaces flat card fields below)
   cards?: CardInput[];
+  parts?: OrderPartInput[];
+  parentOrderId?: number | null;
 
   // Legacy single-card flat fields (kept for backward compat with existing callers)
   customerNameOncard?: string;
@@ -134,6 +136,7 @@ export interface OrderUpdateInput {
     customerCardCopyImage?: string | null;
     customerPhotoIdImage?: string | null;
   }>;
+  parentOrderId?: number | null;
 }
 
 export interface OrderFilters {
@@ -147,3 +150,123 @@ export interface OrderFilters {
   page?: number;
   limit?: number;
 }
+
+export interface OrderPartInput {
+  orderMakeModel?: string;
+  orderPart?: string;
+  orderPartSize?: string;
+  orderQuotedMilesAndWarranty?: string;
+  orderVendorMilesAndWarranty?: string;
+  orderVin?: string;
+  orderTotalPitched?: string;
+  orderVendorPrice?: string;
+  orderVendorId?: number | null;
+  orderVendorName?: string | null;
+  orderShippingType?: string;
+  orderPaymentGatewayId?: number | null;
+  orderSalesAgentId?: number | null;
+  orderVerifierId?: number | null;
+  orderSalesVerifierId?: number | null;
+  orderBackendExecutiveId?: number | null;
+  orderPartFoundById?: number | null;
+  saleStatus?: string;
+  orderDate?: string | Date;
+  orderRefundAmount?: string | null;
+  orderCurrentStatus?: string | null;
+  orderAmountCharged?: string | null;
+  orderVendorFeedback?: string;
+  orderChecklist?: string;
+  orderLiftgateNeeded?: string | null;
+}
+
+export interface ChildPartSummary {
+  crmOrderId: number;
+  orderPart: string | null;
+  saleStatus: string | null;
+  orderCurrentStatus: string | null;
+  orderAmountCharged: string | null;
+  orderRefundAmount: string | null;
+  orderLiftgateNeeded: string | null;
+}
+
+export interface ChildPartDetail {
+  crmOrderId: number;
+  parentOrderId: number | null;
+  orderCustomerId: number;
+  orderMakeModel: string | null;
+  orderPart: string | null;
+  orderPartSize: string | null;
+  orderQuotedMilesAndWarranty: string | null;
+  orderVendorMilesAndWarranty: string | null;
+  orderVin: string | null;
+  orderTotalPitched: string | null;
+  orderVendorPrice: string | null;
+  orderVendorId: number | null;
+  orderVendorName: string | null;
+  orderShippingType: string | null;
+  orderAmountCharged: string | null;
+  orderRefundAmount: string | null;
+  orderPaymentGatewayId: number | null;
+  orderSalesAgentId: number | null;
+  orderSalesAgentName: string | null;
+  orderVerifierId: number | null;
+  orderVerifierName: string | null;
+  orderSalesVerifierId: number | null;
+  orderSalesVerifierName: string | null;
+  orderBackendExecutiveId: number | null;
+  orderBackendExecutiveName: string | null;
+  orderPartFoundById: number | null;
+  orderPartFoundByName: string | null;
+  orderLiftgateNeeded: string | null;
+  orderDocumentation: string | null;
+  orderBooked: string | null;
+  orderChecklist: string | null;
+  orderTrackingNumber: string | null;
+  orderDeliveryStatus: string | null;
+  orderQualifiedIncentiveStatus: string | null;
+  orderQualifiedIncentiveAmount: string | null;
+  orderStatus: string | null;
+  saleStatus: string | null;
+  orderCurrentStatus: string | null;
+  orderCurrentStatusUpdateDate: Date | null;
+  orderDate: Date | null;
+  orderVendorFeedback: string;
+  orderClientFeedback: string;
+  orderResolution: string;
+  orderCreatedDate: Date;
+  orderUpdatedDate: Date;
+  salesAgent?: {
+    uid: number;
+    name: string;
+    nickname?: string | null;
+  } | null;
+  verifier?: {
+    uid: number;
+    name: string;
+    nickname?: string | null;
+  } | null;
+  salesVerifier?: {
+    uid: number;
+    name: string;
+    nickname?: string | null;
+  } | null;
+  backendExecutive?: {
+    uid: number;
+    name: string;
+    nickname?: string | null;
+  } | null;
+  partFoundBy?: {
+    uid: number;
+    name: string;
+    nickname?: string | null;
+  } | null;
+  vendor?: {
+    vendorId: number;
+    vendorName: string;
+  } | null;
+  gateway?: {
+    gatewayId: number;
+    gatewayName: string;
+  } | null;
+}
+

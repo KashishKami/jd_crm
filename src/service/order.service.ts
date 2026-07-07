@@ -26,13 +26,22 @@ export async function createOrder(
     throw new Error('Sensitive payment details (name on card, card number, expiry date) are required');
   }
 
-  if (!data.orderPart) {
-    throw new Error('Order vehicle part description is required');
-  }
-
-  // Sale Status & Refund Auto-Rules for creation
-  if (data.saleStatus === '4' && !data.orderRefundAmount) {
-    throw new Error('Refund amount is required for Partial Refund status');
+  if (data.parts && data.parts.length > 0) {
+    for (const part of data.parts) {
+      if (!part.orderPart) {
+        throw new Error('Order vehicle part description is required');
+      }
+      if (part.saleStatus === '4' && !part.orderRefundAmount) {
+        throw new Error('Refund amount is required for Partial Refund status');
+      }
+    }
+  } else {
+    if (!data.orderPart) {
+      throw new Error('Order vehicle part description is required');
+    }
+    if (data.saleStatus === '4' && !data.orderRefundAmount) {
+      throw new Error('Refund amount is required for Partial Refund status');
+    }
   }
 
   return await orderRepository.createWithCustomerAndCard(data, actingUser);
@@ -654,5 +663,105 @@ export async function updateOrder(
 }
 
 export async function deleteOrder(crmOrderId: number) {
+  const childCount = await orderRepository.countChildren(crmOrderId);
+  if (childCount > 0) {
+    throw new Error('Please remove all child parts before deleting the primary order.');
+  }
   return await orderRepository.remove(crmOrderId);
+}
+
+export async function addPart(
+  parentOrderId: number,
+  partData: any,
+  actingUser?: { uid: number; name: string; nickname?: string | null }
+) {
+  if (!partData.orderPart) {
+    throw new Error('Order vehicle part description is required');
+  }
+  const newPart = await orderRepository.addPartToExistingOrder(parentOrderId, partData);
+
+  if (actingUser) {
+    await orderRepository.createAuditLogEntries(
+      parentOrderId,
+      [{
+        fieldName: 'childPart',
+        oldValue: null,
+        newValue: `Added ${newPart.orderPart}`,
+      }],
+      actingUser.uid,
+      actingUser.nickname || actingUser.name
+    );
+  }
+  return newPart;
+}
+
+export async function removePart(
+  parentOrderId: number,
+  childOrderId: number,
+  actingUser?: { uid: number; name: string; nickname?: string | null }
+) {
+  const child = await prisma.crmOrders.findUnique({
+    where: { crmOrderId: childOrderId },
+    select: { orderPart: true },
+  });
+  if (!child) {
+    throw new Error(`Child order ${childOrderId} not found`);
+  }
+
+  await orderRepository.removeChildPart(parentOrderId, childOrderId);
+
+  if (actingUser) {
+    await orderRepository.createAuditLogEntries(
+      parentOrderId,
+      [{
+        fieldName: 'childPart',
+        oldValue: `Removed ${child.orderPart}`,
+        newValue: null,
+      }],
+      actingUser.uid,
+      actingUser.nickname || actingUser.name
+    );
+  }
+}
+
+export async function promotePrimary(
+  currentParentId: number,
+  newPrimaryPartId: number,
+  actingUser?: { uid: number; name: string; nickname?: string | null }
+) {
+  const [parent, child] = await Promise.all([
+    prisma.crmOrders.findUnique({ where: { crmOrderId: currentParentId }, select: { orderPart: true } }),
+    prisma.crmOrders.findUnique({ where: { crmOrderId: newPrimaryPartId }, select: { orderPart: true } }),
+  ]);
+  if (!parent || !child) {
+    throw new Error('Order not found');
+  }
+
+  await orderRepository.promotePrimaryPart(currentParentId, newPrimaryPartId);
+
+  if (actingUser) {
+    const uId = actingUser.uid;
+    const uName = actingUser.nickname || actingUser.name;
+    
+    await orderRepository.createAuditLogEntries(
+      currentParentId,
+      [{
+        fieldName: 'primaryPart',
+        oldValue: `Primary Part: ${parent.orderPart}`,
+        newValue: `Demoted to child. New Primary Part: ${child.orderPart}`,
+      }],
+      uId,
+      uName
+    );
+    await orderRepository.createAuditLogEntries(
+      newPrimaryPartId,
+      [{
+        fieldName: 'primaryPart',
+        oldValue: `Child Part: ${child.orderPart}`,
+        newValue: `Promoted to primary root part`,
+      }],
+      uId,
+      uName
+    );
+  }
 }

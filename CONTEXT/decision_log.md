@@ -824,10 +824,46 @@ All database changes are **purely additive** — new nullable columns only. No e
 **D30.6 — Vercel cron authentication uses CRON_SECRET header**
 - Vercel's cron runner calls the backup route without a user session. The route accepts either a valid super-admin session OR a matching `X-Cron-Secret: {CRON_SECRET}` header. The `CRON_SECRET` environment variable is set in the Vercel project settings and is never exposed to the client.
 
-#### Consequences
+#### Consequences (D30)
 - New files: `src/lib/csv-exporter.ts`, `src/service/data-management.service.ts`, `src/service/backup.service.ts`, `src/app/api/admin/export/route.ts`, `src/app/api/admin/export/all/route.ts`, `src/app/api/admin/import/route.ts`, `src/app/api/admin/backup/trigger/route.ts`, `src/app/settings/data-management/page.tsx`, `BACKUPS.md`.
 - New npm dependency: `jszip`.
 - New environment variables: `BACKUP_OUTPUT_PATH`, `BACKUP_WEBHOOK_URL`, `CRON_SECRET`.
 - `docker-compose.yml` gains a `crm_backup` service.
 - `vercel.json` gains a `crons` entry.
 - `Sidebar.tsx` gains a "Data Management" link visible only to `super-admin` users.
+
+---
+
+## Decision 31 — Multi-Part Financial Redesign, Field-Split Enforcement & Per-Part Status Display (Phase 26.5)
+
+**Context:** The initial scaffolding of parent/child orders in Phase 26 did not specify whether financials were deal-level or part-level, nor did it define the exact boundary between global fields and per-part fields in forms or lists. This led to summing customer charges per-part (which is wrong since the company makes one customer charge per deal) and created UX ambiguities around duplicate fields (e.g. Sales Agent, VIN, Shipping Type) on child cards. Additionally, per-part pipeline statuses require status visibility and filtering for all constituent parts on the list view.
+
+**Decisions:**
+
+**D31.1 — Customer-facing financials are deal-level and reside on the parent row only**
+- Customer financials (`order_total_pitched`, `order_amount_charged`, `order_refund_amount`, `order_payment_gateway_id`) are deal-level concepts. They are saved on the parent row only. Child order rows have `NULL` values for these fields.
+- The Net Margin formula remains `Amount Charged − Refund` on the parent row (matching the legacy formula). Vendor costs are displayed for transparency but are not deducted from Net Margin.
+
+**D31.2 — Vendor pricing and sourcing are per-part**
+- Each part row (parent + children) stores its own vendor columns: `order_vendor_id`, `order_vendor_name`, `order_vendor_price`, `order_vendor_miles_and_warranty`, and `order_vendor_feedback`.
+- Sourcing displays group parts by vendor dynamically on the client (e.g., Engine and Transmission from the same vendor represent a single collapsed vendor payment transaction visually, but are written as separate vendor cost lines).
+
+**D31.3 — Global vs. Per-Part Field Split in Forms**
+- **Deal-Global Fields:** Sales Agent, Sales Verifier, QA Verifier, Payment Gateway, Sale Date, Shipping Type, Liftgate Needed, Checklist by Backend, VIN, Make/Model. These are stored on the parent order row only. In `AddOrderForm` and `EditOrderForm`, they are rendered in a shared "Deal Information" section above all part cards.
+- **Per-Part Fields:** Part Requested, Part Size/Specs, Quoted Miles & Warranty, Sourcing Vendor, Vendor Miles & Warranty, Vendor Price, Vendor Feedback, Part Found By, Backend Executive, Sale Status, Workflow (Current) Status. These are rendered inside each part-specific card and stored on all rows.
+
+**D31.4 — Vendor Sourcing Mirroring UX**
+- To simplify data entry when multiple parts come from the same vendor, a "Vendor Sourcing" dropdown is introduced on each child card (from index 1 onward).
+- Sourcing options: "— Different vendor, enter below —" or "Same vendor as Part {index}".
+- Selecting a mirror source disables the local Vendor select and automatically copies the selected source part's vendor ID/name. Changing the source part's vendor propagates the change to all mirroring parts. Vendor prices and specifications remain editable and independent.
+
+**D31.5 — Order List displays per-part statuses and supports "ANY part matches" filtering**
+- The status column of the Order List displays a stacked list of badges showing the status of each part (e.g., "Part 1 — Engine [Pending Shipment]", "Part 2 — Transmission [Pending Booking]").
+- Filtering orders by Workflow Status or Sale Status uses an `OR` condition in the repository. An order is returned if the parent OR any of its child orders match the filter. This ensures deals appear in any queue where a part requires attention.
+
+#### Consequences
+- No database migrations or schema updates are needed (columns exist; data patterns are changed).
+- Restructures `AddOrderForm` and `EditOrderForm` visual layout and JSON submission structures.
+- Restructures `OrderList` row rendering logic to render all parts' statuses.
+- Modifies repository methods `createWithCustomerAndCard`, `addPartToExistingOrder`, and `findAll` (OR search clauses).
+- Modifies the Financial Summary sidebar on the Order Detail page to group and display vendor transactions dynamically.

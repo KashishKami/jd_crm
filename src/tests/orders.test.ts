@@ -26,6 +26,14 @@ describe('Order Management Integration Tests', () => {
         commentAgentName: 'SalesAgentNick',
       },
     });
+    await prisma.crmOrders.updateMany({
+      where: {
+        customer: {
+          customerEmail: { in: ['initial.cust@example.com', 'new.buyer@example.com'] },
+        },
+      },
+      data: { parentOrderId: null },
+    });
     await prisma.crmOrders.deleteMany({
       where: {
         customer: {
@@ -125,6 +133,14 @@ describe('Order Management Integration Tests', () => {
       where: {
         commentAgentName: 'SalesAgentNick',
       },
+    });
+    await prisma.crmOrders.updateMany({
+      where: {
+        customer: {
+          customerEmail: { in: ['initial.cust@example.com', 'new.buyer@example.com'] },
+        },
+      },
+      data: { parentOrderId: null },
     });
     await prisma.crmOrders.deleteMany({
       where: {
@@ -2433,5 +2449,416 @@ describe('Order Management Integration Tests', () => {
       await prisma.users.delete({ where: { uid: otherUser.uid } });
     });
   });
+
+  describe('W-2601: Multi-Part Orders Integration Tests', () => {
+    it('should create a multi-part order atomically and assert parent/child relations', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:create' },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const payload = {
+        customerName: 'Multi Part Customer',
+        customerEmail: 'new.buyer@example.com',
+        customerPhone: '9876543210',
+        cards: [
+          {
+            customerNameOncard: 'Multi Part Customer',
+            customerCardNumber: '1111222233334444',
+            customerCardExpDate: '10/30',
+            customerCardCvv: '999',
+          }
+        ],
+        parts: [
+          {
+            orderMakeModel: '2026 Honda Civic',
+            orderPart: 'Engine',
+            orderTotalPitched: '1000',
+            orderAmountCharged: '1000',
+            orderVendorPrice: '500',
+            orderSalesAgentId: testUser.uid,
+          },
+          {
+            orderMakeModel: '2026 Honda Civic',
+            orderPart: 'Transmission',
+            orderTotalPitched: '800',
+            orderAmountCharged: '800',
+            orderVendorPrice: '400',
+            orderSalesAgentId: testUser.uid,
+          }
+        ]
+      };
+
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.orderId).toBeDefined();
+      expect(data.partOrderIds.length).toBe(2);
+
+      const parentId = data.orderId;
+      const childId = data.partOrderIds[1];
+
+      // Check DB
+      const parentRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: parentId } });
+      const childRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: childId } });
+
+      expect(parentRow!.parentOrderId).toBeNull();
+      expect(childRow!.parentOrderId).toBe(parentId);
+      expect(childRow!.orderPart).toBe('Transmission');
+    });
+
+    it('should fall back to single-part backward compatibility when parts array is missing', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:create' },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const payload = {
+        customerName: 'Multi Part Customer',
+        customerEmail: 'new.buyer@example.com',
+        customerPhone: '9876543210',
+        customerNameOncard: 'Multi Part Customer',
+        customerCardNumber: '1111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        orderMakeModel: '2026 Honda Civic',
+        orderPart: 'Engine Only',
+        orderTotalPitched: '1000',
+        orderAmountCharged: '1000',
+        orderVendorPrice: '500',
+        orderSalesAgentId: testUser.uid,
+      };
+
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.orderId).toBeDefined();
+      expect(data.partOrderIds.length).toBe(1);
+
+      const parentRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: data.orderId } });
+      expect(parentRow!.parentOrderId).toBeNull();
+      expect(parentRow!.orderPart).toBe('Engine Only');
+    });
+
+    it('should list only parent orders in findAll', async () => {
+      // Create parent + child
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Parent Sourced',
+          parentOrderId: null,
+        }
+      });
+      const child = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Child Sourced',
+          parentOrderId: parent.crmOrderId,
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:view' },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const list = data.data || data;
+
+      const parentFound = list.find((o: any) => o.crmOrderId === parent.crmOrderId);
+      const childFound = list.find((o: any) => o.crmOrderId === child.crmOrderId);
+
+      expect(parentFound).toBeDefined();
+      expect(parentFound.childOrders).toBeDefined();
+      expect(parentFound.childOrders.length).toBe(1);
+      expect(childFound).toBeUndefined(); // Children are filtered out!
+    });
+
+    it('should fetch parent details with all nested childOrders in findById', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Parent Detail Sourced',
+          parentOrderId: null,
+        }
+      });
+      const child = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Child Detail Sourced',
+          parentOrderId: parent.crmOrderId,
+          orderSalesAgentId: testUser.uid,
+          orderSalesAgentName: testUser.nickname,
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:view' },
+      });
+
+      const { GET } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}`);
+      const res = await GET(req, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.childOrders).toBeDefined();
+      expect(data.childOrders.length).toBe(1);
+      expect(data.childOrders[0].crmOrderId).toBe(child.crmOrderId);
+      expect(data.childOrders[0].orderPart).toBe('Child Detail Sourced');
+      expect(data.childOrders[0].orderSalesAgentName).toBe(testUser.nickname);
+    });
+
+    it('should add a child part to an existing parent order and log audits', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Root Part',
+          parentOrderId: null,
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { POST } = await import('../app/api/orders/[id]/parts/route');
+      const payload = {
+        orderPart: 'Added Spark Plugs',
+        orderTotalPitched: '100',
+        orderAmountCharged: '100',
+        orderVendorPrice: '50',
+      };
+
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}/parts`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.partOrderId).toBeDefined();
+
+      const child = await prisma.crmOrders.findUnique({ where: { crmOrderId: data.partOrderId } });
+      expect(child!.parentOrderId).toBe(parent.crmOrderId);
+
+      // Check parent audit log
+      const audits = await prisma.crmOrderAuditLog.findMany({
+        where: { orderId: parent.crmOrderId },
+      });
+      const childPartAudit = audits.find(a => a.fieldName === 'childPart');
+      expect(childPartAudit).toBeDefined();
+      expect(childPartAudit!.newValue).toContain('Added Spark Plugs');
+    });
+
+    it('should fail with 400 when attempting to add a child to a child order', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root' }
+      });
+      const child = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Child', parentOrderId: parent.crmOrderId }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { POST } = await import('../app/api/orders/[id]/parts/route');
+      const req = new Request(`http://localhost/api/orders/${child.crmOrderId}/parts`, {
+        method: 'POST',
+        body: JSON.stringify({ orderPart: 'Sub Child Plugs' }),
+      });
+
+      const res = await POST(req, { params: Promise.resolve({ id: String(child.crmOrderId) }) });
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Use the parent order ID');
+    });
+
+    it('should remove a child part from a parent and log audit', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root' }
+      });
+      const child = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'To Delete', parentOrderId: parent.crmOrderId }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { DELETE } = await import('../app/api/orders/[id]/parts/[partId]/route');
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}/parts/${child.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(parent.crmOrderId), partId: String(child.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const checkChild = await prisma.crmOrders.findUnique({ where: { crmOrderId: child.crmOrderId } });
+      expect(checkChild).toBeNull();
+
+      const audits = await prisma.crmOrderAuditLog.findMany({
+        where: { orderId: parent.crmOrderId },
+      });
+      const childPartAudit = audits.find(a => a.fieldName === 'childPart');
+      expect(childPartAudit).toBeDefined();
+      expect(childPartAudit!.oldValue).toContain('To Delete');
+    });
+
+    it('should fail with 400 when attempting to delete parent via parts route', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root' }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { DELETE } = await import('../app/api/orders/[id]/parts/[partId]/route');
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}/parts/${parent.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(parent.crmOrderId), partId: String(parent.crmOrderId) }) });
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Cannot delete the primary order via the parts endpoint');
+    });
+
+    it('should block deletion of parent order if active child parts exist (409 Conflict)', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root Engine' }
+      });
+      const child = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Child Hose', parentOrderId: parent.crmOrderId }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'super-admin' },
+      });
+
+      const { DELETE } = await import('../app/api/orders/[id]/route');
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}`, {
+        method: 'DELETE',
+      });
+
+      const res = await DELETE(req, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(res.status).toBe(409);
+      const data = await res.json();
+      expect(data.error).toContain('Please remove all child parts');
+
+      const checkParent = await prisma.crmOrders.findUnique({ where: { crmOrderId: parent.crmOrderId } });
+      expect(checkParent).toBeDefined();
+    });
+
+    it('should allow deletion of parent order after child parts are removed', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root Engine' }
+      });
+      const child = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Child Hose', parentOrderId: parent.crmOrderId }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'super-admin' },
+      });
+
+      // 1. Remove child
+      const { DELETE: deletePart } = await import('../app/api/orders/[id]/parts/[partId]/route');
+      const reqPart = new Request(`http://localhost/api/orders/${parent.crmOrderId}/parts/${child.crmOrderId}`, { method: 'DELETE' });
+      await deletePart(reqPart, { params: Promise.resolve({ id: String(parent.crmOrderId), partId: String(child.crmOrderId) }) });
+
+      // 2. Remove parent
+      const { DELETE: deleteOrder } = await import('../app/api/orders/[id]/route');
+      const reqOrder = new Request(`http://localhost/api/orders/${parent.crmOrderId}`, { method: 'DELETE' });
+      const res = await deleteOrder(reqOrder, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      const checkParent = await prisma.crmOrders.findUnique({ where: { crmOrderId: parent.crmOrderId } });
+      expect(checkParent).toBeNull();
+    });
+
+    it('should promote a child part to primary, demote parent, and re-parent siblings in transaction', async () => {
+      const parent = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Parent Root' }
+      });
+      const child1 = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Child 1', parentOrderId: parent.crmOrderId }
+      });
+      const child2 = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Child 2', parentOrderId: parent.crmOrderId }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/promote-part/route');
+      const req = new Request(`http://localhost/api/orders/${parent.crmOrderId}/promote-part`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newPrimaryPartId: child1.crmOrderId }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(res.status).toBe(200);
+
+      // Verify db changes
+      const checkC1 = await prisma.crmOrders.findUnique({ where: { crmOrderId: child1.crmOrderId } });
+      const checkParent = await prisma.crmOrders.findUnique({ where: { crmOrderId: parent.crmOrderId } });
+      const checkC2 = await prisma.crmOrders.findUnique({ where: { crmOrderId: child2.crmOrderId } });
+
+      expect(checkC1!.parentOrderId).toBeNull(); // C1 promoted to root!
+      expect(checkParent!.parentOrderId).toBe(child1.crmOrderId); // parent demoted to child of C1!
+      expect(checkC2!.parentOrderId).toBe(child1.crmOrderId); // C2 re-parented to C1!
+
+      // Verify audit logs
+      const parentAudits = await prisma.crmOrderAuditLog.findMany({ where: { orderId: parent.crmOrderId } });
+      const c1Audits = await prisma.crmOrderAuditLog.findMany({ where: { orderId: child1.crmOrderId } });
+
+      expect(parentAudits.some(a => a.fieldName === 'primaryPart')).toBe(true);
+      expect(c1Audits.some(a => a.fieldName === 'primaryPart')).toBe(true);
+    });
+
+    it('should fail promotion with 400 if target part is not in same group', async () => {
+      const parent1 = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root 1' }
+      });
+      const parent2 = await prisma.crmOrders.create({
+        data: { orderCustomerId: testCustomer.customerId, orderPart: 'Root 2' }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/promote-part/route');
+      const req = new Request(`http://localhost/api/orders/${parent1.crmOrderId}/promote-part`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newPrimaryPartId: parent2.crmOrderId }),
+      });
+
+      const res = await PATCH(req, { params: Promise.resolve({ id: String(parent1.crmOrderId) }) });
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('does not belong to this order group');
+    });
+  });
 });
+
 

@@ -177,6 +177,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const err = error as Error;
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    const status = err.message.includes('remove all child parts') ? 409 : 400;
+    return NextResponse.json({ error: err.message }, { status });
   }
 }

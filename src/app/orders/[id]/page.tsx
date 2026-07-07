@@ -13,7 +13,7 @@ import DeleteOrderButton from '../../../components/DeleteOrderButton';
 import OrderViewLog from '../../../components/OrderViewLog';
 import OrderAuditLog from '../../../components/OrderAuditLog';
 import LedgerCardItem from '../../../components/LedgerCardItem';
-
+import PartSpecsViewer from '../../../components/PartSpecsViewer';
 
 export const metadata = {
   title: 'Order Details - JD CRM',
@@ -43,6 +43,15 @@ function maskEmail(email: string | null | undefined): string {
   if (name.length <= 2) return `${name[0]}***@${domain}`;
   return `${name.slice(0, 2)}***@${domain}`;
 }
+
+const saleStatuses: Record<string, string> = {
+  '1': 'Sold',
+  '2': 'Refunded',
+  '3': 'Chargebacked',
+  '4': 'Partial Refund',
+  '5': 'Void',
+  '6': 'Cancelled',
+};
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -79,6 +88,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       gateway: true,
       salesAgent: true,
       verifier: true,
+      childOrders: {
+        include: {
+          vendor: true,
+          gateway: true,
+        }
+      }
     },
   });
 
@@ -198,104 +213,62 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       return `**** **** **** ${last4}`;
     };
     auditLogs = auditLogs.map((log: any) => {
-      let oldValue = log.oldValue;
-      let newValue = log.newValue;
-
-      if (!canViewCards) {
-        if (log.fieldName && log.fieldName.startsWith('customerCardNumber')) {
-          oldValue = maskCardNumHelper(oldValue);
-          newValue = maskCardNumHelper(newValue);
-        } else if (log.fieldName && log.fieldName.startsWith('customerCardCvv')) {
-          oldValue = oldValue ? '***' : null;
-          newValue = newValue ? '***' : null;
-        } else if (log.fieldName && (log.fieldName.startsWith('customerCardCopyImage') || log.fieldName.startsWith('customerPhotoIdImage'))) {
-          oldValue = oldValue ? '[Uploaded]' : null;
-          newValue = newValue ? '[Uploaded]' : null;
-        }
+      if (log.fieldChanged === 'customerCardNumber' && !canViewCards) {
+        return {
+          ...log,
+          oldValue: maskCardNumHelper(log.oldValue),
+          newValue: maskCardNumHelper(log.newValue),
+        };
       }
-
-      if (!canViewPhone) {
-        if (log.fieldName === 'customerPhone' || log.fieldName === 'customerAlternatePhone1' || log.fieldName === 'customerAlternatePhone2') {
-          oldValue = oldValue ? maskPhone(oldValue) : null;
-          newValue = newValue ? maskPhone(newValue) : null;
-        }
-      }
-
-      if (!canViewEmail) {
-        if (log.fieldName === 'customerEmail') {
-          oldValue = oldValue ? maskEmail(oldValue) : null;
-          newValue = newValue ? maskEmail(newValue) : null;
-        }
-      }
-
-      return {
-        ...log,
-        oldValue,
-        newValue,
-      };
+      return log;
     });
   }
 
-  const customerPhoneDisplay = order.customer.customerPhone;
-  const customerEmailDisplay = order.customer.customerEmail;
+  const customerPhoneDisplay = order.customer.customerPhone || '—';
+  const customerEmailDisplay = order.customer.customerEmail || '—';
 
-  // Status labels
-  const saleStatuses: Record<string, string> = {
-    '1': 'Sold',
-    '2': 'Refunded',
-    '3': 'Chargebacked',
-    '4': 'Partial Refund',
-  };
+  // Aggregate Financial Calculations
+  const allParts = [order, ...(order.childOrders || [])];
+  const sellingPrice = allParts.reduce((sum, p) => sum + (parseFloat(p.orderTotalPitched || '0')), 0);
+  const buyingPrice = allParts.reduce((sum, p) => sum + (parseFloat(p.orderVendorPrice || '0')), 0);
+  const chargedAmount = allParts.reduce((sum, p) => sum + (parseFloat(p.orderAmountCharged || '0')), 0);
+  const refundAmount = allParts.reduce((sum, p) => sum + (parseFloat(p.orderRefundAmount || '0')), 0);
 
-  const currentStatusDisplay = order.orderCurrentStatus || 'Pending Booking';
+  const netMargin = sellingPrice - buyingPrice;
+  const balanceDue = netMargin - chargedAmount;
+  const finalMargin = chargedAmount - refundAmount;
 
   return (
     <div className="agents-page-container">
-      {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: '24px' }}>
         <div>
           <div className="flex items-center gap-3">
-            <span className="username-code">
-              ORDER #{order.crmOrderId}
-            </span>
-            <span className={`status-dot-badge ${
-              currentStatusDisplay.includes('Completed') ? 'status-active' : 'status-inactive'
-            }`} style={{ marginTop: 0 }}>
-              {currentStatusDisplay}
+            <h1 className="page-title">Order Details #{order.crmOrderId}</h1>
+            <span className="status-dot-badge status-active">
+              {order.orderCurrentStatus}
             </span>
           </div>
-          <h1 className="page-title mt-2">
-            {order.customer.customerName}
-          </h1>
-          <p className="page-subtitle flex gap-4 text-xs mt-1 text-slate-500">
-            <span><strong>Sale Date:</strong> {order.orderDate ? formatDateDDMMYYYY(order.orderDate) : '—'}</span>
-            <span>|</span>
-            <span><strong>Registered on:</strong> {formatDateDDMMYYYY(order.orderCreatedDate)}</span>
+          <p className="page-subtitle" style={{ marginTop: '4px' }}>
+            Placed on {order.orderDate ? formatDateDDMMYYYY(order.orderDate) : '—'} • Created {formatDateDDMMYYYY(order.orderCreatedDate)}
           </p>
         </div>
-
-        <div className="action-buttons">
-          <Link href="/orders" className="btn-secondary-custom">
-            Back to Pipeline
-          </Link>
+        <div className="flex gap-3">
           {canEdit && (
-            <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom">
+            <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom" style={{ textDecoration: 'none' }}>
               Edit Order
             </Link>
           )}
-          {hasPermission(permissions, 'orders:delete') && (
-            <DeleteOrderButton orderId={order.crmOrderId} />
-          )}
+          <DeleteOrderButton orderId={order.crmOrderId} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Columns */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Section 1: Customer Contact info */}
+      <div className="order-form-layout">
+        {/* Main Details Section */}
+        <div className="order-form-main flex flex-col gap-6">
+          {/* Section 1: Customer Details */}
           <div className="profile-main" style={{ padding: '24px' }}>
             <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
-              Customer Details
+              Customer Information
             </h3>
             <div className="info-grid">
               <div className="info-group" style={{ gridColumn: 'span 2' }}>
@@ -337,38 +310,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {/* Section 2: Vehicle / Part Specifications */}
-          <div className="profile-main" style={{ padding: '24px' }}>
-            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
-              Vehicle & Part Specifications
-            </h3>
-            <div className="info-grid">
-              <div className="info-group" style={{ gridColumn: 'span 3' }}>
-                <span className="info-label">Year, Make & Model</span>
-                <span className="info-value">{order.orderMakeModel || '—'}</span>
-              </div>
-              <div className="info-group" style={{ gridColumn: 'span 2' }}>
-                <span className="info-label">Part Requested</span>
-                <span className="info-value font-bold text-slate-900">{order.orderPart || '—'}</span>
-              </div>
-              <div className="info-group">
-                <span className="info-label">Dimensions / Specs</span>
-                <span className="info-value">{order.orderPartSize || '—'}</span>
-              </div>
-              <div className="info-group">
-                <span className="info-label">Quoted Miles & Warranty</span>
-                <span className="info-value font-mono">{order.orderQuotedMilesAndWarranty || '—'}</span>
-              </div>
-              <div className="info-group">
-                <span className="info-label">Vendor Miles & Warranty</span>
-                <span className="info-value font-mono">{order.orderVendorMilesAndWarranty || '—'}</span>
-              </div>
-              <div className="info-group">
-                <span className="info-label">VIN Number</span>
-                <span className="info-value font-mono uppercase">{order.orderVin || '—'}</span>
-              </div>
-            </div>
-          </div>
+          {/* Section 2: Part specifications (Using PartSpecsViewer client component) */}
+          <PartSpecsViewer parentOrder={order} childOrders={order.childOrders || []} />
 
           {/* Section 3: Comments & Timeline */}
           <OrderCommentsSection orderId={order.crmOrderId} />
@@ -417,7 +360,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
             {order.customer.cards.length === 0 ? (
               <p className="text-xs text-slate-400">No payment card recorded for this customer.</p>
-) : (
+            ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {order.customer.cards.map((card, idx) => {
                   const sanitizedCard = {
@@ -453,71 +396,62 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {/* Pricing Summary */}
-          <div className="profile-main" style={{ padding: '24px', backgroundColor: 'var(--bg-sidebar)', color: 'white', borderColor: 'rgba(255,255,255,0.1)' }}>
-            <h3 className="form-section-title" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.1)', marginBottom: '20px' }}>
+          {/* Pricing Summary (Aggregate Financial Breakdown Card in Premium Dark UI) */}
+          <div style={{
+            fontFamily: 'Georgia, serif',
+            backgroundColor: '#1e293b',
+            color: '#ffffff',
+            borderRadius: '12px',
+            padding: '24px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
+            width: '100%',
+          }}>
+            <h3 style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              color: '#ffffff',
+              margin: '0 0 20px 0',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              paddingBottom: '16px'
+            }}>
               Financial Breakdown
             </h3>
-            <div className="info-grid" style={{ gridTemplateColumns: '1fr', gap: '16px' }}>
-              {/* Divider 1 is above this section */}
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Selling Price</span>
-                <span className="info-value font-mono" style={{ color: 'white' }}>${parseFloat(order.orderTotalPitched || '0').toFixed(2)}</span>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Selling Price</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${sellingPrice.toFixed(2)}</span>
               </div>
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Buying Price</span>
-                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${parseFloat(order.orderVendorPrice || '0').toFixed(2)}</span>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Buying Price</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${buyingPrice.toFixed(2)}</span>
               </div>
-              
-              {/* Divider 2 */}
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Net Margin</span>
-                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${(parseFloat(order.orderTotalPitched || '0') - parseFloat(order.orderVendorPrice || '0')).toFixed(2)}</span>
+
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Net Margin</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${netMargin.toFixed(2)}</span>
               </div>
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Charged Amount</span>
-                <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                  ${parseFloat(order.orderAmountCharged || '0').toFixed(2)}
-                </span>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Charged Amount</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${chargedAmount.toFixed(2)}</span>
               </div>
-              
-              {/* Divider 3 / Section C */}
-              {(() => {
-                const sellingPrice = parseFloat(order.orderTotalPitched || '0');
-                const buyingPrice = parseFloat(order.orderVendorPrice || '0');
-                const netMargin = sellingPrice - buyingPrice;
-                const chargedAmount = parseFloat(order.orderAmountCharged || '0');
-                const refundAmount = parseFloat(order.orderRefundAmount || '0');
-                
-                const showRemaining = netMargin > chargedAmount && refundAmount !== chargedAmount;
-                const remainingToBeCharged = netMargin - chargedAmount;
-                const showRefund = refundAmount > 0;
-                
-                if (!showRemaining && !showRefund) return null;
-                
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-                    {showRemaining && (
-                      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Balance due</span>
-                        <span className="info-value font-mono" style={{ color: 'rgba(255,255,255,0.8)' }}>${remainingToBeCharged.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {showRefund && (
-                      <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <span className="info-label" style={{ color: 'var(--text-sidebar-inactive)' }}>Refund Amount</span>
-                        <span className="info-value font-mono" style={{ color: '#f87171' }}>-${refundAmount.toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-              
-              {/* Divider 4 */}
-              <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-                <span className="info-label" style={{ fontWeight: 'bold', color: 'var(--text-sidebar-inactive)' }}>Final Margin</span>
-                <span className="info-value font-mono" style={{ fontWeight: 'bold', color: (parseFloat(order.orderAmountCharged || '0') - parseFloat(order.orderRefundAmount || '0')) >= 0 ? '#10b981' : '#ef4444' }}>
-                  ${(parseFloat(order.orderAmountCharged || '0') - parseFloat(order.orderRefundAmount || '0')).toFixed(2)}
+
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Balance Due</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${balanceDue.toFixed(2)}</span>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Final Margin</span>
+                <span style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 'bold',
+                  color: finalMargin >= 0 ? '#10b981' : '#f87171'
+                }}>
+                  ${finalMargin.toFixed(2)}
                 </span>
               </div>
             </div>

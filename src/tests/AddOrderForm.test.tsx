@@ -441,5 +441,157 @@ describe('AddOrderForm Unit Tests', () => {
       expect(sentBody).toHaveProperty('orderPartFoundById', 3);
       expect(sentBody).toHaveProperty('orderLiftgateNeeded', 'Yes');
     });
+
+    describe('W-2602: Multi-Part Form Behaviors', () => {
+      it('should render Add Another Part button and add/remove part cards dynamically', async () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        
+        const addPartBtn = screen.getByRole('button', { name: /add another part/i });
+        expect(addPartBtn).toBeDefined();
+
+        // Initially we have 1 part card. Let's count by label or test id.
+        // The first card should have a field "Part Description"
+        const partInputs = screen.getAllByLabelText(/part description/i);
+        expect(partInputs.length).toBe(1);
+
+        // Click Add Another Part
+        fireEvent.click(addPartBtn);
+        
+        // Now there should be 2 part cards
+        const partInputs2 = screen.getAllByLabelText(/part description/i);
+        expect(partInputs2.length).toBe(2);
+
+        // Check if there is a "Remove Part" button for the second card
+        const removePartBtns = screen.getAllByRole('button', { name: /remove part/i });
+        expect(removePartBtns.length).toBe(1); // 1 remove button since card 0 cannot be removed
+
+        // Click Remove Part
+        fireEvent.click(removePartBtns[0]);
+
+        // Should return to 1 part card
+        const partInputs3 = screen.getAllByLabelText(/part description/i);
+        expect(partInputs3.length).toBe(1);
+      });
+
+      it('should auto-fill shared fields from the first part card when adding a subsequent part', async () => {
+        const mockGateways = [{ gatewayId: 2, gatewayName: 'Test Gateway' }];
+        const mockAgents = [{ uid: 3, name: 'Agent Smith', nickname: 'Smithy' }];
+        render(<AddOrderForm vendors={[]} gateways={mockGateways} agents={mockAgents} />);
+
+        // Fill out shared fields on Card 1
+        const vinInput = screen.getByLabelText(/vin/i);
+        fireEvent.change(vinInput, { target: { value: 'VIN123456789' } });
+
+        const makeModelInput = screen.getByLabelText(/year, make & model/i);
+        fireEvent.change(makeModelInput, { target: { value: '2026 Tesla Model S' } });
+
+        const gatewaySelect = screen.getByLabelText(/payment gateway/i) as HTMLSelectElement;
+        fireEvent.change(gatewaySelect, { target: { value: '2' } });
+
+        const agentSelect = screen.getByLabelText(/sales agent/i) as HTMLSelectElement;
+        fireEvent.change(agentSelect, { target: { value: '3' } });
+
+        const liftgateCheckbox = document.getElementById('orderLiftgateNeeded') as HTMLInputElement;
+        fireEvent.click(liftgateCheckbox);
+
+        // Add Part 2
+        const addPartBtn = screen.getByRole('button', { name: /add another part/i });
+        fireEvent.click(addPartBtn);
+
+        // Verify Part 2 has auto-filled values
+        const vins = screen.getAllByLabelText(/vin/i) as HTMLInputElement[];
+        expect(vins[1].value).toBe('VIN123456789');
+
+        const makeModels = screen.getAllByLabelText(/year, make & model/i) as HTMLInputElement[];
+        expect(makeModels[1].value).toBe('2026 Tesla Model S');
+
+        const gateways = screen.getAllByLabelText(/payment gateway/i) as HTMLSelectElement[];
+        expect(gateways[1].value).toBe('2');
+
+        const agents = screen.getAllByLabelText(/sales agent/i) as HTMLSelectElement[];
+        expect(agents[1].value).toBe('3');
+
+        const liftgates = document.querySelectorAll('[id^=orderLiftgateNeeded]') as any;
+        expect(liftgates[1].checked).toBe(true);
+      });
+
+      it('should calculate combined deal summary Margins and Pitched', async () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        
+        // Part 1: Pitched 1000, Vendor 400 -> Margin 600
+        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1000' } });
+        fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '400' } });
+
+        // Add Part 2
+        const addPartBtn = screen.getByRole('button', { name: /add another part/i });
+        fireEvent.click(addPartBtn);
+
+        // Part 2: Pitched 500, Vendor 200 -> Margin 300
+        const pitchedInputs = screen.getAllByLabelText(/total price pitched/i);
+        const vendorInputs = screen.getAllByLabelText(/vendor buying price/i);
+
+        fireEvent.change(pitchedInputs[1], { target: { value: '500' } });
+        fireEvent.change(vendorInputs[1], { target: { value: '200' } });
+
+        // Combined: Total Pitched: 1500, Combined Margin: 900
+        const combinedPitched = screen.getByTestId('combined-pitched-display');
+        const combinedMargin = screen.getByTestId('combined-margin-display');
+
+        expect(combinedPitched.textContent).toContain('1500');
+        expect(combinedMargin.textContent).toContain('900');
+      });
+
+      it('should submit payload with parts array and primaryPartIndex', async () => {
+        vi.mocked(fetch).mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          json: async () => ({ orderId: 10, customerId: 20, cardId: 30, partOrderIds: [10, 11] }),
+        } as Response);
+
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+
+        // Fill customer info
+        fireEvent.change(screen.getByLabelText(/customer name/i), { target: { value: 'Bob Smith' } });
+        fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'bob@example.com' } });
+        fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Bob Smith' } });
+        fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
+        fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
+
+        // Part 1
+        fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Engine' } });
+        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1000' } });
+        fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '600' } });
+
+        // Add Part 2
+        fireEvent.click(screen.getByRole('button', { name: /add another part/i }));
+        const partDescriptions = screen.getAllByLabelText(/part description/i);
+        const pitchedInputs = screen.getAllByLabelText(/total price pitched/i);
+        const vendorInputs = screen.getAllByLabelText(/vendor buying price/i);
+
+        fireEvent.change(partDescriptions[1], { target: { value: 'Brake Pads' } });
+        fireEvent.change(pitchedInputs[1], { target: { value: '200' } });
+        fireEvent.change(vendorInputs[1], { target: { value: '100' } });
+
+        // Select Part 2 as primary via radio button
+        const primaryRadios = screen.getAllByLabelText(/primary/i) as HTMLInputElement[];
+        fireEvent.click(primaryRadios[1]);
+
+        // Submit
+        fireEvent.click(screen.getByRole('button', { name: /create order/i }));
+
+        await waitFor(() => {
+          expect(fetch).toHaveBeenCalled();
+        });
+
+        const [, fetchOptions] = vi.mocked(fetch).mock.calls[0];
+        const body = JSON.parse(fetchOptions?.body as string);
+
+        expect(body).toHaveProperty('parts');
+        expect(body.parts.length).toBe(2);
+        // Note: submit logic will reorder parts so primary part is index 0.
+        expect(body.parts[0].orderPart).toBe('Brake Pads');
+        expect(body.parts[1].orderPart).toBe('Engine');
+      });
+    });
   });
 });
