@@ -1016,9 +1016,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 onChange={(e) => setOrderCurrentStatus(e.target.value)}
                 className="form-select"
               >
-                {order.orderCurrentStatus === 'Pending Booking' && (
-                  <option value="Pending Booking" disabled>Pending Booking</option>
-                )}
+                <option value="Pending Booking">Pending Booking</option>
                 <option value="Pending Shipment">Pending Shipment</option>
                 <option value="Pending Delivery">Pending Delivery</option>
                 <option value="Pending Feedback">Pending Feedback</option>
