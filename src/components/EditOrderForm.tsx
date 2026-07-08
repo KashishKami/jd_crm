@@ -81,6 +81,19 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' })
   );
 
+  // Global deal configuration states (parent order level fields)
+  const [orderSalesAgentId, setOrderSalesAgentId] = useState(order.orderSalesAgentId ? String(order.orderSalesAgentId) : '');
+  const [orderVerifierId, setOrderVerifierId] = useState(order.orderVerifierId ? String(order.orderVerifierId) : '');
+  const [orderSalesVerifierId, setOrderSalesVerifierId] = useState(order.orderSalesVerifierId ? String(order.orderSalesVerifierId) : '');
+  const [orderBackendExecutiveId, setOrderBackendExecutiveId] = useState(order.orderBackendExecutiveId ? String(order.orderBackendExecutiveId) : '');
+  const [orderPaymentGatewayId, setOrderPaymentGatewayId] = useState(order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '');
+  const [orderShippingType, setOrderShippingType] = useState(order.orderShippingType || 'Residential');
+  const [orderLiftgateNeeded, setOrderLiftgateNeeded] = useState(order.orderLiftgateNeeded || 'No');
+  const [orderChecklist, setOrderChecklist] = useState(order.orderChecklist || 'No');
+  const [orderTotalPitched, setOrderTotalPitched] = useState(order.orderTotalPitched || '');
+  const [orderAmountCharged, setOrderAmountCharged] = useState(order.orderAmountCharged || '');
+  const [orderRefundAmount, setOrderRefundAmount] = useState(order.orderRefundAmount || '');
+
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -208,6 +221,16 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         ? new Date(order.orderDate).toISOString().split('T')[0]
         : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' })
       );
+      setOrderSalesAgentId(order.orderSalesAgentId ? String(order.orderSalesAgentId) : '');
+      setOrderVerifierId(order.orderVerifierId ? String(order.orderVerifierId) : '');
+      setOrderSalesVerifierId(order.orderSalesVerifierId ? String(order.orderSalesVerifierId) : '');
+      setOrderPaymentGatewayId(order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '');
+      setOrderShippingType(order.orderShippingType || 'Residential');
+      setOrderLiftgateNeeded(order.orderLiftgateNeeded || 'No');
+      setOrderChecklist(order.orderChecklist || 'No');
+      setOrderTotalPitched(order.orderTotalPitched || '');
+      setOrderAmountCharged(order.orderAmountCharged || '');
+      setOrderRefundAmount(order.orderRefundAmount || '');
       /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [order, canViewCards]);
@@ -298,8 +321,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderVendorId: newPart.orderVendorId ? Number(newPart.orderVendorId) : null,
           orderPaymentGatewayId: newPart.orderPaymentGatewayId ? Number(newPart.orderPaymentGatewayId) : null,
           orderSalesAgentId: newPart.orderSalesAgentId ? Number(newPart.orderSalesAgentId) : null,
-          orderSalesVerifierId: newPart.orderSalesVerifierId ? Number(newPart.orderSalesVerifierId) : null,
-          orderBackendExecutiveId: newPart.orderBackendExecutiveId ? Number(newPart.orderBackendExecutiveId) : null,
+          orderBackendExecutiveId: null,
           orderVerifierId: newPart.orderVerifierId ? Number(newPart.orderVerifierId) : null,
           orderPartFoundById: newPart.orderPartFoundById ? Number(newPart.orderPartFoundById) : null,
           orderLiftgateNeeded: newPart.orderLiftgateNeeded || 'No',
@@ -331,26 +353,28 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderPartSize: p.orderPartSize || null,
           orderQuotedMilesAndWarranty: p.orderQuotedMilesAndWarranty || null,
           orderVendorMilesAndWarranty: p.orderVendorMilesAndWarranty || null,
-          orderChecklist: p.orderChecklist || 'No',
           orderVin: p.orderVin || null,
-          orderShippingType: p.orderShippingType || 'Residential',
           orderTrackingNumber: p.orderTrackingNumber || '',
           orderDeliveryStatus: p.orderDeliveryStatus || '',
-          orderTotalPitched: p.orderTotalPitched || null,
           orderVendorPrice: p.orderVendorPrice || null,
-          orderAmountCharged: p.orderAmountCharged || null,
           orderVendorId: p.orderVendorId ? Number(p.orderVendorId) : null,
-          orderPaymentGatewayId: p.orderPaymentGatewayId ? Number(p.orderPaymentGatewayId) : null,
-          orderSalesAgentId: p.orderSalesAgentId ? Number(p.orderSalesAgentId) : null,
-          orderSalesVerifierId: p.orderSalesVerifierId ? Number(p.orderSalesVerifierId) : null,
-          orderBackendExecutiveId: p.orderBackendExecutiveId ? Number(p.orderBackendExecutiveId) : null,
-          orderVerifierId: p.orderVerifierId ? Number(p.orderVerifierId) : null,
+          orderBackendExecutiveId: p.crmOrderId === order.crmOrderId ? (orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null) : null,
           orderPartFoundById: p.orderPartFoundById ? Number(p.orderPartFoundById) : null,
-          orderLiftgateNeeded: p.orderLiftgateNeeded || 'No',
           saleStatus: p.saleStatus || '1',
-          orderRefundAmount: p.saleStatus === '4' ? p.orderRefundAmount : null,
           orderCurrentStatus: p.orderCurrentStatus || 'Pending Booking',
           orderVendorFeedback: p.orderVendorFeedback || 'Positive',
+
+          // Global fields set only on parent, otherwise default/null for child parts
+          orderChecklist: p.crmOrderId === order.crmOrderId ? orderChecklist : 'No',
+          orderShippingType: p.crmOrderId === order.crmOrderId ? orderShippingType : 'Residential',
+          orderTotalPitched: p.crmOrderId === order.crmOrderId ? (orderTotalPitched || null) : null,
+          orderAmountCharged: p.crmOrderId === order.crmOrderId ? (orderAmountCharged || null) : null,
+          orderPaymentGatewayId: p.crmOrderId === order.crmOrderId ? (orderPaymentGatewayId ? Number(orderPaymentGatewayId) : null) : null,
+          orderSalesAgentId: p.crmOrderId === order.crmOrderId ? (orderSalesAgentId ? Number(orderSalesAgentId) : null) : null,
+          orderSalesVerifierId: p.crmOrderId === order.crmOrderId ? (orderSalesVerifierId ? Number(orderSalesVerifierId) : null) : null,
+          orderVerifierId: p.crmOrderId === order.crmOrderId ? (orderVerifierId ? Number(orderVerifierId) : null) : null,
+          orderLiftgateNeeded: p.crmOrderId === order.crmOrderId ? orderLiftgateNeeded : 'No',
+          orderRefundAmount: p.crmOrderId === order.crmOrderId ? (p.saleStatus === '4' ? orderRefundAmount : null) : null,
         };
 
         if (p.crmOrderId === order.crmOrderId) {
@@ -416,11 +440,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
     }
   };
 
-  const combinedPitched = parts.reduce((sum, p) => sum + (parseFloat(p.orderTotalPitched) || 0), 0);
+  const combinedPitched = parseFloat(orderTotalPitched) || 0;
   const combinedCost = parts.reduce((sum, p) => sum + (parseFloat(p.orderVendorPrice) || 0), 0);
   const combinedMargin = combinedPitched - combinedCost;
-  const combinedCharged = parts.reduce((sum, p) => sum + (parseFloat(p.orderAmountCharged) || 0), 0);
-  const combinedRefund = parts.reduce((sum, p) => sum + (parseFloat(p.orderRefundAmount) || 0), 0);
+  const combinedCharged = parseFloat(orderAmountCharged) || 0;
+  const combinedRefund = parseFloat(orderRefundAmount) || 0;
 
   return (
     <div ref={containerRef} className="agents-page-container" style={{ opacity: 0 }}>
@@ -445,7 +469,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       )}
 
       <div className="order-form-layout">
-        <form id="edit-order-form" onSubmit={handleSubmit} className="form-card form-card-georgia order-form-main">
+        <form id="edit-order-form" onSubmit={handleSubmit} noValidate className="form-card form-card-georgia order-form-main form-compact">
           <style dangerouslySetInnerHTML={{ __html: `
             .form-card-georgia, .form-card-georgia input, .form-card-georgia select, .form-card-georgia textarea {
               font-family: Georgia, serif !important;
@@ -455,28 +479,32 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           {/* Section 1: Customer Info */}
           <div className="form-section">
             <h3 className="form-section-title">1. Customer Information</h3>
-            <div className="form-grid">
-              <div className="form-group form-grid-full">
-                <label htmlFor="customerName" className="form-label">
-                  Customer Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="customerName"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="form-input"
-                  placeholder="e.g. Jane Doe"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email Address <span className="text-red-500">*</span></label>
-                <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  className="form-input font-mono"
-                />
+            <div className="form-grid-3col">
+              <div className="form-group form-span-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="form-group">
+                    <label htmlFor="customerName" className="form-label">
+                      Customer Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="customerName"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. Jane Doe"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email Address <span className="text-red-500">*</span></label>
+                    <input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      className="form-input font-mono"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Phone Number</label>
@@ -507,23 +535,27 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   className="form-input font-mono"
                 />
               </div>
-              <div className="form-group form-grid-full">
-                <label className="form-label">Billing Address</label>
-                <textarea
-                  value={customerBillingAddress}
-                  onChange={(e) => setCustomerBillingAddress(e.target.value)}
-                  className="form-textarea"
-                  rows={3}
-                />
-              </div>
-              <div className="form-group form-grid-full">
-                <label className="form-label">Shipping Address</label>
-                <textarea
-                  value={customerShippingAddress}
-                  onChange={(e) => setCustomerShippingAddress(e.target.value)}
-                  className="form-textarea"
-                  rows={3}
-                />
+              <div className="form-group form-span-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Billing Address</label>
+                    <textarea
+                      value={customerBillingAddress}
+                      onChange={(e) => setCustomerBillingAddress(e.target.value)}
+                      className="form-textarea"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Shipping Address</label>
+                    <textarea
+                      value={customerShippingAddress}
+                      onChange={(e) => setCustomerShippingAddress(e.target.value)}
+                      className="form-textarea"
+                      rows={2}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -552,9 +584,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   )}
                 </div>
 
-                <div style={{ padding: '24px' }}>
-                  <div className="form-grid">
-                    <div className="form-group form-grid-full">
+                <div style={{ padding: '16px' }}>
+                  <div className="form-grid-3col">
+                    <div className="form-group form-span-3">
                       <label className="form-label">Name On Card <span className="text-red-500">*</span></label>
                       <input
                         type="text"
@@ -568,7 +600,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                         className="form-input"
                       />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group form-span-2">
                       <label className="form-label">Card Number <span className="text-red-500">*</span></label>
                       <input
                         type="text"
@@ -753,10 +785,107 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             </button>
           </div>
 
-          {/* Section: Sale Date */}
+          {/* Section 3: Global Deal Configurations */}
           <div className="form-section">
-            <h3 className="form-section-title">Global Sale Configurations</h3>
-            <div className="form-grid">
+            <h3 className="form-section-title">Global Deal Configurations</h3>
+            <div className="form-grid-3col">
+              <div className="form-group">
+                <label htmlFor="orderSalesAgentId" className="form-label">
+                  Sales Agent <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="orderSalesAgentId"
+                  value={orderSalesAgentId}
+                  onChange={(e) => setOrderSalesAgentId(e.target.value)}
+                  required
+                  className="form-select"
+                >
+                  <option value="">-- Select Sales Agent --</option>
+                  {agents.map((a) => (
+                    <option key={a.uid} value={a.uid}>
+                      {a.nickname || a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderSalesVerifierId" className="form-label">
+                  Sales Verifier
+                </label>
+                <select
+                  id="orderSalesVerifierId"
+                  value={orderSalesVerifierId}
+                  onChange={(e) => setOrderSalesVerifierId(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">-- Select Sales Verifier --</option>
+                  {agents.map((a) => (
+                    <option key={a.uid} value={a.uid}>
+                      {a.nickname || a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderBackendExecutiveId" className="form-label">
+                  Backend Executive
+                </label>
+                <select
+                  id="orderBackendExecutiveId"
+                  value={orderBackendExecutiveId}
+                  onChange={(e) => setOrderBackendExecutiveId(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">-- Select Backend Executive --</option>
+                  {agents.map((a) => (
+                    <option key={a.uid} value={a.uid}>
+                      {a.nickname || a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderVerifierId" className="form-label">
+                  QA Verifier <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="orderVerifierId"
+                  value={orderVerifierId}
+                  onChange={(e) => setOrderVerifierId(e.target.value)}
+                  required
+                  className="form-select"
+                >
+                  <option value="">-- Select QA Verifier --</option>
+                  {agents.map((a) => (
+                    <option key={a.uid} value={a.uid}>
+                      {a.nickname || a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderPaymentGatewayId" className="form-label">
+                  Payment Gateway
+                </label>
+                <select
+                  id="orderPaymentGatewayId"
+                  value={orderPaymentGatewayId}
+                  onChange={(e) => setOrderPaymentGatewayId(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">-- Select Gateway --</option>
+                  {gateways.map((g) => (
+                    <option key={g.gatewayId} value={g.gatewayId}>
+                      {g.gatewayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="form-group">
                 <label htmlFor="orderDate" className="form-label">Sale Date</label>
                 <input
@@ -766,6 +895,109 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   onChange={(e) => setOrderDate(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderShippingType" className="form-label">
+                  Shipping Type
+                </label>
+                <select
+                  id="orderShippingType"
+                  value={orderShippingType}
+                  onChange={(e) => setOrderShippingType(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="Residential">Residential</option>
+                  <option value="Commercial">Commercial</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderTotalPitched" className="form-label">
+                  Total Price Pitched <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="orderTotalPitched"
+                  placeholder="0.00"
+                  value={orderTotalPitched}
+                  onChange={(e) => setOrderTotalPitched(e.target.value)}
+                  required
+                  className="form-input font-mono"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="orderAmountCharged" className="form-label">
+                  Charged Amount
+                </label>
+                <input
+                  type="number"
+                  id="orderAmountCharged"
+                  placeholder="0.00"
+                  value={orderAmountCharged}
+                  onChange={(e) => setOrderAmountCharged(e.target.value)}
+                  className="form-input font-mono"
+                />
+              </div>
+
+              {parts[0]?.saleStatus === '4' && (
+                <div className="form-group">
+                  <label htmlFor="orderRefundAmount" className="form-label">
+                    Refund Amount <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="orderRefundAmount"
+                    placeholder="0.00"
+                    value={orderRefundAmount}
+                    onChange={(e) => setOrderRefundAmount(e.target.value)}
+                    required
+                    className="form-input font-mono"
+                  />
+                </div>
+              )}
+
+              <div className="form-group" style={{ justifyContent: 'center', paddingTop: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    id="orderChecklist"
+                    checked={orderChecklist === 'Yes'}
+                    onChange={(e) => {
+                      const val = e.target.checked ? 'Yes' : 'No';
+                      setOrderChecklist(val);
+                      const newParts = [...parts];
+                      if (newParts[0]) {
+                        newParts[0].orderChecklist = val;
+                        setParts(newParts);
+                      }
+                    }}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Checklist by backend</span>
+                </label>
+              </div>
+
+              <div className="form-group" style={{ justifyContent: 'center', paddingTop: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    id="orderLiftgateNeeded"
+                    checked={orderLiftgateNeeded === 'Yes'}
+                    onChange={(e) => {
+                      const val = e.target.checked ? 'Yes' : 'No';
+                      setOrderLiftgateNeeded(val);
+                      const newParts = [...parts];
+                      if (newParts[0]) {
+                        newParts[0].orderLiftgateNeeded = val;
+                        setParts(newParts);
+                      }
+                    }}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Liftgate Needed</span>
+                </label>
               </div>
             </div>
           </div>
@@ -828,12 +1060,48 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
 
                 <div style={{ padding: '24px' }}>
                   {/* Subcategory 1: Vehicle & part Specs */}
-                  <div className="part-subcategory-group" style={{ marginBottom: '24px' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  <div className="part-subcategory-group" style={{ marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
                       Vehicle & part Specs
                     </h4>
-                    <div className="form-grid">
-                      <div className="form-group form-grid-full">
+                    <div className="form-grid-3col">
+                      <div className="form-group form-span-2">
+                        <label htmlFor={index === 0 ? "orderMakeModel" : `orderMakeModel-${index}`} className="form-label">
+                          Year, Make & Model
+                        </label>
+                        <input
+                          type="text"
+                          id={index === 0 ? "orderMakeModel" : `orderMakeModel-${index}`}
+                          placeholder="e.g. 2021 Jeep Grand Cherokee"
+                          value={part.orderMakeModel}
+                          onChange={(e) => {
+                            const newParts = [...parts];
+                            newParts[index].orderMakeModel = e.target.value;
+                            setParts(newParts);
+                          }}
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group form-span-1">
+                        <label htmlFor={index === 0 ? "orderVin" : `orderVin-${index}`} className="form-label">
+                          VIN Number
+                        </label>
+                        <input
+                          type="text"
+                          id={index === 0 ? "orderVin" : `orderVin-${index}`}
+                          value={part.orderVin}
+                          onChange={(e) => {
+                            const newParts = [...parts];
+                            newParts[index].orderVin = e.target.value;
+                            setParts(newParts);
+                          }}
+                          className="form-input font-mono uppercase"
+                          maxLength={17}
+                        />
+                      </div>
+
+                      <div className="form-group form-span-2">
                         <label htmlFor={index === 0 ? "orderPart" : `orderPart-${index}`} className="form-label">
                           Part Description <span className="text-red-500">*</span>
                         </label>
@@ -852,25 +1120,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                         />
                       </div>
 
-                      <div className="form-group form-grid-full">
-                        <label htmlFor={index === 0 ? "orderMakeModel" : `orderMakeModel-${index}`} className="form-label">
-                          Year, Make & Model
-                        </label>
-                        <input
-                          type="text"
-                          id={index === 0 ? "orderMakeModel" : `orderMakeModel-${index}`}
-                          placeholder="e.g. 2021 Jeep Grand Cherokee"
-                          value={part.orderMakeModel}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderMakeModel = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-input"
-                        />
-                      </div>
-
-                      <div className="form-group">
+                      <div className="form-group form-span-1">
                         <label htmlFor={`orderPartSize-${index}`} className="form-label">
                           Dimensions / Specifications
                         </label>
@@ -920,51 +1170,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           className="form-input font-mono"
                         />
                       </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderVin" : `orderVin-${index}`} className="form-label">
-                          VIN Number
-                        </label>
-                        <input
-                          type="text"
-                          id={index === 0 ? "orderVin" : `orderVin-${index}`}
-                          value={part.orderVin}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderVin = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-input font-mono uppercase"
-                          maxLength={17}
-                        />
-                      </div>
                     </div>
                   </div>
 
                   {/* Subcategory 2: Pricing & Allocation */}
-                  <div className="part-subcategory-group" style={{ marginBottom: '24px' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
-                      Pricing $ Allocation
+                  <div className="part-subcategory-group" style={{ marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                      Pricing & Allocation
                     </h4>
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderTotalPitched" : `orderTotalPitched-${index}`} className="form-label">
-                          Total Price Pitched <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          id={index === 0 ? "orderTotalPitched" : `orderTotalPitched-${index}`}
-                          placeholder="0.00"
-                          value={part.orderTotalPitched}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderTotalPitched = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-input font-mono"
-                        />
-                      </div>
-
+                    <div className="form-grid-3col">
                       <div className="form-group">
                         <label htmlFor={index === 0 ? "orderVendorPrice" : `orderVendorPrice-${index}`} className="form-label">
                           Vendor Buying Price <span className="text-red-500">*</span>
@@ -979,60 +1193,24 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                             newParts[index].orderVendorPrice = e.target.value;
                             setParts(newParts);
                           }}
+                          required
                           className="form-input font-mono"
                         />
                       </div>
 
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderAmountCharged" : `orderAmountCharged-${index}`} className="form-label">
-                          Charged Amount
-                        </label>
-                        <input
-                          type="number"
-                          id={index === 0 ? "orderAmountCharged" : `orderAmountCharged-${index}`}
-                          placeholder="0.00"
-                          value={part.orderAmountCharged}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderAmountCharged = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-input font-mono"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Net Margin</label>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span
-                            data-testid={index === 0 ? "markup-display" : `markup-display-${index}`}
-                            className={`text-2xl font-bold ${partMarkup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
-                          >
-                            ${partMarkup.toFixed(2)}
-                          </span>
+                      {index === 0 && (
+                        <div className="form-group">
+                          <label className="form-label">Primary Part Net Margin</label>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span
+                              data-testid="markup-display"
+                              className={`text-2xl font-bold ${partMarkup >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                            >
+                              ${partMarkup.toFixed(2)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderPaymentGatewayId" : `orderPaymentGatewayId-${index}`} className="form-label">
-                          Payment Gateway
-                        </label>
-                        <select
-                          id={index === 0 ? "orderPaymentGatewayId" : `orderPaymentGatewayId-${index}`}
-                          value={part.orderPaymentGatewayId}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderPaymentGatewayId = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="">-- Select Gateway --</option>
-                          {gateways.map((g) => (
-                            <option key={g.gatewayId} value={g.gatewayId}>{g.gatewayName}</option>
-                          ))}
-                        </select>
-                      </div>
+                      )}
 
                       <div className="form-group">
                         <label htmlFor={index === 0 ? "orderVendorId" : `orderVendorId-${index}`} className="form-label">
@@ -1052,25 +1230,6 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           {vendors.map((v) => (
                             <option key={v.vendorId} value={v.vendorId}>{v.vendorName}</option>
                           ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderShippingType" : `orderShippingType-${index}`} className="form-label">
-                          Shipping Type
-                        </label>
-                        <select
-                          id={index === 0 ? "orderShippingType" : `orderShippingType-${index}`}
-                          value={part.orderShippingType}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderShippingType = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="Residential">Residential</option>
-                          <option value="Commercial">Commercial</option>
                         </select>
                       </div>
 
@@ -1096,74 +1255,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   </div>
 
                   {/* Subcategory 3: Team Allocation */}
-                  <div className="part-subcategory-group" style={{ marginBottom: '24px' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  <div className="part-subcategory-group" style={{ marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
                       Team Allocation
                     </h4>
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderSalesAgentId" : `orderSalesAgentId-${index}`} className="form-label">
-                          Sales Agent
-                        </label>
-                        <select
-                          id={index === 0 ? "orderSalesAgentId" : `orderSalesAgentId-${index}`}
-                          value={part.orderSalesAgentId}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderSalesAgentId = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="">Select or type name</option>
-                          {agents.map((a) => (
-                            <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderSalesVerifierId" : `orderSalesVerifierId-${index}`} className="form-label">
-                          Sales Verifier
-                        </label>
-                        <select
-                          id={index === 0 ? "orderSalesVerifierId" : `orderSalesVerifierId-${index}`}
-                          value={part.orderSalesVerifierId}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderSalesVerifierId = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="">Select or type name</option>
-                          {agents.map((a) => (
-                            <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderBackendExecutiveId" : `orderBackendExecutiveId-${index}`} className="form-label">
-                          Backend Executive
-                        </label>
-                        <select
-                          id={index === 0 ? "orderBackendExecutiveId" : `orderBackendExecutiveId-${index}`}
-                          value={part.orderBackendExecutiveId}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderBackendExecutiveId = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="">Select or type name</option>
-                          {agents.map((a) => (
-                            <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
+                    <div className="form-grid-3col">
                       <div className="form-group">
                         <label htmlFor={index === 0 ? "orderPartFoundById" : `orderPartFoundById-${index}`} className="form-label">
                           Part Found By
@@ -1184,36 +1280,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           ))}
                         </select>
                       </div>
-
-                      <div className="form-group">
-                        <label htmlFor={index === 0 ? "orderVerifierId" : `orderVerifierId-${index}`} className="form-label">
-                          QA Verifier
-                        </label>
-                        <select
-                          id={index === 0 ? "orderVerifierId" : `orderVerifierId-${index}`}
-                          value={part.orderVerifierId}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderVerifierId = e.target.value;
-                            setParts(newParts);
-                          }}
-                          className="form-select"
-                        >
-                          <option value="">Select or type name</option>
-                          {agents.map((a) => (
-                            <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                          ))}
-                        </select>
-                      </div>
                     </div>
                   </div>
 
                   {/* Subcategory 4: Order Status */}
                   <div className="part-subcategory-group" style={{ marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
                       Order Status
                     </h4>
-                    <div className="form-grid">
+                    <div className="form-grid-3col">
                       <div className="form-group">
                         <label htmlFor={index === 0 ? "saleStatus" : `saleStatus-${index}`} className="form-label">
                           Sale Status
@@ -1313,43 +1388,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-                    <div className="flex flex-col gap-2">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          id={index === 0 ? "orderChecklist" : `orderChecklist-${index}`}
-                          checked={part.orderChecklist === 'Yes'}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderChecklist = e.target.checked ? 'Yes' : 'No';
-                            setParts(newParts);
-                          }}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <span className="text-sm font-semibold text-slate-700">Checklist by backend</span>
-                      </label>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          id={index === 0 ? "orderLiftgateNeeded" : `orderLiftgateNeeded-${index}`}
-                          checked={part.orderLiftgateNeeded === 'Yes'}
-                          onChange={(e) => {
-                            const newParts = [...parts];
-                            newParts[index].orderLiftgateNeeded = e.target.checked ? 'Yes' : 'No';
-                            setParts(newParts);
-                          }}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <span className="text-sm font-semibold text-slate-700">Liftgate Needed</span>
-                      </label>
-                    </div>
                   </div>
                 </div>
-              </div>
             );
           })}
 
@@ -1394,8 +1434,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             customerCardNumber={cards[0]?.customerCardNumber || ''}
             customerCardExpDate={cards[0]?.customerCardExpDate || ''}
             customerCardCvv={cards[0]?.customerCardCvv || ''}
-            orderPaymentGatewayId={parts[0]?.orderPaymentGatewayId || ''}
-            orderChecklist={parts[0]?.orderChecklist || 'No'}
+            orderPaymentGatewayId={orderPaymentGatewayId}
+            orderChecklist={orderChecklist}
             orderMakeModel={parts[0]?.orderMakeModel || ''}
             orderPart={parts[0]?.orderPart || ''}
             orderPartSize={parts[0]?.orderPartSize || ''}
@@ -1407,13 +1447,13 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             orderAmountCharged={String(combinedCharged)}
             orderRefundAmount={String(combinedRefund)}
             orderDate={orderDate}
-            orderShippingType={parts[0]?.orderShippingType || 'Residential'}
+            orderShippingType={orderShippingType}
             orderVendorId={parts[0]?.orderVendorId || ''}
             orderVendorFeedback={parts[0]?.orderVendorFeedback || 'Positive'}
-            orderSalesAgentId={parts[0]?.orderSalesAgentId || ''}
-            orderSalesVerifierId={parts[0]?.orderSalesVerifierId || ''}
-            orderBackendExecutiveId={parts[0]?.orderBackendExecutiveId || ''}
-            orderVerifierId={parts[0]?.orderVerifierId || ''}
+            orderSalesAgentId={orderSalesAgentId}
+            orderSalesVerifierId={orderSalesVerifierId}
+            orderBackendExecutiveId={orderBackendExecutiveId}
+            orderVerifierId={orderVerifierId}
             saleStatus={parts[0]?.saleStatus || '1'}
             orderCurrentStatus={parts[0]?.orderCurrentStatus || 'Pending Booking'}
             parts={parts}

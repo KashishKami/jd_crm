@@ -504,33 +504,21 @@ describe('AddOrderForm Unit Tests', () => {
 
         const makeModels = screen.getAllByLabelText(/year, make & model/i) as HTMLInputElement[];
         expect(makeModels[1].value).toBe('2026 Tesla Model S');
-
-        const gateways = screen.getAllByLabelText(/payment gateway/i) as HTMLSelectElement[];
-        expect(gateways[1].value).toBe('2');
-
-        const agents = screen.getAllByLabelText(/sales agent/i) as HTMLSelectElement[];
-        expect(agents[1].value).toBe('3');
-
-        const liftgates = document.querySelectorAll('[id^=orderLiftgateNeeded]') as any;
-        expect(liftgates[1].checked).toBe(true);
       });
 
       it('should calculate combined deal summary Margins and Pitched', async () => {
         render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
         
-        // Part 1: Pitched 1000, Vendor 400 -> Margin 600
-        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1000' } });
+        // Set global total pitched to 1500
+        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1500' } });
         fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '400' } });
 
         // Add Part 2
         const addPartBtn = screen.getByRole('button', { name: /add another part/i });
         fireEvent.click(addPartBtn);
 
-        // Part 2: Pitched 500, Vendor 200 -> Margin 300
-        const pitchedInputs = screen.getAllByLabelText(/total price pitched/i);
+        // Part 2 Vendor 200
         const vendorInputs = screen.getAllByLabelText(/vendor buying price/i);
-
-        fireEvent.change(pitchedInputs[1], { target: { value: '500' } });
         fireEvent.change(vendorInputs[1], { target: { value: '200' } });
 
         // Combined: Total Pitched: 1500, Combined Margin: 900
@@ -559,17 +547,15 @@ describe('AddOrderForm Unit Tests', () => {
 
         // Part 1
         fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Engine' } });
-        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1000' } });
+        fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1200' } });
         fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '600' } });
 
         // Add Part 2
         fireEvent.click(screen.getByRole('button', { name: /add another part/i }));
         const partDescriptions = screen.getAllByLabelText(/part description/i);
-        const pitchedInputs = screen.getAllByLabelText(/total price pitched/i);
         const vendorInputs = screen.getAllByLabelText(/vendor buying price/i);
 
         fireEvent.change(partDescriptions[1], { target: { value: 'Brake Pads' } });
-        fireEvent.change(pitchedInputs[1], { target: { value: '200' } });
         fireEvent.change(vendorInputs[1], { target: { value: '100' } });
 
         // Select Part 2 as primary via radio button

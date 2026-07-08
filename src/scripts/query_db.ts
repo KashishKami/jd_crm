@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 function parseCSV(content: string): string[][] {
   const result: string[][] = [];
@@ -64,7 +65,8 @@ function parseCSV(content: string): string[][] {
 }
 
 function main() {
-  const content = fs.readFileSync('c:/Users/Administrator/Desktop/JD CRM/Data for CRM - CRM_Import_Ready.csv', 'utf-8');
+  const csvPath = path.resolve(process.cwd(), 'Data for CRM - CRM_Import_Ready.csv');
+  const content = fs.readFileSync(csvPath, 'utf-8');
   const rows = parseCSV(content);
   
   console.log(`Parsed total rows: ${rows.length}`);

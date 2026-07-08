@@ -88,10 +88,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       gateway: true,
       salesAgent: true,
       verifier: true,
+      backendExecutive: true,
+      partFoundBy: true,
       childOrders: {
         include: {
           vendor: true,
           gateway: true,
+          backendExecutive: true,
+          partFoundBy: true,
         }
       }
     },
@@ -473,11 +477,33 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Backend Executive</span>
-                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderBackendExecutiveName || 'Unassigned'}</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{(() => {
+                  const names = new Set<string>();
+                  const pName = order.backendExecutive?.nickname || order.backendExecutive?.name || order.orderBackendExecutiveName;
+                  if (pName) names.add(pName);
+                  if (order.childOrders) {
+                    for (const child of order.childOrders) {
+                      const cName = child.backendExecutive?.nickname || child.backendExecutive?.name || child.orderBackendExecutiveName;
+                      if (cName) names.add(cName);
+                    }
+                  }
+                  return names.size > 0 ? Array.from(names).join(', ') : 'Unassigned';
+                })()}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Part Found By</span>
-                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderPartFoundByName || '—'}</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{(() => {
+                  const names = new Set<string>();
+                  const pName = order.orderPartFoundByName;
+                  if (pName) names.add(pName);
+                  if (order.childOrders) {
+                    for (const child of order.childOrders) {
+                      const cName = child.orderPartFoundByName;
+                      if (cName) names.add(cName);
+                    }
+                  }
+                  return names.size > 0 ? Array.from(names).join(', ') : '—';
+                })()}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Quality Verifier</span>
@@ -489,15 +515,46 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Parts Supplier</span>
-                <span className="info-value" style={{ fontWeight: '600' }}>{order.orderVendorName || 'Unassigned'}</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{(() => {
+                  const names = new Set<string>();
+                  const pName = order.vendor?.vendorName || order.orderVendorName;
+                  if (pName) names.add(pName);
+                  if (order.childOrders) {
+                    for (const child of order.childOrders) {
+                      const cName = child.vendor?.vendorName || child.orderVendorName;
+                      if (cName) names.add(cName);
+                    }
+                  }
+                  return names.size > 0 ? Array.from(names).join(', ') : 'Unassigned';
+                })()}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Sales Status</span>
-                <span className="info-value" style={{ fontWeight: '600' }}>{saleStatuses[order.saleStatus || '1']}</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>{(() => {
+                  const statuses = new Set<string>();
+                  const parentStatus = saleStatuses[order.saleStatus || '1'];
+                  if (parentStatus) statuses.add(parentStatus);
+                  if (order.childOrders) {
+                    for (const child of order.childOrders) {
+                      const childStatus = saleStatuses[child.saleStatus || '1'];
+                      if (childStatus) statuses.add(childStatus);
+                    }
+                  }
+                  return statuses.size > 0 ? Array.from(statuses).join(', ') : 'Unassigned';
+                })()}</span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
                 <span className="info-label">Vendor Feedback</span>
-                <span className="info-value" style={{ fontWeight: '600', color: order.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>{order.orderVendorFeedback || 'Positive'}</span>
+                <span className="info-value" style={{ fontWeight: '600', color: order.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>{(() => {
+                  const feed = new Set<string>();
+                  if (order.orderVendorFeedback) feed.add(order.orderVendorFeedback);
+                  if (order.childOrders) {
+                    for (const child of order.childOrders) {
+                      if (child.orderVendorFeedback) feed.add(child.orderVendorFeedback);
+                    }
+                  }
+                  return feed.size > 0 ? Array.from(feed).join(', ') : 'Positive';
+                })()}</span>
               </div>
             </div>
           </div>

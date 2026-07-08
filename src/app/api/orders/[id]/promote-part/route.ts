@@ -51,6 +51,7 @@ export async function PATCH(
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const err = error as Error;
+    console.error('PROMOTION ERROR:', err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

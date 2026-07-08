@@ -10,7 +10,22 @@ export interface CardInput {
   customerPhotoIdImage?: string | null;
 }
 
-export interface OrderCreateInput {
+export interface DealGlobalFields {
+  orderSalesAgentId?: number | null;
+  orderVerifierId?: number | null;
+  orderSalesVerifierId?: number | null;
+  orderPaymentGatewayId?: number | null;
+  orderDate?: string | Date | null;
+  orderShippingType?: string | null;
+  orderLiftgateNeeded?: string | null;
+  orderChecklist?: string | null;
+  orderTotalPitched?: string | null;
+  orderAmountCharged?: string | null;
+  orderRefundAmount?: string | null;
+  orderBackendExecutiveId?: number | null;
+}
+
+export interface OrderCreateInput extends DealGlobalFields {
   // Customer Info
   customerName: string;
   customerPhone?: string;
@@ -35,32 +50,24 @@ export interface OrderCreateInput {
   amountToCharge?: string | null;
 
   // Order Details
-  orderMakeModel?: string; // Merged field containing Year, Make, & Model (from legacy order_year migration)
   orderPart?: string;
   orderPartSize?: string;
   orderQuotedMilesAndWarranty?: string;
   orderVendorMilesAndWarranty?: string;
-  orderVin?: string;
-  orderTotalPitched?: string;
   orderVendorPrice?: string;
   orderVendorId?: number | null;
-  orderShippingType?: string;
-  orderPaymentGatewayId?: number | null;
   orderSalesAgentId?: number | null;
   orderVerifierId?: number | null;
   orderSalesVerifierId?: number | null;
   orderBackendExecutiveId?: number | null;
   saleStatus?: string;
-  orderDate?: string | Date;
-  orderRefundAmount?: string | null;
   orderCurrentStatus?: string | null;
-  orderAmountCharged?: string | null;
   saleStatusChangeDate?: string | null;
   orderVendorFeedback?: string;
-  orderChecklist?: string;
   orderPartFoundById?: number | null;
   orderPartFoundByName?: string | null;
-  orderLiftgateNeeded?: string | null;
+  orderMakeModel?: string | null;
+  orderVin?: string | null;
 }
 
 export interface OrderUpdateInput {
@@ -145,6 +152,7 @@ export interface OrderFilters {
   agentId?: number;
   teamId?: number;
   backendExecutiveId?: number;
+  partFoundById?: number;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -152,31 +160,21 @@ export interface OrderFilters {
 }
 
 export interface OrderPartInput {
-  orderMakeModel?: string;
   orderPart?: string;
   orderPartSize?: string;
   orderQuotedMilesAndWarranty?: string;
   orderVendorMilesAndWarranty?: string;
-  orderVin?: string;
-  orderTotalPitched?: string;
   orderVendorPrice?: string;
   orderVendorId?: number | null;
   orderVendorName?: string | null;
-  orderShippingType?: string;
-  orderPaymentGatewayId?: number | null;
-  orderSalesAgentId?: number | null;
-  orderVerifierId?: number | null;
-  orderSalesVerifierId?: number | null;
   orderBackendExecutiveId?: number | null;
   orderPartFoundById?: number | null;
   saleStatus?: string;
-  orderDate?: string | Date;
-  orderRefundAmount?: string | null;
   orderCurrentStatus?: string | null;
-  orderAmountCharged?: string | null;
   orderVendorFeedback?: string;
-  orderChecklist?: string;
-  orderLiftgateNeeded?: string | null;
+  orderMakeModel?: string | null;
+  orderVin?: string | null;
+  orderRefundAmount?: string | null;
 }
 
 export interface ChildPartSummary {
@@ -187,6 +185,14 @@ export interface ChildPartSummary {
   orderAmountCharged: string | null;
   orderRefundAmount: string | null;
   orderLiftgateNeeded: string | null;
+  orderVendorId?: number | null;
+  orderVendorName?: string | null;
+  orderVendorPrice?: string | null;
+  orderBackendExecutiveId?: number | null;
+  orderPartFoundById?: number | null;
+  orderVendorFeedback?: string | null;
+  orderMakeModel?: string | null;
+  orderVin?: string | null;
 }
 
 export interface ChildPartDetail {

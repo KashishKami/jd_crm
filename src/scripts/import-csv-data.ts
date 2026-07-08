@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/db';
 
-const CSV_FILE_PATH = path.resolve('c:/Users/Administrator/Desktop/JD CRM/Data_for_CRM_v3.csv');
+const CSV_FILE_PATH = path.resolve(process.cwd(), 'Data_for_CRM_v3.csv');
 
 // Robust CSV parser that handles quoted commas, escaped quotes, and newlines inside quotes.
 // It only treats quote characters as cell boundaries if they are at field delimiters,

@@ -43,9 +43,32 @@ interface OrderListProps {
       name: string;
       nickname?: string | null;
     } | null;
+    partFoundBy?: {
+      name: string;
+      nickname?: string | null;
+    } | null;
     orderSalesVerifierName?: string | null;
     orderBackendExecutiveName?: string | null;
     orderVerifierName?: string | null;
+    orderPartFoundByName?: string | null;
+    childOrders?: Array<{
+      crmOrderId: number;
+      orderMakeModel: string | null;
+      orderPart: string | null;
+      orderCurrentStatus: string | null;
+      saleStatus?: string | null;
+      orderVendorPrice?: string | null;
+      orderBackendExecutiveName?: string | null;
+      backendExecutive?: {
+        name: string;
+        nickname?: string | null;
+      } | null;
+      orderPartFoundByName?: string | null;
+      partFoundBy?: {
+        name: string;
+        nickname?: string | null;
+      } | null;
+    }>;
   }>;
 }
 
@@ -160,13 +183,30 @@ export default function OrderList({ orders }: OrderListProps) {
                     </div>
                   </td>
                   <td>
-                    <div>
-                      <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>
-                        {order.orderMakeModel || 'Unknown Vehicle'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div>
+                        <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>
+                          {order.orderMakeModel || 'Unknown Vehicle'}
+                        </div>
+                        <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em' }}>
+                          {order.orderPart || '—'}
+                          {order.childOrders && order.childOrders.length > 0 && (
+                            <span className="text-slate-400 font-normal not-italic font-mono ml-1.5">(#1)</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span>{order.orderPart || '—'}</span>
-                      </div>
+
+                      {order.childOrders && order.childOrders.map((child, idx) => (
+                        <div key={child.crmOrderId} style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                          <div className="font-medium text-slate-600" style={{ fontSize: '0.9em' }}>
+                            {child.orderMakeModel || order.orderMakeModel || 'Unknown Vehicle'}
+                          </div>
+                          <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.85em' }}>
+                            {child.orderPart || '—'}
+                            <span className="text-slate-400 font-normal not-italic font-mono ml-1.5">(#{idx + 2})</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </td>
                    <td>
@@ -187,6 +227,21 @@ export default function OrderList({ orders }: OrderListProps) {
                         <span className="font-semibold text-slate-800">QA Verifier: </span>
                         <span>{order.verifier?.nickname || order.verifier?.name || order.orderVerifierName || 'Unassigned'}</span>
                       </div>
+                      <div>
+                        <span className="font-semibold text-slate-800">Part Found By: </span>
+                        <span>{(() => {
+                          const names = new Set<string>();
+                          const pName = order.partFoundBy?.nickname || order.partFoundBy?.name || order.orderPartFoundByName;
+                          if (pName) names.add(pName);
+                          if (order.childOrders) {
+                            for (const child of order.childOrders) {
+                              const cName = child.partFoundBy?.nickname || child.partFoundBy?.name || child.orderPartFoundByName;
+                              if (cName) names.add(cName);
+                            }
+                          }
+                          return names.size > 0 ? Array.from(names).join(', ') : 'Unassigned';
+                        })()}</span>
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -200,7 +255,8 @@ export default function OrderList({ orders }: OrderListProps) {
                   <td>
                     {(() => {
                       const pitchNum = parseFloat(order.orderTotalPitched || '0');
-                      const buyNum = parseFloat(order.orderVendorPrice || '0');
+                      const buyNum = (parseFloat(order.orderVendorPrice || '0')) +
+                        (order.childOrders ? order.childOrders.reduce((sum: number, child: any) => sum + (parseFloat(child.orderVendorPrice || '0')), 0) : 0);
                       const chargedNum = parseFloat(order.orderAmountCharged || '0');
                       const refundNum = parseFloat(order.orderRefundAmount || '0');
                       
@@ -256,14 +312,25 @@ export default function OrderList({ orders }: OrderListProps) {
                     })()}
                   </td>
                   <td>
-                    {(() => {
-                      const statusText = order.orderCurrentStatus || 'Unknown';
-                      return (
-                        <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(statusText)}`} style={{ fontSize: '0.92em', padding: '2px 8px' }}>
-                          {statusText}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {order.childOrders && order.childOrders.length > 0 && (
+                          <span className="text-slate-400 font-semibold font-mono" style={{ fontSize: '0.75rem' }}>#1:</span>
+                        )}
+                        <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(order.orderCurrentStatus)}`} style={{ fontSize: '0.85em', padding: '2px 8px' }}>
+                          {order.orderCurrentStatus || 'Unknown'}
                         </span>
-                      );
-                    })()}
+                      </div>
+
+                      {order.childOrders && order.childOrders.map((child, idx) => (
+                        <div key={child.crmOrderId} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="text-slate-400 font-semibold font-mono" style={{ fontSize: '0.75rem' }}>#{idx + 2}:</span>
+                          <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(child.orderCurrentStatus)}`} style={{ fontSize: '0.85em', padding: '2px 8px' }}>
+                            {child.orderCurrentStatus || 'Unknown'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </td>
                   <td className="text-slate-500 font-normal" style={{ fontSize: '0.82em' }}>
                     {formatDate(order.orderDate)}

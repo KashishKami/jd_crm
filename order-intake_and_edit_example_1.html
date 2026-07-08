@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Intake — JD Fusion Auto Parts CRM</title>
+<style>
+  :root{
+    --bg:#12151a; --panel:#181c23; --panel-2:#1f242d;
+    --line:#2a3038; --line-soft:#232830;
+    --text:#e7ebf0; --text-dim:#8b95a3; --text-faint:#5c6673;
+    --accent:#ff8a3d; --teal:#3ddab4; --red:#ff5d6c;
+    --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.4;padding-bottom:80px;}
+
+  .topbar{position:sticky;top:0;z-index:50;background:#14171d;border-bottom:1px solid var(--line);
+    padding:14px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  .brand h1{margin:0;font-size:18px;font-weight:700;}
+  .brand .sub{font-size:11.5px;color:var(--text-dim);}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .id-field{display:flex;flex-direction:column;gap:2px;}
+  .id-field label{font-size:10px;color:var(--text-faint);text-transform:uppercase;}
+  .id-field input{font-family:var(--mono);font-size:12.5px;width:150px;}
+
+  button{font-family:var(--sans);cursor:pointer;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--text);border-radius:6px;padding:8px 13px;font-size:12.5px;font-weight:600;}
+  button:hover{border-color:#3a4250;background:#242a33;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#171008;}
+  button.primary:hover{background:#ff9a54;}
+  button.danger{color:var(--red);border-color:#4a2a2e;padding:5px 9px;font-size:11px;}
+  button.small{padding:5px 10px;font-size:11.5px;}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 24px 40px;}
+  .section{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;overflow:hidden;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel-2);}
+  .section-head h2{margin:0;font-size:13.5px;font-weight:700;}
+  .section-head .num{font-family:var(--mono);font-size:10.5px;color:var(--accent);margin-right:8px;}
+  .section-head .hint{font-size:11px;color:var(--text-faint);}
+  .section-body{padding:16px 18px;}
+
+  .grid{display:grid;gap:12px;}
+  .cols-2{grid-template-columns:repeat(2,1fr);}
+  .cols-3{grid-template-columns:repeat(3,1fr);}
+  .cols-4{grid-template-columns:repeat(4,1fr);}
+  @media (max-width:820px){ .cols-3,.cols-4{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:520px){ .cols-2,.cols-3,.cols-4{grid-template-columns:1fr;} }
+
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:11px;color:var(--text-dim);font-weight:600;}
+  .field label .opt{color:var(--text-faint);font-weight:400;font-style:italic;}
+  input,select,textarea{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:8px 10px;font-size:13px;font-family:var(--sans);width:100%;}
+  input.mono{font-family:var(--mono);}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+  input[readonly]{color:var(--teal);background:#171b21;}
+  ::placeholder{color:var(--text-faint);}
+  textarea{resize:vertical;min-height:48px;}
+
+  .checkbox-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);}
+  .checkbox-row input{width:auto;}
+
+  .card-block{border:1px dashed var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--panel-2);}
+  .card-block .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .card-tag{font-family:var(--mono);font-size:11px;color:var(--teal);}
+
+  /* compact part row */
+  .part-row{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;background:#161a20;}
+  .part-row-head{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;
+    background:linear-gradient(90deg,rgba(255,138,61,.08),transparent);border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  .part-row-head .left{display:flex;align-items:center;gap:9px;}
+  .part-badge{font-family:var(--mono);font-size:11px;background:var(--accent);color:#171008;padding:2px 8px;border-radius:20px;font-weight:700;}
+  .part-nick input{background:transparent;border:none;border-bottom:1px dashed var(--line-soft);border-radius:0;
+    padding:1px 3px;font-size:12.5px;font-weight:600;width:170px;color:var(--text);}
+  .part-body{padding:14px;}
+  .part-body.collapsed{display:none;}
+  .chevron{font-family:var(--mono);color:var(--text-faint);font-size:11px;}
+
+  .parts-total{display:flex;justify-content:flex-end;gap:16px;padding:10px 18px;font-family:var(--mono);
+    font-size:12px;color:var(--text-dim);border-top:1px dashed var(--line);}
+  .parts-total b{color:var(--teal);}
+
+  .add-part-btn{width:100%;padding:11px;border:1px dashed var(--line);background:transparent;color:var(--text-dim);
+    border-radius:8px;font-size:12.5px;margin-bottom:16px;}
+  .add-part-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  .roster-panel{display:none;gap:14px;padding:12px 18px;background:#0f1216;border-top:1px solid var(--line);}
+  .roster-panel.open{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+  .roster-col label{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;}
+  .roster-col .add-row{display:flex;gap:6px;margin-top:6px;}
+  .roster-col .add-row input{flex:1;}
+  .roster-list{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{font-size:11px;background:var(--panel-2);border:1px solid var(--line);padding:2px 7px;border-radius:20px;color:var(--text-dim);}
+
+  .summary-bar{position:fixed;bottom:0;left:0;right:0;z-index:40;background:#0e1116;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;padding:10px 24px;flex-wrap:wrap;gap:10px;}
+  .summary-stats{display:flex;gap:22px;flex-wrap:wrap;}
+  .stat .label{font-size:9.5px;color:var(--text-faint);text-transform:uppercase;}
+  .stat .value{font-family:var(--mono);font-size:15px;font-weight:700;}
+  .stat.accent .value{color:var(--accent);}
+  .stat.teal .value{color:var(--teal);}
+
+  @media print{
+    .topbar,.summary-bar,.roster-panel,.no-print{display:none!important;}
+    body{background:#fff;color:#000;padding-bottom:0;}
+    .section,.part-row{border-color:#ccc;background:#fff;}
+    input,select,textarea{background:#fff;color:#000;border-color:#ccc;}
+    .part-body{display:block!important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <h1>Order Intake Sheet</h1>
+    <div class="sub">JD Fusion · Used Auto Parts</div>
+  </div>
+  <div class="actions no-print">
+    <div class="id-field"><label>Order ID</label><input id="orderId" class="mono" placeholder="auto"></div>
+    <button class="small" onclick="toggleRoster()">⚙ Dropdown Lists</button>
+    <button onclick="window.print()">Print</button>
+    <button class="primary" onclick="exportJSON()">Export JSON</button>
+  </div>
+</div>
+
+<div class="roster-panel no-print" id="rosterPanel"></div>
+
+<div class="wrap">
+
+  <!-- 1. CUSTOMER -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">01</span>Customer Information</h2></div>
+    <div class="section-body">
+      <div class="grid cols-4">
+        <div class="field"><label>Customer Name</label><input id="custName"></div>
+        <div class="field"><label>Email Address</label><input id="custEmail" type="email"></div>
+        <div class="field"><label>Phone Number</label><input id="custPhone" class="mono"></div>
+        <div class="field"><label>Alternate Number <span class="opt">optional</span></label><input id="custAltPhone" class="mono"></div>
+      </div>
+      <div class="grid cols-2" style="margin-top:12px;">
+        <div class="field"><label>Billing Address</label><textarea id="billingAddr"></textarea></div>
+        <div class="field">
+          <label style="display:flex;justify-content:space-between;">Shipping Address
+            <span class="checkbox-row"><input type="checkbox" id="sameAsBilling" onchange="toggleSameAddr()"> Same as billing</span>
+          </label>
+          <textarea id="shippingAddr"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. PAYMENT -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">02</span>Payment Information</h2><span class="hint">Split payments supported</span></div>
+    <div class="section-body" id="cardsContainer"></div>
+    <div class="section-body" style="padding-top:0;">
+      <button class="small no-print" onclick="addCard()">+ Add Another Card</button>
+      <div class="grid cols-2" style="margin-top:14px;">
+        <div class="field">
+          <label class="checkbox-row"><input type="checkbox" id="cardCopyReceived" onchange="toggleUpload('cardCopyReceived','cardCopyUpload')"> Card Copy Received</label>
+          <input type="file" accept="image/*" id="cardCopyUpload" style="display:none;margin-top:4px;">
+        </div>
+        <div class="field">
+          <label class="checkbox-row"><input type="checkbox" id="photoIdReceived" onchange="toggleUpload('photoIdReceived','photoIdUpload')"> Photo ID Received</label>
+          <input type="file" accept="image/*" id="photoIdUpload" style="display:none;margin-top:4px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. PARTS -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">03</span>Parts</h2><span class="hint">Each part = one physical item, possibly a different vehicle</span></div>
+    <div class="section-body">
+      <div id="partsContainer"></div>
+      <button class="add-part-btn no-print" onclick="addPart()">+ Add Another Part</button>
+      <div class="parts-total" style="justify-content:space-between;">
+        <span>Vendor Cost — All Parts: <b id="partsVendorTotal">$0.00</b></span>
+        <div style="display:flex;gap:18px;">
+          <label class="checkbox-row"><input type="checkbox" id="liftgateNeeded"> Liftgate Needed</label>
+          <label class="checkbox-row"><input type="checkbox" id="checklistDone"> Checklist</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. PRICING (order-level) -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">04</span>Pricing &amp; Allocation</h2><span class="hint">Order-level — vendor cost pulled from Parts above</span></div>
+    <div class="section-body">
+      <div class="grid cols-4">
+        <div class="field"><label>Total Price Pitched</label><input class="mono" id="pricePitched" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>Vendor Price (all parts) <span class="opt">auto</span></label><input class="mono" id="vendorPriceTotal" readonly></div>
+        <div class="field"><label>Net Markup <span class="opt">auto</span></label><input class="mono" id="netMarkup" readonly></div>
+        <div class="field"><label>Actual Charged</label><input class="mono" id="actualCharged" type="number" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="grid cols-4" style="margin-top:12px;">
+        <div class="field"><label>Sale Date</label><input type="date" class="mono" id="saleDate"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. TEAM (order-level) -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">05</span>Team Allocation</h2><span class="hint">Order-level — "Part Found By" is set per part above</span></div>
+    <div class="section-body">
+      <div class="grid cols-4">
+        <div class="field"><label>Sales Agent</label><select class="mono" id="salesAgent" data-roster="agents"></select></div>
+        <div class="field"><label>Sales Verifier</label><select class="mono" id="salesVerifier" data-roster="agents"></select></div>
+        <div class="field"><label>Backend Executive</label><select class="mono" id="backendExec" data-roster="agents"></select></div>
+        <div class="field"><label>QA Verifier</label><select class="mono" id="qaVerifier" data-roster="agents"></select></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. ORDER STATUS -->
+  <div class="section">
+    <div class="section-head"><h2><span class="num">06</span>Order Status</h2><span class="hint">Per-part status now lives on each part above</span></div>
+    <div class="section-body">
+      <div class="grid cols-3">
+        <div class="field"><label>Sale Status</label><select id="saleStatus" class="mono"></select></div>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>Order Notes <span class="opt">optional</span></label>
+        <textarea id="orderNotes"></textarea>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="summary-bar no-print">
+  <div class="summary-stats">
+    <div class="stat"><span class="label">Parts</span><span class="value" id="statParts">1</span></div>
+    <div class="stat"><span class="label">Vendor Cost</span><span class="value" id="statVendor">$0</span></div>
+    <div class="stat accent"><span class="label">Net Markup</span><span class="value" id="statMarkup">$0</span></div>
+    <div class="stat teal"><span class="label">Actual Charged</span><span class="value" id="statCharged">$0</span></div>
+  </div>
+  <div class="no-print" style="font-size:11px;color:var(--text-faint);">Draft only — export JSON or print before closing this tab.</div>
+</div>
+
+<!-- TEMPLATES -->
+<template id="cardTemplate">
+  <div class="card-block" data-card>
+    <div class="card-head">
+      <span class="card-tag">CARD #<span data-card-num>1</span></span>
+      <button class="danger no-print" data-remove-card>Remove</button>
+    </div>
+    <div class="grid cols-4">
+      <div class="field"><label>Name on Card</label><input data-f="cardName"></div>
+      <div class="field"><label>Card Number</label><input class="mono" data-f="cardNumber" maxlength="19" placeholder="•••• •••• •••• ••••"></div>
+      <div class="field"><label>Exp Date</label><input class="mono" data-f="cardExp" placeholder="MM/YY"></div>
+      <div class="field"><label>CVV</label><input class="mono" data-f="cardCvv" maxlength="4" placeholder="•••"></div>
+    </div>
+    <div class="grid cols-4" style="margin-top:10px;">
+      <div class="field"><label>Amount Charged to This Card</label><input class="mono" data-f="cardAmount" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+  </div>
+</template>
+
+<template id="partTemplate">
+  <div class="part-row" data-part>
+    <div class="part-row-head" data-toggle>
+      <div class="left">
+        <span class="part-badge">PART <span data-part-num>1</span></span>
+        <span class="part-nick"><input data-f="partNickname" placeholder="e.g. Engine / Transmission" onclick="event.stopPropagation()"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="danger no-print" data-remove-part onclick="event.stopPropagation()">Remove</button>
+        <span class="chevron" data-chevron>▾</span>
+      </div>
+    </div>
+    <div class="part-body">
+      <div class="grid cols-3">
+        <div class="field"><label>Year / Make / Model</label><input data-f="ymm" placeholder="e.g. 2016 Ford F-150"></div>
+        <div class="field"><label>Part</label><input data-f="partType" placeholder="e.g. Engine"></div>
+        <div class="field"><label>Specification</label><input data-f="spec" placeholder="e.g. 5.0L V8, AWD"></div>
+      </div>
+      <div class="grid cols-3" style="margin-top:10px;">
+        <div class="field"><label>Quoted Miles / Warranty</label><input data-f="quoted" placeholder="e.g. 80k miles / 3 months"></div>
+        <div class="field"><label>Vendor Miles / Warranty</label><input data-f="vendorMW" placeholder="e.g. 85k miles / 3 months"></div>
+        <div class="field"><label>VIN Number</label><input class="mono" data-f="vin" maxlength="17" placeholder="17-character VIN"></div>
+      </div>
+      <div class="grid cols-3" style="margin-top:10px;">
+        <div class="field"><label>Vendor Name</label><input class="mono" list="vendorListOptions" data-f="vendorName" placeholder="Type or pick vendor"></div>
+        <div class="field"><label>Vendor Price</label><input class="mono" type="number" step="0.01" data-f="vendorPrice" data-calc placeholder="0.00"></div>
+        <div class="field"><label>Part Found By</label><select class="mono" data-f="partFoundBy" data-roster="agents"></select></div>
+      </div>
+      <div class="grid cols-2" style="margin-top:10px;">
+        <div class="field"><label>Vendor Feedback</label><select class="mono" data-f="vendorFeedback">
+          <option value="">— select —</option><option>Positive</option><option>Negative</option>
+        </select></div>
+        <div class="field"><label>Workflow Queue <span class="opt">this part</span></label><select class="mono" data-f="workflowQueue" data-roster="workflow"></select></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+<script>
+/* EDIT THESE DEFAULT LISTS TO MATCH YOUR TEAM & VENDORS — additions made live via
+   "Dropdown Lists" only last for this browser tab unless you also add them here. */
+let AGENT_LIST = ["Agent 1","Agent 2","Agent 3","Agent 4","Agent 5"];
+let VENDOR_LIST = ["Vendor A","Vendor B","Vendor C"];
+const SALE_STATUS_LIST = ["New Sale","Confirmed","Processing","Shipped","Delivered","Completed","On Hold","Cancelled","Refunded","Chargeback"];
+const WORKFLOW_QUEUE_LIST = ["Pending Verification","Pending Vendor Sourcing","Pending Payment Capture","Pending Dispatch","Pending QA Review","Escalated","Completed"];
+
+let cardCount = 0, partCount = 0;
+
+/* ---------- CARDS ---------- */
+function addCard(){
+  cardCount++;
+  const tpl = document.getElementById('cardTemplate').content.cloneNode(true);
+  const block = tpl.querySelector('[data-card]');
+  block.querySelector('[data-card-num]').textContent = cardCount;
+  block.querySelector('[data-remove-card]').addEventListener('click', ()=>{ block.remove(); renumberCards(); });
+  document.getElementById('cardsContainer').appendChild(block);
+  block.addEventListener('input', updateSummary);
+}
+function renumberCards(){
+  const blocks = document.querySelectorAll('#cardsContainer [data-card]');
+  blocks.forEach((b,i)=> b.querySelector('[data-card-num]').textContent = i+1);
+  cardCount = blocks.length;
+}
+
+/* ---------- PARTS ---------- */
+function addPart(){
+  partCount++;
+  const tpl = document.getElementById('partTemplate').content.cloneNode(true);
+  const row = tpl.querySelector('[data-part]');
+  row.querySelector('[data-part-num]').textContent = partCount;
+  row.querySelectorAll('[data-roster="agents"]').forEach(sel=>populateSelect(sel, AGENT_LIST));
+  row.querySelectorAll('[data-roster="workflow"]').forEach(sel=>populateSelect(sel, WORKFLOW_QUEUE_LIST));
+
+  row.querySelector('[data-toggle]').addEventListener('click', ()=>{
+    const body = row.querySelector('.part-body');
+    const chev = row.querySelector('[data-chevron]');
+    body.classList.toggle('collapsed');
+    chev.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+  });
+
+  row.querySelector('[data-remove-part]').addEventListener('click', ()=>{
+    if(document.querySelectorAll('#partsContainer [data-part]').length <= 1){
+      alert('At least one part is required on the order.'); return;
+    }
+    row.remove(); renumberParts(); updateSummary();
+  });
+
+  document.getElementById('partsContainer').appendChild(row);
+  row.addEventListener('input', updateSummary);
+
+  // auto-collapse older parts once a second part is added, to keep the form short
+  const allParts = document.querySelectorAll('#partsContainer [data-part]');
+  if(allParts.length > 1){
+    allParts.forEach((p,i)=>{
+      if(i < allParts.length - 1){
+        p.querySelector('.part-body').classList.add('collapsed');
+        p.querySelector('[data-chevron]').textContent = '▸';
+      }
+    });
+  }
+  updateSummary();
+}
+function renumberParts(){
+  const rows = document.querySelectorAll('#partsContainer [data-part]');
+  rows.forEach((r,i)=> r.querySelector('[data-part-num]').textContent = i+1);
+  partCount = rows.length;
+}
+
+/* ---------- SELECTS ---------- */
+function populateSelect(select, list){
+  const current = select.value;
+  select.innerHTML = '<option value="">— select —</option>' + list.map(v=>`<option value="${v}">${v}</option>`).join('');
+  if(current && list.includes(current)) select.value = current;
+}
+function refreshAllRosterSelects(){
+  document.querySelectorAll('[data-roster="agents"]').forEach(sel=>populateSelect(sel, AGENT_LIST));
+  document.getElementById('vendorListOptions').innerHTML = VENDOR_LIST.map(v=>`<option value="${v}">`).join('');
+}
+
+/* ---------- FILE UPLOAD TOGGLES ---------- */
+function toggleUpload(checkboxId, uploadId){
+  const checked = document.getElementById(checkboxId).checked;
+  document.getElementById(uploadId).style.display = checked ? 'block' : 'none';
+}
+
+/* ---------- ADDRESS SYNC ---------- */
+function toggleSameAddr(){
+  const same = document.getElementById('sameAsBilling').checked;
+  const billing = document.getElementById('billingAddr');
+  const shipping = document.getElementById('shippingAddr');
+  shipping.disabled = same;
+  if(same) shipping.value = billing.value;
+  billing.oninput = ()=>{ if(document.getElementById('sameAsBilling').checked) shipping.value = billing.value; };
+}
+
+/* ---------- PRICING ROLLUP ---------- */
+function updateSummary(){
+  const parts = document.querySelectorAll('#partsContainer [data-part]');
+  let vendorTotal = 0;
+  parts.forEach(p=>{ vendorTotal += parseFloat(p.querySelector('[data-f="vendorPrice"]').value)||0; });
+
+  document.getElementById('vendorPriceTotal').value = vendorTotal.toFixed(2);
+  document.getElementById('partsVendorTotal').textContent = '$'+vendorTotal.toFixed(2);
+
+  const pitched = parseFloat(document.getElementById('pricePitched').value)||0;
+  const markup = pitched - vendorTotal;
+  document.getElementById('netMarkup').value = markup.toFixed(2);
+
+  const charged = parseFloat(document.getElementById('actualCharged').value)||0;
+
+  document.getElementById('statParts').textContent = parts.length;
+  document.getElementById('statVendor').textContent = '$'+vendorTotal.toFixed(2);
+  document.getElementById('statMarkup').textContent = '$'+markup.toFixed(2);
+  document.getElementById('statCharged').textContent = '$'+charged.toFixed(2);
+}
+
+/* ---------- ROSTER PANEL ---------- */
+function toggleRoster(){
+  const panel = document.getElementById('rosterPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open')) renderRosterPanel();
+}
+function renderRosterPanel(){
+  document.getElementById('rosterPanel').innerHTML = `
+    <div class="roster-col">
+      <label>Team Names (all agent/verifier dropdowns)</label>
+      <div class="roster-list" id="agentChips"></div>
+      <div class="add-row"><input id="newAgentInput" placeholder="Add a name..."><button class="small" onclick="addAgent()">Add</button></div>
+    </div>
+    <div class="roster-col">
+      <label>Vendor Names</label>
+      <div class="roster-list" id="vendorChips"></div>
+      <div class="add-row"><input id="newVendorInput" placeholder="Add a vendor..."><button class="small" onclick="addVendor()">Add</button></div>
+    </div>`;
+  renderChips();
+}
+function renderChips(){
+  document.getElementById('agentChips').innerHTML = AGENT_LIST.map(a=>`<span class="chip">${a}</span>`).join('');
+  document.getElementById('vendorChips').innerHTML = VENDOR_LIST.map(v=>`<span class="chip">${v}</span>`).join('');
+}
+function addAgent(){
+  const inp = document.getElementById('newAgentInput'); const v = inp.value.trim();
+  if(v && !AGENT_LIST.includes(v)){ AGENT_LIST.push(v); refreshAllRosterSelects(); renderChips(); }
+  inp.value='';
+}
+function addVendor(){
+  const inp = document.getElementById('newVendorInput'); const v = inp.value.trim();
+  if(v && !VENDOR_LIST.includes(v)){ VENDOR_LIST.push(v); refreshAllRosterSelects(); renderChips(); }
+  inp.value='';
+}
+
+/* ---------- EXPORT ---------- */
+function exportJSON(){
+  const cards = [...document.querySelectorAll('#cardsContainer [data-card]')].map(b=>({
+    cardName:b.querySelector('[data-f="cardName"]').value, cardNumber:b.querySelector('[data-f="cardNumber"]').value,
+    cardExp:b.querySelector('[data-f="cardExp"]').value, cardCvv:b.querySelector('[data-f="cardCvv"]').value,
+    cardAmount:b.querySelector('[data-f="cardAmount"]').value,
+  }));
+  const parts = [...document.querySelectorAll('#partsContainer [data-part]')].map(g=>{
+    const get = f => { const e=g.querySelector('[data-f="'+f+'"]'); return e? e.value : ''; };
+    return { nickname:get('partNickname'), yearMakeModel:get('ymm'), part:get('partType'), spec:get('spec'),
+      quoted:get('quoted'), vendorMilesWarranty:get('vendorMW'), vin:get('vin'), vendorName:get('vendorName'),
+      vendorPrice:get('vendorPrice'), partFoundBy:get('partFoundBy'), vendorFeedback:get('vendorFeedback'),
+      workflowQueue:get('workflowQueue') };
+  });
+  const data = {
+    orderId: document.getElementById('orderId').value || ('ORD-'+Date.now()),
+    customer:{ name:document.getElementById('custName').value, email:document.getElementById('custEmail').value,
+      phone:document.getElementById('custPhone').value, altPhone:document.getElementById('custAltPhone').value,
+      billingAddress:document.getElementById('billingAddr').value, shippingAddress:document.getElementById('shippingAddr').value },
+    payments: cards,
+    paymentDocs:{ cardCopyReceived: document.getElementById('cardCopyReceived').checked, photoIdReceived: document.getElementById('photoIdReceived').checked },
+    parts: parts,
+    flags:{ liftgateNeeded: document.getElementById('liftgateNeeded').checked, checklistDone: document.getElementById('checklistDone').checked },
+    pricing:{ totalPricePitched:document.getElementById('pricePitched').value, vendorPriceTotal:document.getElementById('vendorPriceTotal').value,
+      netMarkup:document.getElementById('netMarkup').value, actualCharged:document.getElementById('actualCharged').value,
+      saleDate:document.getElementById('saleDate').value },
+    team:{ salesAgent:document.getElementById('salesAgent').value, salesVerifier:document.getElementById('salesVerifier').value,
+      backendExec:document.getElementById('backendExec').value, qaVerifier:document.getElementById('qaVerifier').value },
+    orderStatus:{ saleStatus:document.getElementById('saleStatus').value, notes:document.getElementById('orderNotes').value },
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (data.orderId || 'order') + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- INIT ---------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  const dl = document.createElement('datalist'); dl.id='vendorListOptions'; document.body.appendChild(dl);
+  populateSelect(document.getElementById('saleStatus'), SALE_STATUS_LIST);
+  addCard();
+  addPart();
+  toggleSameAddr();
+  refreshAllRosterSelects();
+  document.getElementById('pricePitched').addEventListener('input', updateSummary);
+  document.getElementById('actualCharged').addEventListener('input', updateSummary);
+  updateSummary();
+});
+</script>
+
+</body>
+</html>

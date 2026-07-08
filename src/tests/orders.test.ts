@@ -21,6 +21,9 @@ describe('Order Management Integration Tests', () => {
     vi.resetAllMocks();
 
     // Cleanup in FK-safe order: comments → orders → cards → customers → vendors/gateway/users
+    await prisma.crmOrderViews.deleteMany({});
+    await prisma.crmSaleStatusHistory.deleteMany({});
+    await prisma.crmOrderCurrentStatusHistory.deleteMany({});
     await prisma.crmComments.deleteMany({
       where: {
         commentAgentName: 'SalesAgentNick',
@@ -78,6 +81,7 @@ describe('Order Management Integration Tests', () => {
         nickname: 'SalesAgentNick',
       },
     });
+    console.log('TESTUSER CREATED:', testUser);
 
     testVendor = await prisma.crmVendors.create({
       data: {
@@ -129,6 +133,9 @@ describe('Order Management Integration Tests', () => {
 
   afterEach(async () => {
     // Cleanup in FK-safe order: comments → orders → cards → customers → vendors/gateway/users
+    await prisma.crmOrderViews.deleteMany({});
+    await prisma.crmSaleStatusHistory.deleteMany({});
+    await prisma.crmOrderCurrentStatusHistory.deleteMany({});
     await prisma.crmComments.deleteMany({
       where: {
         commentAgentName: 'SalesAgentNick',
@@ -2857,6 +2864,225 @@ describe('Order Management Integration Tests', () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error).toContain('does not belong to this order group');
+    });
+  });
+
+  describe('Phase 26.5: Multi-Part Financial Redesign & Field Split', () => {
+    it('should store financial and global fields on parent only, vendor price and sourcing per part, and global fields are not copied on addPart', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:create' },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const payload = {
+        customerName: 'New Buyer',
+        customerPhone: '9876543210',
+        customerEmail: 'new.buyer@example.com',
+        customerBillingAddress: '123 Billing Rd',
+        customerShippingAddress: '456 Shipping Rd',
+        customerNameOncard: 'New Buyer',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '10/30',
+        customerCardCvv: '999',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2021 Jeep Grand Cherokee',
+        orderVin: 'VIN789XYZ',
+        orderSalesAgentId: testUser.uid,
+        orderVerifierId: null,
+        orderSalesVerifierId: null,
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderDate: new Date().toISOString(),
+        orderShippingType: 'Express',
+        orderLiftgateNeeded: 'Yes',
+        orderChecklist: 'No',
+        orderTotalPitched: '1200',
+        orderAmountCharged: '1000',
+        orderRefundAmount: '0',
+        parts: [
+          {
+            orderPart: 'Engine',
+            orderVendorPrice: '300',
+            orderVendorId: testVendor.vendorId,
+            orderVendorName: testVendor.vendorName,
+            orderBackendExecutiveId: testUser.uid,
+            orderPartFoundById: testUser.uid,
+            saleStatus: '1',
+            orderCurrentStatus: 'Pending Shipment',
+          },
+          {
+            orderPart: 'Transmission',
+            orderVendorPrice: '200',
+            orderVendorId: testVendor.vendorId,
+            orderVendorName: testVendor.vendorName,
+            orderBackendExecutiveId: testUser.uid,
+            orderPartFoundById: testUser.uid,
+            saleStatus: '1',
+            orderCurrentStatus: 'Pending Booking',
+          }
+        ],
+      };
+
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      const parentId = data.orderId;
+      const childId = data.partOrderIds[1];
+
+      // Assert financial fields: parent only
+      const parentRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: parentId } });
+      const childRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: childId } });
+
+      expect(parentRow!.orderTotalPitched).toBe('1200');
+      expect(parentRow!.orderAmountCharged).toBe('1000');
+      expect(parentRow!.orderRefundAmount).toBe('0');
+
+      expect(childRow!.orderTotalPitched).toBeNull();
+      expect(childRow!.orderAmountCharged).toBeNull();
+      expect(childRow!.orderRefundAmount).toBeNull();
+
+      // Assert vendor price is per part
+      expect(parentRow!.orderVendorPrice).toBe('300');
+      expect(childRow!.orderVendorPrice).toBe('200');
+
+      // Assert global fields are parent only
+      expect(childRow!.orderSalesAgentId).toBeNull();
+      expect(childRow!.orderLiftgateNeeded).toBeNull();
+      expect(childRow!.orderChecklist).toBeNull();
+      expect(childRow!.orderShippingType).toBeNull();
+      expect(childRow!.orderBackendExecutiveId).toBeNull();
+
+      // Assert per-part fields: child row has its own
+      expect(childRow!.orderPartFoundById).toBe(testUser.uid);
+
+      // Test vendor mirror DB write
+      // We will create a 3rd part with mirrored vendor
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+      const { POST: addPartPost } = await import('../app/api/orders/[id]/parts/route');
+      const addPartPayload = {
+        orderPart: 'Transfer Case',
+        orderVendorPrice: '150',
+        orderVendorId: testVendor.vendorId, // Same vendor
+        orderVendorName: testVendor.vendorName,
+        orderBackendExecutiveId: testUser.uid,
+        orderPartFoundById: testUser.uid,
+        saleStatus: '1',
+        orderCurrentStatus: 'Pending Booking',
+      };
+      const addPartReq = new Request(`http://localhost/api/orders/${parentId}/parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addPartPayload),
+      });
+      const addPartRes = await addPartPost(addPartReq, { params: Promise.resolve({ id: String(parentId) }) });
+      expect(addPartRes.status).toBe(201);
+      const addPartData = await addPartRes.json();
+      const newPartId = addPartData.partOrderId;
+
+      const newPartRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: newPartId } });
+      expect(newPartRow!.orderVendorId).toBe(testVendor.vendorId);
+      expect(newPartRow!.orderVendorPrice).toBe('150');
+      // Assert global fields NOT copied on addPart
+      expect(newPartRow!.orderSalesAgentId).toBeNull();
+      expect(newPartRow!.orderLiftgateNeeded).toBeNull();
+      expect(newPartRow!.orderChecklist).toBeNull();
+
+      // Clean up newly created order parts
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parentId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parentId, childId, newPartId] } } });
+    });
+
+    it('should support "ANY part matches" filtering and return childOrders statuses', async () => {
+      // Create a 2-part order: parent 'Pending Shipment' (Sold='1'), child 'Pending Booking' (Cancelled='5')
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Engine',
+          parentOrderId: null,
+          orderCurrentStatus: 'Pending Shipment',
+          saleStatus: '1',
+        }
+      });
+      const child = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Transmission',
+          parentOrderId: parent.crmOrderId,
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '5',
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:view' },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+
+      // 1. GET status=Pending Booking should return parent
+      const req1 = new Request('http://localhost/api/orders?status=Pending+Booking');
+      const res1 = await GET(req1);
+      expect(res1.status).toBe(200);
+      const data1 = await res1.json();
+      const list1 = data1.data || data1;
+      expect(list1.some((o: any) => o.crmOrderId === parent.crmOrderId)).toBe(true);
+
+      // 2. GET status=Pending Shipment should return parent
+      const req2 = new Request('http://localhost/api/orders?status=Pending+Shipment');
+      const res2 = await GET(req2);
+      expect(res2.status).toBe(200);
+      const data2 = await res2.json();
+      const list2 = data2.data || data2;
+      expect(list2.some((o: any) => o.crmOrderId === parent.crmOrderId)).toBe(true);
+
+      // 3. GET status=Completed should NOT return parent
+      const req3 = new Request('http://localhost/api/orders?status=Completed+Orders');
+      const res3 = await GET(req3);
+      expect(res3.status).toBe(200);
+      const data3 = await res3.json();
+      const list3 = data3.data || data3;
+      expect(list3.some((o: any) => o.crmOrderId === parent.crmOrderId)).toBe(false);
+
+      // 4. GET saleStatus=5 should return parent
+      const req4 = new Request('http://localhost/api/orders?saleStatus=5');
+      const res4 = await GET(req4);
+      expect(res4.status).toBe(200);
+      const data4 = await res4.json();
+      const list4 = data4.data || data4;
+      expect(list4.some((o: any) => o.crmOrderId === parent.crmOrderId)).toBe(true);
+
+      // 5. GET saleStatus=2 should NOT return parent
+      const req5 = new Request('http://localhost/api/orders?saleStatus=2');
+      const res5 = await GET(req5);
+      expect(res5.status).toBe(200);
+      const data5 = await res5.json();
+      const list5 = data5.data || data5;
+      expect(list5.some((o: any) => o.crmOrderId === parent.crmOrderId)).toBe(false);
+
+      // 6. GET all orders should return childOrders with saleStatus and orderCurrentStatus
+      const req6 = new Request('http://localhost/api/orders');
+      const res6 = await GET(req6);
+      expect(res6.status).toBe(200);
+      const data6 = await res6.json();
+      const list6 = data6.data || data6;
+      const order = list6.find((o: any) => o.crmOrderId === parent.crmOrderId);
+      expect(order).toBeDefined();
+      expect(order.childOrders).toBeDefined();
+      expect(order.childOrders.length).toBe(1);
+      expect(order.childOrders[0].orderCurrentStatus).toBe('Pending Booking');
+      expect(order.childOrders[0].saleStatus).toBe('5');
+
+      // Cleanup
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parent.crmOrderId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, child.crmOrderId] } } });
     });
   });
 });

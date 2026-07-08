@@ -28,6 +28,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   const [teams, setTeams] = useState<any[]>([]);
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>('');
+  const [partFoundByFilter, setPartFoundByFilter] = useState<string>('');
   const [pendingCounts, setPendingCounts] = useState<Record<string, { amount: number; count: number }>>({});
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -46,7 +47,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo]);
+  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
 
   // Synchronize URL search parameters with filter states
   useEffect(() => {
@@ -54,12 +55,14 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     const statusParam = searchParams.get('status');
     const saleStatusParam = searchParams.get('saleStatus');
     const backendExecutiveParam = searchParams.get('backendExecutiveId');
+    const partFoundByParam = searchParams.get('partFoundById');
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
 
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
     if (backendExecutiveParam !== null) setBackendExecutiveFilter(backendExecutiveParam);
+    if (partFoundByParam !== null) setPartFoundByFilter(partFoundByParam);
     if (fromParam !== null) setDateFrom(fromParam);
     if (toParam !== null) setDateTo(toParam);
   }, [searchParams]);
@@ -109,6 +112,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       if (agentFilter) params.append('agentId', agentFilter);
       if (teamFilter) params.append('teamId', teamFilter);
       if (backendExecutiveFilter) params.append('backendExecutiveId', backendExecutiveFilter);
+      if (partFoundByFilter) params.append('partFoundById', partFoundByFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
 
@@ -130,7 +134,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     return () => {
       active = false;
     };
-  }, [status, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo]);
+  }, [status, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
 
   // Fetch orders when filters or page changes
   useEffect(() => {
@@ -147,6 +151,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       if (agentFilter) params.append('agentId', agentFilter);
       if (teamFilter) params.append('teamId', teamFilter);
       if (backendExecutiveFilter) params.append('backendExecutiveId', backendExecutiveFilter);
+      if (partFoundByFilter) params.append('partFoundById', partFoundByFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
       params.append('page', String(page));
@@ -186,7 +191,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     return () => {
       active = false;
     };
-  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, dateFrom, dateTo, page]);
+  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, page]);
 
   const formatTabLabel = (statusName: string) => {
     const stats = pendingCounts[statusName];
@@ -387,6 +392,20 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
             </select>
           </div>
           <div className="filter-select-wrapper">
+            <label htmlFor="partFoundByFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Part Found By</label>
+            <select
+              id="partFoundByFilter"
+              value={partFoundByFilter}
+              onChange={(e) => setPartFoundByFilter(e.target.value)}
+              className="filter-select-custom"
+            >
+              <option value="">All Sourcing Agents</option>
+              {agents.map((a) => (
+                <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-select-wrapper">
             <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Start Date</label>
             <input
               type="date"
@@ -408,7 +427,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       </div>
 
       {/* Active filters display */}
-      {(saleStatusFilter || backendExecutiveFilter || dateFrom || dateTo) && (
+      {(saleStatusFilter || backendExecutiveFilter || partFoundByFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
           {saleStatusFilter && (
@@ -436,6 +455,18 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               BE: {agents.find(a => String(a.uid) === backendExecutiveFilter)?.nickname || agents.find(a => String(a.uid) === backendExecutiveFilter)?.name || backendExecutiveFilter}
               <button 
                 onClick={() => setBackendExecutiveFilter('')} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {partFoundByFilter && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
+              Sourced By: {agents.find(a => String(a.uid) === partFoundByFilter)?.nickname || agents.find(a => String(a.uid) === partFoundByFilter)?.name || partFoundByFilter}
+              <button 
+                onClick={() => setPartFoundByFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
                 title="Clear filter"
               >

@@ -26,6 +26,21 @@ export async function createOrder(
     throw new Error('Sensitive payment details (name on card, card number, expiry date) are required');
   }
 
+  const GLOBAL_FIELDS = [
+    'orderSalesAgentId',
+    'orderVerifierId',
+    'orderSalesVerifierId',
+    'orderPaymentGatewayId',
+    'orderDate',
+    'orderShippingType',
+    'orderLiftgateNeeded',
+    'orderChecklist',
+    'orderTotalPitched',
+    'orderAmountCharged',
+    'orderRefundAmount',
+    'orderBackendExecutiveId'
+  ];
+
   if (data.parts && data.parts.length > 0) {
     for (const part of data.parts) {
       if (!part.orderPart) {
@@ -35,6 +50,25 @@ export async function createOrder(
         throw new Error('Refund amount is required for Partial Refund status');
       }
     }
+
+    // Enforce split of global fields in parts array
+    data.parts = data.parts.map((part, index) => {
+      if (index === 0) {
+        const cleanPart = { ...part };
+        GLOBAL_FIELDS.forEach(f => {
+          if ((data as any)[f] !== undefined) {
+            (cleanPart as any)[f] = (data as any)[f];
+          }
+        });
+        return cleanPart;
+      } else {
+        const cleanPart = { ...part };
+        GLOBAL_FIELDS.forEach(f => {
+          delete (cleanPart as any)[f];
+        });
+        return cleanPart;
+      }
+    });
   } else {
     if (!data.orderPart) {
       throw new Error('Order vehicle part description is required');

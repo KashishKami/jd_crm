@@ -363,8 +363,48 @@
   gap: 20px;
 }
 
+.form-grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.form-grid-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
 .form-grid-full {
   grid-column: span 2;
+}
+
+.form-span-2 {
+  grid-column: span 2;
+}
+
+.form-span-3 {
+  grid-column: span 3;
+}
+
+.form-span-4 {
+  grid-column: span 4;
+}
+
+.form-compact .form-group {
+  gap: 4px;
+}
+
+.form-compact .form-input,
+.form-compact .form-select,
+.form-compact .form-textarea {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  border-radius: 5px;
+}
+
+.form-compact .form-label {
+  font-size: 0.72rem;
 }
 
 .form-group {
