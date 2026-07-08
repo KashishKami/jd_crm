@@ -7,41 +7,60 @@ export async function createWithCustomerAndCard(
   data: OrderCreateInput,
   actingUser?: { uid: number; name: string; nickname?: string | null }
 ) {
-  // Resolve all lookup names in parallel — these queries are independent of each other.
-  const [
-    agentRecord,
-    verifierRecord,
-    salesVerifierRecord,
-    backendExecRecord,
-    partFoundByRecord,
-    vendorRecord,
-  ] = await Promise.all([
-    data.orderSalesAgentId
-      ? prisma.users.findUnique({ where: { uid: data.orderSalesAgentId } })
-      : Promise.resolve(null),
-    data.orderVerifierId
-      ? prisma.users.findUnique({ where: { uid: data.orderVerifierId } })
-      : Promise.resolve(null),
-    data.orderSalesVerifierId
-      ? prisma.users.findUnique({ where: { uid: data.orderSalesVerifierId } })
-      : Promise.resolve(null),
-    data.orderBackendExecutiveId
-      ? prisma.users.findUnique({ where: { uid: data.orderBackendExecutiveId } })
-      : Promise.resolve(null),
-    data.orderPartFoundById
-      ? prisma.users.findUnique({ where: { uid: data.orderPartFoundById } })
-      : Promise.resolve(null),
-    data.orderVendorId
-      ? prisma.crmVendors.findUnique({ where: { vendorId: data.orderVendorId } })
-      : Promise.resolve(null),
+  // Collect all parts. If data.parts is not defined or empty, fall back to a single part.
+  const partsToCreate = (data.parts && data.parts.length > 0)
+    ? data.parts
+    : [{
+        orderMakeModel: data.orderMakeModel,
+        orderPart: data.orderPart,
+        orderPartSize: data.orderPartSize,
+        orderQuotedMilesAndWarranty: data.orderQuotedMilesAndWarranty,
+        orderVendorMilesAndWarranty: data.orderVendorMilesAndWarranty,
+        orderVin: data.orderVin,
+        orderTotalPitched: data.orderTotalPitched,
+        orderVendorPrice: data.orderVendorPrice,
+        orderVendorId: data.orderVendorId,
+        orderShippingType: data.orderShippingType,
+        orderPaymentGatewayId: data.orderPaymentGatewayId,
+        orderSalesAgentId: data.orderSalesAgentId,
+        orderVerifierId: data.orderVerifierId,
+        orderSalesVerifierId: data.orderSalesVerifierId,
+        orderBackendExecutiveId: data.orderBackendExecutiveId,
+        orderPartFoundById: data.orderPartFoundById,
+        saleStatus: data.saleStatus,
+        orderDate: data.orderDate,
+        orderRefundAmount: data.orderRefundAmount,
+        orderCurrentStatus: data.orderCurrentStatus,
+        orderAmountCharged: data.orderAmountCharged,
+        orderVendorFeedback: data.orderVendorFeedback,
+        orderChecklist: data.orderChecklist,
+        orderLiftgateNeeded: data.orderLiftgateNeeded,
+      }];
+
+  // Resolve all lookup names in parallel (Session 56 optimization scaled to batch query)
+  const userIdsSet = new Set<number>();
+  const vendorIdsSet = new Set<number>();
+
+  for (const part of partsToCreate) {
+    if (part.orderSalesAgentId) userIdsSet.add(part.orderSalesAgentId);
+    if (part.orderVerifierId) userIdsSet.add(part.orderVerifierId);
+    if (part.orderSalesVerifierId) userIdsSet.add(part.orderSalesVerifierId);
+    if (part.orderBackendExecutiveId) userIdsSet.add(part.orderBackendExecutiveId);
+    if (part.orderPartFoundById) userIdsSet.add(part.orderPartFoundById);
+    if (part.orderVendorId) vendorIdsSet.add(part.orderVendorId);
+  }
+
+  const [usersList, vendorsList] = await Promise.all([
+    userIdsSet.size > 0
+      ? prisma.users.findMany({ where: { uid: { in: Array.from(userIdsSet) } } })
+      : Promise.resolve([]),
+    vendorIdsSet.size > 0
+      ? prisma.crmVendors.findMany({ where: { vendorId: { in: Array.from(vendorIdsSet) } } })
+      : Promise.resolve([]),
   ]);
 
-  const salesAgentName: string | null = agentRecord ? (agentRecord.nickname || agentRecord.name) : null;
-  const verifierName: string | null = verifierRecord ? (verifierRecord.nickname || verifierRecord.name) : null;
-  const salesVerifierName: string | null = salesVerifierRecord ? (salesVerifierRecord.nickname || salesVerifierRecord.name) : null;
-  const backendExecutiveName: string | null = backendExecRecord ? (backendExecRecord.nickname || backendExecRecord.name) : null;
-  const partFoundByName: string | null = partFoundByRecord ? (partFoundByRecord.nickname || partFoundByRecord.name) : null;
-  const vendorName: string | null = vendorRecord ? vendorRecord.vendorName : null;
+  const userMap = new Map(usersList.map((u) => [u.uid, u.nickname || u.name]));
+  const vendorMap = new Map(vendorsList.map((v) => [v.vendorId, v.vendorName]));
 
   // Perform database inserts in an atomic transaction
   return await prisma.$transaction(async (tx) => {
@@ -61,8 +80,6 @@ export async function createWithCustomerAndCard(
     });
 
     // 2. Create customer card(s)
-    // W-2404: If data.cards array is provided, use createMany for multi-card support.
-    // Otherwise fall back to single-card flat fields for backward compatibility.
     const cardsToCreate = (data.cards && data.cards.length > 0)
       ? data.cards
       : (data.customerNameOncard && data.customerCardNumber && data.customerCardExpDate)
@@ -98,101 +115,202 @@ export async function createWithCustomerAndCard(
       })),
     });
 
-    // 3. Create order
-    const order = await tx.crmOrders.create({
+    // 3. Create parent order (index 0)
+    const parentPart = partsToCreate[0];
+    const parentSalesAgentName = parentPart.orderSalesAgentId ? userMap.get(parentPart.orderSalesAgentId) || null : null;
+    const parentVerifierName = parentPart.orderVerifierId ? userMap.get(parentPart.orderVerifierId) || null : null;
+    const parentSalesVerifierName = parentPart.orderSalesVerifierId ? userMap.get(parentPart.orderSalesVerifierId) || null : null;
+    const parentBackendExecutiveName = parentPart.orderBackendExecutiveId ? userMap.get(parentPart.orderBackendExecutiveId) || null : null;
+    const parentPartFoundByName = parentPart.orderPartFoundById ? userMap.get(parentPart.orderPartFoundById) || null : null;
+    const parentVendorName = parentPart.orderVendorId ? vendorMap.get(parentPart.orderVendorId) || null : null;
+
+    const parentOrder = await tx.crmOrders.create({
       data: {
         orderCustomerId: customer.customerId,
-        orderMakeModel: data.orderMakeModel || null,
-        orderPart: data.orderPart || null,
-        orderPartSize: data.orderPartSize || null,
-        orderQuotedMilesAndWarranty: data.orderQuotedMilesAndWarranty || null,
-        orderVendorMilesAndWarranty: data.orderVendorMilesAndWarranty || null,
-        orderChecklist: data.orderChecklist || 'No',
-        orderVin: data.orderVin || null,
-        orderTotalPitched: data.orderTotalPitched || null,
-        orderVendorPrice: data.orderVendorPrice || null,
-        orderVendorId: data.orderVendorId || null,
-        orderVendorName: vendorName,
-        orderShippingType: data.orderShippingType || null,
-        orderAmountCharged: data.orderAmountCharged || null,
-        orderPaymentGatewayId: data.orderPaymentGatewayId || null,
-        orderSalesAgentId: data.orderSalesAgentId || null,
-        orderSalesAgentName: salesAgentName,
-        orderVerifierId: data.orderVerifierId || null,
-        orderVerifierName: verifierName,
-        orderSalesVerifierId: data.orderSalesVerifierId || null,
-        orderSalesVerifierName: salesVerifierName,
-        orderBackendExecutiveId: data.orderBackendExecutiveId || null,
-        orderBackendExecutiveName: backendExecutiveName,
-        orderPartFoundById: data.orderPartFoundById || null,
-        orderPartFoundByName: partFoundByName,
-        orderLiftgateNeeded: data.orderLiftgateNeeded || 'No',
-        saleStatus: data.saleStatus || '1', // Default to Sold
-        orderCurrentStatus: data.orderCurrentStatus
-          ? data.orderCurrentStatus
-          : (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
+        orderMakeModel: parentPart.orderMakeModel || null,
+        orderPart: parentPart.orderPart || null,
+        orderPartSize: parentPart.orderPartSize || null,
+        orderQuotedMilesAndWarranty: parentPart.orderQuotedMilesAndWarranty || null,
+        orderVendorMilesAndWarranty: parentPart.orderVendorMilesAndWarranty || null,
+        orderChecklist: parentPart.orderChecklist || 'No',
+        orderVin: parentPart.orderVin || null,
+        orderTotalPitched: parentPart.orderTotalPitched || null,
+        orderVendorPrice: parentPart.orderVendorPrice || null,
+        orderVendorId: parentPart.orderVendorId || null,
+        orderVendorName: parentVendorName,
+        orderShippingType: parentPart.orderShippingType || null,
+        orderAmountCharged: parentPart.orderAmountCharged || null,
+        orderPaymentGatewayId: parentPart.orderPaymentGatewayId || null,
+        orderSalesAgentId: parentPart.orderSalesAgentId || null,
+        orderSalesAgentName: parentSalesAgentName,
+        orderVerifierId: parentPart.orderVerifierId || null,
+        orderVerifierName: parentVerifierName,
+        orderSalesVerifierId: parentPart.orderSalesVerifierId || null,
+        orderSalesVerifierName: parentSalesVerifierName,
+        orderBackendExecutiveId: parentPart.orderBackendExecutiveId || null,
+        orderBackendExecutiveName: parentBackendExecutiveName,
+        orderPartFoundById: parentPart.orderPartFoundById || null,
+        orderPartFoundByName: parentPartFoundByName,
+        orderLiftgateNeeded: parentPart.orderLiftgateNeeded || 'No',
+        saleStatus: parentPart.saleStatus || '1',
+        orderCurrentStatus: parentPart.orderCurrentStatus
+          ? parentPart.orderCurrentStatus
+          : (parentPart.saleStatus === '2' || parentPart.saleStatus === '3' || parentPart.saleStatus === '5')
             ? 'Returned Orders'
-            : (data.orderVendorId ? 'Pending Shipment' : 'Pending Booking'), // Initial state
-        orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
-          ? (data.orderAmountCharged || null)
-          : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
+            : (parentPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+        orderRefundAmount: (parentPart.saleStatus === '2' || parentPart.saleStatus === '3' || parentPart.saleStatus === '5')
+          ? (parentPart.orderAmountCharged || null)
+          : (parentPart.saleStatus === '4' ? parentPart.orderRefundAmount || null : null),
         orderCurrentStatusUpdateDate: new Date(),
-        // Use noon UTC for @db.Date to avoid EST midnight rollback (2025-06-15T00:00Z → 2025-06-14 EST)
-        orderDate: data.orderDate ? localDateStringToUtcNoon(String(data.orderDate)) : new Date(),
-        orderVendorFeedback: data.orderVendorFeedback || 'Positive',
+        orderDate: parentPart.orderDate ? localDateStringToUtcNoon(String(parentPart.orderDate)) : new Date(),
+        orderVendorFeedback: parentPart.orderVendorFeedback || 'Positive',
         orderClientFeedback: 'Positive',
         orderResolution: 'Resolved',
         orderCreatedDate: new Date(),
         orderUpdatedDate: new Date(),
+        parentOrderId: null,
       },
     });
 
-    // 4. Fetch first card to restore cardId in return for backward compatibility
+    // 4. Create child orders (indexes 1..N) if any
+    const childIds: number[] = [];
+    if (partsToCreate.length > 1) {
+      for (let i = 1; i < partsToCreate.length; i++) {
+        const childPart = partsToCreate[i];
+        const childSalesAgentName = childPart.orderSalesAgentId ? userMap.get(childPart.orderSalesAgentId) || null : null;
+        const childVerifierName = childPart.orderVerifierId ? userMap.get(childPart.orderVerifierId) || null : null;
+        const childSalesVerifierName = childPart.orderSalesVerifierId ? userMap.get(childPart.orderSalesVerifierId) || null : null;
+        const childBackendExecutiveName = childPart.orderBackendExecutiveId ? userMap.get(childPart.orderBackendExecutiveId) || null : null;
+        const childPartFoundByName = childPart.orderPartFoundById ? userMap.get(childPart.orderPartFoundById) || null : null;
+        const childVendorName = childPart.orderVendorId ? vendorMap.get(childPart.orderVendorId) || null : null;
+
+        const childOrder = await tx.crmOrders.create({
+          data: {
+            orderCustomerId: customer.customerId,
+            orderMakeModel: childPart.orderMakeModel || null,
+            orderPart: childPart.orderPart || null,
+            orderPartSize: childPart.orderPartSize || null,
+            orderQuotedMilesAndWarranty: childPart.orderQuotedMilesAndWarranty || null,
+            orderVendorMilesAndWarranty: childPart.orderVendorMilesAndWarranty || null,
+            orderChecklist: childPart.orderChecklist || 'No',
+            orderVin: childPart.orderVin || null,
+            orderTotalPitched: childPart.orderTotalPitched || null,
+            orderVendorPrice: childPart.orderVendorPrice || null,
+            orderVendorId: childPart.orderVendorId || null,
+            orderVendorName: childVendorName,
+            orderShippingType: childPart.orderShippingType || null,
+            orderAmountCharged: childPart.orderAmountCharged || null,
+            orderPaymentGatewayId: childPart.orderPaymentGatewayId || null,
+            orderSalesAgentId: childPart.orderSalesAgentId || null,
+            orderSalesAgentName: childSalesAgentName,
+            orderVerifierId: childPart.orderVerifierId || null,
+            orderVerifierName: childVerifierName,
+            orderSalesVerifierId: childPart.orderSalesVerifierId || null,
+            orderSalesVerifierName: childSalesVerifierName,
+            orderBackendExecutiveId: childPart.orderBackendExecutiveId || null,
+            orderBackendExecutiveName: childBackendExecutiveName,
+            orderPartFoundById: childPart.orderPartFoundById || null,
+            orderPartFoundByName: childPartFoundByName,
+            orderLiftgateNeeded: childPart.orderLiftgateNeeded || 'No',
+            saleStatus: childPart.saleStatus || '1',
+            orderCurrentStatus: childPart.orderCurrentStatus
+              ? childPart.orderCurrentStatus
+              : (childPart.saleStatus === '2' || childPart.saleStatus === '3' || childPart.saleStatus === '5')
+                ? 'Returned Orders'
+                : (childPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+            orderRefundAmount: (childPart.saleStatus === '2' || childPart.saleStatus === '3' || childPart.saleStatus === '5')
+              ? (childPart.orderAmountCharged || null)
+              : (childPart.saleStatus === '4' ? childPart.orderRefundAmount || null : null),
+            orderCurrentStatusUpdateDate: new Date(),
+            orderDate: childPart.orderDate ? localDateStringToUtcNoon(String(childPart.orderDate)) : new Date(),
+            orderVendorFeedback: childPart.orderVendorFeedback || 'Positive',
+            orderClientFeedback: 'Positive',
+            orderResolution: 'Resolved',
+            orderCreatedDate: new Date(),
+            orderUpdatedDate: new Date(),
+            parentOrderId: parentOrder.crmOrderId,
+          },
+        });
+        childIds.push(childOrder.crmOrderId);
+      }
+    }
+
+    // 5. Fetch first card for return values compatibility
     const firstCard = await tx.crmCustomerCards.findFirst({
       where: { cardCustomerId: customer.customerId },
       orderBy: { cardId: 'asc' },
       select: { cardId: true },
     });
 
-    // 5. Create initial histories if actingUser is provided
+    // 6. Create initial histories if actingUser is provided
     if (actingUser) {
       const saleChangedAt = data.saleStatusChangeDate
         ? new Date(data.saleStatusChangeDate)
         : new Date();
+      
+      // Parent history
       await tx.crmSaleStatusHistory.create({
         data: {
-          orderId: order.crmOrderId,
+          orderId: parentOrder.crmOrderId,
           oldValue: null,
-          newValue: order.saleStatus || '1',
+          newValue: parentOrder.saleStatus || '1',
           changedById: actingUser.uid,
           changedByName: actingUser.nickname || actingUser.name,
           changedAt: saleChangedAt,
         },
       });
-
       await tx.crmOrderCurrentStatusHistory.create({
         data: {
-          orderId: order.crmOrderId,
+          orderId: parentOrder.crmOrderId,
           oldValue: null,
-          newValue: order.orderCurrentStatus || 'Pending Booking',
+          newValue: parentOrder.orderCurrentStatus || 'Pending Booking',
           changedById: actingUser.uid,
           changedByName: actingUser.nickname || actingUser.name,
           changedAt: new Date(),
         },
       });
+
+      // Children history
+      for (let idx = 0; idx < childIds.length; idx++) {
+        const cId = childIds[idx];
+        const pData = partsToCreate[idx + 1];
+        await tx.crmSaleStatusHistory.create({
+          data: {
+            orderId: cId,
+            oldValue: null,
+            newValue: pData.saleStatus || '1',
+            changedById: actingUser.uid,
+            changedByName: actingUser.nickname || actingUser.name,
+            changedAt: new Date(),
+          },
+        });
+        await tx.crmOrderCurrentStatusHistory.create({
+          data: {
+            orderId: cId,
+            oldValue: null,
+            newValue: pData.orderCurrentStatus || (pData.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+            changedById: actingUser.uid,
+            changedByName: actingUser.nickname || actingUser.name,
+            changedAt: new Date(),
+          },
+        });
+      }
     }
 
     return {
-      orderId: order.crmOrderId,      // backward-compatible alias used by existing tests
-      crmOrderId: order.crmOrderId,   // explicit field checked by W-2404 tests
+      orderId: parentOrder.crmOrderId,
+      crmOrderId: parentOrder.crmOrderId,
       customerId: customer.customerId,
-      cardId: firstCard?.cardId ?? null, // backward-compatible: first card's ID
+      cardId: firstCard?.cardId ?? null,
+      partOrderIds: [parentOrder.crmOrderId, ...childIds],
     };
   });
 }
 
 export async function findAll(filters: OrderFilters): Promise<any> {
-  const where: Prisma.CrmOrdersWhereInput = {};
+  const where: Prisma.CrmOrdersWhereInput = {
+    parentOrderId: null,
+  };
 
   if (filters.status) {
     if (filters.status === 'Completed Orders') {
@@ -257,6 +375,17 @@ export async function findAll(filters: OrderFilters): Promise<any> {
           verifier: true,
           salesVerifier: true,
           backendExecutive: true,
+          childOrders: {
+            select: {
+              crmOrderId: true,
+              orderPart: true,
+              saleStatus: true,
+              orderCurrentStatus: true,
+              orderAmountCharged: true,
+              orderRefundAmount: true,
+              orderLiftgateNeeded: true,
+            },
+          },
         },
         orderBy: {
           orderCreatedDate: 'desc',
@@ -287,6 +416,17 @@ export async function findAll(filters: OrderFilters): Promise<any> {
       verifier: true,
       salesVerifier: true,
       backendExecutive: true,
+      childOrders: {
+        select: {
+          crmOrderId: true,
+          orderPart: true,
+          saleStatus: true,
+          orderCurrentStatus: true,
+          orderAmountCharged: true,
+          orderRefundAmount: true,
+          orderLiftgateNeeded: true,
+        },
+      },
     },
     orderBy: {
       orderCreatedDate: 'desc',
@@ -321,6 +461,57 @@ export async function findById(crmOrderId: number) {
         },
       },
       comments: true,
+      childOrders: {
+        include: {
+          salesAgent: {
+            select: {
+              uid: true,
+              nickname: true,
+              name: true,
+            },
+          },
+          verifier: {
+            select: {
+              uid: true,
+              nickname: true,
+              name: true,
+            },
+          },
+          salesVerifier: {
+            select: {
+              uid: true,
+              nickname: true,
+              name: true,
+            },
+          },
+          backendExecutive: {
+            select: {
+              uid: true,
+              nickname: true,
+              name: true,
+            },
+          },
+          partFoundBy: {
+            select: {
+              uid: true,
+              nickname: true,
+              name: true,
+            },
+          },
+          vendor: {
+            select: {
+              vendorId: true,
+              vendorName: true,
+            },
+          },
+          gateway: {
+            select: {
+              gatewayId: true,
+              gatewayName: true,
+            },
+          },
+        },
+      },
     },
   });
 }
@@ -465,6 +656,151 @@ export async function getAuditLogByOrderId(orderId: number) {
   return await prisma.crmOrderAuditLog.findMany({
     where: { orderId },
     orderBy: { id: 'desc' },
+  });
+}
+
+export async function addPartToExistingOrder(parentOrderId: number, data: any) {
+  const parent = await prisma.crmOrders.findUnique({
+    where: { crmOrderId: parentOrderId },
+    select: { parentOrderId: true, orderCustomerId: true },
+  });
+  if (!parent) {
+    throw new Error(`Parent order with ID ${parentOrderId} not found`);
+  }
+  if (parent.parentOrderId !== null) {
+    throw new Error('Use the parent order ID, not a child order ID');
+  }
+
+  const [
+    agentRecord,
+    verifierRecord,
+    salesVerifierRecord,
+    backendExecRecord,
+    partFoundByRecord,
+    vendorRecord,
+  ] = await Promise.all([
+    data.orderSalesAgentId
+      ? prisma.users.findUnique({ where: { uid: data.orderSalesAgentId } })
+      : Promise.resolve(null),
+    data.orderVerifierId
+      ? prisma.users.findUnique({ where: { uid: data.orderVerifierId } })
+      : Promise.resolve(null),
+    data.orderSalesVerifierId
+      ? prisma.users.findUnique({ where: { uid: data.orderSalesVerifierId } })
+      : Promise.resolve(null),
+    data.orderBackendExecutiveId
+      ? prisma.users.findUnique({ where: { uid: data.orderBackendExecutiveId } })
+      : Promise.resolve(null),
+    data.orderPartFoundById
+      ? prisma.users.findUnique({ where: { uid: data.orderPartFoundById } })
+      : Promise.resolve(null),
+    data.orderVendorId
+      ? prisma.crmVendors.findUnique({ where: { vendorId: data.orderVendorId } })
+      : Promise.resolve(null),
+  ]);
+
+  const salesAgentName = agentRecord ? (agentRecord.nickname || agentRecord.name) : null;
+  const verifierName = verifierRecord ? (verifierRecord.nickname || verifierRecord.name) : null;
+  const salesVerifierName = salesVerifierRecord ? (salesVerifierRecord.nickname || salesVerifierRecord.name) : null;
+  const backendExecutiveName = backendExecRecord ? (backendExecRecord.nickname || backendExecRecord.name) : null;
+  const partFoundByName = partFoundByRecord ? (partFoundByRecord.nickname || partFoundByRecord.name) : null;
+  const vendorName = vendorRecord ? vendorRecord.vendorName : null;
+
+  return await prisma.crmOrders.create({
+    data: {
+      orderCustomerId: parent.orderCustomerId,
+      orderMakeModel: data.orderMakeModel || null,
+      orderPart: data.orderPart || null,
+      orderPartSize: data.orderPartSize || null,
+      orderQuotedMilesAndWarranty: data.orderQuotedMilesAndWarranty || null,
+      orderVendorMilesAndWarranty: data.orderVendorMilesAndWarranty || null,
+      orderChecklist: data.orderChecklist || 'No',
+      orderVin: data.orderVin || null,
+      orderTotalPitched: data.orderTotalPitched || null,
+      orderVendorPrice: data.orderVendorPrice || null,
+      orderVendorId: data.orderVendorId || null,
+      orderVendorName: vendorName,
+      orderShippingType: data.orderShippingType || null,
+      orderAmountCharged: data.orderAmountCharged || null,
+      orderPaymentGatewayId: data.orderPaymentGatewayId || null,
+      orderSalesAgentId: data.orderSalesAgentId || null,
+      orderSalesAgentName: salesAgentName,
+      orderVerifierId: data.orderVerifierId || null,
+      orderVerifierName: verifierName,
+      orderSalesVerifierId: data.orderSalesVerifierId || null,
+      orderSalesVerifierName: salesVerifierName,
+      orderBackendExecutiveId: data.orderBackendExecutiveId || null,
+      orderBackendExecutiveName: backendExecutiveName,
+      orderPartFoundById: data.orderPartFoundById || null,
+      orderPartFoundByName: partFoundByName,
+      orderLiftgateNeeded: data.orderLiftgateNeeded || 'No',
+      saleStatus: data.saleStatus || '1',
+      orderCurrentStatus: data.orderCurrentStatus
+        ? data.orderCurrentStatus
+        : (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
+          ? 'Returned Orders'
+          : (data.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+      orderRefundAmount: (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5')
+        ? (data.orderAmountCharged || null)
+        : (data.saleStatus === '4' ? data.orderRefundAmount || null : null),
+      orderCurrentStatusUpdateDate: new Date(),
+      orderDate: data.orderDate ? localDateStringToUtcNoon(String(data.orderDate)) : new Date(),
+      orderVendorFeedback: data.orderVendorFeedback || 'Positive',
+      orderClientFeedback: 'Positive',
+      orderResolution: 'Resolved',
+      orderCreatedDate: new Date(),
+      orderUpdatedDate: new Date(),
+      parentOrderId: parentOrderId,
+    },
+  });
+}
+
+export async function removeChildPart(parentOrderId: number, childOrderId: number) {
+  const child = await prisma.crmOrders.findUnique({
+    where: { crmOrderId: childOrderId },
+    select: { parentOrderId: true },
+  });
+  if (!child || child.parentOrderId !== parentOrderId) {
+    throw new Error(`Child order ${childOrderId} not found or does not belong to parent ${parentOrderId}`);
+  }
+  return await prisma.crmOrders.delete({
+    where: { crmOrderId: childOrderId },
+  });
+}
+
+export async function countChildren(parentOrderId: number) {
+  return await prisma.crmOrders.count({
+    where: { parentOrderId },
+  });
+}
+
+export async function promotePrimaryPart(currentParentId: number, newPrimaryPartId: number) {
+  return await prisma.$transaction(async (tx) => {
+    const targetChild = await tx.crmOrders.findUnique({
+      where: { crmOrderId: newPrimaryPartId },
+      select: { parentOrderId: true, orderCustomerId: true },
+    });
+    if (!targetChild || targetChild.parentOrderId !== currentParentId) {
+      throw new Error(`Order ${newPrimaryPartId} does not belong to this order group`);
+    }
+
+    await tx.crmOrders.update({
+      where: { crmOrderId: newPrimaryPartId },
+      data: { parentOrderId: null },
+    });
+
+    await tx.crmOrders.update({
+      where: { crmOrderId: currentParentId },
+      data: { parentOrderId: newPrimaryPartId },
+    });
+
+    await tx.crmOrders.updateMany({
+      where: {
+        parentOrderId: currentParentId,
+        crmOrderId: { not: newPrimaryPartId },
+      },
+      data: { parentOrderId: newPrimaryPartId },
+    });
   });
 }
 

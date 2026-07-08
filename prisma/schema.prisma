@@ -257,6 +257,7 @@ model CrmOrders {
   orderResolution               String        @default("Resolved") @map("order_resolution") @db.VarChar(25)
   orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
   orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
+  parentOrderId                 Int?          @map("parent_order_id")
   comments                      CrmComments[]
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]
@@ -270,6 +271,8 @@ model CrmOrders {
   salesVerifier                 Users?        @relation("SalesVerifier", fields: [orderSalesVerifierId], references: [uid])
   backendExecutive              Users?        @relation("BackendExecutive", fields: [orderBackendExecutiveId], references: [uid])
   partFoundBy                   Users?        @relation("PartFoundBy", fields: [orderPartFoundById], references: [uid], onDelete: SetNull)
+  parentOrder                   CrmOrders?    @relation("OrderParts", fields: [parentOrderId], references: [crmOrderId], onDelete: Restrict)
+  childOrders                   CrmOrders[]   @relation("OrderParts")
 
   @@index([orderCustomerId])
   @@index([orderSalesAgentId])
@@ -279,6 +282,7 @@ model CrmOrders {
   @@index([orderSalesVerifierId])
   @@index([orderBackendExecutiveId])
   @@index([orderPartFoundById])
+  @@index([parentOrderId])
   @@index([orderPaymentGatewayId], map: "crm_orders_order_payment_gateway_fkey")
   @@index([orderVendorId], map: "crm_orders_order_vendor_id_fkey")
   @@index([orderVerifierId], map: "crm_orders_order_verifier_id_fkey")

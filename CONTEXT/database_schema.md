@@ -303,49 +303,49 @@ The following standard permissions are seeded in the system:
 | Column | Type | Null | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `crm_order_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
-| `order_customer_id` | `varchar(55)` | NO | *None* | Logical FK to `crm_customers.customer_id` (stored as string) |
-| `order_make_model` | `varchar(255)` | YES | `NULL` | Vehicle Make & Model |
-| `order_part` | `varchar(255)` | YES | `NULL` | Part requested |
-| `order_part_size` | `varchar(255)` | YES | `NULL` | Dimensions or specifications |
-| `order_quoted_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Quoted shipping mileage and warranty details |
-| `order_vendor_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Actual vendor-specified mileage and warranty details |
-| `order_vin` | `varchar(255)` | YES | `NULL` | Vehicle Identification Number |
-| `order_total_pitched` | `varchar(25)` | YES | `NULL` | Selling price pitched to customer |
-| `order_vendor_price` | `varchar(25)` | YES | `NULL` | Buying price quoted by vendor |
-| `order_vendor_id` | `varchar(111)` | YES | `NULL` | Logical FK to `crm_vendors.vendor_id` (as string) |
-| `order_vendor_name` | `varchar(255)` | YES | `NULL` | Snapshot of vendor name |
-| `order_shipping_type` | `varchar(255)` | YES | `NULL` | Shipping mode (e.g. Ground, Air) |
-| `order_amount_charged` | `varchar(25)` | YES | `NULL` | Amount successfully collected (Net Margin) |
-| `order_refund_amount` | `varchar(25)` | YES | `NULL` | Amount returned to the customer |
-| `order_payment_gateway` | `varchar(55)` | YES | `NULL` | Logical FK to `crm_gateway.gateway_id` (as string) |
-| `order_sales_agent_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` |
-| `order_sales_agent_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales agent name/nickname |
-| `order_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of checker |
-| `order_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of verifier name/nickname |
-| `order_sales_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of sales verifier |
-| `order_sales_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales verifier name/nickname |
-| `order_backend_executive_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of backend executive |
-| `order_backend_executive_name` | `varchar(55)` | YES | `NULL` | Snapshot of backend executive name/nickname |
-| `order_documentation` | `varchar(255)` | YES | `NULL` | Document upload links / status |
-| `order_booked` | `varchar(255)` | YES | `NULL` | Booking reference / metadata |
-| `order_checklist` | `varchar(20)` | YES | `'No'` | Order checklist completion status (Yes/No) |
-| `order_tracking_number` | `varchar(55)` | YES | `NULL` | Carrier tracking code |
-| `order_delivery_status` | `varchar(55)` | YES | `NULL` | Delivery stage status |
-| `order_qualified_incentive_status`| `varchar(55)`| YES | `NULL` | Incentive approval status for agents |
-| `order_qualified_incentive_amount`| `varchar(55)`| YES | `NULL` | Commission payout value |
-| `order_status` | `varchar(55)` | YES | `NULL` | Vendor invoice / status flag |
-| `sale_status` | `varchar(55)` | YES | `NULL` | Status code: `1` (Sold), `2` (Refunded), `3` (Chargebacked). Other legacy codes (2-6) mapped to 1, 7 mapped to 2, 8 mapped to 3, all deprecated. |
-| `order_current_status` | `varchar(25)` | YES | `NULL` | Pipeline stage queue name |
-| `order_current_status_update_date`| `datetime`| YES | `NULL` | Date workflow stage changed |
-| `order_date` | `varchar(25)` | YES | `NULL` | Sale date (as string) |
-| `order_vendor_feedback` | `varchar(25)` | NO | `'Positive'`| Feedback rating on vendor |
-| `order_client_feedback` | `varchar(25)` | NO | `'Positive'`| Feedback rating from customer |
-| `order_resolution` | `varchar(25)` | NO | `'Resolved'`| Resolution status for dispute queue |
-| `order_created_date` | `datetime` | YES | `NULL` | Creation date |
-| `order_updated_date` | `datetime` | YES | `NULL` | Last modified date |
-| `order_part_found_by_id` | `int(11)` | YES | `NULL` | **[Phase 25]** FK to `users.uid` — team member who located/sourced the part. `ON DELETE SET NULL`. |
-| `order_part_found_by_name` | `varchar(55)` | YES | `NULL` | **[Phase 25]** Denormalized snapshot of Part Found By agent's nickname/name. Auto-populated by the repository when `order_part_found_by_id` is set. |
-| `order_liftgate_needed` | `varchar(20)` | NO | `'No'` | **[Phase 25]** Whether a liftgate truck is required for delivery. Values: `'Yes'` / `'No'`. |
+| `order_customer_id` | `varchar(55)` | NO | *None* | Logical FK to `crm_customers.customer_id` (stored as string) — **[Per-Part]** (copied to child rows for easy lookup) |
+| `order_make_model` | `varchar(255)` | YES | `NULL` | Vehicle Make & Model — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_part` | `varchar(255)` | YES | `NULL` | Part requested — **[Per-Part]** (unique per part row) |
+| `order_part_size` | `varchar(255)` | YES | `NULL` | Dimensions or specifications — **[Per-Part]** (unique per part row) |
+| `order_quoted_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Quoted shipping mileage and warranty details — **[Per-Part]** (unique per part row) |
+| `order_vendor_miles_and_warranty` | `varchar(255)` | YES | `NULL` | Actual vendor-specified mileage and warranty details — **[Per-Part]** (unique per part row) |
+| `order_vin` | `varchar(255)` | YES | `NULL` | Vehicle Identification Number — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_total_pitched` | `varchar(25)` | YES | `NULL` | Selling price pitched to customer — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_vendor_price` | `varchar(25)` | YES | `NULL` | Buying price quoted by vendor — **[Per-Part]** (each part has its own vendor cost) |
+| `order_vendor_id` | `varchar(111)` | YES | `NULL` | Logical FK to `crm_vendors.vendor_id` (as string) — **[Per-Part]** (each part has its own vendor) |
+| `order_vendor_name` | `varchar(255)` | YES | `NULL` | Snapshot of vendor name — **[Per-Part]** (each part has its own vendor) |
+| `order_shipping_type` | `varchar(255)` | YES | `NULL` | Shipping mode (e.g. Ground, Air) — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_amount_charged` | `varchar(25)` | YES | `NULL` | Amount successfully collected — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_refund_amount` | `varchar(25)` | YES | `NULL` | Amount returned to the customer — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_payment_gateway` | `varchar(55)` | YES | `NULL` | Logical FK to `crm_gateway.gateway_id` (as string) — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_sales_agent_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_sales_agent_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales agent name/nickname — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of checker — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of verifier name/nickname — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_sales_verifier_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of sales verifier — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_sales_verifier_name` | `varchar(55)` | YES | `NULL` | Snapshot of sales verifier name/nickname — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_backend_executive_id` | `int(11)` | YES | `NULL` | Logical FK to `users.uid` of backend executive — **[Per-Part]** (each part can be processed by a different executive) |
+| `order_backend_executive_name` | `varchar(55)` | YES | `NULL` | Snapshot of backend executive name/nickname — **[Per-Part]** (each part can be processed by a different executive) |
+| `order_documentation` | `varchar(255)` | YES | `NULL` | Document upload links / status — **[Per-Part]** (each part has its own documentation/files) |
+| `order_booked` | `varchar(255)` | YES | `NULL` | Booking reference / metadata — **[Per-Part]** (each part is booked individually) |
+| `order_checklist` | `varchar(20)` | YES | `'No'` | Order checklist completion status (Yes/No) — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_tracking_number` | `varchar(55)` | YES | `NULL` | Carrier tracking code — **[Per-Part]** (each part has its own shipping/tracking) |
+| `order_delivery_status` | `varchar(55)` | YES | `NULL` | Delivery stage status — **[Per-Part]** (each part has its own delivery stage) |
+| `order_qualified_incentive_status`| `varchar(55)`| YES | `NULL` | Incentive approval status for agents — **[Per-Part]** (incentives processed per part) |
+| `order_qualified_incentive_amount`| `varchar(55)`| YES | `NULL` | Commission payout value — **[Per-Part]** (incentives processed per part) |
+| `order_status` | `varchar(55)` | YES | `NULL` | Vendor invoice / status flag — **[Per-Part]** (vendor status is per vendor invoice/part) |
+| `sale_status` | `varchar(55)` | YES | `NULL` | Status code: `1` (Sold), `2` (Refunded), `3` (Chargebacked). Other legacy codes (2-6) mapped to 1, 7 mapped to 2, 8 mapped to 3, all deprecated. — **[Per-Part]** (statuses can change independently per part) |
+| `order_current_status` | `varchar(25)` | YES | `NULL` | Pipeline stage queue name — **[Per-Part]** (workflow stage tracks each part independently) |
+| `order_current_status_update_date`| `datetime`| YES | `NULL` | Date workflow stage changed — **[Per-Part]** (updated per workflow status change) |
+| `order_date` | `varchar(25)` | YES | `NULL` | Sale date (as string) — **[Deal Global]** (stored on parent only, `NULL` on children) |
+| `order_vendor_feedback` | `varchar(25)` | NO | `'Positive'`| Feedback rating on vendor — **[Per-Part]** (per-part vendor assessment) |
+| `order_client_feedback` | `varchar(25)` | NO | `'Positive'`| Feedback rating from customer — **[Per-Part]** (vendor-specific client review) |
+| `order_resolution` | `varchar(25)` | NO | `'Resolved'`| Resolution status for dispute queue — **[Per-Part]** (per-part resolution) |
+| `order_created_date` | `datetime` | YES | `NULL` | Creation date — **[Per-Part]** (creation timestamp for order/part row) |
+| `order_updated_date` | `datetime` | YES | `NULL` | Last modified date — **[Per-Part]** (modification timestamp for order/part row) |
+| `order_part_found_by_id` | `int(11)` | YES | `NULL` | **[Phase 25]** FK to `users.uid` — team member who located/sourced the part. `ON DELETE SET NULL`. — **[Per-Part]** (sourcing agent tracks per part) |
+| `order_part_found_by_name` | `varchar(55)` | YES | `NULL` | **[Phase 25]** Denormalized snapshot of Part Found By agent's nickname/name. — **[Per-Part]** (sourcing agent tracks per part) |
+| `order_liftgate_needed` | `varchar(20)` | NO | `'No'` | **[Phase 25]** Whether a liftgate truck is required for delivery. Values: `'Yes'` / `'No'`. — **[Deal Global]** (stored on parent only, `NULL` on children) |
 | `parent_order_id` | `int(11)` | YES | `NULL` | **[Phase 26]** Self-referential FK to `crm_orders.crm_order_id`. `NULL` = this is a primary/parent order. Non-NULL = this is a child/additional part belonging to the referenced parent order. `ON DELETE RESTRICT` — the DB rejects deletion of a parent row that still has children; the service layer enforces a user-friendly check first (see D29.7). Used to group multiple parts for a single customer deal. |
 
 ### crm_vendors
