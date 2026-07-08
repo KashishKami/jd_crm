@@ -57,9 +57,8 @@ const getMockOrder = (status: string) => ({
 });
 
 describe('EditOrderForm Unit Tests', () => {
-  it('should render standardized workflow queue dropdown options and disable/hide Pending Booking', () => {
-    // Test Case 1: Order is in 'Pending Booking' state.
-    // 'Pending Booking' should be visible as disabled option, and cannot be changed back to if altered.
+  it('should render standardized workflow queue dropdown options and keep Pending Booking enabled', () => {
+    // 'Pending Booking' should be visible and selectable.
     const { rerender } = render(<EditOrderForm order={getMockOrder('Pending Booking')} vendors={[]} gateways={[]} agents={[]} />);
     
     let label = screen.getByText('Workflow Queue');
@@ -67,20 +66,20 @@ describe('EditOrderForm Unit Tests', () => {
     let options = Array.from(select.options);
     let optionValues = options.map((opt) => opt.value);
 
-    // Should contain Booking (disabled), Shipment, Delivery, Feedback, Resolutions, Completed
+    // Should contain Booking, Shipment, Delivery, Feedback, Resolutions, Completed
     expect(optionValues).toContain('Pending Booking');
     expect(optionValues).toContain('Pending Shipment');
     expect(optionValues).toContain('Pending Delivery');
 
     const bookingOption = options.find(o => o.value === 'Pending Booking');
-    expect(bookingOption?.disabled).toBe(true); // Should be read-only/disabled
+    expect(bookingOption?.disabled).toBe(false); // Should be enabled/selectable
 
     // Confirm legacy spelling/states are gone
     expect(optionValues).not.toContain('Pending Tracking');
     expect(optionValues).not.toContain('Pending Delievery');
 
     // Test Case 2: Order is in 'Pending Shipment' state.
-    // 'Pending Booking' should not be present in the options at all.
+    // 'Pending Booking' should still be present in the options and enabled.
     rerender(<EditOrderForm order={getMockOrder('Pending Shipment')} vendors={[]} gateways={[]} agents={[]} />);
     
     label = screen.getByText('Workflow Queue');
@@ -88,9 +87,12 @@ describe('EditOrderForm Unit Tests', () => {
     options = Array.from(select.options);
     optionValues = options.map((opt) => opt.value);
 
-    expect(optionValues).not.toContain('Pending Booking'); // Hidden completely when not in that state
+    expect(optionValues).toContain('Pending Booking'); // Present and selectable
     expect(optionValues).toContain('Pending Shipment');
     expect(optionValues).toContain('Pending Delivery');
+    
+    const bookingOptionAfter = options.find(o => o.value === 'Pending Booking');
+    expect(bookingOptionAfter?.disabled).toBe(false); // Should be enabled
   });
 
   it('[RED] should include customer and card fields in the fetch payload on submit', async () => {

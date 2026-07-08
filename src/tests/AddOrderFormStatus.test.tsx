@@ -69,7 +69,7 @@ describe('AddOrderForm Status Upgrade Unit Tests', () => {
 
     // Expect the modal to show up
     await waitFor(() => {
-      expect(screen.getByText(/Record Partial Refund Details/i)).toBeDefined();
+      expect(screen.getByText(/Record Sale Status Details/i)).toBeDefined();
       expect(screen.getByLabelText(/Refund Amount \*/i)).toBeDefined();
     });
   });
