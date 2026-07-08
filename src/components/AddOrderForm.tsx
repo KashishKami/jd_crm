@@ -575,6 +575,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                           </label>
                           {card.customerCardCopyImage && (
                             <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.customerCardCopyImage} alt="Card Copy Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                             </div>
                           )}
@@ -622,6 +623,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                           </label>
                           {card.customerPhotoIdImage && (
                             <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.customerPhotoIdImage} alt="Photo ID Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                             </div>
                           )}

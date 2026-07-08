@@ -86,6 +86,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     if (containerRef.current) {
       fadeInPage(containerRef.current);
@@ -95,6 +96,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   // Sync prop changes (important for testing rerenders)
   useEffect(() => {
     if (order) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setCustomerName(order.customer?.customerName || '');
       setCustomerPhone(order.customer?.customerPhone || '');
       setCustomerEmail(order.customer?.customerEmail || '');
@@ -206,6 +208,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         ? new Date(order.orderDate).toISOString().split('T')[0]
         : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' })
       );
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [order, canViewCards]);
 
@@ -668,6 +671,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           </label>
                           {card.customerCardCopyImage && (
                             <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.customerCardCopyImage} alt="Card Copy Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                             </div>
                           )}
@@ -715,6 +719,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           </label>
                           {card.customerPhotoIdImage && (
                             <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.customerPhotoIdImage} alt="Photo ID Preview" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                             </div>
                           )}
