@@ -4,6 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { RecentOrderRow } from '../../types/dashboard';
 import { formatDateDDMMYYYY } from '../../lib/date';
+import { useSession } from 'next-auth/react';
+import { hasPermission } from '../../service/permission.service';
 
 interface RecentOrdersTableProps {
   orders: RecentOrderRow[];
@@ -33,6 +35,11 @@ export function getStatusBadge(status: string) {
 }
 
 export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
+  const { data: session } = useSession();
+  const permissions = session?.user?.userPermissions || '';
+  const canView = hasPermission(permissions, 'orders:view');
+  const canCreate = hasPermission(permissions, 'orders:create');
+
   return (
     <div className="table-wrapper card-with-accent" style={{ width: '100%' }}>
       {orders.length === 0 ? (
@@ -58,6 +65,8 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                 const chargedVal = parseFloat(order.orderAmountCharged || '0');
                 const refundVal = parseFloat(order.orderRefundAmount || '0');
                 const finalMargin = chargedVal - refundVal;
+                const isDisabled = !canView && canCreate && Number(order.orderSalesAgentId) !== Number(session?.user?.id);
+
                 return (
                   <tr key={order.crmOrderId}>
                     <td style={{ fontWeight: 600 }}>#{order.crmOrderId}</td>
@@ -74,18 +83,24 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>
                       ${finalMargin.toLocaleString('en-US')}
                     </td>
-                  <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
-                  <td style={{ textAlign: 'right' }} className="actions-cell">
-                    <div className="action-buttons">
-                      <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view">
-                        Details
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+                    <td style={{ textAlign: 'center' }}>{getStatusBadge(order.saleStatus)}</td>
+                    <td style={{ textAlign: 'right' }} className="actions-cell">
+                      <div className="action-buttons">
+                        {isDisabled ? (
+                          <span className="action-link-btn view" style={{ fontSize: '0.85rem', cursor: 'not-allowed', color: '#94a3b8' }}>
+                            Details
+                          </span>
+                        ) : (
+                          <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view">
+                            Details
+                          </Link>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
       )}

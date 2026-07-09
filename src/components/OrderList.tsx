@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { hasPermission } from '../service/permission.service';
 import { staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
 import { formatDateDDMMYYYY } from '../lib/date';
@@ -23,6 +25,7 @@ interface OrderListProps {
       customerName: string;
       customerEmail: string;
     };
+    orderSalesAgentId?: number | null;
     salesAgent?: {
       name: string;
       nickname?: string | null;
@@ -73,6 +76,12 @@ interface OrderListProps {
 }
 
 export default function OrderList({ orders }: OrderListProps) {
+  const { data: session } = useSession();
+  const permissions = session?.user?.userPermissions || '';
+  const canView = hasPermission(permissions, 'orders:view');
+  const canCreate = hasPermission(permissions, 'orders:create');
+  const canEdit = hasPermission(permissions, 'orders:edit');
+
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
 
   // Stagger table rows entrance
@@ -165,6 +174,8 @@ export default function OrderList({ orders }: OrderListProps) {
               const chargedVal = parseFloat(order.orderAmountCharged || '0');
               const refundVal = parseFloat(order.orderRefundAmount || '0');
               const finalMargin = chargedVal - refundVal;
+              const isDisabled = !canView && canCreate && Number(order.orderSalesAgentId) !== Number(session?.user?.id);
+              const isDisabledEdit = isDisabled || !canEdit;
               return (
                 <tr key={order.crmOrderId} style={{ opacity: 0 }}>
                   <td>
@@ -337,12 +348,24 @@ export default function OrderList({ orders }: OrderListProps) {
                   </td>
                   <td className="actions-cell">
                     <div className="action-buttons">
-                      <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
-                        Details
-                      </Link>
-                      <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
-                        Edit
-                      </Link>
+                      {isDisabled ? (
+                        <span className="action-link-btn view" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
+                          Details
+                        </span>
+                      ) : (
+                        <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
+                          Details
+                        </Link>
+                      )}
+                      {isDisabledEdit ? (
+                        <span className="action-link-btn edit" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
+                          Edit
+                        </span>
+                      ) : (
+                        <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
+                          Edit
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>

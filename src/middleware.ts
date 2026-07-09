@@ -31,9 +31,18 @@ export default withAuth(
       const requiredPermission = routePermissionMap[matchedPath];
       const userPermissions = token?.userPermissions as string | undefined;
 
-      // If user lacks permissions, redirect to access-denied
-      if (!hasPermission(userPermissions, requiredPermission)) {
-        return NextResponse.redirect(new URL('/access-denied', req.url));
+      // Special case: /orders path allows orders:view or orders:create
+      if (matchedPath === '/orders') {
+        const canView = hasPermission(userPermissions, 'orders:view');
+        const canCreate = hasPermission(userPermissions, 'orders:create');
+        if (!canView && !canCreate) {
+          return NextResponse.redirect(new URL('/access-denied', req.url));
+        }
+      } else {
+        // If user lacks permissions, redirect to access-denied
+        if (!hasPermission(userPermissions, requiredPermission)) {
+          return NextResponse.redirect(new URL('/access-denied', req.url));
+        }
       }
     }
 

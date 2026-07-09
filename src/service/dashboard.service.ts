@@ -183,6 +183,7 @@ export async function getMetricsForUser(session: any) {
           orderAmountCharged: o.orderAmountCharged,
           orderRefundAmount: o.orderRefundAmount,
           orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
+          orderSalesAgentId: o.orderSalesAgentId,
         }))
       ),
     ]);

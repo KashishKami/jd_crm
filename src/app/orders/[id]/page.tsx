@@ -90,7 +90,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }
 
   const permissions = session.user.userPermissions || '';
-  if (!hasPermission(permissions, 'orders:view')) {
+  const canView = hasPermission(permissions, 'orders:view');
+  const canCreate = hasPermission(permissions, 'orders:create');
+
+  if (!canView && !canCreate) {
     return (
       <div className="max-w-4xl mx-auto p-8 text-center bg-red-50 text-red-700 border border-red-200 rounded-2xl">
         <h2 className="text-xl font-bold">Access Denied</h2>
@@ -134,6 +137,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
+  // If they don't have orders:view but have orders:create, they must be the sales agent of the order
+  if (!canView && canCreate && Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center bg-red-50 text-red-700 border border-red-200 rounded-2xl">
+        <h2 className="text-xl font-bold">Access Denied</h2>
+        <p className="text-sm mt-2">You do not have the required permissions to view order details.</p>
+      </div>
+    );
+  }
+
   if (order.parentOrderId !== null) {
     redirect(`/orders/${order.parentOrderId}`);
   }
@@ -175,6 +188,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     }
   }
   const canEdit = hasPermission(permissions, 'orders:edit');
+  const canDelete = hasPermission(permissions, 'orders:delete');
   const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
   const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
 
@@ -373,7 +387,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               Edit Order
             </Link>
           )}
-          <DeleteOrderButton orderId={order.crmOrderId} />
+          {canDelete && (
+            <DeleteOrderButton orderId={order.crmOrderId} />
+          )}
         </div>
       </div>
 

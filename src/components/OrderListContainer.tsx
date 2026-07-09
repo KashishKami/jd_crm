@@ -349,32 +349,36 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               <option value="6">Cancelled</option>
             </select>
           </div>
-          <div className="filter-select-wrapper">
-            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
-            <select
-              value={teamFilter}
-              onChange={(e) => setTeamFilter(e.target.value)}
-              className="filter-select-custom"
-            >
-              <option value="">All Teams</option>
-              {teams.map((t) => (
-                <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
-              ))}
-            </select>
-          </div>
-          <div className="filter-select-wrapper">
-            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Agent</label>
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              className="filter-select-custom"
-            >
-              <option value="">All Agents</option>
-              {agents.map((a) => (
-                <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-              ))}
-            </select>
-          </div>
+          {hasPermission(permissions, 'orders:view') && (
+            <div className="filter-select-wrapper">
+              <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="filter-select-custom"
+              >
+                <option value="">All Teams</option>
+                {teams.map((t) => (
+                  <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {hasPermission(permissions, 'orders:view') && (
+            <div className="filter-select-wrapper">
+              <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Agent</label>
+              <select
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                className="filter-select-custom"
+              >
+                <option value="">All Agents</option>
+                {agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="filter-select-wrapper">
             <label htmlFor="backendExecutiveFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Backend Executive</label>
             <select

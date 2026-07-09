@@ -29,6 +29,7 @@ export interface RecentOrderRow {
   orderAmountCharged: string | null;
   orderRefundAmount?: string | null;
   orderDate: string;
+  orderSalesAgentId?: number | null;
 }
 
 export interface MetricValue {

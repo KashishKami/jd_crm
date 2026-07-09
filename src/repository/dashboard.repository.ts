@@ -12,6 +12,7 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
       COUNT(*) AS count
     FROM crm_orders
     WHERE sale_status IN ('1', '4')
+      AND parent_order_id IS NULL
       AND order_date >= ${start}
       AND order_date < ${end}
   `;
@@ -33,6 +34,7 @@ export async function getNetSalesBetweenDates(start: Date, end: Date) {
       COUNT(*) AS count
     FROM crm_orders
     WHERE sale_status IN ('1', '4')
+      AND parent_order_id IS NULL
       AND order_date >= ${start}
       AND order_date < ${end}
   `;
@@ -70,6 +72,7 @@ export async function getChargebackThisMonth(start: Date, end: Date) {
       COUNT(*) AS count
     FROM crm_orders
     WHERE sale_status = '3'
+      AND parent_order_id IS NULL
       AND order_date >= ${start}
       AND order_date < ${end}
   `;
@@ -86,6 +89,7 @@ export async function getRefundThisMonth(start: Date, end: Date) {
       COUNT(*) AS count
     FROM crm_orders
     WHERE sale_status = '2'
+      AND parent_order_id IS NULL
       AND order_date >= ${start}
       AND order_date < ${end}
   `;
@@ -109,6 +113,7 @@ export async function getNetSales(whereClause?: any) {
         COUNT(*) AS count
       FROM crm_orders
       WHERE sale_status IN ('1', '4')
+        AND parent_order_id IS NULL
     `;
     return {
       amount: parseFloat(rows[0]?.amount ?? '0'),
@@ -118,7 +123,10 @@ export async function getNetSales(whereClause?: any) {
 
   // Fallback: custom whereClause (used by some tests / edge callers)
   const orders = await prisma.crmOrders.findMany({
-    where: whereClause,
+    where: {
+      ...whereClause,
+      parentOrderId: null,
+    },
     select: {
       saleStatus: true,
       orderAmountCharged: true,
@@ -163,6 +171,7 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
     FROM crm_orders
     WHERE 
       sale_status IN ('1', '4')
+      AND parent_order_id IS NULL
       AND order_sales_agent_id IS NOT NULL
       AND order_date >= ${start}
       AND order_date < ${end}
@@ -204,6 +213,7 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
     FROM crm_orders
     WHERE 
       sale_status IN ('1', '4')
+      AND parent_order_id IS NULL
       AND order_sales_agent_id IS NOT NULL
       AND order_date >= ${start}
       AND order_date < ${end}
@@ -220,6 +230,9 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
 
 export async function getRecentOrders(limit = 10) {
   return await prisma.crmOrders.findMany({
+    where: {
+      parentOrderId: null,
+    },
     take: limit,
     orderBy: [
       { orderCreatedDate: 'desc' },
@@ -232,6 +245,7 @@ export async function getRecentOrders(limit = 10) {
       orderRefundAmount: true,
       saleStatus: true,
       orderSalesAgentName: true,
+      orderSalesAgentId: true,
       customer: {
         select: {
           customerName: true,
@@ -288,9 +302,8 @@ export async function getPendingCounts(filters?: {
   dateTo?: string;
   saleStatus?: string;
 }) {
-  // Fetch only 4 lightweight columns; the small select avoids shipping unnecessary data to Node.js.
-  // The classification logic below must match findAll() status rules exactly.
   const where: Prisma.CrmOrdersWhereInput = {
+    parentOrderId: null,
     orderCurrentStatus: {
       in: [
         'Pending Booking',
@@ -307,7 +320,8 @@ export async function getPendingCounts(filters?: {
 
   if (filters) {
     if (filters.saleStatus) {
-      where.saleStatus = filters.saleStatus;
+      const statuses = filters.saleStatus.includes(',') ? filters.saleStatus.split(',') : [filters.saleStatus];
+      where.saleStatus = { in: statuses };
     }
     if (filters.agentId) {
       where.orderSalesAgentId = filters.agentId;
@@ -341,6 +355,12 @@ export async function getPendingCounts(filters?: {
       saleStatus: true,
       orderAmountCharged: true,
       orderRefundAmount: true,
+      childOrders: {
+        select: {
+          orderCurrentStatus: true,
+          saleStatus: true,
+        },
+      },
     },
   });
 
@@ -366,7 +386,16 @@ export async function getPendingCounts(filters?: {
     res['All Orders'].count += 1;
 
     // Returned Orders logic (same as findAll/status queues):
-    const isReturned = order.orderCurrentStatus === 'Returned Orders' || order.saleStatus === '2' || order.saleStatus === '3';
+    const isReturned = order.orderCurrentStatus === 'Returned Orders' || 
+                       order.saleStatus === '2' || 
+                       order.saleStatus === '3' ||
+                       order.saleStatus === '5' ||
+                       (order.childOrders && order.childOrders.some(c => 
+                         c.orderCurrentStatus === 'Returned Orders' || 
+                         c.saleStatus === '2' || 
+                         c.saleStatus === '3' ||
+                         c.saleStatus === '5'
+                       ));
     if (isReturned) {
       res['Returned Orders'].amount += refundVal;
       res['Returned Orders'].count += 1;
@@ -374,7 +403,10 @@ export async function getPendingCounts(filters?: {
     }
 
     // Completed Orders logic:
-    const isCompleted = order.orderCurrentStatus === 'Completed Orders' && (order.saleStatus === '1' || order.saleStatus === '4');
+    const isCompleted = (order.orderCurrentStatus === 'Completed Orders' && (order.saleStatus === '1' || order.saleStatus === '4')) ||
+                        (order.childOrders && order.childOrders.some(c => 
+                          c.orderCurrentStatus === 'Completed Orders' && (c.saleStatus === '1' || c.saleStatus === '4')
+                        ));
     if (isCompleted) {
       res['Completed Orders'].amount += finalMargin;
       res['Completed Orders'].count += 1;
@@ -382,17 +414,26 @@ export async function getPendingCounts(filters?: {
     }
 
     // Cancelled Orders logic:
-    const isCancelled = order.orderCurrentStatus === 'Cancelled Orders' || order.saleStatus === '6';
+    const isCancelled = order.orderCurrentStatus === 'Cancelled Orders' || 
+                        order.saleStatus === '6' ||
+                        (order.childOrders && order.childOrders.some(c => 
+                          c.orderCurrentStatus === 'Cancelled Orders' || 
+                          c.saleStatus === '6'
+                        ));
     if (isCancelled) {
       res['Cancelled Orders'].amount += finalMargin;
       res['Cancelled Orders'].count += 1;
       continue; // Exclude from other statuses in tabs
     }
 
-    const status = order.orderCurrentStatus;
-    if (status && status in res) {
-      res[status].amount += finalMargin;
-      res[status].count += 1;
+    // Classify into specific pending queues matching findAll
+    const pendingQueues = ['Pending Booking', 'Pending Shipment', 'Pending Delivery', 'Pending Feedback', 'Pending Resolutions'];
+    for (const q of pendingQueues) {
+      const match = order.orderCurrentStatus === q || (order.childOrders && order.childOrders.some(c => c.orderCurrentStatus === q));
+      if (match) {
+        res[q].amount += finalMargin;
+        res[q].count += 1;
+      }
     }
   }
 
@@ -418,7 +459,7 @@ export async function getTeamMonthlyScores(month: number, year: number) {
       ) AS netAmount
     FROM crm_teams t
     LEFT JOIN users u ON u.team_id = t.team_id
-    LEFT JOIN crm_orders o ON o.order_sales_agent_id = u.uid AND MONTH(o.order_date) = ${month} AND YEAR(o.order_date) = ${year}
+    LEFT JOIN crm_orders o ON o.order_sales_agent_id = u.uid AND o.parent_order_id IS NULL AND MONTH(o.order_date) = ${month} AND YEAR(o.order_date) = ${year}
     GROUP BY t.team_id, t.team_name
   `;
 
@@ -453,6 +494,7 @@ export async function getTeamMonthlyTopPerformers(teamId: number, month: number,
     LEFT JOIN crm_orders o
       ON  o.order_sales_agent_id = u.uid
       AND o.sale_status IN ('1', '4')
+      AND o.parent_order_id IS NULL
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
@@ -486,6 +528,7 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
     LEFT JOIN crm_orders o
       ON  o.order_sales_agent_id = u.uid
       AND o.sale_status IN ('1', '4')
+      AND o.parent_order_id IS NULL
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
@@ -504,6 +547,7 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
 export async function getAdvancedChartData(teamId?: number, agentId?: number, dateFrom?: Date, dateTo?: Date) {
   const where: any = {
     saleStatus: { in: ['1', '2', '3', '4'] },
+    parentOrderId: null,
   };
 
   if (dateFrom || dateTo) {

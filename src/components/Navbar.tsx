@@ -95,7 +95,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </Link>
             </li>
 
-            {hasPermission(permissions, 'orders:view') && (
+            {(hasPermission(permissions, 'orders:view') || hasPermission(permissions, 'orders:create')) && (
               <li className="nav-item">
                 <Link
                   href="/orders"

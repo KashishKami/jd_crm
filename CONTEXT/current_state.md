@@ -5624,3 +5624,21 @@ In this session, we finalized the Phase 24 features and made the following layou
     - Resolved the `set-state-in-effect` rule violation in `CommentTimeline.tsx` by removing the sync `useEffect` hook and deriving components' active indices via a clean relative-offset state.
   - **Verification**: Verified that `npm run lint` and `npm run typecheck` pass successfully with 0 warnings. Verified that all unit, integration, and UI test suites compiles and pass completely.
 
+### Session 63 — July 10, 2026
+  **Restricted Access Permission Checks, Details/Edit Action Graying Out, Comments API Enforcement & Delete Button Cleanup**
+  - **Restricted Agent Access Controls**: Configured the CRM application so that users with `orders:create` permission (but lacking `orders:view` view-details) can access the orders page, but can only see and interact with their own deals and orders.
+    - Implemented the own-orders filtering in the backend GET `/api/orders` list API and `/api/orders/pending-counts` API, forcing the `agentId` filter to the logged-in user's UID and clearing the `teamId` filter.
+    - Hid the **Team** and **Agent** filter dropdowns from the UI toolbar in [OrderListContainer.tsx](file:///src/components/OrderListContainer.tsx).
+    - Permitted restricted users to access `/orders` routes in [middleware.ts](file:///src/middleware.ts).
+  - **Backend Ownership Enforcement & Details/Edit Access**:
+    - Refined the permission checks on the details page ([page.tsx](file:///src/app/orders/%5Bid%5D/page.tsx)), details GET route ([route.ts](file:///src/app/api/orders/%5Bid%5D/route.ts)), edit page ([page.tsx](file:///src/app/orders/%5Bid%5D/edit/page.tsx)), and edit PATCH route ([route.ts](file:///src/app/api/orders/%5Bid%5D/route.ts)).
+    - Restricted users can only fetch, view, or patch order details if they are the designated `orderSalesAgentId` for that order. Unauthorized attempts return `Access Denied` or a `403 Forbidden` status. Bypasses ownership check for non-restricted roles to ensure full backward compatibility.
+  - **Comments API Enforced Ownership**:
+    - Enforced ownership verification inside both GET and POST comment routes ([route.ts](file:///src/app/api/orders/%5Bid%5D/comments/route.ts)) to prevent unauthorized users from viewing or submitting comments on non-owned orders, resolving the "Failed to load comments" UI error.
+  - **Action Buttons Graying Out**:
+    - In [OrderList.tsx](file:///src/components/OrderList.tsx) and [RecentOrdersTable.tsx](file:///src/components/dashboard/RecentOrdersTable.tsx), the **Details** and **Edit** buttons are grayed out (text color set to `#94a3b8` and cursor set to `not-allowed`, with no background box or border) if the order is not owned by the restricted user or if the user lacks the generic `orders:edit` permission.
+  - **Delete Button Visibility**:
+    - Conditionally rendered the `<DeleteOrderButton />` on the details page only if the user holds the `orders:delete` permission.
+  - **Verification**: Verified all test suites run and pass 100% green in the user's terminal: `npx vitest run src/tests/orders.test.ts` (87/87 passed) and `npx vitest run src/tests/dashboard.test.ts` (24/24 passed). All type checks and ESLint checks are fully green.
+
+

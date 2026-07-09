@@ -60,7 +60,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
           </li>
  
           {/* Conditional Orders Navigation */}
-          {hasPermission(permissions, 'orders:view') && (
+          {(hasPermission(permissions, 'orders:view') || hasPermission(permissions, 'orders:create')) && (
             <li className="nav-item">
               <Link
                 href="/orders"

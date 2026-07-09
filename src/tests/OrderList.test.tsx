@@ -1,8 +1,21 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import OrderList from '../components/OrderList';
+
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        id: '1',
+        name: 'Test Admin',
+        userPermissions: 'super-admin',
+      },
+    },
+    status: 'authenticated',
+  }),
+}));
 
 afterEach(() => {
   cleanup();

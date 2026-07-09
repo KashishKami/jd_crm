@@ -172,16 +172,16 @@ describe('Order Management Integration Tests', () => {
     });
     await prisma.crmVendors.deleteMany({ where: { vendorName: 'Test Order Vendor' } });
     await prisma.crmGateway.deleteMany({ where: { gatewayName: 'Test Order Gateway' } });
-    await prisma.users.deleteMany({ where: { username: 'test_sales_agent_order' } });
+    await prisma.users.deleteMany({ where: { username: { in: ['test_sales_agent_order', 'another_test_agent_orders'] } } });
   });
 
   describe('GET /api/orders', () => {
-    it('should return 403 Forbidden if user lacks orders:view permission', async () => {
+    it('should return 403 Forbidden if user lacks both orders:view and orders:create permissions', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: {
           id: '1',
           name: 'Restricted User',
-          userPermissions: 'vendors:view', // Lacks orders:view
+          userPermissions: 'vendors:view', // Lacks orders:view and orders:create
         },
       });
 
@@ -190,6 +190,58 @@ describe('Order Management Integration Tests', () => {
       const res = await GET(req);
 
       expect(res.status).toBe(403);
+    });
+
+    it('should return 200 OK and list of only own orders if user has orders:create but lacks orders:view permission', async () => {
+      // 1. Create another agent
+      const anotherAgent = await prisma.users.create({
+        data: {
+          name: 'Another Test Agent',
+          username: 'another_test_agent_orders',
+          teamId: testTeam.teamId,
+          roleId: testRole.roleId,
+          nickname: 'AnotherAgentNick',
+        },
+      });
+
+      // 2. Create an order belonging to another agent
+      const anotherOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderVendorId: testVendor.vendorId,
+          orderVendorName: testVendor.vendorName,
+          orderSalesAgentId: anotherAgent.uid,
+          orderSalesAgentName: anotherAgent.nickname,
+          orderPaymentGatewayId: testGateway.gatewayId,
+          saleStatus: '1',
+          orderCurrentStatus: 'Pending Shipment',
+          orderDate: new Date(),
+        },
+      });
+
+      // 3. Request orders using the first agent's session
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create', // has orders:create, lacks orders:view
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      
+      const ordersList = data.data || data;
+      expect(Array.isArray(ordersList)).toBe(true);
+      
+      // Should include own order
+      expect(ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === testOrder.crmOrderId)).toBe(true);
+      // Should NOT include another agent's order
+      expect(ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === anotherOrder.crmOrderId)).toBe(false);
     });
 
     it('should return 200 OK and list of orders if user has orders:view permission', async () => {
@@ -207,9 +259,10 @@ describe('Order Management Integration Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(Array.isArray(data)).toBe(true);
-      expect(data.length).toBeGreaterThan(0);
-      expect(data.some((o: { crmOrderId: number }) => o.crmOrderId === testOrder.crmOrderId)).toBe(true);
+      const ordersList = data.data || data;
+      expect(Array.isArray(ordersList)).toBe(true);
+      expect(ordersList.length).toBeGreaterThan(0);
+      expect(ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === testOrder.crmOrderId)).toBe(true);
     });
 
     it('should return filtered orders when status query param is provided', async () => {

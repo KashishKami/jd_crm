@@ -919,3 +919,37 @@ When a second part is added to a deal, all previously existing part cards auto-c
 - `crmSaleStatusHistory` entries are written only for parent rows. Any existing history entries on child order IDs remain in the database but are no longer added to.
 - `OrderList` and `OrderListContainer` sale status filtering logic: the `OR` filter (checking parent OR child `saleStatus`) in `findAll()` is simplified. Since child rows always have `saleStatus = NULL`, filtering by `saleStatus` now matches only parent rows. The `OR` clause in the repository can be simplified to a direct `where: { saleStatus: filters.saleStatus }` without the nested child join.
 - Files changed: `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, and their respective test files.
+
+---
+
+## Decision 33 — REST API Restrictions, Details Page Ownership & Action Link Customizations
+
+**Date:** 2026-07-09
+**Status:** Accepted
+
+#### Context
+The business required adding permission restrictions so that users with `orders:create` permission (but lacking `orders:view` view-details) can access the orders page, but can only see and interact with their own deals and orders. Both frontend filters and backend endpoints must enforce this restriction. Details and Edit action buttons for other agents' orders must be grayed out, and the Delete button on the order details page must be hidden for unauthorized users.
+
+#### Decisions
+
+**D33.1 — Restricted Orders Access Check**
+- Users who have `orders:create` but lack `orders:view` are considered "restricted."
+- The list API (`GET /api/orders`) and pending counts API (`GET /api/orders/pending-counts`) force the `agentId` filter to the logged-in user's UID and clear the `teamId` filter. Team and Agent filters are hidden from the UI.
+
+**D33.2 — Individual Order Details and Edit Page Ownership Checks**
+- The Details Server Component (`src/app/orders/[id]/page.tsx`), the GET route (`GET /api/orders/[id]`), the Edit Server Component (`src/app/orders/[id]/edit/page.tsx`), and the PATCH route (`PATCH /api/orders/[id]`) all check if the user is restricted.
+- If restricted and not the sales agent of the order, they are denied access with `403 Forbidden` / `Access Denied`. Non-restricted users (e.g. verifiers, editors, admins) bypass this check to maintain backward compatibility.
+
+**D33.3 — Comments API Enforced Ownership**
+- The comments GET and POST endpoints (`/api/orders/[id]/comments`) verify ownership for restricted users to prevent accessing or posting comments on orders belonging to other agents.
+
+**D33.4 — Action Buttons Custom Graying Out**
+- In `OrderList` and `RecentOrdersTable` views, Details and Edit links are conditionally grayed out (using inline style `color: '#94a3b8'` and `cursor: 'not-allowed'`, with no background or border) if the user is restricted and is not the sales agent, or if the user lacks the generic `orders:edit` permission.
+
+**D33.5 — Delete Button Visibility**
+- The `DeleteOrderButton` in the Order Details page is conditionally rendered only if the user holds the `orders:delete` permission.
+
+#### Consequences (D33)
+- Files changed: `src/app/api/orders/route.ts`, `src/app/api/orders/pending-counts/route.ts`, `src/app/api/orders/[id]/route.ts`, `src/app/api/orders/[id]/comments/route.ts`, `src/app/orders/[id]/page.tsx`, `src/app/orders/[id]/edit/page.tsx`, `src/middleware.ts`, `src/components/Sidebar.tsx`, `src/components/Navbar.tsx`, `src/components/OrderListContainer.tsx`, `src/components/OrderList.tsx`, `src/components/dashboard/RecentOrdersTable.tsx`.
+- Realigned recent orders query select statements to ensure `orderSalesAgentId` is retrieved and mapped to the dashboard component.
+

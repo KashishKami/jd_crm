@@ -16,8 +16,9 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'orders:view');
-  if (!isPermitted) {
+  const canView = hasPermission(session.user.userPermissions, 'orders:view');
+  const canCreate = hasPermission(session.user.userPermissions, 'orders:create');
+  if (!canView && !canCreate) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
       { status: 403 }
@@ -28,6 +29,20 @@ export async function GET(
   const crmOrderId = Number(id);
   if (isNaN(crmOrderId)) {
     return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
+  }
+
+  // If restricted, check order ownership
+  if (!canView && canCreate) {
+    const order = await prisma.crmOrders.findUnique({
+      where: { crmOrderId },
+      select: { orderSalesAgentId: true },
+    });
+    if (!order || Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Insufficient Permissions' },
+        { status: 403 }
+      );
+    }
   }
 
   try {
@@ -49,8 +64,9 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'orders:view');
-  if (!isPermitted) {
+  const canView = hasPermission(session.user.userPermissions, 'orders:view');
+  const canCreate = hasPermission(session.user.userPermissions, 'orders:create');
+  if (!canView && !canCreate) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
       { status: 403 }
@@ -67,6 +83,14 @@ export async function POST(
     const order = await orderService.getOrderDetails(crmOrderId);
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    // If restricted, check order ownership
+    if (!canView && canCreate && Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Insufficient Permissions' },
+        { status: 403 }
+      );
     }
 
     const contentType = request.headers.get('content-type') || '';

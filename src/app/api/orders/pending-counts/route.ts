@@ -11,8 +11,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'orders:view');
-  if (!isPermitted) {
+  const canView = hasPermission(session.user.userPermissions, 'orders:view');
+  const canCreate = hasPermission(session.user.userPermissions, 'orders:create');
+  if (!canView && !canCreate) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
       { status: 403 }
@@ -22,9 +23,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const saleStatus = searchParams.get('saleStatus') || undefined;
   const agentIdStr = searchParams.get('agentId');
-  const agentId = agentIdStr ? Number(agentIdStr) : undefined;
+  let agentId = agentIdStr ? Number(agentIdStr) : undefined;
   const teamIdStr = searchParams.get('teamId');
-  const teamId = teamIdStr ? Number(teamIdStr) : undefined;
+  let teamId = teamIdStr ? Number(teamIdStr) : undefined;
+
+  // Enforce self-only restriction if lacking orders:view
+  if (!canView && canCreate) {
+    agentId = Number(session.user.id);
+    teamId = undefined;
+  }
+
   const backendExecutiveIdStr = searchParams.get('backendExecutiveId');
   const backendExecutiveId = backendExecutiveIdStr ? Number(backendExecutiveIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;

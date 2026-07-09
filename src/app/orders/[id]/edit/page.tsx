@@ -91,6 +91,18 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     notFound();
   }
 
+  // If they don't have orders:view but have orders:create, they must be the sales agent of the order to edit it
+  const canViewAll = hasPermission(permissions, 'orders:view');
+  const canCreate = hasPermission(permissions, 'orders:create');
+  if (!canViewAll && canCreate && Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center bg-red-50 text-red-700 border border-red-200 rounded-2xl">
+        <h2 className="text-xl font-bold">Access Denied</h2>
+        <p className="text-sm mt-2">You do not have the required permissions to edit this order.</p>
+      </div>
+    );
+  }
+
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
   const canViewEmail = hasPermission(permissions, 'customers:view-email');
   const canViewCards = hasPermission(permissions, 'customers:view-cards');

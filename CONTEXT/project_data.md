@@ -85,8 +85,8 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 ### Resource: `orders`
 | Permission Key | Legacy Code | Description |
 | :--- | :--- | :--- |
-| `orders:view` | `172` | Access All Orders page |
-| `orders:create` | `171` | Access Add New Order page and POST endpoint |
+| `orders:view` | `172` | Access All Orders page. Grants full visibility to see all agents' deals/orders and Team/Agent filters. |
+| `orders:create` | `171` | Access Add New Order page and POST endpoint. Also grants access to the Orders page with "own-orders-only" restriction if `orders:view` is absent. |
 | `orders:edit` | `205` | Perform edit actions on an existing order |
 | `orders:delete` | — | Permanently delete an order and all its child logs (super-admin only) |
 | `orders:view-completed` | `173` | Access Completed Orders filtered view |
@@ -99,6 +99,13 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `orders:view-cancelled` | — | Access Cancelled Orders queue (new) |
 | `orders:view-sale-status-history` | — | View sale status change history timeline |
 | `orders:view-workflow-history` | — | View order workflow status change timeline |
+
+> [!NOTE]
+> **Restricted Orders Access (Phase 2):** If a user has `orders:create` permission but lacks the `orders:view` (view-details) permission, they are considered "restricted."
+> - **Orders List & Pending Counts:** They can access the Orders page but only see their own deals and orders. The Team and Agent filters are hidden from the UI, and the backend REST endpoints (`GET /api/orders` and `GET /api/orders/pending-counts`) force the `agentId` filter to their UID and clear the `teamId` filter.
+> - **Order Details & Edit Pages:** They can view the Details (`/orders/[id]`) and Edit (`/orders/[id]/edit`) pages, and execute `GET` or `PATCH` on `/api/orders/[id]` and comments APIs, **only** if they are the designated sales agent for that order. For other orders, they receive `Access Denied` / `403 Forbidden` responses.
+> - **Action Links:** On the pipeline list view and recent orders table, the "Details" and "Edit" action buttons are disabled (rendered in gray text with `cursor: not-allowed`) if the order is not owned by them, or if the user lacks the generic `orders:edit` permission.
+
 
 ### Resource: `customers`
 | Permission Key | Legacy Code | Description |

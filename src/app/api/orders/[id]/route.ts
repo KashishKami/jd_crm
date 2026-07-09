@@ -40,8 +40,9 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isPermitted = hasPermission(session.user.userPermissions, 'orders:view');
-  if (!isPermitted) {
+  const canView = hasPermission(session.user.userPermissions, 'orders:view');
+  const canCreate = hasPermission(session.user.userPermissions, 'orders:create');
+  if (!canView && !canCreate) {
     return NextResponse.json(
       { error: 'Forbidden: Insufficient Permissions' },
       { status: 403 }
@@ -56,6 +57,17 @@ export async function GET(
 
   try {
     const order = await orderService.getOrderDetails(crmOrderId);
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    // If restricted, check order ownership
+    if (!canView && canCreate && Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Insufficient Permissions' },
+        { status: 403 }
+      );
+    }
 
     // Fire-and-forget: log the view. Failure must NOT affect the response.
     orderRepository.logOrderView(
@@ -125,6 +137,22 @@ export async function PATCH(
   }
 
   try {
+    const canViewAll = hasPermission(session.user.userPermissions, 'orders:view');
+    const canCreate = hasPermission(session.user.userPermissions, 'orders:create');
+    const isRestricted = !canViewAll && canCreate;
+    if (isRestricted) {
+      const order = await prisma.crmOrders.findUnique({
+        where: { crmOrderId },
+        select: { orderSalesAgentId: true },
+      });
+      if (!order || Number(order.orderSalesAgentId) !== Number(session.user.id)) {
+        return NextResponse.json(
+          { error: 'Forbidden: Insufficient Permissions' },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const user = await prisma.users.findUnique({
       where: { uid: Number(session.user.id) },
