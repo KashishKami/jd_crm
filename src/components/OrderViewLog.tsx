@@ -37,8 +37,8 @@ export default function OrderViewLog({ entries }: OrderViewLogProps) {
         <h3 className="form-section-title" style={{ margin: 0, border: 'none', width: 'auto' }}>
           Access History — Who Has Viewed This Order
         </h3>
-        <span style={{ fontSize: '1.25rem', color: '#64748b', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-          ▼
+        <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#64748b', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', WebkitTextStroke: '1.2px currentColor' }}>
+          ︾
         </span>
       </button>
 

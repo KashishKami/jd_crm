@@ -42,7 +42,7 @@ describe('AddOrderForm Unit Tests', () => {
     expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/name on card/i)).toBeDefined();
     expect(screen.getByLabelText(/card number/i)).toBeDefined();
-    expect(screen.getByLabelText(/part description/i)).toBeDefined();
+    expect(screen.getByLabelText(/^part \*/i)).toBeDefined();
     expect(screen.getByLabelText(/total price pitched/i)).toBeDefined();
     expect(screen.getByLabelText(/vendor buying price/i)).toBeDefined();
     expect(screen.getAllByRole('button', { name: /create order/i })[0]).toBeDefined();
@@ -100,7 +100,7 @@ describe('AddOrderForm Unit Tests', () => {
     fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
     fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
     fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-    fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+    fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Transmission' } });
     fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -146,7 +146,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
       
@@ -199,7 +199,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -275,7 +275,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -348,10 +348,10 @@ describe('AddOrderForm Unit Tests', () => {
   });
 
   describe('Phase 24: Alternate Phones, Multi-Card, Image Upload, and Label Renames', () => {
-    it('should render customerAlternatePhone1 and customerAlternatePhone2 inputs', () => {
+    it('should render Alternate Number input and not Alternate Phone 2', () => {
       render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
-      expect(screen.getByLabelText(/alternate phone 1/i)).toBeDefined();
-      expect(screen.getByLabelText(/alternate phone 2/i)).toBeDefined();
+      expect(screen.getByLabelText(/alternate number/i)).toBeDefined();
+      expect(screen.queryByLabelText(/alternate phone 2/i)).toBeNull();
     });
 
     it('should support adding and removing multiple card blocks and show amountToCharge when multiple cards exist', () => {
@@ -416,7 +416,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/name on card/i), { target: { value: 'Alice Smith' } });
       fireEvent.change(screen.getByLabelText(/card number/i), { target: { value: '4111222233334444' } });
       fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
-      fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Transmission' } });
+      fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Transmission' } });
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
@@ -450,15 +450,15 @@ describe('AddOrderForm Unit Tests', () => {
         expect(addPartBtn).toBeDefined();
 
         // Initially we have 1 part card. Let's count by label or test id.
-        // The first card should have a field "Part Description"
-        const partInputs = screen.getAllByLabelText(/part description/i);
+        // The first card should have a field "Part"
+        const partInputs = screen.getAllByLabelText(/^part \*/i);
         expect(partInputs.length).toBe(1);
 
         // Click Add Another Part
         fireEvent.click(addPartBtn);
         
         // Now there should be 2 part cards
-        const partInputs2 = screen.getAllByLabelText(/part description/i);
+        const partInputs2 = screen.getAllByLabelText(/^part \*/i);
         expect(partInputs2.length).toBe(2);
 
         // Check if there is a "Remove Part" button for the second card
@@ -469,7 +469,7 @@ describe('AddOrderForm Unit Tests', () => {
         fireEvent.click(removePartBtns[0]);
 
         // Should return to 1 part card
-        const partInputs3 = screen.getAllByLabelText(/part description/i);
+        const partInputs3 = screen.getAllByLabelText(/^part \*/i);
         expect(partInputs3.length).toBe(1);
       });
 
@@ -546,13 +546,13 @@ describe('AddOrderForm Unit Tests', () => {
         fireEvent.change(screen.getByLabelText(/expiry date/i), { target: { value: '09/29' } });
 
         // Part 1
-        fireEvent.change(screen.getByLabelText(/part description/i), { target: { value: 'Engine' } });
+        fireEvent.change(screen.getByLabelText(/^part \*/i), { target: { value: 'Engine' } });
         fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '1200' } });
         fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '600' } });
 
         // Add Part 2
         fireEvent.click(screen.getByRole('button', { name: /add another part/i }));
-        const partDescriptions = screen.getAllByLabelText(/part description/i);
+        const partDescriptions = screen.getAllByLabelText(/^part \*/i);
         const vendorInputs = screen.getAllByLabelText(/vendor buying price/i);
 
         fireEvent.change(partDescriptions[1], { target: { value: 'Brake Pads' } });

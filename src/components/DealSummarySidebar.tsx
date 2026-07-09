@@ -116,9 +116,9 @@ export default function DealSummarySidebar({
   });
 
   const vendorBreakdown = Object.entries(vendorMap).map(([vName, data]) => {
-    const partsLabel = data.parts.join(' + ');
     return {
-      label: `${vName} (${partsLabel})`,
+      vendorName: vName,
+      parts: data.parts.join(' + '),
       total: data.total,
     };
   });
@@ -221,7 +221,7 @@ export default function DealSummarySidebar({
               style={{
                 backgroundColor: '#f8fafc',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '12px',
                 border: '1px solid #e2e8f0',
                 display: 'flex',
                 flexDirection: 'column',
@@ -233,19 +233,40 @@ export default function DealSummarySidebar({
               {vendorBreakdown.length === 0 ? (
                 <div style={{ color: '#94a3b8' }}>No parts added yet</div>
               ) : (
-                vendorBreakdown.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      color: '#475569',
-                    }}
-                  >
-                    <span style={{ fontWeight: '500' }}>{item.label}</span>
-                    <span style={{ fontWeight: 'bold' }}>{formatCurrency(item.total)}</span>
+                <>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.8fr 1.8fr 1.2fr',
+                    gap: '8px',
+                    borderBottom: '1px solid #cbd5e1',
+                    paddingBottom: '6px',
+                    fontWeight: 'bold',
+                    color: '#64748b'
+                  }}>
+                    <span>Vendor</span>
+                    <span>Part(s)</span>
+                    <span style={{ textAlign: 'right' }}>Price</span>
                   </div>
-                ))
+                  {vendorBreakdown.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.8fr 1.8fr 1.2fr',
+                        gap: '8px',
+                        color: '#475569',
+                        borderBottom: idx === vendorBreakdown.length - 1 ? 'none' : '1px solid #e2e8f0',
+                        paddingBottom: idx === vendorBreakdown.length - 1 ? 0 : '8px',
+                        alignItems: 'center',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      <span>{item.vendorName}</span>
+                      <span>{item.parts}</span>
+                      <span style={{ fontWeight: 'bold', textAlign: 'right' }}>{formatCurrency(item.total)}</span>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           )}

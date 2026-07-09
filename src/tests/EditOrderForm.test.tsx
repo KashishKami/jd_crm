@@ -447,7 +447,7 @@ describe('EditOrderForm Unit Tests', () => {
   });
 
   describe('Phase 24: Alternate Phones, Multi-Card, Image Upload, and Label Renames (Edit)', () => {
-    it('should render customerAlternatePhone1 and customerAlternatePhone2 inputs', () => {
+    it('should render Alternate Number input and not Alternate Phone 2', () => {
       render(
         <EditOrderForm
           order={getMockOrder('Pending Shipment')}
@@ -456,8 +456,8 @@ describe('EditOrderForm Unit Tests', () => {
           agents={[]}
         />
       );
-      expect(screen.getByLabelText(/alternate phone 1/i)).toBeDefined();
-      expect(screen.getByLabelText(/alternate phone 2/i)).toBeDefined();
+      expect(screen.getByLabelText(/alternate number/i)).toBeDefined();
+      expect(screen.queryByLabelText(/alternate phone 2/i)).toBeNull();
     });
 
     it('should render amountToCharge input', () => {
@@ -645,7 +645,7 @@ describe('EditOrderForm Unit Tests', () => {
         fireEvent.click(addPartBtn);
 
         // Fill out Part B description (index 1 now since Child Part A was removed)
-        const partInputs = screen.getAllByLabelText(/part description/i);
+        const partInputs = screen.getAllByLabelText(/^part \*/i);
         fireEvent.change(partInputs[1], { target: { value: 'New Part B' } });
         
         // 3. Promote New Part B to primary

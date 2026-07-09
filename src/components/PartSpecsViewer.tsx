@@ -7,125 +7,130 @@ interface PartSpecsViewerProps {
   childOrders: any[];
 }
 
-const saleStatuses: Record<string, string> = {
-  '1': 'Sold',
-  '2': 'Refunded',
-  '3': 'Chargebacked',
-  '4': 'Partial Refund',
-  '5': 'Void',
-  '6': 'Cancelled',
-};
-
 export default function PartSpecsViewer({ parentOrder, childOrders = [] }: PartSpecsViewerProps) {
   const allParts = [parentOrder, ...childOrders];
-  const [activeIndex, setActiveIndex] = useState(0);
-  const activePart = allParts[activeIndex];
+  const [expandedIndices, setExpandedIndices] = useState<number[]>([]);
+
+  const toggleExpand = (idx: number) => {
+    if (expandedIndices.includes(idx)) {
+      setExpandedIndices(expandedIndices.filter((i) => i !== idx));
+    } else {
+      setExpandedIndices([...expandedIndices, idx]);
+    }
+  };
+
+  const renderPartFields = (part: any) => {
+    return (
+      <div className="form-grid-3col form-compact" style={{ padding: '4px' }}>
+        <div className="form-group form-span-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">Year, Make & Model</span>
+              <span className="info-value">{part.orderMakeModel || '—'}</span>
+            </div>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">Part</span>
+              <span className="info-value font-bold text-slate-900">{part.orderPart || '—'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-group form-span-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">Specifications</span>
+              <span className="info-value">{part.orderPartSize || '—'}</span>
+            </div>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">VIN Number</span>
+              <span className="info-value font-mono uppercase">{part.orderVin || '—'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-group form-span-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">Quoted Miles and Warranty</span>
+              <span className="info-value font-mono">{part.orderQuotedMilesAndWarranty || '—'}</span>
+            </div>
+            <div className="form-group" style={{ wordBreak: 'break-word' }}>
+              <span className="form-label">Vendor Miles and Warranty</span>
+              <span className="info-value font-mono">{part.orderVendorMilesAndWarranty || '—'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="profile-main" style={{ padding: '24px', fontFamily: 'Georgia, serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-        <h3 className="form-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
-          Vehicle & Part Details
-        </h3>
+      <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
+        Part Information
+      </h3>
 
-        {allParts.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <label htmlFor="active-part-selector" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase' }}>
-              Select Part:
-            </label>
-            <select
-              id="active-part-selector"
-              value={activeIndex}
-              onChange={(e) => setActiveIndex(Number(e.target.value))}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                backgroundColor: '#ffffff',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#1e293b',
-                cursor: 'pointer',
-                fontFamily: 'Georgia, serif'
-              }}
-            >
-              {allParts.map((p, idx) => (
-                <option key={p.crmOrderId} value={idx}>
-                  {idx === 0 ? `Part #1 (Primary) - ${p.orderPart || 'No Description'}` : `Part #${idx + 1} - ${p.orderPart || 'No Description'}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      {allParts.length === 1 ? (
+        // Single part: normal card style
+        <div style={{ padding: '4px' }}>
+          {renderPartFields(allParts[0])}
+        </div>
+      ) : (
+        // Multiple parts: collapsible dropdowns per card
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {allParts.map((part, idx) => {
+            const isExpanded = expandedIndices.includes(idx);
+            return (
+              <div
+                key={part.crmOrderId || idx}
+                style={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '10px',
+                  backgroundColor: '#f8fafc',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Collapsible Header */}
+                <div
+                  onClick={() => toggleExpand(idx)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 20px',
+                    backgroundColor: '#f1f5f9',
+                    borderBottom: isExpanded ? '1px solid #cbd5e1' : 'none',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <h4 className="font-semibold text-slate-700 text-sm" style={{ margin: 0 }}>
+                    Part #{idx + 1} {idx === 0 ? '(Primary)' : ''} - {part.orderPart || 'No Description'}
+                  </h4>
+                  <span style={{
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem',
+                    color: '#64748b',
+                    transition: 'transform 0.2s ease',
+                    display: 'inline-block',
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    WebkitTextStroke: '1.2px currentColor'
+                  }}>
+                    ︾
+                  </span>
+                </div>
 
-      {/* Section 1: Specs */}
-      <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>
-        1. Vehicle & Part Specifications
-      </h4>
-      <div className="info-grid" style={{ marginBottom: '28px' }}>
-        <div className="info-group" style={{ gridColumn: 'span 3' }}>
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Year, Make & Model</span>
-          <span className="info-value" style={{ fontFamily: 'Georgia, serif' }}>{activePart.orderMakeModel || '—'}</span>
+                {/* Collapsible Body */}
+                {isExpanded && (
+                  <div style={{ padding: '24px' }}>
+                    {renderPartFields(part)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <div className="info-group" style={{ gridColumn: 'span 2' }}>
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Part Requested</span>
-          <span className="info-value font-bold text-slate-900" style={{ fontFamily: 'Georgia, serif' }}>{activePart.orderPart || '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Dimensions / Specs</span>
-          <span className="info-value" style={{ fontFamily: 'Georgia, serif' }}>{activePart.orderPartSize || '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Quoted Miles & Warranty</span>
-          <span className="info-value font-mono">{activePart.orderQuotedMilesAndWarranty || '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Vendor Miles & Warranty</span>
-          <span className="info-value font-mono">{activePart.orderVendorMilesAndWarranty || '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>VIN Number</span>
-          <span className="info-value font-mono uppercase">{activePart.orderVin || '—'}</span>
-        </div>
-      </div>
-
-      {/* Section 2: Part Sourcing & Status */}
-      <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-        2. Part Sourcing & Status
-      </h4>
-      <div className="info-grid">
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Supplier</span>
-          <span className="info-value" style={{ fontFamily: 'Georgia, serif' }}>{activePart.vendor?.vendorName || activePart.orderVendorName || 'Unassigned'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Buying Price (Cost)</span>
-          <span className="info-value font-mono" style={{ fontWeight: '600' }}>{activePart.orderVendorPrice ? `$${parseFloat(activePart.orderVendorPrice).toFixed(2)}` : '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Backend Executive</span>
-          <span className="info-value" style={{ fontFamily: 'Georgia, serif' }}>{activePart.backendExecutive?.nickname || activePart.backendExecutive?.name || activePart.orderBackendExecutiveName || 'Unassigned'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Part Found By</span>
-          <span className="info-value" style={{ fontFamily: 'Georgia, serif' }}>{activePart.partFoundBy?.nickname || activePart.partFoundBy?.name || activePart.orderPartFoundByName || '—'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Sale Status</span>
-          <span className="info-value font-semibold" style={{ fontFamily: 'Georgia, serif' }}>{saleStatuses[activePart.saleStatus || '1']}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Workflow Status</span>
-          <span className="info-value font-semibold" style={{ fontFamily: 'Georgia, serif' }}>{activePart.orderCurrentStatus || 'Pending Booking'}</span>
-        </div>
-        <div className="info-group">
-          <span className="info-label" style={{ fontFamily: 'Georgia, serif' }}>Vendor Feedback</span>
-          <span className="info-value font-semibold" style={{ fontFamily: 'Georgia, serif', color: activePart.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>
-            {activePart.orderVendorFeedback || 'Positive'}
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

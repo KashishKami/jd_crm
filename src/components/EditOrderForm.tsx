@@ -432,7 +432,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           payload.customerName = customerName;
           payload.customerPhone = customerPhone;
           payload.customerAlternatePhone1 = customerAlternatePhone1 || null;
-          payload.customerAlternatePhone2 = customerAlternatePhone2 || null;
+          payload.customerAlternatePhone2 = null;
           payload.customerEmail = customerEmail;
           payload.customerBillingAddress = customerBillingAddress;
           payload.customerShippingAddress = customerShippingAddress;
@@ -520,16 +520,16 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       )}
 
       <div className="order-form-layout">
-        <form id="edit-order-form" onSubmit={handleSubmit} noValidate className="form-card form-card-georgia order-form-main form-compact">
+        <form id="edit-order-form" onSubmit={handleSubmit} noValidate className="order-form-main flex flex-col gap-6 form-compact">
           <style dangerouslySetInnerHTML={{ __html: `
-            .form-card-georgia, .form-card-georgia input, .form-card-georgia select, .form-card-georgia textarea {
+            .order-form-main, .order-form-main *, .order-form-main input, .order-form-main select, .order-form-main textarea {
               font-family: Georgia, serif !important;
             }
           `}} />
 
           {/* Section 1: Customer Info */}
-          <div className="form-section">
-            <h3 className="form-section-title">Customer Information</h3>
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Customer Information</h3>
             <div className="form-grid-3col">
               <div className="form-group form-span-3">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -557,34 +557,28 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   </div>
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Phone Number</label>
-                <input
-                  type="text"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="form-input font-mono"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="customerAlternatePhone1" className="form-label">Alternate Phone 1</label>
-                <input
-                  type="text"
-                  id="customerAlternatePhone1"
-                  value={customerAlternatePhone1}
-                  onChange={(e) => setCustomerAlternatePhone1(e.target.value)}
-                  className="form-input font-mono"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="customerAlternatePhone2" className="form-label">Alternate Phone 2</label>
-                <input
-                  type="text"
-                  id="customerAlternatePhone2"
-                  value={customerAlternatePhone2}
-                  onChange={(e) => setCustomerAlternatePhone2(e.target.value)}
-                  className="form-input font-mono"
-                />
+              <div className="form-group form-span-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Phone Number</label>
+                    <input
+                      type="text"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="form-input font-mono"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="customerAlternatePhone1" className="form-label">Alternate Number</label>
+                    <input
+                      type="text"
+                      id="customerAlternatePhone1"
+                      value={customerAlternatePhone1}
+                      onChange={(e) => setCustomerAlternatePhone1(e.target.value)}
+                      className="form-input font-mono"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="form-group form-span-3">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -611,9 +605,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             </div>
           </div>
 
-          {/* Section 2: Payment Cards */}
-          <div className="form-section">
-            <h3 className="form-section-title">Payment Card Details</h3>
+          {/* Section 2: Payment Card Details */}
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Payment Card Details</h3>
             {cards.map((card: any, index: number) => (
               <div key={index} style={{ position: 'relative', border: '1px solid #cbd5e1', borderRadius: '10px', marginBottom: '24px', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
@@ -836,9 +830,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             </button>
           </div>
 
-          {/* Section 3: Parts */}
-          <div className="form-section">
-            <h3 className="form-section-title">Part Information</h3>
+          {/* Section 3: Part Information */}
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Part Information</h3>
             {parts.map((part, index) => {
               const isExpanded = expandedPartIndices.includes(index);
               return (
@@ -863,7 +857,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                     }}
                   >
                     <h4 className="font-semibold text-slate-700 text-sm" style={{ margin: 0 }}>
-                      Part #{index + 1} {isExpanded ? '▼' : '▶'}
+                      Part #{index + 1}
                     </h4>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} onClick={(e) => e.stopPropagation()}>
@@ -890,6 +884,18 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                           Remove Part
                         </button>
                       )}
+
+                      <span style={{
+                        fontWeight: 'bold',
+                        fontSize: '1.1rem',
+                        color: '#64748b',
+                        transition: 'transform 0.2s ease',
+                        display: 'inline-block',
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        WebkitTextStroke: '1.2px currentColor'
+                      }}>
+                        ︾
+                      </span>
                     </div>
                   </div>
 
@@ -917,7 +923,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
 
                           <div className="form-group">
                             <label htmlFor={index === 0 ? "orderPart" : `orderPart-${index}`} className="form-label">
-                              Part Description <span className="text-red-500">*</span>
+                              Part <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -1032,8 +1038,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                         </div>
 
                         {/* Row 4: Supplier, Vendor Buying Price, Vendor Feedback */}
-                        <div className="part-card-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
-                          <div className="form-group">
+                        <div className="part-card-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', width: '100%', minWidth: 0 }}>
+                          <div className="form-group" style={{ minWidth: 0 }}>
                             <label htmlFor={index === 0 ? "orderVendorId" : `orderVendorId-${index}`} className="form-label">
                               Supplier (Vendor)
                             </label>
@@ -1047,6 +1053,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                                 setParts(newParts);
                               }}
                               className="form-select"
+                              style={{ width: '100%', minWidth: 0 }}
                             >
                               <option value="">Select or Type</option>
                               {vendors.map((v) => (
@@ -1055,7 +1062,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                             </select>
                           </div>
 
-                          <div className="form-group">
+                          <div className="form-group" style={{ minWidth: 0 }}>
                             <label htmlFor={index === 0 ? "orderVendorPrice" : `orderVendorPrice-${index}`} className="form-label">
                               Vendor Buying Price <span className="text-red-500">*</span>
                             </label>
@@ -1071,10 +1078,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                               }}
                               required
                               className="form-input font-mono"
+                              style={{ width: '100%', minWidth: 0 }}
                             />
                           </div>
 
-                          <div className="form-group">
+                          <div className="form-group" style={{ minWidth: 0 }}>
                             <label htmlFor={`orderVendorFeedback-${index}`} className="form-label">
                               Vendor Feedback
                             </label>
@@ -1087,6 +1095,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                                 setParts(newParts);
                               }}
                               className="form-select"
+                              style={{ width: '100%', minWidth: 0 }}
                             >
                               <option value="Positive">Positive</option>
                               <option value="Negative">Negative</option>
@@ -1170,8 +1179,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <span className="font-bold text-slate-800 text-sm">Total Buying Price: ${combinedCost.toFixed(2)}</span>
           </div>          {/* Section 4: Pricing and Status */}
-          <div className="form-section">
-            <h3 className="form-section-title">Pricing and Status</h3>
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Pricing and Status</h3>
             <div className="form-grid-3col">
               {/* Row 1 */}
               <div className="form-group">
@@ -1270,8 +1279,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           </div>
 
           {/* Section 5: Team allocation and other details */}
-          <div className="form-section">
-            <h3 className="form-section-title">Team allocation and other details</h3>
+          <div className="profile-main" style={{ padding: '24px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Team allocation and other details</h3>
             
             {/* Row 1: Sale Agent, Sales Verifier, Backend Executive, QA Verifier */}
             <div className="form-grid-4col" style={{ marginBottom: '20px' }}>

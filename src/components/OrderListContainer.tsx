@@ -204,10 +204,10 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
 
   // Page entrance animation
   useEffect(() => {
-    if (containerRef.current) {
+    if (status === 'authenticated' && containerRef.current) {
       fadeInPage(containerRef.current);
     }
-  }, []);
+  }, [status]);
 
   if (status === 'loading') {
     return (

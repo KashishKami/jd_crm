@@ -65,12 +65,12 @@ export default function CustomerList() {
 
   // Page entrance animation
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (status !== 'authenticated' || !containerRef.current) return;
     const ctx = gsap.context(() => {
       fadeInPage(containerRef.current!);
     });
     return () => ctx.revert();
-  }, []);
+  }, [status]);
 
   // Stagger table rows when customer data loads
   useEffect(() => {

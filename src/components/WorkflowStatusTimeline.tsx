@@ -91,17 +91,27 @@ export default function WorkflowStatusTimeline({ history, partsList }: WorkflowS
               {statesList.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: '16px', position: 'relative' }}>
                   {/* Vertical line and node */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '20px', flexShrink: 0 }}>
-                    {/* Top segment of line */}
-                    <div style={{
-                      width: '2px',
-                      backgroundColor: '#e2e8f0',
-                      flex: 1,
-                      visibility: idx === 0 ? 'hidden' : 'visible'
-                    }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '20px', flexShrink: 0, position: 'relative' }}>
+                    {/* Line */}
+                    {statesList.length > 1 && (
+                      <div style={{
+                        position: 'absolute',
+                        width: '2px',
+                        backgroundColor: '#e2e8f0',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        top: idx === 0 ? '18px' : '0px',
+                        bottom: idx === statesList.length - 1 ? 'auto' : '0px',
+                        height: idx === statesList.length - 1 ? '18px' : 'auto',
+                      }} />
+                    )}
                     
                     {/* Dot */}
                     <div style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '18px',
+                      transform: 'translate(-50%, -50%)',
                       width: idx === statesList.length - 1 ? '16px' : '10px',
                       height: idx === statesList.length - 1 ? '16px' : '10px',
                       borderRadius: '50%',
@@ -109,16 +119,6 @@ export default function WorkflowStatusTimeline({ history, partsList }: WorkflowS
                       border: idx === statesList.length - 1 ? '3px solid #ffffff' : 'none',
                       boxShadow: idx === statesList.length - 1 ? '0 0 0 2px #15803d' : 'none',
                       zIndex: 2,
-                      marginTop: idx === statesList.length - 1 ? '-8px' : '-5px',
-                      marginBottom: idx === statesList.length - 1 ? '-8px' : '-5px',
-                    }} />
-                    
-                    {/* Bottom segment of line */}
-                    <div style={{
-                      width: '2px',
-                      backgroundColor: '#e2e8f0',
-                      flex: 1,
-                      visibility: idx === statesList.length - 1 ? 'hidden' : 'visible'
                     }} />
                   </div>
 

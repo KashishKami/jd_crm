@@ -5602,3 +5602,25 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Timezone Offset Conversion Fix**: Rewrote the `convertEstToUtc` utility function in [src/lib/date.ts](file:///src/lib/date.ts) to be completely independent of the client browser's or server's local timezone setting. This resolved a bug where users submitting status changes from timezones other than UTC (like `Asia/Kolkata`) had their selected EST date/times shifted in the database, causing chronological timeline logs to sort incorrectly.
   - **Verification**: Ran `npx tsc --noEmit` and confirmed zero compilation errors. Verified that the timeline test suites pass 100% green. Verified that `convertEstToUtc` produces correct UTC values for New York times.
 
+### Session 62 — July 10, 2026
+  **UI Layout Unification (Georgia Font), Section Cards Overhaul, Alternate Phone Optimization, Buying/Vendor Table, Feedback Cutoff, Chevron & Closed Default Polish & ESLint Warning Fix**
+  - **Georgia Font Standardization**: Configured all user interface layouts, labels, inputs, textareas, and select elements across the Order Details page, Add Order form, and Edit Order form to strictly render in the **Georgia** font.
+  - **Section Cards Overhaul**: Broke down all major form headings and groupings on the Add and Edit Order forms into clean, isolated card containers (`.profile-main`) to match the dashboard's modular layout.
+  - **Deal Summary Resizing**: Resized the right-side cards / Deal Summary panel to scale down fluidly with screen width, ensuring all fields remain visible without overflowing.
+  - **Alternate Phone & Row Layout Optimization**:
+    - Removed `Alternate Number 2` from the forms, keeping only a single renamed `Alternate Number` field.
+    - Set the main Phone Number and Alternate Number fields to take exactly equal space (`1fr 1fr` columns) in the customer information row in both add/edit forms and details views.
+    - If the alternate number is empty in the details view, it is hidden entirely; if present, it displays dynamically as `Alternate Number` (removing trailing digits).
+    - Added clear divider lines between detail data rows to group information cleanly.
+  - **Sourcing Price Dropdown Tables**: Redesigned both the Buying Price dropdown and Vendor Price dropdown menus to use a clear tabular format: `Vendor; part(s) and then Price`. Multiple parts are concatenated using `+` symbols.
+  - **Part Description Rename**: Renamed "Part Description" to "Part" across all components, layout forms ([AddOrderForm.tsx](file:///src/components/AddOrderForm.tsx), [EditOrderForm.tsx](file:///src/components/EditOrderForm.tsx)), details views ([PartSpecsViewer.tsx](file:///src/components/PartSpecsViewer.tsx)), and Vitest test query assertions.
+  - **Equal-Width Specs Rows**: Updated all layout rows inside the Part Information specs card ([PartSpecsViewer.tsx](file:///src/components/PartSpecsViewer.tsx)) to a strict `1fr 1fr` grid, allocating equal width per column. Added `wordBreak: 'break-word'` styling to ensure clean text wrapping.
+  - **Feedback Cutoff Fix**: Fixed layout issues where the `Vendor Feedback` select dropdown was pushed off-screen. Set explicit `width: '100%'`, `maxWidth: '100%'`, and `minWidth: 0` rules on grid rows and input elements in the sourcing section.
+  - **Chevron Arrow Polish & Thicker Stroke**: Replaced all details/collapsible caret symbols (`▼` / `▶`) with the vertical double chevron down symbol (`︾`). Positions are moved to the far right side of each collapsible header block. Styled the chevrons with `WebkitTextStroke: '1.2px currentColor'` and `-webkit-text-stroke: 1.2px currentColor` to make them look beautifully thick and bold.
+  - **Chevron Flipping Behavior**: Configured the double chevrons to point down (`︾`) when closed/collapsed, and flip pointing up (`︽` / rotated 180deg) when open/expanded.
+  - **Default Closed Dropdowns**: Removed the default `open` attribute from all main details page collapsible cards (Staff Allocations, Sale Status History, Order Workflow History), and initialized `expandedIndices` in `PartSpecsViewer.tsx` to an empty array so all sections start closed by default.
+  - **Comment Cards Redesign & ESLint Fix**:
+    - Formatted all order comments/notes into clean visual cards.
+    - Resolved the `set-state-in-effect` rule violation in `CommentTimeline.tsx` by removing the sync `useEffect` hook and deriving components' active indices via a clean relative-offset state.
+  - **Verification**: Verified that `npm run lint` and `npm run typecheck` pass successfully with 0 warnings. Verified that all unit, integration, and UI test suites compiles and pass completely.
+
