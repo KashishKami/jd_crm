@@ -54,7 +54,7 @@ export interface DashboardMetrics {
   netSales?: ComparisonMetricValue;
   topPerformers?: PerformerRow[];
   bottomPerformers?: PerformerRow[];
-  recentOrders?: RecentOrderRow[];
+  recentOrders?: any[];
   attendanceSummary?: AttendanceSummary;
   pendingCounts?: PendingCounts;
 }

@@ -229,6 +229,40 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
 }
 
 export async function getRecentOrders(limit = 10) {
+  const childOrdersSelect = {
+    crmOrderId: true,
+    orderMakeModel: true,
+    orderVin: true,
+    orderPart: true,
+    saleStatus: true,
+    orderCurrentStatus: true,
+    orderAmountCharged: true,
+    orderRefundAmount: true,
+    orderLiftgateNeeded: true,
+    orderVendorId: true,
+    orderVendorName: true,
+    orderVendorPrice: true,
+    orderBackendExecutiveId: true,
+    orderBackendExecutiveName: true,
+    orderPartFoundById: true,
+    orderPartFoundByName: true,
+    orderVendorFeedback: true,
+    backendExecutive: {
+      select: {
+        uid: true,
+        nickname: true,
+        name: true,
+      }
+    },
+    partFoundBy: {
+      select: {
+        uid: true,
+        nickname: true,
+        name: true,
+      }
+    }
+  };
+
   return await prisma.crmOrders.findMany({
     where: {
       parentOrderId: null,
@@ -238,24 +272,20 @@ export async function getRecentOrders(limit = 10) {
       { orderCreatedDate: 'desc' },
       { crmOrderId: 'desc' },
     ],
-    select: {
-      crmOrderId: true,
-      orderDate: true,
-      orderAmountCharged: true,
-      orderRefundAmount: true,
-      saleStatus: true,
-      orderSalesAgentName: true,
-      orderSalesAgentId: true,
-      customer: {
-        select: {
-          customerName: true,
+    include: {
+      customer: true,
+      vendor: true,
+      gateway: true,
+      salesAgent: {
+        include: {
+          team: true,
         },
       },
-      salesAgent: {
-        select: {
-          name: true,
-          nickname: true,
-        },
+      verifier: true,
+      salesVerifier: true,
+      backendExecutive: true,
+      childOrders: {
+        select: childOrdersSelect,
       },
     },
   });

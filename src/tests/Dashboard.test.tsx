@@ -347,7 +347,7 @@ describe('Dashboard Component Unit Tests', () => {
 
       // Check RecentOrdersTable renders finalMargin $350.00 instead of raw markup $500
       expect(screen.queryByText('$500')).toBeNull();
-      expect(screen.getByText('$350')).toBeDefined();
+      expect(screen.getByText(/Final Margin: \$350\.00/)).toBeDefined();
 
       // Check Refunds and Chargebacks card links point to /pending/returned
       const refundsLink = screen.getByText('Refunds This Month').closest('a');

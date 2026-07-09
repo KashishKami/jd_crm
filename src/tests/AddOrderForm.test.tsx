@@ -498,12 +498,12 @@ describe('AddOrderForm Unit Tests', () => {
         const addPartBtn = screen.getByRole('button', { name: /add another part/i });
         fireEvent.click(addPartBtn);
 
-        // Verify Part 2 has auto-filled values
+        // Verify Part 2 does not copy Year, Make & Model or VIN (they should be empty)
         const vins = screen.getAllByLabelText(/vin/i) as HTMLInputElement[];
-        expect(vins[1].value).toBe('VIN123456789');
+        expect(vins[1].value).toBe('');
 
         const makeModels = screen.getAllByLabelText(/year, make & model/i) as HTMLInputElement[];
-        expect(makeModels[1].value).toBe('2026 Tesla Model S');
+        expect(makeModels[1].value).toBe('');
       });
 
       it('should calculate combined deal summary Margins and Pitched', async () => {

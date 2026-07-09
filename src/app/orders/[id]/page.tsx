@@ -458,7 +458,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {/* Sidebar Info */}
-        <div className="order-form-sidebar flex flex-col gap-6">
+        <div className="order-form-sidebar order-details-sidebar flex flex-col gap-6">
           {/* Card 1: Deal Status Summary */}
           <div style={{
             fontFamily: 'Georgia, serif',

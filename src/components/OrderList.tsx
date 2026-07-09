@@ -8,6 +8,12 @@ import { staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
 import { formatDateDDMMYYYY } from '../lib/date';
 
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return '—';
+  if (phone.length < 4) return '***';
+  return `***-***-${phone.slice(-4)}`;
+}
+
 interface OrderListProps {
   orders: Array<{
     crmOrderId: number;
@@ -23,7 +29,8 @@ interface OrderListProps {
     orderLiftgateNeeded?: string | null;
     customer: {
       customerName: string;
-      customerEmail: string;
+      customerEmail?: string;
+      customerPhone?: string | null;
     };
     orderSalesAgentId?: number | null;
     salesAgent?: {
@@ -73,14 +80,16 @@ interface OrderListProps {
       } | null;
     }>;
   }>;
+  hideWrapper?: boolean;
 }
 
-export default function OrderList({ orders }: OrderListProps) {
+export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const { data: session } = useSession();
   const permissions = session?.user?.userPermissions || '';
   const canView = hasPermission(permissions, 'orders:view');
   const canCreate = hasPermission(permissions, 'orders:create');
   const canEdit = hasPermission(permissions, 'orders:edit');
+  const canViewPhone = hasPermission(permissions, 'customers:view-phone');
 
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
 
@@ -152,20 +161,19 @@ export default function OrderList({ orders }: OrderListProps) {
     }
   };
 
-  return (
-    <div className="table-wrapper card-with-accent">
-      <div className="card-table-container" style={{ padding: 0 }}>
+  const tableContent = (
+    <div className="card-table-container" style={{ padding: 0 }}>
         <table className="custom-table table-responsive">
           <thead>
             <tr>
               <th>Order ID</th>
+              <th>Order Date</th>
               <th>Customer</th>
               <th>Vehicle & Part</th>
               <th>Agents</th>
               <th>Sale Status</th>
               <th>Pricing</th>
               <th>Workflow Status</th>
-              <th>Order Date</th>
               <th className="actions-cell">Actions</th>
             </tr>
           </thead>
@@ -183,13 +191,16 @@ export default function OrderList({ orders }: OrderListProps) {
                       #{order.crmOrderId}
                     </span>
                   </td>
+                  <td className="text-slate-500 font-normal" style={{ fontSize: '0.82em' }}>
+                    {formatDate(order.orderDate)}
+                  </td>
                   <td>
                     <div>
                       <div className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
                         {order.customer.customerName}
                       </div>
                       <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
-                        {order.customer.customerEmail}
+                        {canViewPhone ? order.customer.customerPhone || '—' : maskPhone(order.customer.customerPhone)}
                       </div>
                     </div>
                   </td>
@@ -343,9 +354,6 @@ export default function OrderList({ orders }: OrderListProps) {
                       ))}
                     </div>
                   </td>
-                  <td className="text-slate-500 font-normal" style={{ fontSize: '0.82em' }}>
-                    {formatDate(order.orderDate)}
-                  </td>
                   <td className="actions-cell">
                     <div className="action-buttons">
                       {isDisabled ? (
@@ -374,6 +382,15 @@ export default function OrderList({ orders }: OrderListProps) {
           </tbody>
         </table>
       </div>
+  );
+
+  if (hideWrapper) {
+    return tableContent;
+  }
+
+  return (
+    <div className="table-wrapper card-with-accent">
+      {tableContent}
     </div>
   );
 }

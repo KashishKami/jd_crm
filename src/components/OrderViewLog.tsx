@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OrderViewEntry } from '../types/orderView';
 import { formatDateTimeDDMMYYYY } from '../lib/date';
+import { useLenis } from './LenisProvider';
 
 interface OrderViewLogProps {
   entries: OrderViewEntry[];
@@ -10,6 +11,16 @@ interface OrderViewLogProps {
 
 export default function OrderViewLog({ entries }: OrderViewLogProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { lenis } = useLenis();
+
+  useEffect(() => {
+    if (lenis) {
+      const timer = setTimeout(() => {
+        lenis.resize();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded, lenis]);
 
   // Sort descending by viewedAt (recent first)
   const sortedEntries = [...entries].sort(

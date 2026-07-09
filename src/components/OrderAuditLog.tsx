@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatDateTimeDDMMYYYY } from '../lib/date';
+import { useLenis } from './LenisProvider';
 
 interface AuditEntry {
   id: number;
@@ -69,6 +70,16 @@ const fieldLabels: Record<string, string> = {
 
 export default function OrderAuditLog({ entries }: OrderAuditLogProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { lenis } = useLenis();
+
+  useEffect(() => {
+    if (lenis) {
+      const timer = setTimeout(() => {
+        lenis.resize();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded, lenis]);
 
   const getFieldLabel = (fieldName: string) => {
     return (

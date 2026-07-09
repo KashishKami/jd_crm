@@ -176,8 +176,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
     setParts([
       ...parts,
       {
-        orderMakeModel: parts[0]?.orderMakeModel || '',
-        orderVin: parts[0]?.orderVin || '',
+        orderMakeModel: '',
+        orderVin: '',
         orderPart: '',
         orderPartSize: '',
         orderQuotedMilesAndWarranty: '',

@@ -2768,42 +2768,7 @@ Card details entered in raw text are prone to input errors. Masks must format di
 
 ---
 
-### W-1905 — Recent Orders: Add Customer Phone, Edit Button, and Vendor Name
-
-**Root cause / Goal:**
-The dashboard's recent orders table lacks telephone contacts, vendor associations, or direct editing shortcuts, slowing down coordinator triage.
-
-**Adjustment for Phase 17:**
-The margin column in the Recent Orders table must continue to display the `finalMargin` (`orderMarkup - orderRefundAmount`) rather than raw `orderMarkup`.
-
-**Approach:**
-- Include phone and vendor name in dashboard metric selects. Add columns and direct edit links to table.
-
----
-
-- [ ] **RED — Integration (`src/tests/dashboard.test.ts`):**
-  - [ ] Test: Recent orders payload contains customer phone, vendor name, and `orderRefundAmount` to support `finalMargin` calculations.
-  - [ ] **Run — confirm RED.**
-
-- [ ] **GREEN — Backend (Repository → Service):**
-  - [ ] [Repository] Fetch phone and vendor details in dashboard select.
-  - [ ] [Service] Map variables into dashboard payload.
-  - [ ] Run integration test — **confirm GREEN**.
-
-- [ ] **RED — Unit (`src/tests/RecentOrdersTable.test.tsx`):**
-  - [ ] Test: Renders column values for Phone and Vendor. Verify edit button links to `/orders/:id/edit`.
-  - [ ] **Run — confirm RED.**
-
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Expand table layout in `RecentOrdersTable.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
-
-- [ ] **Verification chain:**
-  - [ ] Agent views dashboard recent table → inspects phone numbers and vendor names directly → clicks "Edit" → navigates directly to edit order → ✅ Done.
-
----
-
-### W-1906 — Order Page Table: Replace Email with Customer Phone Number
+### W-1905 — Order Page Table: Replace Email with Customer Phone Number
 
 **Root cause / Goal:**
 Sales agents rarely email customers from list pages; telephone numbers are much more useful for active operations.
@@ -2826,7 +2791,7 @@ Sales agents rarely email customers from list pages; telephone numbers are much 
 
 ---
 
-### W-1907 — Date and Customer ID as First Columns in All Lists
+### W-1906 — Date and Customer ID as First Columns in All Lists
 
 **Root cause / Goal:**
 Standardize list tables to ensure a cohesive look. Date and Customer ID must consistently occupy column positions 1 and 2.
@@ -2852,7 +2817,7 @@ Ensure this column ordering applies to all pipeline tabs in `OrderListContainer.
 
 ---
 
-### W-1908 — Time in Pending State Column (Except Completed/Returned Orders)
+### W-1907 — Time in Pending State Column (Except Completed/Returned Orders)
 
 **Root cause / Goal:**
 Operations must track how long orders sit in pending states to address bottlenecks. Terminal states (Completed and Returned) do not require aging indicators.
@@ -2882,7 +2847,7 @@ The "Returned Orders" status represents a terminal state (full reversal of sale)
 
 ---
 
-### W-1909 — Blacklisted Vendor Alert Red Flag in Dropdowns
+### W-1908 — Blacklisted Vendor Alert Red Flag in Dropdowns
 
 **Root cause / Goal:**
 Ensure agents do not accidentally place new orders with blacklisted suppliers. Dropdown listings should display clear warnings for blacklisted vendors.
@@ -5640,5 +5605,15 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Delete Button Visibility**:
     - Conditionally rendered the `<DeleteOrderButton />` on the details page only if the user holds the `orders:delete` permission.
   - **Verification**: Verified all test suites run and pass 100% green in the user's terminal: `npx vitest run src/tests/orders.test.ts` (87/87 passed) and `npx vitest run src/tests/dashboard.test.ts` (24/24 passed). All type checks and ESLint checks are fully green.
+
+### Session 64 — July 10, 2026
+  **Order Date Column Relocation, Customer Phone Visibility Permissions, Dashboard Table Unification & Sidebar Scroll Layout Adjustments**
+  - **Order Date Column Relocation**: Reorganized the column order in [OrderList.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderList.tsx) so that the `Order Date` column appears right after the `Order ID` column (column positions 1 and 2), aligning column headers and row cells correctly.
+  - **Customer Phone & Permissions Check**: Replaced the customer email below their name with their primary phone number (no alternative numbers). Checked the `customers:view-phone` permission; if the user lacks it, the phone number is dynamically masked as `***-***-XXXX` to prevent accidental info leakage.
+  - **Dashboard Recent Orders Table Unification**: Refactored the dashboard API service and query repository (`getRecentOrders`) to fetch all related entities (customer, vendor, gateway, salesAgent, verifier, salesVerifier, backendExecutive, and childOrders) just like the main pipeline orders query. Reused the `OrderList` component inside [RecentOrdersTable.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/dashboard/RecentOrdersTable.tsx) with `hideWrapper={true}` to ensure identical column look and feel, and normalized legacy flat data structures (e.g. from tests) to avoid crashes.
+  - **Sidebar Scroll Layout Adjustments**: Kept `.order-form-sidebar` position as `sticky` for the Add/Edit order intake forms, and created a new `.order-details-sidebar` override class set to `position: relative` to ensure the side cards scroll naturally only on the Order Details view page ([page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/orders/%5Bid%5D/page.tsx)). Configured the expand/collapse states of the [OrderViewLog](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderViewLog.tsx) (Access History) and [OrderAuditLog](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderAuditLog.tsx) (Change History) cards to trigger `lenis.resize()` to correctly recalculate page dimensions and scroll behaviors.
+  - **New Part Copy Field Fix**: Changed the add part logic in both [AddOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/AddOrderForm.tsx) and [EditOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditOrderForm.tsx) to initialize `orderMakeModel` and `orderVin` fields to empty strings rather than copying them from the parent/first part.
+  - **Test Suite Alignments**: Aligned unit tests in `AddOrderForm.test.tsx` to expect blank fields on new parts and updated `Dashboard.test.tsx` to match the `Final Margin: $350.00` output layout.
+  - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
 
 

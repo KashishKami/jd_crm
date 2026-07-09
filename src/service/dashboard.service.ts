@@ -173,18 +173,7 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'recentOrders',
       dashboardRepository.getRecentOrders().then((rawOrders) =>
-        rawOrders.map((o) => ({
-          crmOrderId: o.crmOrderId,
-          customerName: o.customer ? (o.customer.customerName || 'Unknown Customer') : 'Unknown Customer',
-          salesAgentName: o.salesAgent
-            ? (o.salesAgent.nickname || o.salesAgent.name)
-            : (o.orderSalesAgentName || 'Unknown Agent'),
-          saleStatus: o.saleStatus,
-          orderAmountCharged: o.orderAmountCharged,
-          orderRefundAmount: o.orderRefundAmount,
-          orderDate: o.orderDate ? o.orderDate.toISOString().split('T')[0] : '',
-          orderSalesAgentId: o.orderSalesAgentId,
-        }))
+        JSON.parse(JSON.stringify(rawOrders))
       ),
     ]);
   }

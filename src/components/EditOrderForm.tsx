@@ -271,13 +271,13 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       ...parts,
       {
         crmOrderId: Math.random(), // Temporary local ID
-        orderMakeModel: parentPart.orderMakeModel || '',
+        orderMakeModel: '',
         orderPart: '',
         orderPartSize: '',
         orderQuotedMilesAndWarranty: '',
         orderVendorMilesAndWarranty: '',
         orderChecklist: 'No',
-        orderVin: parentPart.orderVin || '',
+        orderVin: '',
         orderShippingType: 'Residential',
         orderTrackingNumber: '',
         orderDeliveryStatus: '',

@@ -1540,6 +1540,11 @@
   z-index: 10;
 }
 
+.order-details-sidebar {
+  position: relative !important;
+  top: auto !important;
+}
+
 @media (max-width: 1024px) {
   .order-form-layout {
     flex-direction: column;
