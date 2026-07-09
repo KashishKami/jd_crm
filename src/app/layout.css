@@ -1134,4 +1134,27 @@ html, .app-container {
   }
 }
 
+/* Special 15% margin override for specific pages */
+@media (min-width: 768px) {
+  .main-content.special-margin-page {
+    padding-left: 15% !important;
+    padding-right: 15% !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content.special-margin-page {
+    padding-left: 15% !important;
+    padding-right: 15% !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  .main-content.special-margin-page {
+    padding-left: 15% !important;
+    padding-right: 15% !important;
+  }
+}
+
+
 

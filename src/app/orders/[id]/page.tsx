@@ -105,6 +105,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
+  if (order.parentOrderId !== null) {
+    redirect(`/orders/${order.parentOrderId}`);
+  }
+
   // Fire-and-forget: log the view event in the database
   const orderRepo = await import('../../../repository/order.repository');
   orderRepo.logOrderView(
@@ -320,23 +324,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           {/* Section 3: Comments & Timeline */}
           <OrderCommentsSection orderId={order.crmOrderId} />
 
-          {canViewSaleHistory && (
-            <div className="profile-main" style={{ padding: '24px' }}>
-              <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
-                Sale Status History
-              </h3>
-              <SaleStatusTimeline history={saleHistory} />
-            </div>
-          )}
 
-          {canViewWorkflowHistory && (
-            <div className="profile-main" style={{ padding: '24px' }}>
-              <h3 className="form-section-title" style={{ marginBottom: '20px' }}>
-                Order Workflow History
-              </h3>
-              <WorkflowStatusTimeline history={workflowHistory} />
-            </div>
-          )}
 
           {canViewLog && (
             <OrderViewLog entries={viewLogs} />
@@ -443,6 +431,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${chargedAmount.toFixed(2)}</span>
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Refund Amount</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#f87171' }}>${refundAmount.toFixed(2)}</span>
+              </div>
+
               <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em', color: '#94a3b8', textTransform: 'uppercase' }}>Balance Due</span>
                 <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ffffff' }}>${balanceDue.toFixed(2)}</span>
@@ -460,6 +453,24 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
             </div>
           </div>
+
+          {canViewSaleHistory && (
+            <div className="profile-main" style={{ padding: '24px' }}>
+              <h3 className="form-section-title" style={{ marginBottom: '16px' }}>
+                Sale Status History
+              </h3>
+              <SaleStatusTimeline history={saleHistory} />
+            </div>
+          )}
+
+          {canViewWorkflowHistory && (
+            <div className="profile-main" style={{ padding: '24px' }}>
+              <h3 className="form-section-title" style={{ marginBottom: '16px' }}>
+                Order Workflow History
+              </h3>
+              <WorkflowStatusTimeline history={workflowHistory} partsList={allParts} />
+            </div>
+          )}
 
           {/* Allocations info */}
           <div className="profile-main" style={{ padding: '24px' }}>
@@ -530,18 +541,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                 <span className="info-label">Sales Status</span>
-                <span className="info-value" style={{ fontWeight: '600' }}>{(() => {
-                  const statuses = new Set<string>();
-                  const parentStatus = saleStatuses[order.saleStatus || '1'];
-                  if (parentStatus) statuses.add(parentStatus);
-                  if (order.childOrders) {
-                    for (const child of order.childOrders) {
-                      const childStatus = saleStatuses[child.saleStatus || '1'];
-                      if (childStatus) statuses.add(childStatus);
-                    }
-                  }
-                  return statuses.size > 0 ? Array.from(statuses).join(', ') : 'Unassigned';
-                })()}</span>
+                <span className="info-value" style={{ fontWeight: '600' }}>
+                  {saleStatuses[order.saleStatus || '1'] || 'Unassigned'}
+                </span>
               </div>
               <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
                 <span className="info-label">Vendor Feedback</span>

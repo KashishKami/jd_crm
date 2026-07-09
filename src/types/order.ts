@@ -23,6 +23,7 @@ export interface DealGlobalFields {
   orderAmountCharged?: string | null;
   orderRefundAmount?: string | null;
   orderBackendExecutiveId?: number | null;
+  saleStatus?: string | null;
 }
 
 export interface OrderCreateInput extends DealGlobalFields {
@@ -169,7 +170,6 @@ export interface OrderPartInput {
   orderVendorName?: string | null;
   orderBackendExecutiveId?: number | null;
   orderPartFoundById?: number | null;
-  saleStatus?: string;
   orderCurrentStatus?: string | null;
   orderVendorFeedback?: string;
   orderMakeModel?: string | null;

@@ -1,5 +1,4 @@
 import React from 'react';
-import { formatDateTimeDDMMYYYY } from '../lib/date';
 
 interface WorkflowHistoryEntry {
   id: number;
@@ -11,136 +10,133 @@ interface WorkflowHistoryEntry {
   changedAt: string | Date;
 }
 
-interface WorkflowStatusTimelineProps {
-  history: WorkflowHistoryEntry[];
+interface PartInfo {
+  crmOrderId: number;
+  orderPart: string | null;
+  orderCurrentStatus: string | null;
 }
 
-export default function WorkflowStatusTimeline({ history }: WorkflowStatusTimelineProps) {
-  const getWorkflowBadgeStyle = (status: string) => {
-    switch (status) {
-      case 'Pending Booking':
-        return { backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #dbeafe' };
-      case 'Pending Shipment':
-        return { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5' };
-      case 'Pending Delivery':
-        return { backgroundColor: '#faf5ff', color: '#6b21a8', border: '1px solid #f3e8ff' };
-      case 'Pending Feedback':
-        return { backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #dcfce7' };
-      case 'Completed Orders':
-        return { backgroundColor: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' };
-      default:
-        return { backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' };
-    }
+interface WorkflowStatusTimelineProps {
+  history: WorkflowHistoryEntry[];
+  partsList?: PartInfo[];
+}
+
+export default function WorkflowStatusTimeline({ history, partsList }: WorkflowStatusTimelineProps) {
+  const formatTimelineDate = (dateVal: string | Date) => {
+    const d = new Date(dateVal);
+    const day = d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
+    const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/New_York' });
+    const timeStr = d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/New_York'
+    }).toLowerCase();
+    return `${day} ${month}, ${timeStr}`;
   };
 
-  if (!history || history.length === 0) {
+  const activePartsList = partsList || Array.from(new Set(history.map(h => h.orderId))).map(orderId => {
+    const lastEntry = [...history].reverse().find(h => h.orderId === orderId);
+    return {
+      crmOrderId: orderId,
+      orderPart: `Part (ID: ${orderId})`,
+      orderCurrentStatus: lastEntry ? lastEntry.newValue : 'Pending Booking'
+    };
+  });
+
+  if (activePartsList.length === 0) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+      <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '0.85rem' }}>
         No workflow status changes recorded.
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '8px' }}>
-      {history.map((entry, idx) => (
-        <div 
-          key={entry.id} 
-          style={{ 
-            display: 'flex', 
-            gap: '16px', 
-            position: 'relative',
-            paddingBottom: idx !== history.length - 1 ? '16px' : '0'
-          }}
-        >
-          {/* Timeline Connector Line */}
-          {idx !== history.length - 1 && (
-            <div 
-              style={{
-                position: 'absolute',
-                left: '20px',
-                top: '40px',
-                bottom: '0',
-                width: '2px',
-                borderLeft: '2px dashed #cbd5e1',
-                zIndex: 0
-              }}
-            />
-          )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {activePartsList.map((part) => {
+        const partHistory = history.filter(h => h.orderId === part.crmOrderId);
+        
+        const statesList: Array<{ state: string; changedBy: string; changedAt: string | Date | null }> = [];
+        if (partHistory.length > 0) {
+          if (partHistory[0].oldValue) {
+            statesList.push({
+              state: partHistory[0].oldValue,
+              changedBy: 'System',
+              changedAt: null,
+            });
+          }
+          partHistory.forEach((entry) => {
+            statesList.push({
+              state: entry.newValue,
+              changedBy: entry.changedByName,
+              changedAt: entry.changedAt,
+            });
+          });
+        } else {
+          statesList.push({
+            state: part.orderCurrentStatus || 'Pending Booking',
+            changedBy: 'System',
+            changedAt: null,
+          });
+        }
 
-          {/* Timeline Node Icon */}
-          <div 
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #10b981, #047857)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
-              zIndex: 1,
-              flexShrink: 0,
-              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-            }}
-          >
-            {entry.changedByName ? entry.changedByName[0].toUpperCase() : 'A'}
-          </div>
-
-          {/* Content Card (Glassmorphism design) */}
-          <div 
-            className="form-card" 
-            style={{ 
-              flex: 1, 
-              padding: '16px', 
-              margin: 0, 
-              backgroundColor: 'rgba(255, 255, 255, 0.7)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(226, 232, 240, 0.8)',
-              borderRadius: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}
-          >
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-              {entry.oldValue && (
-                <>
-                  <span 
-                    style={{ 
-                      padding: '2px 8px', 
-                      borderRadius: '6px', 
-                      fontSize: '0.8rem', 
-                      fontWeight: '600',
-                      ...getWorkflowBadgeStyle(entry.oldValue)
-                    }}
-                  >
-                    {entry.oldValue}
-                  </span>
-                  <span style={{ color: '#64748b', fontSize: '0.9rem' }}>→</span>
-                </>
-              )}
-              <span 
-                style={{ 
-                  padding: '2px 8px', 
-                  borderRadius: '6px', 
-                  fontSize: '0.8rem', 
-                  fontWeight: '600',
-                  ...getWorkflowBadgeStyle(entry.newValue)
-                }}
-              >
-                {entry.newValue}
-              </span>
+        return (
+          <div key={part.crmOrderId} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '12px', borderLeft: '3px solid #cbd5e1', paddingLeft: '8px' }}>
+              {part.orderPart || 'Unassigned Part'}
             </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '4px' }}>
+              {statesList.map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '16px', position: 'relative' }}>
+                  {/* Vertical line and node */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '20px', flexShrink: 0 }}>
+                    {/* Top segment of line */}
+                    <div style={{
+                      width: '2px',
+                      backgroundColor: '#e2e8f0',
+                      flex: 1,
+                      visibility: idx === 0 ? 'hidden' : 'visible'
+                    }} />
+                    
+                    {/* Dot */}
+                    <div style={{
+                      width: idx === statesList.length - 1 ? '16px' : '10px',
+                      height: idx === statesList.length - 1 ? '16px' : '10px',
+                      borderRadius: '50%',
+                      backgroundColor: idx === statesList.length - 1 ? '#15803d' : '#e2e8f0',
+                      border: idx === statesList.length - 1 ? '3px solid #ffffff' : 'none',
+                      boxShadow: idx === statesList.length - 1 ? '0 0 0 2px #15803d' : 'none',
+                      zIndex: 2,
+                      marginTop: idx === statesList.length - 1 ? '-8px' : '-5px',
+                      marginBottom: idx === statesList.length - 1 ? '-8px' : '-5px',
+                    }} />
+                    
+                    {/* Bottom segment of line */}
+                    <div style={{
+                      width: '2px',
+                      backgroundColor: '#e2e8f0',
+                      flex: 1,
+                      visibility: idx === statesList.length - 1 ? 'hidden' : 'visible'
+                    }} />
+                  </div>
 
-            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-              Changed by <strong style={{ color: '#1e293b' }}>{entry.changedByName}</strong> on {formatDateTimeDDMMYYYY(entry.changedAt)}
+                  {/* Details */}
+                  <div style={{ paddingBottom: '20px', flex: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#1e293b', lineHeight: '1.2' }}>
+                      {item.state}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      By <span>{item.changedBy}</span> {item.changedAt ? `at ${formatTimelineDate(item.changedAt)}` : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

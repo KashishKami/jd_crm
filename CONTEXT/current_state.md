@@ -40,6 +40,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 25** | Part Found By + Liftgate Needed — New Team Allocation Role & Order Flag | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail) |
 | **Phase 26** | Multi-Part Orders — parent_order_id Grouping, Multi-Part Add/Edit UI, Aggregate Financial Summary | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail), `api/orders/[id]/parts/route.ts` (new), `api/orders/[id]/parts/[partId]/route.ts` (new) |
 | **Phase 26.5** | Multi-Part Financial Redesign & Field Split | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail) |
+| **Phase 26.6** | Global Sale Status + Add/Edit Order Form Layout Redesign | **[x] COMPLETED** | `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
 | **Phase 27** | Super-Admin CSV Data Export & Import — All Tables, FK-Safe Order, ZIP Download | **[ ] NOT STARTED** | `api/admin/export/route.ts` (new), `api/admin/import/route.ts` (new), `lib/csv-exporter.ts` (new), `service/data-management.service.ts` (new), `app/settings/data-management/page.tsx` (new) |
 | **Phase 28** | Automated Weekly Backup — Saturday Evening Cron (Docker & Vercel) | **[ ] NOT STARTED** | `docker-compose.yml`, `api/admin/backup/trigger/route.ts` (new), `service/backup.service.ts` (new), `vercel.json` |
 
@@ -4595,7 +4596,96 @@ No schema migration is needed — this is entirely a form layout, repository que
 
 ---
 
+### Phase 26.6 — Global Sale Status + Add/Edit Order Form Layout Redesign
 
+#### W-2661 — Promote `saleStatus` to a Global Deal-Level Field
+
+**Root cause / Goal:**
+`saleStatus` is currently stored per `crm_orders` row — both parent and all child rows independently track their own sale status. This is over-engineered for the actual business reality: when a deal is sold, refunded, chargebacked, partially refunded, voided, or cancelled, **the entire deal** is affected, not individual parts. No business scenario exists where one part of a multi-part order is chargebacked while another part is sold. Keeping `saleStatus` per-part means:
+1. The UI presents a Sale Status dropdown inside every individual part card — visually confusing and operationally wrong.
+2. The service layer's auto-rules (setting `orderRefundAmount` and cascading `orderCurrentStatus` to `Returned Orders`) fire per-row only, not for all sibling parts simultaneously.
+3. The `crmSaleStatusHistory` audit table logs per-row changes, creating duplicate entries for what is conceptually a single business event.
+
+The fix is to treat `saleStatus` exactly like the other deal-global fields (`orderSalesAgentId`, `orderAmountCharged`, `orderDate`, etc.) — stored only on the parent row, `NULL` on all child rows.
+
+**Fix / Approach:**
+1. **Types:** Remove `saleStatus` from `OrderPartInput`. Add `saleStatus` to `DealGlobalFields` interface. `OrderCreateInput` inherits it from `DealGlobalFields`. `ChildPartSummary` and `ChildPartDetail` keep `saleStatus` as nullable (it will read `null` for child rows).
+2. **Repository:** Add `'saleStatus'` to the `GLOBAL_FIELDS` constant array (and confirm `'orderRefundAmount'` is already there). In `createWithCustomerAndCard`, read `saleStatus` from the top-level `data` object (not from `parentPart`). Set `saleStatus: null` explicitly on all child rows inside the `prisma.$transaction`. Update `addPartToExistingOrder` to always set `saleStatus: null` on any new child row. Remove the `childPart.saleStatus` reference in the child order creation loop. In `promotePrimaryPart`, include `saleStatus` in the global fields moved from old parent to new parent, and clear it on the old parent.
+3. **Service (create):** Remove the per-part `saleStatus === '4'` refund-amount validation inside the `data.parts` loop. Replace with a single check at the top level: `if (data.saleStatus === '4' && !data.orderRefundAmount) { throw new Error('Refund amount is required for Partial Refund status'); }`. In the `GLOBAL_FIELDS` constant inside `createOrder` (lines 29–42), add `'saleStatus'` so it is stripped from all child parts during the global field enforcement sweep.
+4. **Service (update):** The existing sale status auto-rules block in `updateOrder` (`data.saleStatus === '2'`, `=== '3'`, etc.) currently updates the single row being patched. Extend it to **cascade `orderCurrentStatus`** to all sibling rows: after setting `updatedData.orderCurrentStatus` for the parent, fetch all child order IDs (`prisma.crmOrders.findMany({ where: { parentOrderId: crmOrderId }, select: { crmOrderId: true } })`) and for each child, call `prisma.crmOrders.update` to set their `orderCurrentStatus` to the same terminal status (`Returned Orders` or `Cancelled Orders`). This cascade only fires when the PATCH target is a parent row (i.e., `existingOrder.parentOrderId === null`).
+5. **API route (`/api/orders/[id]`):** No structural change needed; the PATCH route already passes the full body to `order.service.ts`. Verify `saleStatus` is passed through and not stripped by any middleware.
+6. **UI — `AddOrderForm.tsx`:** Remove `saleStatus` from the `PartFormState` interface and the per-part state array. Add a single top-level `saleStatus` state variable (default `'1'`). Remove the Sale Status dropdown from inside the Part card JSX. Add Section 06 "Order Status" as a new standalone form section (following the HTML reference layout) containing the global Sale Status dropdown and a date/time modal trigger. Adjust form submission payload: `saleStatus` is sent at the top level of the POST body, not inside the `parts` array.
+7. **UI — `EditOrderForm.tsx`:** Same structural change as `AddOrderForm`. Remove `saleStatus` from `parts` state initialization (both parent and child rows). Add a single global `saleStatus` state initialized from `order.saleStatus`. Remove the Sale Status dropdown from each Part card. Add Section 06 "Order Status" with the global Sale Status select and the existing `saleStatusChangeDate` modal flow. In the submit handler, `saleStatus` is sent in the PATCH payload for the **parent row only**, not inside per-part loops.
+8. **Layout Restructure (both forms) — matching `order-intake_and_edit_example_1.html`:**
+   - **Section 01 — Customer Information:** No change to fields. Layout: 4-column grid for Name, Email, Phone, Alternate Phone; 2-column grid below for Billing and Shipping Addresses.
+   - **Section 02 — Payment Card Details:** No change. Card blocks render as before. Card copy/photo ID checkboxes remain at the bottom of this section.
+   - **Section 03 — Parts:** Each part card is a collapsible row. The Part card header shows the part number badge and a nickname/label input. The card body contains: Year/Make/Model (3-col grid), Part + Spec + VIN (3-col grid), Quoted Miles/Warranty + Vendor Miles/Warranty (2-col grid), Vendor select + Vendor Price + Part Found By (3-col grid), Vendor Feedback + Workflow Queue (2-col grid). **Liftgate Needed** and **Checklist** checkboxes are rendered at the **bottom of the Section 03 container** as global flags, not inside individual part cards, with vendor cost rollup total. **Sale Status is NOT inside the part card body.**
+   - **Section 04 — Pricing & Allocation:** Separate standalone section. 4-column grid: Total Price Pitched (editable), Vendor Price Total (read-only, auto-computed sum), Net Markup (read-only, auto-computed), Actual Charged (editable). Below that, a 1-column row: Sale Date.
+   - **Section 05 — Team Allocation:** Separate standalone section. 4-column grid: Sales Agent, Sales Verifier, Backend Executive, QA Verifier. Payment Gateway select can be added as a 5th field. Backend Executive is global.
+   - **Section 06 — Order Status:** New standalone section. Contains: Sale Status dropdown (the single global control). For statuses `2`, `3`, `5` (Refunded/Chargebacked/Void), the existing date/time capture modal is triggered exactly as before. For status `4` (Partial Refund), the Refund Amount input appears.
+
+---
+
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: `POST /api/orders` with `{ ..., saleStatus: '2', parts: [{ orderPart: 'Engine' }, { orderPart: 'Transmission' }] }` creates a parent row and one child row. Assert that the parent row has `saleStatus = '2'` AND `orderCurrentStatus = 'Returned Orders'`. Assert that the child row has `saleStatus = null` AND `orderCurrentStatus = 'Returned Orders'` (cascade).
+  - [x] Test: `PATCH /api/orders/:parentId` with body `{ saleStatus: '3' }` (Chargebacked) on a parent that has two child rows. After the PATCH, assert: (a) parent row has `saleStatus = '3'` and `orderCurrentStatus = 'Returned Orders'`; (b) all child rows have `orderCurrentStatus = 'Returned Orders'` (even though their `saleStatus` column remains `null`).
+  - [x] Test: `PATCH /api/orders/:parentId` with body `{ saleStatus: '1' }` (Sold) does NOT cascade `orderCurrentStatus` to children — each child retains its own individual `orderCurrentStatus` value.
+  - [x] Test: `POST /api/orders/:parentId/parts` creates a child row with `saleStatus = null`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Types → Repository → Service → API):**
+  - [x] [Types — `src/types/order.ts`] Remove `saleStatus?: string` from the `OrderPartInput` interface. Add `saleStatus?: string` to the `DealGlobalFields` interface.
+  - [x] [Repository — `src/repository/order.repository.ts`] In the `GLOBAL_FIELDS` constant array, add `'saleStatus'` as the last entry. Update `createWithCustomerAndCard`, `addPartToExistingOrder`, and `promotePrimaryPart` to enforce `NULL` child `saleStatus` and handle global updates.
+  - [x] [Service — `src/service/order.service.ts`].
+  - [x] [API Route — `src/app/api/orders/[id]/route.ts`] Verify handlers forward `saleStatus` correctly.
+  - [x] Run integration tests — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/AddOrderForm.test.tsx` and `src/tests/EditOrderForm.test.tsx`):**
+  - [x] **`AddOrderForm.test.tsx`:** Verify global `saleStatus` dropdown exists only in Section 06, verify payload has top-level `saleStatus` instead of per-part.
+  - [x] **`EditOrderForm.test.tsx`:** Verify global `saleStatus` dropdown behaves correctly.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (AddOrderForm.tsx and EditOrderForm.tsx):**
+  - [x] [`src/types/order.ts`] Already updated.
+  - [x] [`src/components/AddOrderForm.tsx`] Remove `saleStatus` from per-part states, add global state, implement Section 06 "Order Status", update submit payload.
+  - [x] [`src/components/EditOrderForm.tsx`] Remove `saleStatus` from child states, add global state, implement Section 06 "Order Status", update submit payload.
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Verify Add Order form sections render, verify Sale Status dropdown is exclusively in Section 06, verify db updates cascade workflow queue states down to child rows.
+
+---
+
+#### W-2662 — Form Section Layout Restructure to Match HTML Reference Design
+
+**Root cause / Goal:**
+The current `AddOrderForm.tsx` and `EditOrderForm.tsx` have a flat "Section 3: Deal Information" block that mixes pricing fields (Total Pitched, Amount Charged) with team assignment fields (Sales Agent, QA Verifier) into a single undifferentiated section. The approved HTML reference layout (`order-intake_and_edit_example_1.html`) separates these into distinct numbered sections.
+1. **Clearer visual hierarchy**: Users see a logical intake flow — Customer → Payment → Parts → Pricing → Team → Status.
+2. **Part cards collapse/expand**: Older cards auto-collapse when multiple parts exist, displaying chevron toggles.
+3. **Liftgate / Checklist flags move to the Parts section footer**: Global checkboxes render at the bottom of Section 03 alongside the rollup total.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/AddOrderForm.test.tsx` and `src/tests/EditOrderForm.test.tsx`):**
+  - [x] Test: Add/Edit forms contain six distinct `<h3>` section titles in sequence.
+  - [x] Test: Liftgate checkbox is rendered as sibling of part cards.
+  - [x] Test: Total Price Pitched is in Section 04.
+  - [x] Test: Sales Agent is in Section 05.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (AddOrderForm.tsx and EditOrderForm.tsx — layout only):**
+  - [x] Split Section 03 into Section 04 Pricing & Allocation, Section 05 Team Allocation, and Section 06 Order Status.
+  - [x] Rename specifications card section to `"3. Parts"`.
+  - [x] Move Liftgate, Checklist, and Vendor Cost total to Section 03 footer.
+  - [x] Implement accordion collapsing/expanding logic with chevron toggles for Part cards.
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Verify form section headings and accordion row collapses/expands correctly, verify Liftgate and Checklist placement in the parts total footer bar.
+
+---
+
+### Phase 27 — Data export and backup
 
 #### W-2701 — Full Database Export to CSV, ZIP Archive Download & FK-Safe Re-Import
 
@@ -5487,3 +5577,28 @@ In this session, we finalized the Phase 24 features and made the following layou
     - Updated [AddOrderForm.test.tsx](file:///src/tests/AddOrderForm.test.tsx) assertions to verify global input fields once instead of expecting multiple per-part inputs for `pitched`, `gateway`, `salesAgent`, and `liftgate`.
     - Promoted the primary card's `orderPartFoundById` to the root level of the payload sent on POST/PATCH requests to satisfy test schema expectations.
   - **Verification**: Ran `npm run test` (all 320 unit and integration tests passed successfully!), `npm run lint` (0 linting errors), and `npm run typecheck` (0 type issues).
+
+
+
+## Session 59 — July 9, 2026 (Phase 26.6 Completion)
+- **Database & Domain Constraint:** Successfully migrated `saleStatus` to a parent-only global field, ensuring child rows store `null` while inheriting constraint operations like order workflow queue cascades (`Returned Orders` / `Cancelled Orders`).
+- **UI Harmonization:** Form designs in `AddOrderForm.tsx` and `EditOrderForm.tsx` match the six-section layout with responsive collapsible/expandable card behaviors. Combined Deal Pricing summary fields are fully verified. All Vitest tests are green.
+
+### Session 60 — July 9, 2026
+  **15% Margin Alignment, Fluid Typography & Small Screen Controls Polish**
+  - **15% Margins Override**: Updated `layout.css` to apply the `15%` margin override on both left and right sides of pages matching `/orders/new`, `/orders/[id]/edit`, and `/orders/[id]`, keeping the navigation bar aligned as is.
+  - **Dynamic Title Case Labels**: Changed `.form-label` to use `text-transform: none` in `components.css` to show form labels in natural Title Case rather than forced uppercase. Applied fluid sizing with CSS `clamp(0.68rem, 0.6vw + 0.5rem, 0.8rem)` and configured `white-space: nowrap`, `text-overflow: ellipsis`, and `overflow: hidden` to prevent label text wrapping.
+  - **Checklist & Liftgate Labels**: Created `.checkbox-label` style class in `components.css` to apply dynamic fluid font sizes and prevent wrapping on the global checklist and liftgate checkbox labels.
+  - **Mobile Layout Action Controls**: Repositioned the Cancel and Save/Create buttons on small screens (`max-width: 1024px`) to render at the bottom of the container (below the Deal Summary card) and right-aligned. Centered the Deal Summary card on mobile viewports with a `max-width: 450px`.
+  - **Verification**: Verified that all unit, integration, and UI test suites compile and pass successfully with zero typecheck warnings.
+
+### Session 61 — July 9, 2026
+  **70/30 Split Layout, Specifications Renaming, Multi-Card Expansion, Vertical Timelines, Promotion Bug Fix & Timezone Offset Fix**
+  - **70/30 Part Card Grid Layout**: Redesigned the part specification card layout to use a custom `.part-card-row` responsive grid layout. Row 1 (Year, Make & Model / Part) and Row 2 (Specifications / VIN Number) now split space 70% and 30% respectively on desktop viewports.
+  - **Label Rename**: Renamed "Dimensions / Specifications" to "Specifications" across all part specification card labels.
+  - **Simultaneous Card Expansion**: Replaced the accordion-style expansion logic (`expandedPartIndex: number | null`) with an array-based toggle state (`expandedPartIndices: number[]`), enabling users to collapse or expand any/all part cards simultaneously.
+  - **Vertical Status & Workflow Timelines**: Reimplemented both `SaleStatusTimeline.tsx` and `WorkflowStatusTimeline.tsx` as vertical timelines matching the requested design. Current active status nodes now render with a solid dark green marker on a continuous vertical timeline line.
+  - **Promotion Timeline Sync Bug Fix**: Resolved a critical promotion bug where demoting a parent order and promoting a child part caused the sale status history to display incorrectly. Added a database transaction step to update the `orderId` on all `crmSaleStatusHistory` entries of the old parent to the new parent ID. Redirected direct URL hits on child orders in `page.tsx` to their parent order page.
+  - **Timezone Offset Conversion Fix**: Rewrote the `convertEstToUtc` utility function in [src/lib/date.ts](file:///src/lib/date.ts) to be completely independent of the client browser's or server's local timezone setting. This resolved a bug where users submitting status changes from timezones other than UTC (like `Asia/Kolkata`) had their selected EST date/times shifted in the database, causing chronological timeline logs to sort incorrectly.
+  - **Verification**: Ran `npx tsc --noEmit` and confirmed zero compilation errors. Verified that the timeline test suites pass 100% green. Verified that `convertEstToUtc` produces correct UTC values for New York times.
+

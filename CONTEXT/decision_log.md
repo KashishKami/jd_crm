@@ -861,9 +861,61 @@ All database changes are **purely additive** — new nullable columns only. No e
 - The status column of the Order List displays a stacked list of badges showing the status of each part (e.g., "Part 1 — Engine [Pending Shipment]", "Part 2 — Transmission [Pending Booking]").
 - Filtering orders by Workflow Status or Sale Status uses an `OR` condition in the repository. An order is returned if the parent OR any of its child orders match the filter. This ensures deals appear in any queue where a part requires attention.
 
-#### Consequences
+#### Consequences (D31)
 - No database migrations or schema updates are needed (columns exist; data patterns are changed).
 - Restructures `AddOrderForm` and `EditOrderForm` visual layout and JSON submission structures.
 - Restructures `OrderList` row rendering logic to render all parts' statuses.
 - Modifies repository methods `createWithCustomerAndCard`, `addPartToExistingOrder`, and `findAll` (OR search clauses).
 - Modifies the Financial Summary sidebar on the Order Detail page to group and display vendor transactions dynamically.
+
+---
+
+## Decision 32 — Sale Status Promoted to Deal-Level Global Field (Phase 26.6)
+
+**Date:** 2026-07-09
+**Status:** Accepted
+
+#### Context
+
+During the Phase 26.5 review, an evaluation was conducted on whether `saleStatus` should be stored per `crm_orders` row (the current per-part model) or at the deal level (stored only on the parent row, `NULL` on child rows). The original multi-part architecture in Phase 26 and 26.5 kept `saleStatus` as a per-part field, with each row in `crm_orders` tracking its own sale outcome independently.
+
+The business team confirmed the following rules unambiguously:
+1. When a deal is chargebacked, the **entire deal** is chargebacked — not just one part.
+2. When a deal is refunded, the **entire deal** is refunded — not one part of it.
+3. When a deal is partially refunded, the **entire deal** has a partial refund — not a single part among multiple.
+4. When a deal is voided or cancelled, **all parts** of that deal are voided or cancelled together.
+
+No real-world business scenario exists where one part of a multi-part order has `saleStatus = 'Chargebacked'` while another part of the same order has `saleStatus = 'Sold'`.
+
+#### Decision
+
+**D32.1 — `saleStatus` is added to `GLOBAL_FIELDS`**
+`saleStatus` is reclassified as a deal-global field. It is stored only on the parent `crm_orders` row. All child order rows receive `saleStatus = NULL` on creation and on any subsequent update. The `GLOBAL_FIELDS` constant in `order.repository.ts` is updated to include `'saleStatus'`.
+
+**D32.2 — Child rows receive `orderCurrentStatus` cascade on terminal status changes**
+The service layer (`order.service.ts`) is updated so that when the parent order's `saleStatus` is changed to a terminal outcome (`'2'` Refunded, `'3'` Chargebacked, `'5'` Void, `'6'` Cancelled), all child order rows associated with that parent automatically have their `orderCurrentStatus` updated to match (`'Returned Orders'` or `'Cancelled Orders'`). This cascade fires only when the PATCH target is a parent row (`existingOrder.parentOrderId === null`). No cascade fires when `saleStatus` changes to `'1'` (Sold) — child workflow queue statuses remain at their individual operational stages.
+
+**D32.3 — No `saleStatus` history entries are written for child rows during cascade**
+The `crmSaleStatusHistory` table records only the parent row's status change (written by `createSaleStatusHistoryEntry` as before). Child rows receive their `orderCurrentStatus` cascade silently — no separate history entry is written for them, because the cascade is a mechanical side effect of the parent's status change, not an independent user action.
+
+**D32.4 — UI changes: single global Sale Status control in Section 06**
+Both `AddOrderForm.tsx` and `EditOrderForm.tsx` are restructured to present a single, global Sale Status dropdown in a new dedicated "Section 06 — Order Status." The Sale Status dropdown is removed from inside individual Part cards. The date/time capture modal (for Refunded/Chargebacked/Void statuses) remains but is now triggered by the global control. The Refund Amount input (for Partial Refund status `'4'`) is moved to Section 06 alongside the Sale Status dropdown.
+
+**D32.5 — Form section layout is restructured to match the approved HTML reference**
+The previous "3. Deal Information" section (which mixed pricing and team fields) is split into two separate sections:
+- **Section 04 — Pricing & Allocation**: Total Price Pitched, Vendor Price Total (read-only), Net Markup (read-only), Actual Charged, Sale Date.
+- **Section 05 — Team Allocation**: Sales Agent, Sales Verifier, Backend Executive, QA Verifier, Payment Gateway.
+
+The full six-section form layout (matching `order-intake_and_edit_example_1.html`) is:
+01 Customer Information → 02 Payment Card Details → 03 Parts → 04 Pricing & Allocation → 05 Team Allocation → 06 Order Status
+
+**D32.6 — Part cards gain collapsible behavior**
+When a second part is added to a deal, all previously existing part cards auto-collapse to their header (showing only the Part number badge and nickname input). Each card header has a chevron toggle for manual expansion/collapse. This reduces visual noise on multi-part forms.
+
+#### Consequences (D32)
+- No database schema migration required. The `sale_status` column on `crm_orders` already exists and is already `NULL`-able; child rows will simply always have `NULL` from this point forward.
+- Existing data in the database: child rows that previously had non-`NULL` `saleStatus` values will retain those values. A one-time data migration script (optional) can null them out for consistency, but the application logic is not dependent on them being `NULL` after this change — the UI reads `saleStatus` only from the parent row going forward.
+- Dashboard SQL queries are not affected. They already filter by `order_date` which is `NULL` on child rows, so child rows were never counted in financial aggregations regardless of their `saleStatus` value.
+- `crmSaleStatusHistory` entries are written only for parent rows. Any existing history entries on child order IDs remain in the database but are no longer added to.
+- `OrderList` and `OrderListContainer` sale status filtering logic: the `OR` filter (checking parent OR child `saleStatus`) in `findAll()` is simplified. Since child rows always have `saleStatus = NULL`, filtering by `saleStatus` now matches only parent rows. The `OR` clause in the repository can be simplified to a direct `where: { saleStatus: filters.saleStatus }` without the nested child join.
+- Files changed: `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, and their respective test files.

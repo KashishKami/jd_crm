@@ -33,6 +33,14 @@ export default function LayoutShell({ children }: LayoutShellProps) {
 
   const isPublicRoute = pathname === '/login' || pathname === '/access-denied';
 
+  const pathParts = pathname.split('/');
+  const isSpecialMarginPage = 
+    pathname === '/orders/new' ||
+    (pathParts.length === 4 && pathParts[1] === 'orders' && pathParts[3] === 'edit') ||
+    (pathParts.length === 3 && pathParts[1] === 'orders' && pathParts[2] !== 'new');
+
+  const mainClassName = `main-content${isSpecialMarginPage ? ' special-margin-page' : ''}`;
+
   if (isPublicRoute) {
     return <>{children}</>;
   }
@@ -50,7 +58,7 @@ export default function LayoutShell({ children }: LayoutShellProps) {
         />
       )}
 
-      <main ref={mainRef} className="main-content" style={{ position: 'relative' }}>
+      <main ref={mainRef} className={mainClassName} style={{ position: 'relative' }}>
         {children}
       </main>
     </div>

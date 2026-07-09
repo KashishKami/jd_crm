@@ -67,6 +67,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
             cards: true,
           },
         },
+        childOrders: true,
       },
     }),
     prisma.crmVendors.findMany({

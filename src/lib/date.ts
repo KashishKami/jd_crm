@@ -74,12 +74,12 @@ export function utcDateToLocalDateString(dateVal: string | Date | null | undefin
 
 export function convertEstToUtc(dateStr: string, timeStr: string): string {
   // dateStr is YYYY-MM-DD, timeStr is HH:MM (EST/EDT)
-  // Create Date object representing the time in New York
   const [y, m, d] = dateStr.split('-').map(Number);
   const [hr, min] = timeStr.split(':').map(Number);
   
-  // Use Intl to find the offset at the specific time
-  const date = new Date(y, m - 1, d, hr, min);
+  // Interpret input date/time as UTC first
+  const utcInterpret = new Date(Date.UTC(y, m - 1, d, hr, min));
+  
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -90,20 +90,21 @@ export function convertEstToUtc(dateStr: string, timeStr: string): string {
     hour12: false
   });
   
-  const parts = formatter.formatToParts(date);
+  const parts = formatter.formatToParts(utcInterpret);
   const findPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
   
-  // Calculate difference between local interpretation and target zone
-  const utcDate = Date.UTC(
+  // Reconstruct interpreted time in New York
+  const nyInterpret = new Date(Date.UTC(
     findPart('year'),
     findPart('month') - 1,
     findPart('day'),
     findPart('hour'),
     findPart('minute')
-  );
+  ));
   
-  const offset = date.getTime() - utcDate;
-  return new Date(date.getTime() + offset).toISOString();
+  // The difference gives the timezone offset in New York
+  const offset = utcInterpret.getTime() - nyInterpret.getTime();
+  return new Date(utcInterpret.getTime() + offset).toISOString();
 }
 
 export function getCurrentEstDateTime(): { date: string; time: string } {

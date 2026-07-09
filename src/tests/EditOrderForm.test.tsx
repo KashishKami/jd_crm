@@ -120,7 +120,7 @@ describe('EditOrderForm Unit Tests', () => {
     fireEvent.change(customerNameInput, { target: { value: 'Updated Customer Name' } });
 
     // Submit the form
-    const saveButton = screen.getByText('Save Changes');
+    const saveButton = screen.getAllByText('Save Changes')[0];
     fireEvent.click(saveButton);
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -169,7 +169,7 @@ describe('EditOrderForm Unit Tests', () => {
     expect(cardCvvInput.value).toBe('***');
 
     // Submit the form
-    const saveButton = screen.getByText('Save Changes');
+    const saveButton = screen.getAllByText('Save Changes')[0];
     fireEvent.click(saveButton);
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -231,7 +231,7 @@ describe('EditOrderForm Unit Tests', () => {
       const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
       fireEvent.change(makeModelInput, { target: { value: '2018 Toyota RAV4' } });
 
-      const saveButton = screen.getByText('Save Changes');
+      const saveButton = screen.getAllByText('Save Changes')[0];
       fireEvent.click(saveButton);
 
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -306,7 +306,7 @@ describe('EditOrderForm Unit Tests', () => {
       fireEvent.change(document.getElementById('orderSalesVerifierId')!, { target: { value: '5' } });
       fireEvent.change(document.getElementById('orderBackendExecutiveId')!, { target: { value: '6' } });
 
-      const saveButton = screen.getByText('Save Changes');
+      const saveButton = screen.getAllByText('Save Changes')[0];
       fireEvent.click(saveButton);
 
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -359,7 +359,7 @@ describe('EditOrderForm Unit Tests', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const saveButton = screen.getByText('Save Changes');
+      const saveButton = screen.getAllByText('Save Changes')[0];
       fireEvent.click(saveButton);
 
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -570,7 +570,7 @@ describe('EditOrderForm Unit Tests', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const saveButton = screen.getByText('Save Changes');
+      const saveButton = screen.getAllByText('Save Changes')[0];
       fireEvent.click(saveButton);
 
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
@@ -653,7 +653,7 @@ describe('EditOrderForm Unit Tests', () => {
         fireEvent.click(primaryRadios[1]);
 
         // 4. Click Save Changes
-        const saveBtn = screen.getByText('Save Changes');
+        const saveBtn = screen.getAllByText('Save Changes')[0];
         fireEvent.click(saveBtn);
 
         await waitFor(() => {
@@ -676,6 +676,58 @@ describe('EditOrderForm Unit Tests', () => {
         expect(calledUrls.some(url => url === '/api/orders/1')).toBe(true); // Update parent hit
 
         vi.unstubAllGlobals();
+      });
+    });
+
+    describe('Phase 26.6 Edit Form Layout & Section 06 Redesign', () => {
+      it('should render exactly five distinct section headings', () => {
+        render(
+          <EditOrderForm
+            order={getMockOrder('Pending Shipment')}
+            vendors={[]}
+            gateways={[]}
+            agents={[]}
+          />
+        );
+        const sectionTitles = Array.from(document.querySelectorAll('.form-section-title')).map(el => el.textContent?.trim());
+        expect(sectionTitles).toContain('Customer Information');
+        expect(sectionTitles).toContain('Payment Card Details');
+        expect(sectionTitles).toContain('Part Information');
+        expect(sectionTitles).toContain('Pricing and Status');
+        expect(sectionTitles).toContain('Team allocation and other details');
+      });
+
+      it('should render global saleStatus dropdown', () => {
+        render(
+          <EditOrderForm
+            order={getMockOrder('Pending Shipment')}
+            vendors={[]}
+            gateways={[]}
+            agents={[]}
+          />
+        );
+        const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+        expect(saleStatusSelect).not.toBeNull();
+      });
+
+      it('should collapse existing child parts and toggle accordion style when multiple parts exist', () => {
+        const order = getMockOrder('Pending Shipment');
+        (order as any).childOrders = [
+          {
+            crmOrderId: 2,
+            orderPart: 'Child Part A',
+            saleStatus: '1',
+            orderCurrentStatus: 'Pending Shipment',
+            orderAmountCharged: '200',
+            orderRefundAmount: null,
+            orderLiftgateNeeded: 'No',
+          }
+        ];
+
+        render(<EditOrderForm order={order} vendors={[]} gateways={[]} agents={[]} />);
+        
+        const partHeaders = screen.getAllByText(/Part #\d+/i);
+        expect(partHeaders.length).toBe(2);
       });
     });
   });

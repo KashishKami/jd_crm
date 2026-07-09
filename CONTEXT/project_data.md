@@ -137,16 +137,16 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 ## 4. Database Lookup Enums
 
 ### Sale Status (`sale_status`)
-Stored as a string in the `crm_orders` table. Controls margin accounting and dashboard metrics:
+Stored as a string in the `crm_orders` table. **Deal-level global field** — stored only on the parent row; child rows always have `NULL` (see Decision 32). Controls margin accounting and dashboard metrics:
 
 | Code | Status | Description |
 | :--- | :--- | :--- |
 | **`1`** | `Sold` | Full sale completed — no refund. `finalMargin = orderAmountCharged`. Order belongs in `Completed Orders` workflow queue. |
-| **`2`** | `Refunded` | Full refund issued to customer. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. |
-| **`3`** | `Chargebacked` | Customer disputed charge. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. |
+| **`2`** | `Refunded` | Full refund issued to customer. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order **and all its child parts** to `Returned Orders` workflow queue. |
+| **`3`** | `Chargebacked` | Customer disputed charge. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order **and all its child parts** to `Returned Orders` workflow queue. |
 | **`4`** | `Partial Refund` | Partial amount returned to customer. `orderRefundAmount` = user-entered amount. `finalMargin = orderAmountCharged − orderRefundAmount`. Order remains in `Completed Orders` workflow queue (money was still received). |
-| **`5`** | `Void` | Order was charged but cancelled on the same day — full charge reversed. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order to `Returned Orders` workflow queue. The date/time capture modal opens in the UI. |
-| **`6`** | `Cancelled` | Agent collected all customer information but no charge was ever processed. Customer later cancelled. `orderRefundAmount` cleared to `null`. `orderCurrentStatus` is automatically set to `Cancelled Orders` workflow queue. |
+| **`5`** | `Void` | Order was charged but cancelled on the same day — full charge reversed. `orderRefundAmount` auto-set to full `orderAmountCharged`. `finalMargin = 0`. Auto-moves order **and all its child parts** to `Returned Orders` workflow queue. The date/time capture modal opens in the UI. |
+| **`6`** | `Cancelled` | Agent collected all customer information but no charge was ever processed. Customer later cancelled. `orderRefundAmount` cleared to `null`. `orderCurrentStatus` is automatically set to `Cancelled Orders` for the parent **and all child parts**. |
 | ~~**`2`**~~ | ~~`Prospect`~~ | ~~Potential lead (Deprecated / Removed from DB).~~ |
 | ~~**`3`**~~ | ~~`Call Back`~~ | ~~Requires agent callback (Deprecated / Removed from DB).~~ |
 | ~~**`4`**~~ | ~~`Not Interested`~~ | ~~User declined (Deprecated / Removed from DB).~~ |
@@ -156,6 +156,8 @@ Stored as a string in the `crm_orders` table. Controls margin accounting and das
 | ~~**`8`**~~ | ~~`Chargebacked`~~ | ~~Dispute initiated (Legacy code — replaced by 3).~~ |
 
 > **Key metric:** `finalMargin = orderAmountCharged − orderRefundAmount`. This is the authoritative profitability figure used across all dashboard aggregations, performer rankings, and chart widgets. Raw `orderAmountCharged` alone is never used as a dashboard metric.
+
+> **Multi-part deal note (Decision 32):** `saleStatus` is a deal-level concept. For multi-part orders, the status is stored on the parent row only. Child rows always have `saleStatus = NULL`. When a parent's `saleStatus` changes to a terminal outcome (Refunded `'2'`, Chargebacked `'3'`, Void `'5'`, Cancelled `'6'`), all child rows' `orderCurrentStatus` is automatically cascaded to the corresponding terminal queue (`Returned Orders` or `Cancelled Orders`) by the service layer. Only the parent's `saleStatus` is presented in the UI (a single global dropdown in Section 06 of the Add/Edit Order form).
 
 
 
@@ -168,8 +170,11 @@ Determines which queue the order sits in (from `class/orderClass.php` pending re
 *   `Pending Feedback`: Delivered, awaiting customer/vendor review.
 *   `Pending Resolutions`: Under dispute or issue tracking.
 *   `Completed Orders`: Final successful workflow state. Contains orders with `saleStatus IN ('1', '4')` — Sold and Partial Refund. Both received money.
-*   `Returned Orders`: Terminal failure/reversal workflow state. Contains orders with `saleStatus IN ('2', '3', '5')` — Refunded, Chargebacked, and Void. The full sale was reversed or charged-back. Auto-set by the service layer when `saleStatus` is changed to `'2'`, `'3'`, or `'5'`.
-*   `Cancelled Orders`: Terminal cancelled workflow state. Contains orders with `saleStatus = '6'` — Cancelled. No charge was ever processed. Auto-set by the service layer when `saleStatus` is changed to `'6'`.
+*   `Returned Orders`: Terminal failure/reversal workflow state. Contains orders with `saleStatus IN ('2', '3', '5')` — Refunded, Chargebacked, and Void. The full sale was reversed or charged-back. Auto-set by the service layer when `saleStatus` is changed to `'2'`, `'3'`, or `'5'`. **For multi-part orders, all child parts' `orderCurrentStatus` is cascaded to `Returned Orders` automatically when the parent's `saleStatus` is set to any of these values.**
+*   `Cancelled Orders`: Terminal cancelled workflow state. Contains orders with `saleStatus = '6'` — Cancelled. No charge was ever processed. Auto-set by the service layer when `saleStatus` is changed to `'6'`. **For multi-part orders, all child parts' `orderCurrentStatus` is cascaded to `Cancelled Orders` automatically.**
+
+> **Important:** Child `crm_orders` rows (those with a non-null `parentOrderId`) always have `saleStatus = NULL` (Decision 32). Their `orderCurrentStatus` is their primary operational tracker and is the field used to determine which workflow queue they appear in. When the parent's `saleStatus` changes to a terminal state, all children's `orderCurrentStatus` are updated via a cascade in `order.service.ts`, ensuring the entire deal leaves the active pipeline.
+
 
 ### Attendance Status (`attendance_status_id` / `attendance_status_name`)
 Mapped during daily marking (`mark-attendance.php`):

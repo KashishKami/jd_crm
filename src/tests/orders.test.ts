@@ -3001,14 +3001,14 @@ describe('Order Management Integration Tests', () => {
     });
 
     it('should support "ANY part matches" filtering and return childOrders statuses', async () => {
-      // Create a 2-part order: parent 'Pending Shipment' (Sold='1'), child 'Pending Booking' (Cancelled='5')
+      // Create a 2-part order: parent 'Pending Shipment' (Void='5'), child 'Pending Booking' (saleStatus=null)
       const parent = await prisma.crmOrders.create({
         data: {
           orderCustomerId: testCustomer.customerId,
           orderPart: 'Engine',
           parentOrderId: null,
           orderCurrentStatus: 'Pending Shipment',
-          saleStatus: '1',
+          saleStatus: '5',
         }
       });
       const child = await prisma.crmOrders.create({
@@ -3017,7 +3017,7 @@ describe('Order Management Integration Tests', () => {
           orderPart: 'Transmission',
           parentOrderId: parent.crmOrderId,
           orderCurrentStatus: 'Pending Booking',
-          saleStatus: '5',
+          saleStatus: null,
         }
       });
 
@@ -3078,11 +3078,204 @@ describe('Order Management Integration Tests', () => {
       expect(order.childOrders).toBeDefined();
       expect(order.childOrders.length).toBe(1);
       expect(order.childOrders[0].orderCurrentStatus).toBe('Pending Booking');
-      expect(order.childOrders[0].saleStatus).toBe('5');
+      expect(order.childOrders[0].saleStatus).toBeNull();
 
       // Cleanup
       await prisma.crmOrders.updateMany({ where: { parentOrderId: parent.crmOrderId }, data: { parentOrderId: null } });
       await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, child.crmOrderId] } } });
+    });
+  });
+
+  describe('Phase 26.6 Global saleStatus Integration Tests', () => {
+    it('should create a parent order with saleStatus and child orders with saleStatus = null, cascading Returned Orders status', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:create' },
+      });
+
+      const { POST } = await import('../app/api/orders/route');
+      const payload = {
+        customerName: 'New Phase 26.6 Cust',
+        customerEmail: 'new.buyer@example.com',
+        customerPhone: '1234567890',
+        customerNameOncard: 'New Phase 26.6 Cust',
+        customerCardNumber: '1234567812345678',
+        customerCardExpDate: '12/28',
+        customerCardCvv: '123',
+        orderAmountCharged: '1000',
+        orderTotalPitched: '1200',
+        orderSalesAgentId: testUser.uid,
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderShippingType: 'Residential',
+        saleStatus: '2', // Refunded (Returned Orders)
+        orderDate: new Date().toISOString().split('T')[0],
+        parts: [
+          {
+            orderPart: 'Engine',
+            orderVendorPrice: '300',
+            orderCurrentStatus: 'Pending Booking',
+          },
+          {
+            orderPart: 'Transmission',
+            orderVendorPrice: '200',
+            orderCurrentStatus: 'Pending Booking',
+          }
+        ]
+      };
+
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      const parentId = data.orderId;
+
+      const parentRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: parentId } });
+      const childRows = await prisma.crmOrders.findMany({ where: { parentOrderId: parentId } });
+
+      expect(parentRow!.saleStatus).toBe('2');
+      expect(parentRow!.orderCurrentStatus).toBe('Returned Orders');
+
+      expect(childRows.length).toBe(1);
+      expect(childRows[0].saleStatus).toBeNull();
+      expect(childRows[0].orderCurrentStatus).toBe('Returned Orders');
+
+      // Cleanup
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parentId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parentId, childRows[0].crmOrderId] } } });
+    });
+
+    it('should cascade orderCurrentStatus on parent PATCH with terminal saleStatus', async () => {
+      // Create a 2-part order starting as Sold ('1') in Pending Shipment
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Engine',
+          parentOrderId: null,
+          orderCurrentStatus: 'Pending Shipment',
+          saleStatus: '1',
+        }
+      });
+      const child = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Transmission',
+          parentOrderId: parent.crmOrderId,
+          orderCurrentStatus: 'Pending Shipment',
+          saleStatus: null,
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const patchReq = new Request(`http://localhost/api/orders/${parent.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saleStatus: '3' }), // Chargebacked
+      });
+
+      const patchRes = await PATCH(patchReq, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(patchRes.status).toBe(200);
+
+      const parentRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: parent.crmOrderId } });
+      const childRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: child.crmOrderId } });
+
+      expect(parentRow!.saleStatus).toBe('3');
+      expect(parentRow!.orderCurrentStatus).toBe('Returned Orders');
+      expect(childRow!.orderCurrentStatus).toBe('Returned Orders');
+      expect(childRow!.saleStatus).toBeNull();
+
+      // Cleanup
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parent.crmOrderId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, child.crmOrderId] } } });
+    });
+
+    it('should not cascade status on parent PATCH with non-terminal saleStatus', async () => {
+      // Create a 2-part order: parent Sold ('1') in Pending Shipment, child in Pending Booking
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Engine',
+          parentOrderId: null,
+          orderCurrentStatus: 'Pending Shipment',
+          saleStatus: '1',
+        }
+      });
+      const child = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Transmission',
+          parentOrderId: parent.crmOrderId,
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: null,
+        }
+      });
+
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+      const patchReq = new Request(`http://localhost/api/orders/${parent.crmOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderAmountCharged: '900' }), // Irrelevant patch
+      });
+
+      const patchRes = await PATCH(patchReq, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(patchRes.status).toBe(200);
+
+      const childRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: child.crmOrderId } });
+      expect(childRow!.orderCurrentStatus).toBe('Pending Booking'); // Retained
+
+      // Cleanup
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parent.crmOrderId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, child.crmOrderId] } } });
+    });
+
+    it('should enforce saleStatus = null when adding a child part via parts endpoint', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: { id: String(testUser.uid), name: testUser.name, userPermissions: 'orders:edit' },
+      });
+
+      const parent = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderPart: 'Engine',
+          parentOrderId: null,
+          orderCurrentStatus: 'Pending Shipment',
+          saleStatus: '1',
+        }
+      });
+
+      const { POST: addPartPost } = await import('../app/api/orders/[id]/parts/route');
+      const addPartReq = new Request(`http://localhost/api/orders/${parent.crmOrderId}/parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderPart: 'Alternator',
+          orderVendorPrice: '100',
+          saleStatus: '1', // Attempt to send saleStatus
+        }),
+      });
+
+      const addPartRes = await addPartPost(addPartReq, { params: Promise.resolve({ id: String(parent.crmOrderId) }) });
+      expect(addPartRes.status).toBe(201);
+      const data = await addPartRes.json();
+      const childId = data.partOrderId;
+
+      const childRow = await prisma.crmOrders.findUnique({ where: { crmOrderId: childId } });
+      expect(childRow!.saleStatus).toBeNull();
+
+      // Cleanup
+      await prisma.crmOrders.updateMany({ where: { parentOrderId: parent.crmOrderId }, data: { parentOrderId: null } });
+      await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, childId] } } });
     });
   });
 });

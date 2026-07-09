@@ -45,7 +45,7 @@ describe('AddOrderForm Unit Tests', () => {
     expect(screen.getByLabelText(/part description/i)).toBeDefined();
     expect(screen.getByLabelText(/total price pitched/i)).toBeDefined();
     expect(screen.getByLabelText(/vendor buying price/i)).toBeDefined();
-    expect(screen.getByRole('button', { name: /create order/i })).toBeDefined();
+    expect(screen.getAllByRole('button', { name: /create order/i })[0]).toBeDefined();
   });
 
   it('should auto-populate Sales Agent dropdown with currently logged-in user if they exist in agents list', async () => {
@@ -104,7 +104,7 @@ describe('AddOrderForm Unit Tests', () => {
     fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
-    const submitBtn = screen.getByRole('button', { name: /create order/i });
+    const submitBtn = screen.getAllByRole('button', { name: /create order/i })[0];
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
@@ -154,7 +154,7 @@ describe('AddOrderForm Unit Tests', () => {
       const makeModelInput = document.getElementById('orderMakeModel') as HTMLInputElement;
       fireEvent.change(makeModelInput, { target: { value: '2022 Honda Civic' } });
 
-      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      const submitBtn = screen.getAllByRole('button', { name: /create order/i })[0];
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
@@ -203,7 +203,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(screen.getByLabelText(/total price pitched/i), { target: { value: '800' } });
       fireEvent.change(screen.getByLabelText(/vendor buying price/i), { target: { value: '500' } });
 
-      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      const submitBtn = screen.getAllByRole('button', { name: /create order/i })[0];
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
@@ -284,7 +284,7 @@ describe('AddOrderForm Unit Tests', () => {
       fireEvent.change(document.getElementById('orderSalesVerifierId')!, { target: { value: '5' } });
       fireEvent.change(document.getElementById('orderBackendExecutiveId')!, { target: { value: '6' } });
 
-      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      const submitBtn = screen.getAllByRole('button', { name: /create order/i })[0];
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
@@ -427,7 +427,7 @@ describe('AddOrderForm Unit Tests', () => {
       const liftgateCheckbox = document.getElementById('orderLiftgateNeeded') as HTMLInputElement;
       fireEvent.click(liftgateCheckbox);
 
-      const submitBtn = screen.getByRole('button', { name: /create order/i });
+      const submitBtn = screen.getAllByRole('button', { name: /create order/i })[0];
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
@@ -563,7 +563,7 @@ describe('AddOrderForm Unit Tests', () => {
         fireEvent.click(primaryRadios[1]);
 
         // Submit
-        fireEvent.click(screen.getByRole('button', { name: /create order/i }));
+        fireEvent.click(screen.getAllByRole('button', { name: /create order/i })[0]);
 
         await waitFor(() => {
           expect(fetch).toHaveBeenCalled();
@@ -577,6 +577,35 @@ describe('AddOrderForm Unit Tests', () => {
         // Note: submit logic will reorder parts so primary part is index 0.
         expect(body.parts[0].orderPart).toBe('Brake Pads');
         expect(body.parts[1].orderPart).toBe('Engine');
+      });
+    });
+
+    describe('Phase 26.6 Form Layout & Section 06 Redesign', () => {
+      it('should render exactly five distinct section headings', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const sectionTitles = Array.from(document.querySelectorAll('.form-section-title')).map(el => el.textContent?.trim());
+        expect(sectionTitles).toContain('Customer Information');
+        expect(sectionTitles).toContain('Payment Card Details');
+        expect(sectionTitles).toContain('Part Information');
+        expect(sectionTitles).toContain('Pricing and Status');
+        expect(sectionTitles).toContain('Team allocation and other details');
+      });
+
+      it('should render global saleStatus dropdown', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const saleStatusSelect = document.getElementById('saleStatus') as HTMLSelectElement;
+        expect(saleStatusSelect).not.toBeNull();
+      });
+
+      it('should collapse existing part cards and toggle accordion style when multiple parts exist', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        
+        // Add second part
+        fireEvent.click(screen.getByRole('button', { name: /add another part/i }));
+        
+        // Both part card headers should be visible
+        const partHeaders = screen.getAllByText(/Part #\d+/i);
+        expect(partHeaders.length).toBe(2);
       });
     });
   });

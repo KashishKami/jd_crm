@@ -26,7 +26,8 @@ export const GLOBAL_FIELDS = [
   'orderChecklist',
   'orderTotalPitched',
   'orderAmountCharged',
-  'orderRefundAmount'
+  'orderRefundAmount',
+  'saleStatus'
 ];
 
 export async function createWithCustomerAndCard(
@@ -174,6 +175,8 @@ export async function createWithCustomerAndCard(
     const parentPartFoundByName = parentPart.orderPartFoundById ? userMap.get(parentPart.orderPartFoundById) || null : null;
     const parentVendorName = parentPart.orderVendorId ? vendorMap.get(parentPart.orderVendorId) || null : null;
 
+    const finalSaleStatus = data.saleStatus || parentPart.saleStatus || '1';
+
     const parentOrder = await tx.crmOrders.create({
       data: {
         orderCustomerId: customer.customerId,
@@ -202,13 +205,13 @@ export async function createWithCustomerAndCard(
         orderPartFoundById: parentPart.orderPartFoundById || null,
         orderPartFoundByName: parentPartFoundByName,
         orderLiftgateNeeded: orderLiftgateNeeded,
-        saleStatus: parentPart.saleStatus || '1',
-        orderCurrentStatus: parentPart.orderCurrentStatus
-          ? parentPart.orderCurrentStatus
-          : (parentPart.saleStatus === '2' || parentPart.saleStatus === '3' || parentPart.saleStatus === '5')
-            ? 'Returned Orders'
-            : (parentPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
-        orderRefundAmount: (parentPart.saleStatus === '2' || parentPart.saleStatus === '3' || parentPart.saleStatus === '5')
+        saleStatus: finalSaleStatus,
+        orderCurrentStatus: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
+          ? 'Returned Orders'
+          : finalSaleStatus === '6'
+            ? 'Cancelled Orders'
+            : (parentPart.orderCurrentStatus || (parentPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking')),
+        orderRefundAmount: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
           ? (orderAmountCharged || null)
           : (orderRefundAmountInput || null),
         orderCurrentStatusUpdateDate: new Date(),
@@ -245,12 +248,12 @@ export async function createWithCustomerAndCard(
             orderBackendExecutiveName: childBackendExecutiveName,
             orderPartFoundById: childPart.orderPartFoundById || null,
             orderPartFoundByName: childPartFoundByName,
-            saleStatus: childPart.saleStatus || '1',
-            orderCurrentStatus: childPart.orderCurrentStatus
-              ? childPart.orderCurrentStatus
-              : (childPart.saleStatus === '2' || childPart.saleStatus === '3' || childPart.saleStatus === '5')
-                ? 'Returned Orders'
-                : (childPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+            saleStatus: null,
+            orderCurrentStatus: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
+              ? 'Returned Orders'
+              : finalSaleStatus === '6'
+                ? 'Cancelled Orders'
+                : (childPart.orderCurrentStatus || (childPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking')),
             orderCurrentStatusUpdateDate: new Date(),
             orderVendorFeedback: childPart.orderVendorFeedback || 'Positive',
             orderClientFeedback: 'Positive',
@@ -320,16 +323,6 @@ export async function createWithCustomerAndCard(
       for (let idx = 0; idx < childIds.length; idx++) {
         const cId = childIds[idx];
         const pData = partsToCreate[idx + 1];
-        await tx.crmSaleStatusHistory.create({
-          data: {
-            orderId: cId,
-            oldValue: null,
-            newValue: pData.saleStatus || '1',
-            changedById: actingUser.uid,
-            changedByName: actingUser.nickname || actingUser.name,
-            changedAt: new Date(),
-          },
-        });
         await tx.crmOrderCurrentStatusHistory.create({
           data: {
             orderId: cId,
@@ -388,10 +381,7 @@ export async function findAll(filters: OrderFilters): Promise<any> {
   if (filters.saleStatus) {
     const statuses = filters.saleStatus.includes(',') ? filters.saleStatus.split(',') : [filters.saleStatus];
     andConditions.push({
-      OR: [
-        { saleStatus: { in: statuses } },
-        { childOrders: { some: { saleStatus: { in: statuses } } } }
-      ]
+      saleStatus: { in: statuses }
     });
   }
 
@@ -779,7 +769,7 @@ export async function getAuditLogByOrderId(orderId: number) {
 export async function addPartToExistingOrder(parentOrderId: number, data: any) {
   const parent = await prisma.crmOrders.findUnique({
     where: { crmOrderId: parentOrderId },
-    select: { parentOrderId: true, orderCustomerId: true },
+    select: { parentOrderId: true, orderCustomerId: true, saleStatus: true },
   });
   if (!parent) {
     throw new Error(`Parent order with ID ${parentOrderId} not found`);
@@ -828,12 +818,14 @@ export async function addPartToExistingOrder(parentOrderId: number, data: any) {
       orderBackendExecutiveName: backendExecutiveName,
       orderPartFoundById: childData.orderPartFoundById || null,
       orderPartFoundByName: partFoundByName,
-      saleStatus: childData.saleStatus || '1',
+      saleStatus: null,
       orderCurrentStatus: childData.orderCurrentStatus
         ? childData.orderCurrentStatus
-        : (childData.saleStatus === '2' || childData.saleStatus === '3' || childData.saleStatus === '5')
+        : (parent.saleStatus === '2' || parent.saleStatus === '3' || parent.saleStatus === '5')
           ? 'Returned Orders'
-          : (childData.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
+          : parent.saleStatus === '6'
+            ? 'Cancelled Orders'
+            : (childData.orderVendorId ? 'Pending Shipment' : 'Pending Booking'),
       orderCurrentStatusUpdateDate: new Date(),
       orderVendorFeedback: childData.orderVendorFeedback || 'Positive',
       orderClientFeedback: 'Positive',
@@ -909,6 +901,7 @@ export async function promotePrimaryPart(currentParentId: number, newPrimaryPart
         orderTotalPitched: true,
         orderAmountCharged: true,
         orderRefundAmount: true,
+        saleStatus: true,
       },
     });
 
@@ -944,6 +937,7 @@ export async function promotePrimaryPart(currentParentId: number, newPrimaryPart
         orderTotalPitched: null,
         orderAmountCharged: null,
         orderRefundAmount: null,
+        saleStatus: null,
       },
     });
 
@@ -954,6 +948,12 @@ export async function promotePrimaryPart(currentParentId: number, newPrimaryPart
         crmOrderId: { not: newPrimaryPartId },
       },
       data: { parentOrderId: newPrimaryPartId },
+    });
+
+    // 5. Update crmSaleStatusHistory to point to the new parent
+    await tx.crmSaleStatusHistory.updateMany({
+      where: { orderId: currentParentId },
+      data: { orderId: newPrimaryPartId },
     });
   });
 }

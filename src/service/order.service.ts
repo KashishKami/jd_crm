@@ -14,6 +14,9 @@ export async function createOrder(
   if (!data.customerEmail) {
     throw new Error('Customer email is required');
   }
+  if (data.saleStatus === '4' && !data.orderRefundAmount) {
+    throw new Error('Refund amount is required for Partial Refund status');
+  }
 
   // W-2404: Accept either multi-card array or legacy flat card fields
   const hasCardsArray = Array.isArray(data.cards);
@@ -38,7 +41,8 @@ export async function createOrder(
     'orderTotalPitched',
     'orderAmountCharged',
     'orderRefundAmount',
-    'orderBackendExecutiveId'
+    'orderBackendExecutiveId',
+    'saleStatus'
   ];
 
   if (data.parts && data.parts.length > 0) {
@@ -46,15 +50,12 @@ export async function createOrder(
       if (!part.orderPart) {
         throw new Error('Order vehicle part description is required');
       }
-      if (part.saleStatus === '4' && !part.orderRefundAmount) {
-        throw new Error('Refund amount is required for Partial Refund status');
-      }
     }
 
     // Enforce split of global fields in parts array
     data.parts = data.parts.map((part, index) => {
+      const cleanPart = { ...part };
       if (index === 0) {
-        const cleanPart = { ...part };
         GLOBAL_FIELDS.forEach(f => {
           if ((data as any)[f] !== undefined) {
             (cleanPart as any)[f] = (data as any)[f];
@@ -62,7 +63,6 @@ export async function createOrder(
         });
         return cleanPart;
       } else {
-        const cleanPart = { ...part };
         GLOBAL_FIELDS.forEach(f => {
           delete (cleanPart as any)[f];
         });
@@ -72,9 +72,6 @@ export async function createOrder(
   } else {
     if (!data.orderPart) {
       throw new Error('Order vehicle part description is required');
-    }
-    if (data.saleStatus === '4' && !data.orderRefundAmount) {
-      throw new Error('Refund amount is required for Partial Refund status');
     }
   }
 
@@ -159,6 +156,26 @@ export async function updateOrder(
         throw new Error('Refund amount is required for Partial Refund status');
       }
       updatedData.orderRefundAmount = data.orderRefundAmount;
+    }
+
+    // Cascade to child parts if parent and terminal status
+    if (
+      (data.saleStatus === '2' || data.saleStatus === '3' || data.saleStatus === '5' || data.saleStatus === '6') &&
+      existingOrder.parentOrderId === null
+    ) {
+      const children = await prisma.crmOrders.findMany({
+        where: { parentOrderId: crmOrderId },
+        select: { crmOrderId: true }
+      });
+      for (const child of children) {
+        await prisma.crmOrders.update({
+          where: { crmOrderId: child.crmOrderId },
+          data: {
+            orderCurrentStatus: updatedData.orderCurrentStatus,
+            orderCurrentStatusUpdateDate: new Date()
+          }
+        });
+      }
     }
   } else if (existingOrder.saleStatus === '4' && data.orderRefundAmount !== undefined) {
     updatedData.orderRefundAmount = data.orderRefundAmount;
@@ -712,7 +729,8 @@ export async function addPart(
   if (!partData.orderPart) {
     throw new Error('Order vehicle part description is required');
   }
-  const newPart = await orderRepository.addPartToExistingOrder(parentOrderId, partData);
+  const { saleStatus, ...cleanPartData } = partData;
+  const newPart = await orderRepository.addPartToExistingOrder(parentOrderId, cleanPartData);
 
   if (actingUser) {
     await orderRepository.createAuditLogEntries(
