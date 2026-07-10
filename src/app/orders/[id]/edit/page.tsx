@@ -71,8 +71,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       },
     }),
     prisma.crmVendors.findMany({
-      where: { vendorStatus: 1 },
-      select: { vendorId: true, vendorName: true },
+      select: { vendorId: true, vendorName: true, vendorStatus: true },
       orderBy: { vendorName: 'asc' },
     }),
     prisma.crmGateway.findMany({

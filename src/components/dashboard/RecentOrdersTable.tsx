@@ -35,6 +35,7 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
       orderAmountCharged: o.orderAmountCharged || null,
       orderRefundAmount: o.orderRefundAmount || null,
       orderCurrentStatus: o.orderCurrentStatus || 'Unknown',
+      orderCurrentStatusUpdateDate: o.orderCurrentStatusUpdateDate || null,
       saleStatus: o.saleStatus || null,
     };
   });

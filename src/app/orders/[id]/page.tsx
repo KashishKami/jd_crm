@@ -36,6 +36,16 @@ function maskPhone(phone: string | null | undefined): string {
   return `***-***-${phone.slice(-4)}`;
 }
 
+function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return '—';
+  if (phone.includes('*')) return phone;
+  const clean = phone.replace(/\D/g, '').slice(0, 10);
+  if (clean.length === 0) return phone;
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 6) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+}
+
 function maskEmail(email: string | null | undefined): string {
   if (!email) return '—';
   const parts = email.split('@');
@@ -275,7 +285,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     });
   }
 
-  const customerPhoneDisplay = order.customer.customerPhone || '—';
+  const customerPhoneDisplay = formatPhone(order.customer.customerPhone);
   const customerEmailDisplay = order.customer.customerEmail || '—';
 
   // Aggregate Financial Calculations
@@ -423,7 +433,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   </div>
                   <div className="form-group">
                     <span className="form-label">Alternate Number</span>
-                    <span className="info-value font-mono">{order.customer.customerAlternatePhone1 || '—'}</span>
+                    <span className="info-value font-mono">{formatPhone(order.customer.customerAlternatePhone1)}</span>
                   </div>
                 </div>
               </div>

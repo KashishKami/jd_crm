@@ -250,4 +250,73 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(rowYes.textContent).not.toContain('Liftgate');
     });
   });
+
+  describe('W-1905: Time in Status Column', () => {
+    it('should display the aging text for active statuses, but show empty/hyphen for Completed and Returned statuses', () => {
+      // 4 days ago
+      const fourDaysAgo = new Date();
+      fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+
+      const mockOrders = [
+        {
+          crmOrderId: 301,
+          orderDate: '2026-06-30',
+          orderMakeModel: '2026 Ford Bronco',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderVendorPrice: '700',
+          orderAmountCharged: '300',
+          orderCurrentStatus: 'Pending Booking',
+          orderCurrentStatusUpdateDate: fourDaysAgo,
+          customer: {
+            customerName: 'John Active',
+            customerEmail: 'active@example.com',
+          },
+        },
+        {
+          crmOrderId: 302,
+          orderDate: '2026-06-30',
+          orderMakeModel: '2026 Ford Bronco',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderVendorPrice: '700',
+          orderAmountCharged: '300',
+          orderCurrentStatus: 'Completed Orders',
+          orderCurrentStatusUpdateDate: fourDaysAgo,
+          customer: {
+            customerName: 'John Completed',
+            customerEmail: 'completed@example.com',
+          },
+        },
+        {
+          crmOrderId: 303,
+          orderDate: '2026-06-30',
+          orderMakeModel: '2026 Ford Bronco',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderVendorPrice: '700',
+          orderAmountCharged: '300',
+          orderCurrentStatus: 'Returned Orders',
+          orderCurrentStatusUpdateDate: fourDaysAgo,
+          customer: {
+            customerName: 'John Returned',
+            customerEmail: 'returned@example.com',
+          },
+        }
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const rowActive = screen.getByRole('row', { name: /#301/i });
+      const rowCompleted = screen.getByRole('row', { name: /#302/i });
+      const rowReturned = screen.getByRole('row', { name: /#303/i });
+
+      expect(rowActive.textContent).toContain('Pending Booking');
+      expect(rowActive.textContent).toContain('(for 4 days)');
+      expect(rowCompleted.textContent).toContain('Completed Orders');
+      expect(rowCompleted.textContent).not.toContain('(for 4 days)');
+      expect(rowReturned.textContent).toContain('Returned Orders');
+      expect(rowReturned.textContent).not.toContain('(for 4 days)');
+    });
+  });
 });

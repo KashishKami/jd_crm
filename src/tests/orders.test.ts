@@ -265,6 +265,27 @@ describe('Order Management Integration Tests', () => {
       expect(ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === testOrder.crmOrderId)).toBe(true);
     });
 
+    it('should return the last status modification timestamp (orderCurrentStatusUpdateDate) in orders query', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'orders:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const ordersList = data.data || data;
+      const targetOrder = ordersList.find((o: { crmOrderId: number }) => o.crmOrderId === testOrder.crmOrderId);
+      expect(targetOrder).toBeDefined();
+      expect(targetOrder).toHaveProperty('orderCurrentStatusUpdateDate');
+    });
+
     it('should return filtered orders when status query param is provided', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: {

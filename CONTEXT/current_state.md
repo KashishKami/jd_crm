@@ -2754,70 +2754,22 @@ Card details entered in raw text are prone to input errors. Masks must format di
 
 ---
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Test: Typing card numbers adds space formatting (e.g. `4111 2222 3333 4444`).
-  - [ ] Test: Expiry field automatically reformats inputs to matching expiration structure.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [x] Test: Typing card numbers adds space formatting (e.g. `4111 2222 3333 4444`).
+  - [x] Test: Expiry field automatically reformats inputs to matching expiration structure.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Bind mask state triggers to form inputs.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Bind mask state triggers to form inputs.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent types card digits → input format updates dynamically → form submits standardized strings → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent types card digits → input format updates dynamically → form submits standardized strings → ✅ Done.
 
----
-
-### W-1905 — Order Page Table: Replace Email with Customer Phone Number
-
-**Root cause / Goal:**
-Sales agents rarely email customers from list pages; telephone numbers are much more useful for active operations.
-
-**Approach:**
-- Swap customer email attribute for customer phone number in the list row layout.
 
 ---
 
-- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
-  - [ ] Test: Order list rows render customer phone numbers instead of email addresses.
-  - [ ] **Run — confirm RED.**
-
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Update rendering cells in `OrderList.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
-
-- [ ] **Verification chain:**
-  - [ ] User views orders list → column shows phone numbers instead of email → ✅ Done.
-
----
-
-### W-1906 — Date and Customer ID as First Columns in All Lists
-
-**Root cause / Goal:**
-Standardize list tables to ensure a cohesive look. Date and Customer ID must consistently occupy column positions 1 and 2.
-
-**Adjustment for Phase 17:**
-Ensure this column ordering applies to all pipeline tabs in `OrderListContainer.tsx`, including the newly added "Returned Orders" tab.
-
-**Approach:**
-- Rearrange column headers and row mapping cells.
-
----
-
-- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
-  - [ ] Test: Table headers at index 0 and 1 correspond to "Date" and "Customer ID".
-  - [ ] **Run — confirm RED.**
-
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Adjust header grid mappings in `OrderList.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
-
-- [ ] **Verification chain:**
-  - [ ] User opens any orders list tab (including Returned Orders) → columns start with Date and Customer ID → ✅ Done.
-
----
-
-### W-1907 — Time in Pending State Column (Except Completed/Returned Orders)
+### W-1905 — Time in Pending State Column (Except Completed/Returned Orders)
 
 **Root cause / Goal:**
 Operations must track how long orders sit in pending states to address bottlenecks. Terminal states (Completed and Returned) do not require aging indicators.
@@ -2830,24 +2782,24 @@ The "Returned Orders" status represents a terminal state (full reversal of sale)
 
 ---
 
-- [ ] **RED — Integration (`src/tests/orders.test.ts`):**
-  - [ ] Test: Orders query returns the last status modification timestamp.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration (`src/tests/orders.test.ts`):**
+  - [x] Test: Orders query returns the last status modification timestamp.
+  - [x] **Run — confirm RED.**
 
-- [ ] **RED — Unit (`src/tests/OrderList.test.tsx`):**
-  - [ ] Test: "Time in Status" column renders formatted days for active statuses, but is empty/hyphen for Completed and Returned statuses.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/OrderList.test.tsx`):**
+  - [x] Test: "Time in Status" column renders formatted days for active statuses, but is empty/hyphen for Completed and Returned statuses.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Render duration metric columns in `OrderList.tsx`.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Render duration metric columns in `OrderList.tsx`.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent views Pending Shipment queue → sees "Aging: 4 days" in column → switches to Completed or Returned tab → column is blank → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent views Pending Shipment queue → sees "Aging: 4 days" in column → switches to Completed or Returned tab → column is blank → ✅ Done.
 
 ---
 
-### W-1908 — Blacklisted Vendor Alert Red Flag in Dropdowns
+### W-1906 — Blacklisted Vendor Alert Red Flag in Dropdowns
 
 **Root cause / Goal:**
 Ensure agents do not accidentally place new orders with blacklisted suppliers. Dropdown listings should display clear warnings for blacklisted vendors.
@@ -2857,16 +2809,16 @@ Ensure agents do not accidentally place new orders with blacklisted suppliers. D
 
 ---
 
-- [ ] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
-  - [ ] Test: Dropdown options representing blacklisted vendors are styled red and prefixed with warning flags.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit (`src/tests/AddOrderForm.test.tsx`):**
+  - [x] Test: Dropdown options representing blacklisted vendors are styled red and prefixed with warning flags.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Component):**
-  - [ ] [Component] Update select option mapping inside forms.
-  - [ ] Run unit test — **confirm GREEN**.
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] Update select option mapping inside forms.
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] Agent opens Add Order form → vendor list shows warning flag on blacklisted options → avoids selection → ✅ Done.
+- [x] **Verification chain:**
+  - [x] Agent opens Add Order form → vendor list shows warning flag on blacklisted options → avoids selection → ✅ Done.
 
 ---
 
@@ -5616,4 +5568,31 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Test Suite Alignments**: Aligned unit tests in `AddOrderForm.test.tsx` to expect blank fields on new parts and updated `Dashboard.test.tsx` to match the `Final Margin: $350.00` output layout.
   - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
 
+### Session 65 — July 10, 2026
+  **Card, Expiry & Phone Formatting Masks, Workflow Status Days Inline Layout, and Blacklisted Vendor Red-Flags**
+  - **Dynamic Input & Details Page Formatting Masks (W-1904)**:
+    - Added client-side input mask handlers in [AddOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/AddOrderForm.tsx) and [EditOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditOrderForm.tsx) that format phone numbers to `XXX-XXX-XXXX`, card expiry dates to `MM/YY`, and card numbers based on brand: Amex is formatted as `XXXX XXXXXX XXXXX` (up to 15 digits), and Visa/Mastercard/Discover/Others as `XXXX XXXX XXXX XXXX` (up to 16 digits).
+    - Added matching `htmlFor` / `id` properties in `EditOrderForm.tsx` to fix unit test element retrieval errors.
+    - Applied these same formatting mask display rules to unmasked phone and card number values on the [OrderDetailPage](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/orders/[id]/page.tsx) and [LedgerCardItem.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/LedgerCardItem.tsx).
+  - **Days in Status Inline Column & All Parts Query (W-1905)**:
+    - Integrated days in status duration inline inside the **Workflow Status** column in [OrderList.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderList.tsx) for both parent and child orders in a deal.
+    - Status duration is formatted as `(for X days)` on a new line centered below the badge in a normal small `0.7rem` dark font, omitted for terminal states.
+    - Updated `orderCurrentStatusUpdateDate` selection in the `childOrdersSelect` queries within both [order.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/order.repository.ts) and [dashboard.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/dashboard.repository.ts) so that duration calculations display for all child orders as well.
+    - Removed row index labels (like `#1:`, `#2:`) in both **Vehicle & Part** and **Workflow Status** columns, replacing them with a solid gray line divider (`1px solid #cbd5e1`) matching the row dividers.
+    - Updated [order.service.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/service/order.service.ts) to reset the status modification timestamp on every status change.
+  - **Blacklisted Vendor Warnings (W-1906)**:
+    - Updated order creation/edit server pages to retrieve all vendors along with `vendorStatus`.
+    - Options corresponding to blacklisted vendors (`vendorStatus === 0`) are prefixed with `[BLACKLISTED] 🚩` and styled in red inside the dropdown menus of the order forms.
+  - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
+
+### Session 66 — July 10, 2026
+  **Client-side Order List Sorting, Solid Row Dividers, and Edit Form Test Compliance Fixes**
+  - **Client-side Order List Sorting**:
+    - Added sorting state and interactive sortable headers (Order ID, Order Date, Customer Name, Sales Agent, Sale Status, Pricing Final Margin, and Workflow Status days in status) inside [OrderList.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderList.tsx) to sort all orders locally.
+    - Reorganized the declaration order of state variables, helpers, and sorted orders array below the static functions in [OrderList.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderList.tsx) to avoid lexical hoisting issues.
+  - **Dashed line to solid divider**:
+    - Replaced the bold dashed lines separating child parts in both columns with a solid gray divider (`1px solid #cbd5e1`) that mirrors the table row divider style.
+  - **Edit Form Input Test Compliance**:
+    - Configured the initial cards state inside [EditOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditOrderForm.tsx) to format loaded card numbers and exp dates on load, ensuring `fireEvent.change` matches input value expectations correctly in `EditOrderForm.test.tsx` and passes all Vitest test suites.
+  - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
 

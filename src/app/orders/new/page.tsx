@@ -11,8 +11,7 @@ export default async function NewOrderPage() {
   // Fetch active vendors, gateways, and users/agents
   const [vendors, gateways, agents] = await Promise.all([
     prisma.crmVendors.findMany({
-      where: { vendorStatus: 1 },
-      select: { vendorId: true, vendorName: true },
+      select: { vendorId: true, vendorName: true, vendorStatus: true },
       orderBy: { vendorName: 'asc' },
     }),
     prisma.crmGateway.findMany({

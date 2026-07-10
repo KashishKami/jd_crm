@@ -10,7 +10,7 @@ import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 import DealSummarySidebar from './DealSummarySidebar';
 
 interface AddOrderFormProps {
-  vendors: Array<{ vendorId: number; vendorName: string }>;
+  vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
   agents: Array<{ uid: number; name: string; nickname?: string | null }>;
 }
@@ -41,6 +41,34 @@ interface PartFormState {
   orderVendorFeedback: string;
   vendorSourcingType: string;
 }
+
+const formatPhoneNumber = (value: string) => {
+  const clean = value.replace(/\D/g, '').slice(0, 10);
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 6) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+};
+
+const formatCardNumber = (value: string) => {
+  if (value.includes('*')) return value;
+  const clean = value.replace(/\D/g, '');
+  if (/^3[47]/.test(clean)) {
+    const limited = clean.slice(0, 15);
+    if (limited.length <= 4) return limited;
+    if (limited.length <= 10) return `${limited.slice(0, 4)} ${limited.slice(4)}`;
+    return `${limited.slice(0, 4)} ${limited.slice(4, 10)} ${limited.slice(10)}`;
+  } else {
+    const limited = clean.slice(0, 16);
+    const parts = limited.match(/.{1,4}/g);
+    return parts ? parts.join(' ') : limited;
+  }
+};
+
+const formatExpiryDate = (value: string) => {
+  const clean = value.replace(/\D/g, '').slice(0, 4);
+  if (clean.length <= 2) return clean;
+  return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+};
 
 export default function AddOrderForm({ vendors, gateways, agents }: AddOrderFormProps) {
   const router = useRouter();
@@ -451,7 +479,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                       type="text"
                       id="customerPhone"
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                       className="form-input font-mono"
                     />
                   </div>
@@ -461,7 +489,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                       type="text"
                       id="customerAlternatePhone1"
                       value={customerAlternatePhone1}
-                      onChange={(e) => setCustomerAlternatePhone1(e.target.value)}
+                      onChange={(e) => setCustomerAlternatePhone1(formatPhoneNumber(e.target.value))}
                       className="form-input font-mono"
                     />
                   </div>
@@ -543,7 +571,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                         value={card.customerCardNumber}
                         onChange={(e) => {
                           const newCards = [...cards];
-                          newCards[index].customerCardNumber = e.target.value;
+                          newCards[index].customerCardNumber = formatCardNumber(e.target.value);
                           setCards(newCards);
                         }}
                         required
@@ -559,7 +587,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                         value={card.customerCardExpDate}
                         onChange={(e) => {
                           const newCards = [...cards];
-                          newCards[index].customerCardExpDate = e.target.value;
+                          newCards[index].customerCardExpDate = formatExpiryDate(e.target.value);
                           setCards(newCards);
                         }}
                         required
@@ -950,7 +978,13 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                             >
                               <option value="">Select or Type</option>
                               {vendors.map((v) => (
-                                <option key={v.vendorId} value={v.vendorId}>{v.vendorName}</option>
+                                <option 
+                                  key={v.vendorId} 
+                                  value={v.vendorId}
+                                  style={v.vendorStatus === 0 ? { color: 'red' } : undefined}
+                                >
+                                  {v.vendorStatus === 0 ? `[BLACKLISTED] 🚩 ${v.vendorName}` : v.vendorName}
+                                </option>
                               ))}
                             </select>
                           </div>

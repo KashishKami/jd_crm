@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
@@ -25,6 +25,7 @@ interface OrderListProps {
     orderAmountCharged: string | null;
     orderRefundAmount?: string | null;
     orderCurrentStatus: string | null;
+    orderCurrentStatusUpdateDate?: string | Date | null;
     saleStatus?: string | null;
     orderLiftgateNeeded?: string | null;
     customer: {
@@ -66,6 +67,7 @@ interface OrderListProps {
       orderMakeModel: string | null;
       orderPart: string | null;
       orderCurrentStatus: string | null;
+      orderCurrentStatusUpdateDate?: string | Date | null;
       saleStatus?: string | null;
       orderVendorPrice?: string | null;
       orderBackendExecutiveName?: string | null;
@@ -90,19 +92,6 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const canCreate = hasPermission(permissions, 'orders:create');
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
-
-  const tableRowsRef = useRef<HTMLTableSectionElement>(null);
-
-  // Stagger table rows entrance
-  useEffect(() => {
-    if (tableRowsRef.current && orders.length > 0) {
-      const rows = tableRowsRef.current.querySelectorAll('tr');
-      const ctx = gsap.context(() => {
-        staggerEntrance(rows);
-      });
-      return () => ctx.revert();
-    }
-  }, [orders]);
 
   // Format date helper
   const formatDate = (dateVal: string | Date | null) => {
@@ -161,24 +150,151 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
     }
   };
 
+  const [sortBy, setSortBy] = useState<string | null>('orderDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const getDaysInStatus = (order: any) => {
+    const getSingleDays = (o: any) => {
+      const status = o.orderCurrentStatus || '';
+      const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
+      if (isTerminal || !o.orderCurrentStatusUpdateDate) return -1;
+      const updateDate = new Date(o.orderCurrentStatusUpdateDate);
+      if (isNaN(updateDate.getTime())) return -1;
+      const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    };
+
+    let maxDays = getSingleDays(order);
+    if (order.childOrders) {
+      for (const child of order.childOrders) {
+        const childDays = getSingleDays(child);
+        if (childDays > maxDays) {
+          maxDays = childDays;
+        }
+      }
+    }
+    return maxDays;
+  };
+
+  const getFinalMargin = (order: any) => {
+    const allParts = [order, ...(order.childOrders || [])];
+    const chargedAmount = allParts.reduce((sum, p) => sum + (parseFloat(p.orderAmountCharged || '0')), 0);
+    const refundAmount = allParts.reduce((sum, p) => sum + (parseFloat(p.orderRefundAmount || '0')), 0);
+    return chargedAmount - refundAmount;
+  };
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      if (field === 'orderDate' || field === 'pricing' || field === 'daysInStatus') {
+        setSortOrder('desc');
+      } else {
+        setSortOrder('asc');
+      }
+    }
+  };
+
+  const sortedOrders = [...orders].sort((a, b) => {
+    if (!sortBy) return 0;
+    
+    let comparison = 0;
+    switch (sortBy) {
+      case 'crmOrderId': {
+        comparison = a.crmOrderId - b.crmOrderId;
+        break;
+      }
+      case 'orderDate': {
+        const dateA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
+        const dateB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
+        comparison = dateA - dateB;
+        break;
+      }
+      case 'customerName': {
+        const nameA = (a.customer?.customerName || '').toLowerCase();
+        const nameB = (b.customer?.customerName || '').toLowerCase();
+        comparison = nameA.localeCompare(nameB);
+        break;
+      }
+      case 'salesAgent': {
+        const agentA = (a.salesAgent?.nickname || a.salesAgent?.name || '').toLowerCase();
+        const agentB = (b.salesAgent?.nickname || b.salesAgent?.name || '').toLowerCase();
+        comparison = agentA.localeCompare(agentB);
+        break;
+      }
+      case 'saleStatus': {
+        const labelA = getSaleStatusLabel(a.saleStatus).toLowerCase();
+        const labelB = getSaleStatusLabel(b.saleStatus).toLowerCase();
+        comparison = labelA.localeCompare(labelB);
+        break;
+      }
+      case 'pricing': {
+        comparison = getFinalMargin(a) - getFinalMargin(b);
+        break;
+      }
+      case 'daysInStatus': {
+        comparison = getDaysInStatus(a) - getDaysInStatus(b);
+        break;
+      }
+      default:
+        break;
+    }
+    
+    if (comparison === 0) {
+      return b.crmOrderId - a.crmOrderId;
+    }
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
+
+  const tableRowsRef = useRef<HTMLTableSectionElement>(null);
+
+  // Stagger table rows entrance
+  useEffect(() => {
+    if (tableRowsRef.current && sortedOrders.length > 0) {
+      const rows = tableRowsRef.current.querySelectorAll('tr');
+      const ctx = gsap.context(() => {
+        staggerEntrance(rows);
+      });
+      return () => ctx.revert();
+    }
+  }, [sortedOrders]);
+
+  const renderSortableHeader = (label: string, field: string) => {
+    const isSorted = sortBy === field;
+    return (
+      <th 
+        onClick={() => handleSort(field)} 
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <span>{label}</span>
+          <span style={{ fontSize: '0.62rem', opacity: isSorted ? 1 : 0.4, color: isSorted ? '#0284c7' : '#94a3b8' }}>
+            {isSorted ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+          </span>
+        </div>
+      </th>
+    );
+  };
+
   const tableContent = (
     <div className="card-table-container" style={{ padding: 0 }}>
         <table className="custom-table table-responsive">
           <thead>
             <tr>
-              <th>Order ID</th>
-              <th>Order Date</th>
-              <th>Customer</th>
+              {renderSortableHeader('Order ID', 'crmOrderId')}
+              {renderSortableHeader('Order Date', 'orderDate')}
+              {renderSortableHeader('Customer', 'customerName')}
               <th>Vehicle & Part</th>
-              <th>Agents</th>
-              <th>Sale Status</th>
-              <th>Pricing</th>
-              <th>Workflow Status</th>
+              {renderSortableHeader('Agents', 'salesAgent')}
+              {renderSortableHeader('Sale Status', 'saleStatus')}
+              {renderSortableHeader('Pricing', 'pricing')}
+              {renderSortableHeader('Workflow Status', 'daysInStatus')}
               <th className="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody ref={tableRowsRef}>
-            {orders.map((order) => {
+            {sortedOrders.map((order) => {
               const chargedVal = parseFloat(order.orderAmountCharged || '0');
               const refundVal = parseFloat(order.orderRefundAmount || '0');
               const finalMargin = chargedVal - refundVal;
@@ -212,20 +328,16 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                         </div>
                         <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.9em' }}>
                           {order.orderPart || '—'}
-                          {order.childOrders && order.childOrders.length > 0 && (
-                            <span className="text-slate-400 font-normal not-italic font-mono ml-1.5">(#1)</span>
-                          )}
                         </div>
                       </div>
 
                       {order.childOrders && order.childOrders.map((child, idx) => (
-                        <div key={child.crmOrderId} style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                        <div key={child.crmOrderId} style={{ borderTop: '1px solid #cbd5e1', paddingTop: '6px' }}>
                           <div className="font-medium text-slate-600" style={{ fontSize: '0.9em' }}>
                             {child.orderMakeModel || order.orderMakeModel || 'Unknown Vehicle'}
                           </div>
                           <div className="text-slate-500 font-semibold italic mt-0.5 font-sans" style={{ fontSize: '0.85em' }}>
                             {child.orderPart || '—'}
-                            <span className="text-slate-400 font-normal not-italic font-mono ml-1.5">(#{idx + 2})</span>
                           </div>
                         </div>
                       ))}
@@ -334,22 +446,50 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                     })()}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {order.childOrders && order.childOrders.length > 0 && (
-                          <span className="text-slate-400 font-semibold font-mono" style={{ fontSize: '0.75rem' }}>#1:</span>
-                        )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                         <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(order.orderCurrentStatus)}`} style={{ fontSize: '0.85em', padding: '2px 8px' }}>
                           {order.orderCurrentStatus || 'Unknown'}
                         </span>
+                        {(() => {
+                          const status = order.orderCurrentStatus || '';
+                          const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
+                          if (isTerminal || !order.orderCurrentStatusUpdateDate) return null;
+                          
+                          const updateDate = new Date(order.orderCurrentStatusUpdateDate);
+                          if (isNaN(updateDate.getTime())) return null;
+                          
+                          const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
+                          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                          return (
+                            <span style={{ fontSize: '0.7rem', color: '#1e293b', marginTop: '2px', fontWeight: 500, textAlign: 'center' }}>
+                              (for {diffDays} day{diffDays === 1 ? '' : 's'})
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {order.childOrders && order.childOrders.map((child, idx) => (
-                        <div key={child.crmOrderId} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="text-slate-400 font-semibold font-mono" style={{ fontSize: '0.75rem' }}>#{idx + 2}:</span>
+                        <div key={child.crmOrderId} style={{ borderTop: '1px solid #cbd5e1', paddingTop: '6px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                           <span className={`status-dot-badge font-semibold ${getStatusBadgeClass(child.orderCurrentStatus)}`} style={{ fontSize: '0.85em', padding: '2px 8px' }}>
                             {child.orderCurrentStatus || 'Unknown'}
                           </span>
+                          {(() => {
+                            const status = child.orderCurrentStatus || '';
+                            const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
+                            if (isTerminal || !child.orderCurrentStatusUpdateDate) return null;
+                            
+                            const updateDate = new Date(child.orderCurrentStatusUpdateDate);
+                            if (isNaN(updateDate.getTime())) return null;
+                            
+                            const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
+                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                            return (
+                              <span style={{ fontSize: '0.7rem', color: '#1e293b', marginTop: '2px', fontWeight: 500, textAlign: 'center' }}>
+                                (for {diffDays} day{diffDays === 1 ? '' : 's'})
+                              </span>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>

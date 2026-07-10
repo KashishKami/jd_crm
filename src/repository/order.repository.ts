@@ -442,6 +442,7 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     orderPart: true,
     saleStatus: true,
     orderCurrentStatus: true,
+    orderCurrentStatusUpdateDate: true,
     orderAmountCharged: true,
     orderRefundAmount: true,
     orderLiftgateNeeded: true,

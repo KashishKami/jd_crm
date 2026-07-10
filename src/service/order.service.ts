@@ -219,6 +219,11 @@ export async function updateOrder(
     updatedData.orderCurrentStatusUpdateDate = new Date();
   }
 
+  // If orderCurrentStatus is explicitly updated (either via manualStatus or auto-transitions) and differs from the existing value, update the update timestamp:
+  if (updatedData.orderCurrentStatus !== undefined && updatedData.orderCurrentStatus !== existingOrder.orderCurrentStatus) {
+    updatedData.orderCurrentStatusUpdateDate = new Date();
+  }
+
   // 3. Resolve sales agent nickname snapshot if ID is changed
   if (data.orderSalesAgentId && data.orderSalesAgentId !== existingOrder.orderSalesAgentId) {
     const { prisma } = await import('../lib/db');

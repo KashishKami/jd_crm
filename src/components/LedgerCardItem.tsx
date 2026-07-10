@@ -26,6 +26,31 @@ function maskCardNumber(num: string | null | undefined): string {
   return `**** **** **** ${clean.slice(-4)}`;
 }
 
+function formatCardNumber(value: string | null | undefined): string {
+  if (!value) return '—';
+  if (value.includes('*')) return value;
+  const clean = value.replace(/\D/g, '');
+  if (clean.length === 0) return value;
+  if (/^3[47]/.test(clean)) {
+    const limited = clean.slice(0, 15);
+    if (limited.length <= 4) return limited;
+    if (limited.length <= 10) return `${limited.slice(0, 4)} ${limited.slice(4)}`;
+    return `${limited.slice(0, 4)} ${limited.slice(4, 10)} ${limited.slice(10)}`;
+  } else {
+    const limited = clean.slice(0, 16);
+    const parts = limited.match(/.{1,4}/g);
+    return parts ? parts.join(' ') : limited;
+  }
+}
+
+function formatExpiryDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const clean = value.replace(/\D/g, '').slice(0, 4);
+  if (clean.length === 0) return value;
+  if (clean.length <= 2) return clean;
+  return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+}
+
 export default function LedgerCardItem({ card, idx, canViewCards }: LedgerCardItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showCopyImage, setShowCopyImage] = useState(false);
@@ -66,14 +91,14 @@ export default function LedgerCardItem({ card, idx, canViewCards }: LedgerCardIt
             <div className="info-group">
               <span className="info-label">Card Number</span>
               <span className="info-value font-mono">
-                {canViewCards ? card.customerCardNumber || '—' : maskCardNumber(card.customerCardNumber)}
+                {canViewCards ? formatCardNumber(card.customerCardNumber) : maskCardNumber(card.customerCardNumber)}
               </span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div className="info-group">
                 <span className="info-label">Expiry</span>
-                <span className="info-value font-mono">{card.customerCardExpDate || '—'}</span>
+                <span className="info-value font-mono">{formatExpiryDate(card.customerCardExpDate)}</span>
               </div>
               <div className="info-group">
                 <span className="info-label">CVV</span>

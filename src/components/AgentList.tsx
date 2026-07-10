@@ -9,7 +9,11 @@ import { Agent } from '../types/agent';
 import { staggerEntrance, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 
-export default function AgentList() {
+interface AgentListProps {
+  designations?: { designationId: number; designationName: string }[];
+}
+
+export default function AgentList({ designations = [] }: AgentListProps) {
   const { data: session } = useSession();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +83,6 @@ export default function AgentList() {
   }, []);
 
   // Dynamic filter options derived from agent list
-  const designations = Array.from(new Set(agents.map(a => a.designation).filter(Boolean))).sort() as string[];
   const teams = Array.from(new Set(agents.map(a => a.team?.teamName).filter(Boolean))).sort() as string[];
   const roles = Array.from(new Set(agents.map(a => a.role?.roleName).filter(Boolean))).sort() as string[];
 
@@ -213,7 +216,9 @@ export default function AgentList() {
             >
               <option value="all">All Designations</option>
               {designations.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d.designationId} value={d.designationName}>
+                  {d.designationName}
+                </option>
               ))}
             </select>
           </div>

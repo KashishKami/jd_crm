@@ -9,11 +9,39 @@ import DealSummarySidebar from './DealSummarySidebar';
 
 interface EditOrderFormProps {
   order: any;
-  vendors: Array<{ vendorId: number; vendorName: string }>;
+  vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
   agents: Array<{ uid: number; name: string; nickname?: string | null }>;
   canViewCards?: boolean;
 }
+
+const formatPhoneNumber = (value: string) => {
+  const clean = value.replace(/\D/g, '').slice(0, 10);
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 6) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+};
+
+const formatCardNumber = (value: string) => {
+  if (value.includes('*')) return value;
+  const clean = value.replace(/\D/g, '');
+  if (/^3[47]/.test(clean)) {
+    const limited = clean.slice(0, 15);
+    if (limited.length <= 4) return limited;
+    if (limited.length <= 10) return `${limited.slice(0, 4)} ${limited.slice(4)}`;
+    return `${limited.slice(0, 4)} ${limited.slice(4, 10)} ${limited.slice(10)}`;
+  } else {
+    const limited = clean.slice(0, 16);
+    const parts = limited.match(/.{1,4}/g);
+    return parts ? parts.join(' ') : limited;
+  }
+};
+
+const formatExpiryDate = (value: string) => {
+  const clean = value.replace(/\D/g, '').slice(0, 4);
+  if (clean.length <= 2) return clean;
+  return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+};
 
 export default function EditOrderForm({ order, vendors, gateways, agents, canViewCards = false }: EditOrderFormProps) {
   const router = useRouter();
@@ -21,9 +49,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
 
   // Customer states
   const [customerName, setCustomerName] = useState(order.customer?.customerName || '');
-  const [customerPhone, setCustomerPhone] = useState(order.customer?.customerPhone || '');
+  const [customerPhone, setCustomerPhone] = useState(order.customer?.customerPhone ? formatPhoneNumber(order.customer.customerPhone) : '');
   const [customerEmail, setCustomerEmail] = useState(order.customer?.customerEmail || '');
-  const [customerAlternatePhone1, setCustomerAlternatePhone1] = useState(order.customer?.customerAlternatePhone1 || '');
+  const [customerAlternatePhone1, setCustomerAlternatePhone1] = useState(order.customer?.customerAlternatePhone1 ? formatPhoneNumber(order.customer.customerAlternatePhone1) : '');
   const [customerAlternatePhone2, setCustomerAlternatePhone2] = useState(order.customer?.customerAlternatePhone2 || '');
   const [customerBillingAddress, setCustomerBillingAddress] = useState(order.customer?.customerBillingAddress || '');
   const [customerShippingAddress, setCustomerShippingAddress] = useState(order.customer?.customerShippingAddress || '');
@@ -47,9 +75,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       cardId: c.cardId,
       customerNameOncard: c.customerNameOncard || '',
       customerCardNumber: c.customerCardNumber
-        ? (canViewCards ? c.customerCardNumber : `**** **** **** ${c.customerCardNumber.replace(/\s+/g, '').slice(-4)}`)
+        ? (canViewCards ? formatCardNumber(c.customerCardNumber) : `**** **** **** ${c.customerCardNumber.replace(/\s+/g, '').slice(-4)}`)
         : '',
-      customerCardExpDate: c.customerCardExpDate || '',
+      customerCardExpDate: c.customerCardExpDate ? formatExpiryDate(c.customerCardExpDate) : '',
       customerCardCvv: c.customerCardCvv
         ? (canViewCards ? c.customerCardCvv : '***')
         : '',
@@ -139,9 +167,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
     if (order) {
       /* eslint-disable react-hooks/set-state-in-effect */
       setCustomerName(order.customer?.customerName || '');
-      setCustomerPhone(order.customer?.customerPhone || '');
+      setCustomerPhone(order.customer?.customerPhone ? formatPhoneNumber(order.customer.customerPhone) : '');
       setCustomerEmail(order.customer?.customerEmail || '');
-      setCustomerAlternatePhone1(order.customer?.customerAlternatePhone1 || '');
+      setCustomerAlternatePhone1(order.customer?.customerAlternatePhone1 ? formatPhoneNumber(order.customer.customerAlternatePhone1) : '');
       setCustomerAlternatePhone2(order.customer?.customerAlternatePhone2 || '');
       setCustomerBillingAddress(order.customer?.customerBillingAddress || '');
       setCustomerShippingAddress(order.customer?.customerShippingAddress || '');
@@ -165,9 +193,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           cardId: c.cardId,
           customerNameOncard: c.customerNameOncard || '',
           customerCardNumber: c.customerCardNumber
-            ? (canViewCards ? c.customerCardNumber : `**** **** **** ${c.customerCardNumber.replace(/\s+/g, '').slice(-4)}`)
+            ? (canViewCards ? formatCardNumber(c.customerCardNumber) : `**** **** **** ${c.customerCardNumber.replace(/\s+/g, '').slice(-4)}`)
             : '',
-          customerCardExpDate: c.customerCardExpDate || '',
+          customerCardExpDate: c.customerCardExpDate ? formatExpiryDate(c.customerCardExpDate) : '',
           customerCardCvv: c.customerCardCvv
             ? (canViewCards ? c.customerCardCvv : '***')
             : '',
@@ -560,11 +588,12 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               <div className="form-group form-span-3">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div className="form-group">
-                    <label className="form-label">Phone Number</label>
+                    <label htmlFor="customerPhone" className="form-label">Phone Number</label>
                     <input
                       type="text"
+                      id="customerPhone"
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                       className="form-input font-mono"
                     />
                   </div>
@@ -574,7 +603,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                       type="text"
                       id="customerAlternatePhone1"
                       value={customerAlternatePhone1}
-                      onChange={(e) => setCustomerAlternatePhone1(e.target.value)}
+                      onChange={(e) => setCustomerAlternatePhone1(formatPhoneNumber(e.target.value))}
                       className="form-input font-mono"
                     />
                   </div>
@@ -632,9 +661,10 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 <div style={{ padding: '16px' }}>
                   <div className="form-grid-3col">
                     <div className="form-group form-span-3">
-                      <label className="form-label">Name On Card <span className="text-red-500">*</span></label>
+                      <label htmlFor={`customerNameOncard-${index}`} className="form-label">Name On Card <span className="text-red-500">*</span></label>
                       <input
                         type="text"
+                        id={`customerNameOncard-${index}`}
                         value={card.customerNameOncard}
                         onChange={(e) => {
                           const newCards = [...cards];
@@ -646,13 +676,14 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                       />
                     </div>
                     <div className="form-group form-span-2">
-                      <label className="form-label">Card Number <span className="text-red-500">*</span></label>
+                      <label htmlFor={`customerCardNumber-${index}`} className="form-label">Card Number <span className="text-red-500">*</span></label>
                       <input
                         type="text"
+                        id={`customerCardNumber-${index}`}
                         value={card.customerCardNumber}
                         onChange={(e) => {
                           const newCards = [...cards];
-                          newCards[index].customerCardNumber = e.target.value;
+                          newCards[index].customerCardNumber = formatCardNumber(e.target.value);
                           setCards(newCards);
                         }}
                         required
@@ -660,14 +691,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Expiry Date (MM/YY) <span className="text-red-500">*</span></label>
+                      <label htmlFor={`customerCardExpDate-${index}`} className="form-label">Expiry Date (MM/YY) <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         placeholder="MM/YY"
+                        id={`customerCardExpDate-${index}`}
                         value={card.customerCardExpDate}
                         onChange={(e) => {
                           const newCards = [...cards];
-                          newCards[index].customerCardExpDate = e.target.value;
+                          newCards[index].customerCardExpDate = formatExpiryDate(e.target.value);
                           setCards(newCards);
                         }}
                         required
@@ -675,10 +707,11 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">CVV Code</label>
+                      <label htmlFor={`customerCardCvv-${index}`} className="form-label">CVV Code</label>
                       <input
                         type="password"
                         maxLength={4}
+                        id={`customerCardCvv-${index}`}
                         value={card.customerCardCvv}
                         onChange={(e) => {
                           const newCards = [...cards];
@@ -1057,7 +1090,13 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                             >
                               <option value="">Select or Type</option>
                               {vendors.map((v) => (
-                                <option key={v.vendorId} value={v.vendorId}>{v.vendorName}</option>
+                                <option 
+                                  key={v.vendorId} 
+                                  value={v.vendorId}
+                                  style={v.vendorStatus === 0 ? { color: 'red' } : undefined}
+                                >
+                                  {v.vendorStatus === 0 ? `[BLACKLISTED] 🚩 ${v.vendorName}` : v.vendorName}
+                                </option>
                               ))}
                             </select>
                           </div>

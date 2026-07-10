@@ -608,5 +608,71 @@ describe('AddOrderForm Unit Tests', () => {
         expect(partHeaders.length).toBe(2);
       });
     });
+
+    describe('W-1904: AddOrderForm Card Number, Expiry, and Phone Masks', () => {
+      it('should automatically format phone numbers as XXX-XXX-XXXX', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const phoneInput = screen.getByLabelText(/Phone Number/i) as HTMLInputElement;
+        
+        fireEvent.change(phoneInput, { target: { value: '2567175003' } });
+        expect(phoneInput.value).toBe('256-717-5003');
+      });
+
+      it('should automatically format alternate phone numbers as XXX-XXX-XXXX', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const altPhoneInput = screen.getByLabelText(/Alternate Number/i) as HTMLInputElement;
+        
+        fireEvent.change(altPhoneInput, { target: { value: '2567175003' } });
+        expect(altPhoneInput.value).toBe('256-717-5003');
+      });
+
+      it('should automatically format card numbers with space groupings of 4', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const cardInput = screen.getByLabelText(/Card Number/i) as HTMLInputElement;
+        
+        fireEvent.change(cardInput, { target: { value: '4111222233334444' } });
+        expect(cardInput.value).toBe('4111 2222 3333 4444');
+      });
+
+      it('should format Amex card numbers as xxxx xxxxxx xxxxx (4-6-5)', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const cardInput = screen.getByLabelText(/Card Number/i) as HTMLInputElement;
+        
+        fireEvent.change(cardInput, { target: { value: '371234567890123' } });
+        expect(cardInput.value).toBe('3712 345678 90123');
+      });
+
+      it('should automatically format expiry date as MM/YY', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const expInput = screen.getByLabelText(/Expiry Date/i) as HTMLInputElement;
+        
+        fireEvent.change(expInput, { target: { value: '1229' } });
+        expect(expInput.value).toBe('12/29');
+      });
+    });
+
+    describe('W-1906: AddOrderForm Blacklisted Vendor warning', () => {
+      it('should prepend [BLACKLISTED] 🚩 and style option red for blacklisted vendors', () => {
+        const mockVendors = [
+          { vendorId: 1, vendorName: 'Active Vendor', vendorStatus: 1 },
+          { vendorId: 2, vendorName: 'Blacklisted Vendor', vendorStatus: 0 },
+        ];
+        render(<AddOrderForm vendors={mockVendors} gateways={[]} agents={[]} />);
+        
+        const vendorSelect = document.getElementById('orderVendorId') as HTMLSelectElement;
+        expect(vendorSelect).not.toBeNull();
+        
+        const activeOption = Array.from(vendorSelect.options).find(o => o.value === '1');
+        const blacklistedOption = Array.from(vendorSelect.options).find(o => o.value === '2');
+        
+        expect(activeOption).toBeDefined();
+        expect(activeOption?.text).toBe('Active Vendor');
+        expect(activeOption?.style.color).not.toBe('red');
+        
+        expect(blacklistedOption).toBeDefined();
+        expect(blacklistedOption?.text).toBe('[BLACKLISTED] 🚩 Blacklisted Vendor');
+        expect(blacklistedOption?.style.color).toBe('red');
+      });
+    });
   });
 });

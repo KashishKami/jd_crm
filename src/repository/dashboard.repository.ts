@@ -236,6 +236,7 @@ export async function getRecentOrders(limit = 10) {
     orderPart: true,
     saleStatus: true,
     orderCurrentStatus: true,
+    orderCurrentStatusUpdateDate: true,
     orderAmountCharged: true,
     orderRefundAmount: true,
     orderLiftgateNeeded: true,
