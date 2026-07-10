@@ -23,8 +23,8 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
         return Promise.resolve({
           ok: true,
           json: async () => [
-            { uid: 101, name: 'Alice Agent', teamId: 1 },
-            { uid: 102, name: 'Bob Agent', teamId: 2 },
+            { uid: 101, name: 'Alice Agent', teamId: 1, designation: 'Sales Specialist', status: 1 },
+            { uid: 102, name: 'Bob Agent', teamId: 2, designation: 'Sales Specialist', status: 1 },
           ],
         });
       }

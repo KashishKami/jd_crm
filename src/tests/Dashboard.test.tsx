@@ -130,9 +130,9 @@ describe('Dashboard Component Unit Tests', () => {
     );
     expect(screen.getByText('Top Performers')).toBeDefined();
     expect(screen.getByText('Alice')).toBeDefined();
-    expect(screen.getByText('$8,000')).toBeDefined();
+    expect(screen.getByText('$8,000.00')).toBeDefined();
     expect(screen.getByText('Bob')).toBeDefined();
-    expect(screen.getByText('$6,000')).toBeDefined();
+    expect(screen.getByText('$6,000.00')).toBeDefined();
   });
 
   it('should render PendingCountsRow with status labels', () => {
@@ -395,7 +395,7 @@ describe('Dashboard Component Unit Tests', () => {
       await waitFor(() => {
         expect(screen.getByText('Champions League')).toBeDefined();
         expect(screen.getByText('Alice')).toBeDefined();
-        expect(screen.getByText('$2,000')).toBeDefined();
+        expect(screen.getByText('$2,000.00')).toBeDefined();
       });
 
       // Find and click previous month button to trigger fetch
@@ -405,7 +405,7 @@ describe('Dashboard Component Unit Tests', () => {
       // Should fetch new data
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalled();
-        expect(screen.getByText('$3,000')).toBeDefined();
+        expect(screen.getByText('$3,000.00')).toBeDefined();
       });
     });
   });

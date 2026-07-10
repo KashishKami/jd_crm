@@ -157,14 +157,38 @@ export default function ChampionsLeagueWidget({
           {error === 'Forbidden' ? 'Insufficient Permissions' : error}
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-          {canShowTop && (
-            <PerformersTable title="Top Performers" performers={topPerformers} isTop={true} />
-          )}
-          {canShowBottom && (
-            <PerformersTable title="Bottom Performers" performers={bottomPerformers} isTop={false} />
-          )}
-        </div>
+        <React.Fragment>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            {canShowTop && (
+              <PerformersTable
+                title="Top Performers"
+                performers={topPerformers}
+                isTop={true}
+                permissions={permissions}
+                month={currentMonth}
+                year={currentYear}
+              />
+            )}
+            {canShowBottom && (
+              <PerformersTable
+                title="Bottom Performers"
+                performers={bottomPerformers}
+                isTop={false}
+                permissions={permissions}
+                month={currentMonth}
+                year={currentYear}
+              />
+            )}
+          </div>
+          <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px', fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4', width: '100%' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Note:</span>
+            <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px', listStyleType: 'disc' }}>
+              <li><strong>Sales Count:</strong> Total number of all orders placed by the agent including Sold, Refunded, Chargebacked, and Partial Refund.</li>
+              <li><strong>Total Sales:</strong> Total margin collected from Sold and Partial Refund orders.</li>
+              <li><strong>Leakage:</strong> Total markup reversed from Refunded and Chargebacked orders.</li>
+            </ul>
+          </div>
+        </React.Fragment>
       )}
     </div>
   );

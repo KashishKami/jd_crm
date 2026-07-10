@@ -55,6 +55,9 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | `dashboard:team-monthly-scores` | — | View monthly team-wise aggregate scores widget (new — teams are a new concept) |
 | `dashboard:team-top-performer` | — | View top performer per team for the current month (new) |
 | `dashboard:team-bottom-performer` | — | View bottom performer per team for the current month (new) |
+| `dashboard:backend-top-performer` | — | View Backend Team Top Performers panel — ranked by completed cases in the selected month (Phase 29) |
+| `dashboard:backend-bottom-performer` | — | View Backend Team Bottom Performers panel — ranked by highest pending backlog in the selected month (Phase 29) |
+| `dashboard:backend-pending-cases` | — | View Backend Pending Cases by Category breakdown table for all backend executives (Phase 29) |
 
 ### Resource: `vendors`
 | Permission Key | Legacy Code | Description |

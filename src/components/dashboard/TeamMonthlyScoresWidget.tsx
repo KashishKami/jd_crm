@@ -169,76 +169,204 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
           No team performance data for this month.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-          {teams.map((team) => (
-            <div
-              key={team.teamId}
-              style={{
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                background: '#f8fafc',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>{team.teamName}</h4>
+        <React.Fragment>
+          <div className="team-monthly-container">
+          <style dangerouslySetInnerHTML={{ __html: `
+            .team-monthly-container {
+              display: flex;
+              justify-content: center;
+              align-items: stretch;
+              width: 100%;
+              padding: 0 16px;
+              box-sizing: border-box;
+              gap: 0;
+              flex-wrap: nowrap !important;
+            }
+            .team-monthly-card {
+              border: 1px solid var(--border-color);
+              border-radius: 10px;
+              padding: 12px;
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+              background: #f8fafc;
+              transition: all 0.2s ease;
+              flex: 1 1 340px;
+              max-width: 360px;
+              min-width: 0;
+            }
+            .team-monthly-vs {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 0 8px;
+              color: #94a3b8;
+              font-weight: 800;
+              font-size: 0.8rem;
+              letter-spacing: 0.05em;
+              flex-shrink: 0;
+            }
+            
+            /* Responsive Font Sizes to Prevent Overflows */
+            @media (max-width: 1200px) {
+              .team-monthly-card h4 { font-size: 0.82rem !important; }
+              .team-monthly-card .team-metric-label { font-size: 0.7rem !important; }
+              .team-monthly-card .team-metric-val { font-size: 0.7rem !important; }
+              .team-monthly-card .team-disputes-val { font-size: 0.62rem !important; }
+              .team-monthly-card .team-net-amount { font-size: 0.82rem !important; }
+              .team-monthly-card .performer-title { font-size: 0.64rem !important; }
+              .team-monthly-card .performer-name { font-size: 0.68rem !important; }
+              .team-monthly-card .performer-amount { font-size: 0.68rem !important; }
+              .team-monthly-vs { font-size: 0.72rem !important; padding: 0 6px !important; }
+            }
+            @media (max-width: 900px) {
+              .team-monthly-card h4 { font-size: 0.75rem !important; }
+              .team-monthly-card .team-metric-label { font-size: 0.64rem !important; }
+              .team-monthly-card .team-metric-val { font-size: 0.64rem !important; }
+              .team-monthly-card .team-disputes-val { font-size: 0.58rem !important; }
+              .team-monthly-card .team-net-amount { font-size: 0.75rem !important; }
+              .team-monthly-card .performer-title { font-size: 0.58rem !important; }
+              .team-monthly-card .performer-name { font-size: 0.6rem !important; }
+              .team-monthly-card .performer-amount { font-size: 0.6rem !important; }
+              .team-monthly-vs { font-size: 0.65rem !important; padding: 0 4px !important; }
+            }
+          `}} />
+          {(() => {
+            // Sort so that the team named 'Alex' is always in the centre position
+            let sorted = [...teams];
+            if (sorted.length === 3) {
+              const alexIdx = sorted.findIndex(t => t.teamName === 'Alex');
+              if (alexIdx !== -1 && alexIdx !== 1) {
+                const [alex] = sorted.splice(alexIdx, 1);
+                sorted.splice(1, 0, alex);
+              }
+            }
+            return sorted.map((team, i) => (
+              <React.Fragment key={team.teamId}>
+                {i > 0 && (
+                  <div className="team-monthly-vs">VS</div>
+                )}
+                <div className="team-monthly-card">
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{team.teamName}</h4>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sales Volume</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{`${team.soldCount} Sales`}</span>
-              </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span className="team-metric-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sales Volume</span>
+                    <span className="team-metric-val" style={{ fontSize: '0.75rem', fontWeight: 600 }}>{`${team.soldCount} Sales`}</span>
+                  </div>
+                  {/* Developer Note: Sales Volume represents the total number of successful transactions (orders that are sold or partially refunded) for this team during the month. */}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Disputes</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: team.refundCount > 0 || team.chargebackCount > 0 ? '#ef4444' : 'inherit' }}>
-                  {`${team.refundCount} Ref / ${team.chargebackCount} Chg`}
-                </span>
-              </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span className="team-metric-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Disputes</span>
+                    <span className="team-metric-val team-disputes-val" style={{ fontSize: '0.68rem', fontWeight: 600, color: team.refundCount > 0 || team.chargebackCount > 0 ? '#ef4444' : 'inherit' }}>
+                      {`${team.refundCount} Refund / ${team.chargebackCount} Cbk`}
+                    </span>
+                  </div>
+                  {/* Developer Note: Disputes counts the number of orders that resulted in a customer refund or payment dispute (chargeback) this month. */}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '4px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Net Margin</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: team.netAmount >= 0 ? '#16a34a' : '#dc2626' }}>
-                  ${team.netAmount.toLocaleString('en-US')}
-                </span>
-              </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '2px' }}>
+                    <span className="team-metric-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Final Margin</span>
+                    <span className="team-net-amount" style={{ fontSize: '0.9rem', fontWeight: 700, color: team.netAmount >= 0 ? '#16a34a' : '#dc2626' }}>
+                      ${team.netAmount.toLocaleString('en-US')}
+                    </span>
+                  </div>
+                  {/* Developer Note: Final Margin represents the total profit/margin collected from successful sales after subtracting any issued refunds. */}
 
-              {/* Performers Block */}
-              {(canShowTopPerformer || canShowBottomPerformer) && (
-                <div style={{ marginTop: '12px', background: 'white', borderRadius: '6px', padding: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {canShowTopPerformer && team.topPerformers && team.topPerformers.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Performers</span>
-                      {team.topPerformers.map((agent, index) => (
-                        <div key={agent.agentId} style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>{`${index + 1}. ${agent.agentName}`}</span>
-                          <span style={{ fontWeight: 600, color: '#16a34a' }}>
-                            {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                  {/* Performers Block with Fixed Height/Layout */}
+                  {(canShowTopPerformer || canShowBottomPerformer) && (
+                    <div style={{
+                      marginTop: '8px',
+                      background: 'white',
+                      borderRadius: '6px',
+                      padding: '10px',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '185px',
+                      justifyContent: 'space-between',
+                      boxSizing: 'border-box'
+                    }}>
+                      {/* Top Performers Section */}
+                      {canShowTopPerformer && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', height: '80px' }}>
+                          <span className="performer-title" style={{ height: '14px', display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Top Performers
                           </span>
+                          {(() => {
+                            const list = [];
+                            const tps = team.topPerformers || [];
+                            for (let idx = 0; idx < 3; idx++) {
+                              const agent = tps[idx];
+                              if (agent) {
+                                list.push(
+                                  <div key={agent.agentId || idx} style={{ height: '18px', fontSize: '0.72rem', color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span className="performer-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px', fontSize: '0.72rem' }}>
+                                      {`${idx + 1}. ${agent.agentName}`}
+                                    </span>
+                                    <span className="performer-amount" style={{ fontWeight: 600, color: '#16a34a', flexShrink: 0, fontSize: '0.72rem' }}>
+                                      {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                                    </span>
+                                  </div>
+                                );
+                              } else {
+                                list.push(<div key={`empty-top-${idx}`} style={{ height: '18px', fontSize: '0.72rem' }}>&nbsp;</div>);
+                              }
+                            }
+                            return list;
+                          })()}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {canShowBottomPerformer && team.bottomPerformers && team.bottomPerformers.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: team.topPerformers && team.topPerformers.length > 0 ? '6px' : '0' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bottom Performers</span>
-                      {team.bottomPerformers.map((agent, index) => (
-                        <div key={agent.agentId} style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>{`${index + 1}. ${agent.agentName}`}</span>
-                          <span style={{ fontWeight: 600, color: '#dc2626' }}>
-                            {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                      )}
+
+                      {/* Divider line if both shown */}
+                      {canShowTopPerformer && canShowBottomPerformer && (
+                        <div style={{ borderTop: '1px solid #f1f5f9', margin: '2px 0' }} />
+                      )}
+
+                      {/* Bottom Performers Section */}
+                      {canShowBottomPerformer && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', height: '80px' }}>
+                          <span className="performer-title" style={{ height: '14px', display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Bottom Performers
                           </span>
+                          {(() => {
+                            const list = [];
+                            const bps = team.bottomPerformers || [];
+                            for (let idx = 0; idx < 3; idx++) {
+                              const agent = bps[idx];
+                              if (agent) {
+                                list.push(
+                                  <div key={agent.agentId || idx} style={{ height: '18px', fontSize: '0.72rem', color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span className="performer-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px', fontSize: '0.72rem' }}>
+                                      {`${idx + 1}. ${agent.agentName}`}
+                                    </span>
+                                    <span className="performer-amount" style={{ fontWeight: 600, color: '#dc2626', flexShrink: 0, fontSize: '0.72rem' }}>
+                                      {agent.amount < 0 ? `-$${Math.abs(agent.amount).toLocaleString('en-US')}` : `$${agent.amount.toLocaleString('en-US')}`}
+                                    </span>
+                                  </div>
+                                );
+                              } else {
+                                list.push(<div key={`empty-bot-${idx}`} style={{ height: '18px', fontSize: '0.72rem' }}>&nbsp;</div>);
+                              }
+                            }
+                            return list;
+                          })()}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
+              </React.Fragment>
+            ));
+          })()}
         </div>
+        <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px', fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Note:</span>
+          <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px', listStyleType: 'disc' }}>
+            <li><strong>Sales Volume:</strong> Total number of successful transactions (Sold or Partially Refunded) for this team during the month.</li>
+            <li><strong>Disputes:</strong> Combined count of fully refunded sales and chargebacks.</li>
+            <li><strong>Final Margin:</strong> Net profit generated from successful sales after subtracting refunds.</li>
+          </ul>
+        </div>
+        </React.Fragment>
       )}
     </div>
   );

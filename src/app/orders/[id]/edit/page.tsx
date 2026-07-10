@@ -80,8 +80,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       orderBy: { gatewayName: 'asc' },
     }),
     prisma.users.findMany({
-      where: { status: 1 },
-      select: { uid: true, name: true, nickname: true },
+      select: { uid: true, name: true, nickname: true, designation: true, status: true },
       orderBy: { name: 'asc' },
     }),
   ]);

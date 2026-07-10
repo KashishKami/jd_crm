@@ -166,24 +166,42 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
 
   const rows = await prisma.$queryRaw<any[]>`
     SELECT 
-      MAX(order_sales_agent_name) as agentName,
-      SUM(CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12, 2)) - CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12, 2))) as amount
-    FROM crm_orders
+      u.uid AS agentId,
+      MAX(COALESCE(u.nickname, u.name)) AS agentName,
+      SUM(CASE WHEN o.sale_status IN ('1','4') THEN
+        CAST(COALESCE(o.order_amount_charged,'0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(12,2))
+        ELSE 0 END) AS totalSales,
+      COUNT(CASE WHEN o.sale_status IN ('1','2','3','4') THEN 1 END) AS salesCount,
+      SUM(CASE WHEN o.sale_status IN ('2','3') THEN
+        CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(12,2))
+        ELSE 0 END) AS leakage
+    FROM crm_orders o
+    JOIN users u ON o.order_sales_agent_id = u.uid
     WHERE 
-      sale_status IN ('1', '4')
-      AND parent_order_id IS NULL
-      AND order_sales_agent_id IS NOT NULL
-      AND order_date >= ${start}
-      AND order_date < ${end}
-    GROUP BY order_sales_agent_id
-    ORDER BY amount DESC
+      o.parent_order_id IS NULL
+      AND o.order_sales_agent_id IS NOT NULL
+      AND o.order_date >= ${start}
+      AND o.order_date < ${end}
+      AND o.sale_status IN ('1', '2', '3', '4')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+    GROUP BY u.uid
+    HAVING salesCount > 0
+    ORDER BY totalSales DESC
     LIMIT ${limit}
   `;
 
-  return rows.map(r => ({
-    agentName: r.agentName || 'Unknown Agent',
-    amount: parseFloat(r.amount?.toString() || '0')
-  }));
+  return rows.map(r => {
+    const totalSales = parseFloat(r.totalSales?.toString() || '0');
+    return {
+      agentId: Number(r.agentId),
+      agentName: r.agentName || 'Unknown Agent',
+      salesCount: Number(r.salesCount || 0),
+      totalSales,
+      leakage: parseFloat(r.leakage?.toString() || '0'),
+      amount: totalSales, // Alias for backward compatibility
+    };
+  });
 }
 
 export async function getBottomPerformers(limit = 5, month?: number, year?: number) {
@@ -208,24 +226,42 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
 
   const rows = await prisma.$queryRaw<any[]>`
     SELECT 
-      MAX(order_sales_agent_name) as agentName,
-      SUM(CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12, 2)) - CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12, 2))) as amount
-    FROM crm_orders
+      u.uid AS agentId,
+      MAX(COALESCE(u.nickname, u.name)) AS agentName,
+      SUM(CASE WHEN o.sale_status IN ('1','4') THEN
+        CAST(COALESCE(o.order_amount_charged,'0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(12,2))
+        ELSE 0 END) AS totalSales,
+      COUNT(CASE WHEN o.sale_status IN ('1','2','3','4') THEN 1 END) AS salesCount,
+      SUM(CASE WHEN o.sale_status IN ('2','3') THEN
+        CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(12,2))
+        ELSE 0 END) AS leakage
+    FROM crm_orders o
+    JOIN users u ON o.order_sales_agent_id = u.uid
     WHERE 
-      sale_status IN ('1', '4')
-      AND parent_order_id IS NULL
-      AND order_sales_agent_id IS NOT NULL
-      AND order_date >= ${start}
-      AND order_date < ${end}
-    GROUP BY order_sales_agent_id
-    ORDER BY amount ASC
+      o.parent_order_id IS NULL
+      AND o.order_sales_agent_id IS NOT NULL
+      AND o.order_date >= ${start}
+      AND o.order_date < ${end}
+      AND o.sale_status IN ('1', '2', '3', '4')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+    GROUP BY u.uid
+    HAVING salesCount > 0
+    ORDER BY totalSales ASC
     LIMIT ${limit}
   `;
 
-  return rows.map(r => ({
-    agentName: r.agentName || 'Unknown Agent',
-    amount: parseFloat(r.amount?.toString() || '0')
-  }));
+  return rows.map(r => {
+    const totalSales = parseFloat(r.totalSales?.toString() || '0');
+    return {
+      agentId: Number(r.agentId),
+      agentName: r.agentName || 'Unknown Agent',
+      salesCount: Number(r.salesCount || 0),
+      totalSales,
+      leakage: parseFloat(r.leakage?.toString() || '0'),
+      amount: totalSales, // Alias for backward compatibility
+    };
+  });
 }
 
 export async function getRecentOrders(limit = 10) {
@@ -517,19 +553,24 @@ export async function getTeamMonthlyTopPerformers(teamId: number, month: number,
     SELECT
       u.uid              AS agentId,
       COALESCE(u.nickname, u.name) AS agentName,
+      COUNT(o.crm_order_id) AS orderCount,
       SUM(
-        CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
-        CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+        CASE WHEN o.sale_status IN ('1', '4') THEN
+          CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
+          CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+        ELSE 0 END
       ) AS amount
     FROM users u
     LEFT JOIN crm_orders o
       ON  o.order_sales_agent_id = u.uid
-      AND o.sale_status IN ('1', '4')
+      AND o.sale_status IN ('1', '2', '3', '4')
       AND o.parent_order_id IS NULL
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
     GROUP BY u.uid, u.nickname, u.name
+    HAVING orderCount > 0
     ORDER BY amount DESC
     LIMIT ${limit}
   `;
@@ -551,19 +592,24 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
     SELECT
       u.uid              AS agentId,
       COALESCE(u.nickname, u.name) AS agentName,
+      COUNT(o.crm_order_id) AS orderCount,
       SUM(
-        CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
-        CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+        CASE WHEN o.sale_status IN ('1', '4') THEN
+          CAST(COALESCE(o.order_amount_charged, '0') AS DECIMAL(12,2)) -
+          CAST(COALESCE(o.order_refund_amount,  '0') AS DECIMAL(12,2))
+        ELSE 0 END
       ) AS amount
     FROM users u
     LEFT JOIN crm_orders o
       ON  o.order_sales_agent_id = u.uid
-      AND o.sale_status IN ('1', '4')
+      AND o.sale_status IN ('1', '2', '3', '4')
       AND o.parent_order_id IS NULL
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
     GROUP BY u.uid, u.nickname, u.name
+    HAVING orderCount > 0
     ORDER BY amount ASC
     LIMIT ${limit}
   `;
@@ -611,4 +657,43 @@ export async function getAdvancedChartData(teamId?: number, agentId?: number, da
       orderDate: 'asc',
     },
   });
+}
+
+export async function getBackendTeamPerformance(month: number, year: number) {
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT
+      u.uid AS agentId,
+      MAX(COALESCE(u.nickname, u.name)) AS agentName,
+      SUM(CASE WHEN o.order_current_status = 'Pending Booking' THEN 1 ELSE 0 END) AS pendingBooking,
+      SUM(CASE WHEN o.order_current_status = 'Pending Shipment' THEN 1 ELSE 0 END) AS pendingShipment,
+      SUM(CASE WHEN o.order_current_status = 'Pending Delivery' THEN 1 ELSE 0 END) AS pendingDelivery,
+      SUM(CASE WHEN o.order_current_status = 'Pending Feedback' THEN 1 ELSE 0 END) AS pendingFeedback,
+      SUM(CASE WHEN o.order_current_status = 'Pending Resolutions' THEN 1 ELSE 0 END) AS pendingResolutions,
+      SUM(CASE WHEN o.order_current_status IN (
+        'Pending Booking','Pending Shipment','Pending Delivery',
+        'Pending Feedback','Pending Resolutions'
+      ) THEN 1 ELSE 0 END) AS totalPending,
+      SUM(CASE WHEN o.order_current_status = 'Completed Orders' THEN 1 ELSE 0 END) AS completedCount
+    FROM users u
+    LEFT JOIN crm_orders o
+      ON o.order_backend_executive_id = u.uid
+      AND o.parent_order_id IS NULL
+      AND MONTH(o.order_created_date) = ${month}
+      AND YEAR(o.order_created_date) = ${year}
+    WHERE u.designation IN ('Backend Specialist', 'Backend Associate')
+      AND u.status = 1
+    GROUP BY u.uid
+  `;
+
+  return rows.map(r => ({
+    agentId: Number(r.agentId),
+    agentName: String(r.agentName || 'Unknown Agent'),
+    pendingBooking: Number(r.pendingBooking || 0),
+    pendingShipment: Number(r.pendingShipment || 0),
+    pendingDelivery: Number(r.pendingDelivery || 0),
+    pendingFeedback: Number(r.pendingFeedback || 0),
+    pendingResolutions: Number(r.pendingResolutions || 0),
+    totalPending: Number(r.totalPending || 0),
+    completedCount: Number(r.completedCount || 0),
+  }));
 }

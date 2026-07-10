@@ -288,9 +288,9 @@ describe('EditOrderForm Unit Tests', () => {
       vi.stubGlobal('fetch', fetchSpy);
 
       const mockAgents = [
-        { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
-        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby' },
-        { uid: 6, name: 'Exec Carol', nickname: 'Carol' },
+        { uid: 3, name: 'Agent Smith', nickname: 'Smithy', designation: 'Sales Specialist', status: 1 },
+        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby', designation: 'Sales Specialist', status: 1 },
+        { uid: 6, name: 'Exec Carol', nickname: 'Carol', designation: 'Backend Specialist', status: 1 },
       ];
 
       render(
@@ -518,7 +518,7 @@ describe('EditOrderForm Unit Tests', () => {
       (order as any).orderLiftgateNeeded = 'Yes';
 
       const mockAgents = [
-        { uid: 5, name: 'Agent Neo', nickname: 'Neo' }
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo', status: 1 }
       ];
 
       render(
@@ -545,7 +545,7 @@ describe('EditOrderForm Unit Tests', () => {
       (order as any).orderLiftgateNeeded = 'No';
 
       const mockAgents = [
-        { uid: 5, name: 'Agent Neo', nickname: 'Neo' }
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo', status: 1 }
       ];
 
       render(

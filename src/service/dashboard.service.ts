@@ -241,6 +241,44 @@ export async function getChampionsLeague(session: any, month?: number, year?: nu
   return result;
 }
 
+export async function getBackendTeamDashboard(session: any, month: number, year: number) {
+  const permissions = session?.user?.userPermissions || '';
+  if (
+    !hasPermission(permissions, 'dashboard:backend-top-performer') &&
+    !hasPermission(permissions, 'dashboard:backend-bottom-performer') &&
+    !hasPermission(permissions, 'dashboard:backend-pending-cases')
+  ) {
+    throw new Error('Forbidden');
+  }
+
+  const allData = await dashboardRepository.getBackendTeamPerformance(month, year);
+
+  const result: {
+    topPerformers?: any[];
+    bottomPerformers?: any[];
+    pendingByCategory?: any[];
+  } = {};
+
+  if (hasPermission(permissions, 'dashboard:backend-top-performer')) {
+    result.topPerformers = [...allData]
+      .sort((a, b) => b.completedCount - a.completedCount)
+      .slice(0, 3);
+  }
+
+  if (hasPermission(permissions, 'dashboard:backend-bottom-performer')) {
+    result.bottomPerformers = [...allData]
+      .sort((a, b) => b.totalPending - a.totalPending)
+      .slice(0, 3);
+  }
+
+  if (hasPermission(permissions, 'dashboard:backend-pending-cases')) {
+    result.pendingByCategory = [...allData]
+      .sort((a, b) => b.totalPending - a.totalPending);
+  }
+
+  return result;
+}
+
 export async function getAdvancedChartMetrics(
   session: any,
   teamId?: number,

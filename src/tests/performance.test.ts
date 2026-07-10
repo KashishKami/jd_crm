@@ -47,6 +47,7 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
         email: 'agent_a_perf@example.com',
         teamId: 1,
         roleId: 1,
+        designation: 'Sales Associate',
       }
     });
     const agentB = await prisma.users.create({
@@ -57,6 +58,7 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
         email: 'agent_b_perf@example.com',
         teamId: 1,
         roleId: 1,
+        designation: 'Sales Associate',
       }
     });
 

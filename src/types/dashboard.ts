@@ -1,6 +1,10 @@
 export interface PerformerRow {
+  agentId: number;
   agentName: string;
-  amount: number;
+  salesCount: number;
+  totalSales: number;
+  leakage: number;
+  amount?: number;
 }
 
 export interface PendingCounts {

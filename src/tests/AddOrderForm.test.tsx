@@ -50,8 +50,8 @@ describe('AddOrderForm Unit Tests', () => {
 
   it('should auto-populate Sales Agent dropdown with currently logged-in user if they exist in agents list', async () => {
     const mockAgents = [
-      { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
-      { uid: 4, name: 'Agent Neo', nickname: 'Neo' }
+      { uid: 3, name: 'Agent Smith', nickname: 'Smithy', designation: 'Sales Specialist', status: 1 },
+      { uid: 4, name: 'Agent Neo', nickname: 'Neo', designation: 'Sales Specialist', status: 1 }
     ];
 
     vi.mocked(useSession).mockReturnValue({
@@ -256,9 +256,9 @@ describe('AddOrderForm Unit Tests', () => {
       const mockVendors = [{ vendorId: 1, vendorName: 'Test Vendor' }];
       const mockGateways = [{ gatewayId: 2, gatewayName: 'Test Gateway' }];
       const mockAgents = [
-        { uid: 3, name: 'Agent Smith', nickname: 'Smithy' },
-        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby' },
-        { uid: 6, name: 'Exec Carol', nickname: 'Carol' },
+        { uid: 3, name: 'Agent Smith', nickname: 'Smithy', designation: 'Sales Specialist', status: 1 },
+        { uid: 5, name: 'Verifier Bob', nickname: 'Bobby', designation: 'Sales Specialist', status: 1 },
+        { uid: 6, name: 'Exec Carol', nickname: 'Carol', designation: 'Backend Specialist', status: 1 },
       ];
 
       vi.mocked(fetch).mockResolvedValueOnce({

@@ -953,3 +953,156 @@ The business required adding permission restrictions so that users with `orders:
 - Files changed: `src/app/api/orders/route.ts`, `src/app/api/orders/pending-counts/route.ts`, `src/app/api/orders/[id]/route.ts`, `src/app/api/orders/[id]/comments/route.ts`, `src/app/orders/[id]/page.tsx`, `src/app/orders/[id]/edit/page.tsx`, `src/middleware.ts`, `src/components/Sidebar.tsx`, `src/components/Navbar.tsx`, `src/components/OrderListContainer.tsx`, `src/components/OrderList.tsx`, `src/components/dashboard/RecentOrdersTable.tsx`.
 - Realigned recent orders query select statements to ensure `orderSalesAgentId` is retrieved and mapped to the dashboard component.
 
+---
+
+## Decision 34 — Dashboard Phase 29: Sales Performer Redesign, Backend Team Performance Widget & New Permission Keys
+
+**Date:** 2026-07-10
+**Status:** Accepted
+
+#### Context
+
+The Champions League (Sales Performers) widget originally displayed only an agent name and total
+sales volume. The business requested a richer view — filtered to front-line sales designations
+only, with separate columns for sales count, total revenue, and leakage count (refunds +
+chargebacks). Additionally, a completely separate Backend Team Performance widget was requested
+to surface backend executive workloads (completed cases, pending cases by category). Three new
+RBAC permission keys are introduced specifically for the backend widget. The existing two
+sales-performer permission keys (`dashboard:top-performer`, `dashboard:bottom-performer`) are
+kept unchanged to avoid production RBAC disruption.
+
+#### Decisions
+
+**D34.1 — Sales performer tables are designation-filtered; only front-line sales roles appear**
+- The `getTopPerformers()` and `getBottomPerformers()` SQL queries in
+  `dashboard.repository.ts` now JOIN the `users` table and apply a `WHERE u.designation IN (...)`
+  filter. Only agents with the following five designations are included in the ranking:
+  `'Sales Supervisor'`, `'Sales Team Lead'`, `'Sales Specialist'`, `'Sales Expert'`,
+  `'Sales Associate'`.
+- Agents with other designations (e.g. Backend Specialist, HR Manager, QA) are silently
+  excluded from the performer tables regardless of their order volume. This is intentional —
+  the Champions League is a sales-only leaderboard.
+- The filter is applied in SQL (not in JavaScript post-processing) to keep the LIMIT clause
+  accurate. Without the JOIN filter, the LIMIT would include non-sales agents and then
+  JavaScript would remove them, shrinking the result set below the intended limit.
+
+**D34.2 — Sales performer tables gain three new columns: Sales Count, Total Sales, Leakage Count**
+- `salesCount`: `COUNT(*)` of orders where `sale_status IN ('1', '4')` (Sold + Partial Refund).
+  Partial refunds count as completed sales per the business rule established in Decision 19.
+- `totalSales`: `SUM(order_amount_charged - order_refund_amount)` for the above status set.
+  This is the `finalMargin` formula used throughout the system. Ranking is based on this value.
+- `leakageCount`: `COUNT(*)` of orders where `sale_status IN ('2', '3')` (Refunded +
+  Chargebacked). Named "Leakage" because it represents recovered-then-lost revenue.
+- The `amount` field returned by these repository functions now maps to `totalSales`.
+- All three values are scoped to the selected month/year (same as the existing navigator).
+
+**D34.3 — All performer table cells are clickable deep links to the Orders page**
+- Every data cell (agent name, sales count, total sales value, leakage count) is rendered as an
+  anchor tag pointing to `/orders` with the relevant query parameters pre-applied.
+- Deep link formats:
+  - Agent name → `/orders?agentId={uid}&month={M}&year={Y}`
+  - Sales Count → `/orders?agentId={uid}&saleStatus=1,4&month={M}&year={Y}`
+  - Total Sales → `/orders?agentId={uid}&saleStatus=1,4&month={M}&year={Y}`
+  - Leakage Count → `/orders?agentId={uid}&saleStatus=2,3&month={M}&year={Y}`
+- RBAC is enforced at the API layer (`GET /api/orders`). Restricted users (those with
+  `orders:create` but without `orders:view`) have their `agentId` forced to their own UID on
+  the backend. Clicking another agent's cell simply shows the restricted user's own orders —
+  no data leakage, no additional frontend permission check required for the link itself.
+- The `agentId` returned from performer queries is `users.uid` (joined from `crm_orders → users`),
+  not the legacy `agent_id` display string.
+- Month/year filter for deep links uses the same month/year currently selected in the widget's
+  month navigator, ensuring the orders page opens pre-filtered to the same period being viewed.
+
+**D34.4 — Existing sales performer permission keys are NOT renamed**
+- `dashboard:top-performer` (ID 8) and `dashboard:bottom-performer` (ID 9) keep their existing
+  keys. Renaming them would break any production role-permission assignments already in the
+  database that reference these IDs by name or by their role-permission row entries.
+- The new backend permissions are distinct keys with the `backend` substring so their scope
+  is unambiguous without requiring the sales keys to change.
+- Code references (e.g. `hasPermission(permissions, 'dashboard:top-performer')`) remain as-is.
+
+**D34.5 — Three new permission keys for the Backend Team Performance widget**
+- `dashboard:backend-top-performer` (ID 55): Controls visibility of the Backend Top Performers
+  panel. Assigned to Super Admin (role_id 1) and Admin (role_id 2) only by default.
+- `dashboard:backend-bottom-performer` (ID 56): Controls visibility of the Backend Bottom
+  Performers panel (sorted by highest pending backlog). Same default role assignments.
+- `dashboard:backend-pending-cases` (ID 57): Controls visibility of the full Pending Cases by
+  Category breakdown table. Same default role assignments.
+- These three IDs (55, 56, 57) are the next sequential IDs after the existing 54 permissions.
+  They are reserved permanently for these keys.
+- Permission enforcement is dual-layer: the `BackendTeamWidget` client component hides the
+  panels if the permission is absent (UX guard), AND the `GET /api/dashboard/backend-team` API
+  route returns `403 Forbidden` if none of the three backend permissions are present on the
+  session (backend security guard). The backend check cannot be bypassed by UI manipulation.
+
+**D34.6 — Backend Team Performance widget uses the same month navigator as Champions League**
+- The new `BackendTeamWidget` component shares the same month/year navigation pattern as
+  `ChampionsLeagueWidget`. Users navigate backward/forward through months to view history.
+- All three panels (Top Performers, Bottom Performers, Pending Cases) are scoped to the
+  selected month and year. The scope column is `order_created_date` (not `order_date`) because
+  backend executive assignment happens at order creation time, not at the sales date.
+- The API endpoint (`GET /api/dashboard/backend-team?month=M&year=Y`) accepts `month` and
+  `year` as required query parameters and defaults to the current EST month/year if omitted.
+
+**D34.7 — Backend performer ranking criteria**
+- Top Performers panel: Agents ranked by `completedCount DESC` — the number of orders with
+  `order_current_status = 'Completed Orders'` assigned to them in the selected month.
+- Bottom Performers panel: Agents ranked by `totalPending DESC` — the total count of orders
+  in any pending queue (`Pending Booking`, `Pending Shipment`, `Pending Delivery`,
+  `Pending Feedback`, `Pending Resolutions`) assigned to them.
+- Both panels include only active users (`users.status = 1`) with designation in
+  `('Backend Specialist', 'Backend Associate')`. Inactive users are excluded.
+- LEFT JOIN is used so that backend executives with zero orders in the selected month still
+  appear in the table (with zero counts), ensuring the complete team is always visible.
+- Limit for Top/Bottom panels is 10 rows each.
+
+**D34.8 — Backend performer cells are also clickable deep links**
+- Pending Cases table and Top/Bottom panel cells link to `/orders` with:
+  - Agent name → `/orders?backendExecutiveId={uid}&month={M}&year={Y}`
+  - Completed count → `/orders?backendExecutiveId={uid}&status=Completed+Orders`
+  - Pending Booking → `/orders?backendExecutiveId={uid}&status=Pending+Booking`
+  - Pending Shipment → `/orders?backendExecutiveId={uid}&status=Pending+Shipment`
+  - Pending Delivery → `/orders?backendExecutiveId={uid}&status=Pending+Delivery`
+  - Pending Feedback → `/orders?backendExecutiveId={uid}&status=Pending+Feedback`
+  - Pending Resolutions → `/orders?backendExecutiveId={uid}&status=Pending+Resolutions`
+  - Total Pending → `/orders?backendExecutiveId={uid}` (no status filter — shows all assigned)
+- The `backendExecutiveId` query param is already fully wired end-to-end in
+  `OrderListContainer.tsx` → `GET /api/orders` → `order.repository.ts:findAll()`.
+  No additional backend plumbing is required to support these deep links.
+
+**D34.9 — Production deployment uses a standalone SQL migration script, not a Prisma migration**
+- New permissions are pure data rows — no table structure changes. Prisma migrations are
+  exclusively for DDL (schema) changes. Using `prisma migrate dev` for a data-only change
+  would be incorrect and would insert a spurious migration entry into `_prisma_migrations`.
+- A standalone SQL script at `scripts/sql/add-backend-permissions.sql` is the correct delivery
+  mechanism. It uses `INSERT IGNORE` throughout and is fully idempotent (safe to run multiple
+  times without producing duplicate rows or errors).
+- `seed.sql` is also updated to include the three new permissions and role-permission mappings.
+  `seed.sql` has been simultaneously hardened to be fully idempotent — all `DELETE FROM`
+  statements on content tables have been removed and replaced with `INSERT IGNORE` /
+  `ON DUPLICATE KEY UPDATE`. The seed can now be re-run at any time without wiping data.
+- For production: run `scripts/sql/add-backend-permissions.sql` once after code deployment.
+- For development/test: re-running `seed.sql` (or resetting via Docker) picks up new
+  permissions automatically.
+
+#### Consequences (D34)
+- New files:
+  - `src/app/api/dashboard/backend-team/route.ts` — new API route for backend team data.
+  - `src/components/dashboard/BackendTeamWidget.tsx` — new dashboard widget component.
+  - `scripts/sql/add-backend-permissions.sql` — one-shot production permission migration.
+- Modified files:
+  - `src/repository/dashboard.repository.ts` — updated `getTopPerformers()`,
+    `getBottomPerformers()` with designation filter and new columns; new
+    `getBackendTeamPerformers()` and `getBackendPendingByCategory()` functions.
+  - `src/service/dashboard.service.ts` — new `getBackendTeamDashboard()` method.
+  - `src/components/dashboard/PerformersTable.tsx` — adds salesCount, leakageCount columns;
+    makes all cells clickable.
+  - `src/components/dashboard/ChampionsLeagueWidget.tsx` — passes `agentId` from API response
+    through to `PerformersTable` for deep links.
+  - `src/types/dashboard.ts` — extends `PerformerRow` type; adds `BackendPerformerRow`,
+    `BackendPendingRow` types.
+  - `seed.sql` — fully idempotent rewrite; adds permission IDs 55–57.
+  - Dashboard server page — wires `BackendTeamWidget` with permission props.
+- No `prisma migrate` commands are needed. No schema changes. No existing data is modified.
+- The `crm_permissions` table gains 3 new rows (IDs 55, 56, 57).
+- The `crm_role_permissions` table gains 6 new rows (3 for Super Admin, 3 for Admin).

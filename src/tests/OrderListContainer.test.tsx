@@ -36,8 +36,8 @@ describe('OrderListContainer Unit Tests', () => {
         return Promise.resolve({
           ok: true,
           json: async () => [
-            { uid: 1, name: 'Alice Agent', nickname: 'Alice', designation: 'Sales Associate' },
-            { uid: 2, name: 'Bob Executive', nickname: 'Bob', designation: 'Backend Executive' },
+            { uid: 1, name: 'Alice Agent', nickname: 'Alice', designation: 'Sales Associate', status: 1 },
+            { uid: 2, name: 'Bob Executive', nickname: 'Bob', designation: 'Backend Specialist', status: 1 },
           ],
         });
       }

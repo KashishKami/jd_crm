@@ -58,21 +58,50 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
     const partFoundByParam = searchParams.get('partFoundById');
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
+    const agentParam = searchParams.get('agentId');
+    const teamParam = searchParams.get('teamId');
+    const monthParam = searchParams.get('month');
+    const yearParam = searchParams.get('year');
 
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
     if (backendExecutiveParam !== null) setBackendExecutiveFilter(backendExecutiveParam);
     if (partFoundByParam !== null) setPartFoundByFilter(partFoundByParam);
-    if (fromParam !== null) setDateFrom(fromParam);
-    if (toParam !== null) setDateTo(toParam);
+    if (agentParam !== null) setAgentFilter(agentParam);
+    if (teamParam !== null) setTeamFilter(teamParam);
+
+    if (monthParam && yearParam) {
+      const y = parseInt(yearParam);
+      const m = parseInt(monthParam);
+      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      setDateFrom(startStr);
+      setDateTo(endStr);
+    } else {
+      if (fromParam !== null) setDateFrom(fromParam);
+      if (toParam !== null) setDateTo(toParam);
+    }
   }, [searchParams]);
+
+  // If the user lacks orders:view, they can only see their own orders.
+  // Clear any agent/team filters that may have been set from URL params
+  // (e.g. clicking a dashboard link with ?agentId=X) — the backend would
+  // override them anyway, but the stale filter badge would be misleading.
+  useEffect(() => {
+    if (status === 'authenticated' && !hasPermission(permissions, 'orders:view')) {
+      setAgentFilter('');
+      setTeamFilter('');
+    }
+  }, [status, permissions]);
+
 
   // Fetch agents for dropdown
   useEffect(() => {
     if (status !== 'authenticated') return;
     const fetchAgents = async () => {
       try {
-        const res = await fetch('/api/agents?status=1');
+        const res = await fetch('/api/agents');
         if (res.ok) {
           const data = await res.json();
           setAgents(data);
@@ -373,9 +402,18 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
                 className="filter-select-custom"
               >
                 <option value="">All Agents</option>
-                {agents.map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
+                {(() => {
+                  const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive'];
+                  const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation));
+                  const active = filtered.filter(a => a.status === 1);
+                  const inactive = filtered.filter(a => a.status !== 1);
+                  return (
+                    <>
+                      {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                      {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                    </>
+                  );
+                })()}
               </select>
             </div>
           )}
@@ -388,11 +426,18 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               className="filter-select-custom"
             >
               <option value="">All Backend Executives</option>
-              {agents
-                .filter((a) => a.designation?.toLowerCase().includes('backend'))
-                .map((a) => (
-                  <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                ))}
+              {(() => {
+                const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
+                const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation));
+                const active = filtered.filter(a => a.status === 1);
+                const inactive = filtered.filter(a => a.status !== 1);
+                return (
+                  <>
+                    {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                    {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                  </>
+                );
+              })()}
             </select>
           </div>
           <div className="filter-select-wrapper">
@@ -404,9 +449,16 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               className="filter-select-custom"
             >
               <option value="">All Sourcing Agents</option>
-              {agents.map((a) => (
-                <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-              ))}
+              {(() => {
+                const active = agents.filter(a => a.status === 1);
+                const inactive = agents.filter(a => a.status !== 1);
+                return (
+                  <>
+                    {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                    {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                  </>
+                );
+              })()}
             </select>
           </div>
           <div className="filter-select-wrapper">
@@ -431,9 +483,33 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       </div>
 
       {/* Active filters display */}
-      {(saleStatusFilter || backendExecutiveFilter || partFoundByFilter || dateFrom || dateTo) && (
+      {(agentFilter || teamFilter || saleStatusFilter || backendExecutiveFilter || partFoundByFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Active Filters:</span>
+          {agentFilter && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
+              Agent: {agents.find(a => String(a.uid) === agentFilter)?.nickname || agents.find(a => String(a.uid) === agentFilter)?.name || agentFilter}
+              <button 
+                onClick={() => setAgentFilter('')} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {teamFilter && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
+              Team: {teams.find(t => String(t.teamId) === teamFilter)?.teamName || teamFilter}
+              <button 
+                onClick={() => setTeamFilter('')} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
           {saleStatusFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
               Sale Status: {

@@ -266,6 +266,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_a1_test',
           teamId: teamA.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
       const agentA2 = await prisma.users.create({
@@ -274,6 +275,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_a2_test',
           teamId: teamA.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
       const agentB = await prisma.users.create({
@@ -282,6 +284,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_b1_test',
           teamId: teamB.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
 
@@ -392,6 +395,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_alice_test',
           teamId: teamA.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
       const agentBob = await prisma.users.create({
@@ -400,6 +404,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_bob_test',
           teamId: teamA.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
       const agentCarlos = await prisma.users.create({
@@ -409,6 +414,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_carlos_test',
           teamId: teamA.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
 
@@ -674,6 +680,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_alice_test',
           teamId: team!.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Associate',
         },
       });
       const agentBob = await prisma.users.create({
@@ -682,6 +689,7 @@ describe('Dashboard Integration Tests', () => {
           username: 'agent_bob_test',
           teamId: team!.teamId,
           roleId: role!.roleId,
+          designation: 'Sales Specialist',
         },
       });
 
@@ -755,15 +763,131 @@ describe('Dashboard Integration Tests', () => {
       // Top performers sort: Alice (400) first, Bob (200) second
       expect(data.topPerformers.length).toBeGreaterThanOrEqual(2);
       expect(data.topPerformers[0].agentName).toBe('Alice Agent');
-      expect(data.topPerformers[0].amount).toBe(400);
+      expect(data.topPerformers[0].totalSales).toBe(400);
       expect(data.topPerformers[1].agentName).toBe('Bob Agent');
-      expect(data.topPerformers[1].amount).toBe(200);
+      expect(data.topPerformers[1].totalSales).toBe(200);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
       await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
       await prisma.users.deleteMany({
         where: { uid: { in: [agentAlice.uid, agentBob.uid] } },
+      });
+    });
+
+    it('should only return front-line sales designations in Champions League and support new detailed columns', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const team = await prisma.crmTeams.findFirst();
+
+      const salesAgent = await prisma.users.create({
+        data: {
+          name: 'Sales Rep',
+          username: 'agent_alice_test',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+          designation: 'Sales Specialist',
+        },
+      });
+      const backendAgent = await prisma.users.create({
+        data: {
+          name: 'Backend Rep',
+          username: 'agent_bob_test',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+          designation: 'Backend Associate',
+        },
+      });
+
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Team Customer',
+          customerEmail: 'team_cust@example.com',
+        },
+      });
+
+      const targetDate = new Date('2026-06-15T12:00:00Z');
+
+      // Sales agent: 2 completed orders (margin 300 and 150) and 1 leakage order (charged 100, refunded 100)
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderAmountCharged: '300',
+          orderRefundAmount: '0',
+          orderDate: targetDate,
+          orderSalesAgentId: salesAgent.uid,
+          orderSalesAgentName: salesAgent.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '4',
+          orderAmountCharged: '200',
+          orderRefundAmount: '50',
+          orderDate: targetDate,
+          orderSalesAgentId: salesAgent.uid,
+          orderSalesAgentName: salesAgent.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '100',
+          orderRefundAmount: '100',
+          orderDate: targetDate,
+          orderSalesAgentId: salesAgent.uid,
+          orderSalesAgentName: salesAgent.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      // Backend agent order (should NOT be returned because of designation)
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          saleStatus: '1',
+          orderAmountCharged: '1000',
+          orderRefundAmount: '0',
+          orderDate: targetDate,
+          orderSalesAgentId: backendAgent.uid,
+          orderSalesAgentName: backendAgent.name,
+          orderVendorName: 'TEAM_TEST',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/champions-league/route');
+      const req = new Request('http://localhost/api/dashboard/champions-league?month=6&year=2026');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      // Top performers must NOT contain Backend Rep
+      const topNames = data.topPerformers.map((p: any) => p.agentName);
+      expect(topNames).not.toContain('Backend Rep');
+      expect(topNames).toContain('Sales Rep');
+
+      const repRow = data.topPerformers.find((p: any) => p.agentName === 'Sales Rep');
+      expect(repRow).toBeDefined();
+      expect(repRow).toHaveProperty('agentId');
+      expect(typeof repRow.agentId).toBe('number');
+      expect(repRow.salesCount).toBe(3);
+      expect(repRow.leakage).toBe(100);
+      expect(repRow.totalSales).toBe(450); // (300 - 0) + (200 - 50) = 450
+
+      // Cleanup
+      await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
+      await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+      await prisma.users.deleteMany({
+        where: { uid: { in: [salesAgent.uid, backendAgent.uid] } },
       });
     });
   });

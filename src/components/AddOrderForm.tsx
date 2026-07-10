@@ -12,7 +12,7 @@ import DealSummarySidebar from './DealSummarySidebar';
 interface AddOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
-  agents: Array<{ uid: number; name: string; nickname?: string | null }>;
+  agents: Array<{ uid: number; name: string; nickname?: string | null; designation?: string | null; status?: number | null }>;
 }
 
 interface PartFormState {
@@ -917,9 +917,16 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                               className="form-select"
                             >
                               <option value="">Select or Type</option>
-                              {agents.map((a) => (
-                                <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                              ))}
+                              {(() => {
+                                const active = agents.filter(a => a.status === 1);
+                                const inactive = agents.filter(a => a.status !== 1);
+                                return (
+                                  <>
+                                    {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                                    {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                                  </>
+                                );
+                              })()}
                             </select>
                           </div>
 
@@ -1196,9 +1203,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   className="form-select"
                 >
                   <option value="">Select or Type</option>
-                  {agents.map((a) => (
-                    <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                  ))}
+                  {(() => {
+                    const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive'];
+                    const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
+                    const active = filtered.filter(a => a.status === 1);
+                    const inactive = filtered.filter(a => a.status !== 1);
+                    return (
+                      <>
+                        {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                        {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
@@ -1213,9 +1229,16 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   className="form-select"
                 >
                   <option value="">Select or Type</option>
-                  {agents.map((a) => (
-                    <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                  ))}
+                  {(() => {
+                    const active = agents.filter(a => a.status === 1);
+                    const inactive = agents.filter(a => a.status !== 1);
+                    return (
+                      <>
+                        {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                        {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
@@ -1230,9 +1253,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   className="form-select"
                 >
                   <option value="">Select or Type</option>
-                  {agents.map((a) => (
-                    <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                  ))}
+                  {(() => {
+                    const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
+                    const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation || ''));
+                    const active = filtered.filter(a => a.status === 1);
+                    const inactive = filtered.filter(a => a.status !== 1);
+                    return (
+                      <>
+                        {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                        {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
@@ -1247,9 +1279,18 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   className="form-select"
                 >
                   <option value="">Select or Type</option>
-                  {agents.map((a) => (
-                    <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>
-                  ))}
+                  {(() => {
+                    const QA_DESIGNATIONS = ['Quality Associate'];
+                    const filtered = agents.filter(a => QA_DESIGNATIONS.includes(a.designation || ''));
+                    const active = filtered.filter(a => a.status === 1);
+                    const inactive = filtered.filter(a => a.status !== 1);
+                    return (
+                      <>
+                        {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                        {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
             </div>

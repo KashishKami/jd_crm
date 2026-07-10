@@ -43,6 +43,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 26.6** | Global Sale Status + Add/Edit Order Form Layout Redesign | **[x] COMPLETED** | `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
 | **Phase 27** | Super-Admin CSV Data Export & Import — All Tables, FK-Safe Order, ZIP Download | **[ ] NOT STARTED** | `api/admin/export/route.ts` (new), `api/admin/import/route.ts` (new), `lib/csv-exporter.ts` (new), `service/data-management.service.ts` (new), `app/settings/data-management/page.tsx` (new) |
 | **Phase 28** | Automated Weekly Backup — Saturday Evening Cron (Docker & Vercel) | **[ ] NOT STARTED** | `docker-compose.yml`, `api/admin/backup/trigger/route.ts` (new), `service/backup.service.ts` (new), `vercel.json` |
+| **Phase 29** | Dashboard Enhancement — Sales Performer Redesign & Backend Team Performance Widget | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/types/dashboard.ts`, `src/components/dashboard/PerformersTable.tsx`, `src/components/dashboard/ChampionsLeagueWidget.tsx`, `src/components/dashboard/BackendTeamWidget.tsx` (new), `src/app/api/dashboard/champions-league/route.ts`, `src/app/api/dashboard/backend-team/route.ts` (new), dashboard server page, `scripts/sql/add-backend-permissions.sql` (new), `seed.sql` |
 
 ---
 
@@ -4830,6 +4831,361 @@ Add a `crm_backup` service to `docker-compose.yml` using a lightweight MySQL-cap
 
 ---
 
+### Phase 29 — Dashboard Enhancement: Sales Performer Redesign & Backend Team Performance Widget
+
+> **Decision Reference:** Decision 34 (`CONTEXT/decision_log.md`)
+> **Dependencies:** Phase 10 (Dashboard foundation), Phase 18 (Team widgets), Phase 33 (Restricted orders access)
+> **New Permissions:** `dashboard:backend-top-performer` (ID 55), `dashboard:backend-bottom-performer` (ID 56), `dashboard:backend-pending-cases` (ID 57)
+> **No schema migrations required.** No existing data is modified.
+
+---
+
+#### W-2901 — Sales Performer Table Redesign (Designation Filter + New Columns + Clickable Cells)
+
+**Goal:**
+Redesign the Champions League Top and Bottom performer tables so that:
+1. Only agents with front-line sales designations appear (designation-filtered at SQL level).
+2. Three new data columns are shown per row: Sales Count, Total Sales, and Leakage Count.
+3. Every cell in the table is a clickable deep link to the Orders page with the correct filters pre-applied.
+4. Deep links are rendered as plain text (non-clickable) for users who cannot access the Orders page at all.
+
+**Approach:**
+Extend the existing `getTopPerformers()` and `getBottomPerformers()` raw SQL queries in
+`dashboard.repository.ts` to JOIN the `users` table, apply a designation filter, and return
+three aggregated column values instead of one. Update the `PerformerRow` TypeScript type to
+include the new fields. Update `PerformersTable.tsx` to accept `permissions` and `month`/`year`
+props, render new columns, and conditionally wrap each cell in an anchor tag when the viewer has
+`orders:view` or `orders:create` permission.
+
+> [!IMPORTANT]
+> The `agentId` used for deep links must be the database `users.uid` (joined from the ORDER→USER
+> relation), **not** the `agent_id` display string (e.g., `AG101`). The orders list API accepts
+> `agentId` as a numeric `uid`. Ensure the SQL query selects `u.uid AS agentId` and the
+> repository returns it in the row map.
+
+> [!NOTE]
+> The LIMIT clause on the SQL query must come **after** the designation JOIN filter — not before.
+> Applying LIMIT before the WHERE designation clause would silently exclude agents from the
+> intended list if non-sales agents appear near the top/bottom of the unfiltered result set.
+
+---
+
+- [ ] **RED — Integration (`src/tests/Dashboard.test.tsx` or new `champions-league.test.ts`):**
+  - [ ] Test: `GET /api/dashboard/champions-league?month=M&year=Y` returns top performers that include only agents with designations: `Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`. Assert that a seeded agent with designation `Backend Specialist` does NOT appear in the response, even if they have orders in that month.
+  - [ ] Test: Each performer row in the response contains `agentId` (numeric), `agentName`, `salesCount`, `totalSales`, and `leakageCount` fields.
+  - [ ] Test: `salesCount` equals the count of orders with `sale_status IN ('1','4')` for that agent in the given month. `leakageCount` equals count with `sale_status IN ('2','3')`.
+  - [ ] Test: `totalSales` equals `SUM(order_amount_charged - order_refund_amount)` for `sale_status IN ('1','4')` orders. This must match the `finalMargin` formula.
+  - [ ] Test: Bottom performers response is sorted ascending by `totalSales` (lowest first).
+  - [ ] Test: If no agents exist with the allowed designations in that month, both arrays return empty `[]` without error.
+  - [ ] **Run — confirm RED (new fields don't exist yet).**
+
+- [ ] **GREEN — Backend (Repository → Service → API Route):**
+  - [ ] **[Repository]** In `src/repository/dashboard.repository.ts`, update `getTopPerformers(limit, month, year)`:
+    - Add `JOIN users u ON o.order_sales_agent_id = u.uid` to the raw SQL.
+    - Add `WHERE u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate')` filter.
+    - Add `u.uid AS agentId` to the SELECT clause.
+    - Replace the single `amount` aggregate with three separate aggregations:
+      ```sql
+      SUM(CASE WHEN o.sale_status IN ('1','4') THEN
+        CAST(COALESCE(o.order_amount_charged,'0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(o.order_refund_amount,'0') AS DECIMAL(12,2))
+        ELSE 0 END) AS totalSales,
+      COUNT(CASE WHEN o.sale_status IN ('1','4') THEN 1 END) AS salesCount,
+      COUNT(CASE WHEN o.sale_status IN ('2','3') THEN 1 END) AS leakageCount
+      ```
+    - Update GROUP BY to include `u.uid, u.designation`.
+    - Update `ORDER BY totalSales DESC` (top) or `ASC` (bottom).
+    - Update the row map to return `{ agentId, agentName, salesCount, totalSales, leakageCount }`.
+  - [ ] **[Repository]** Apply the identical changes to `getBottomPerformers()`.
+  - [ ] **[Service]** In `src/service/dashboard.service.ts`, no logic changes needed — `getTopPerformers` and `getBottomPerformers` are called directly; just ensure the returned shape is forwarded.
+  - [ ] **[API Route]** In `src/app/api/dashboard/champions-league/route.ts`, verify the response passes through `agentId`, `salesCount`, `totalSales`, `leakageCount` from the repository result. No additional permission changes needed (existing `dashboard:top-performer` / `dashboard:bottom-performer` keys are unchanged).
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **RED — Unit (`src/tests/PerformersTable.test.tsx` — new or extended):**
+  - [ ] Test: Render `<PerformersTable>` with a mock performers array. Assert the table headers include `Rank`, `Agent`, `Sales Count`, `Total Sales`, `Leakage Count`.
+  - [ ] Test: Render with `permissions` that include `orders:view`. Assert each agent name cell renders as an `<a>` tag with `href` containing `agentId=` and `month=` and `year=`.
+  - [ ] Test: Render with `permissions` that do NOT include `orders:view` or `orders:create`. Assert agent name cells are rendered as plain `<span>` (no anchor tag). Assert no `<a>` tags are rendered anywhere in the table.
+  - [ ] Test: Render a row where `leakageCount = 0`. Assert the leakage cell displays `0` and does NOT render a link (no point linking to an empty filtered orders list). OR renders a link — decide and implement consistently.
+  - [ ] Test: The `#1` top performer row renders the gold/accent color on the rank cell and a blue avatar background.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component):**
+  - [ ] **[Types]** In `src/types/dashboard.ts`, update `PerformerRow` interface:
+    ```typescript
+    export interface PerformerRow {
+      agentId: number;
+      agentName: string;
+      salesCount: number;
+      totalSales: number;
+      leakage: number;
+      // Keep `amount` as an alias or remove — verify no other consumer depends on it
+    }
+    ```
+  - [ ] **[Component]** In `src/components/dashboard/PerformersTable.tsx`:
+    - Add `permissions: string` and `month: number` and `year: number` props to the interface.
+    - Add `canLinkToOrders` derived boolean: `hasPermission(permissions, 'orders:view') || hasPermission(permissions, 'orders:create')`.
+    - Update table headers: `Rank | Agent | Sales Count | Total Sales | Leakage`.
+    - For each row, build deep link URLs:
+      - `agentUrl = /orders?agentId=${row.agentId}&month=${month}&year=${year}`
+      - `salesUrl = /orders?agentId=${row.agentId}&saleStatus=1,4&month=${month}&year=${year}`
+      - `leakageUrl = /orders?agentId=${row.agentId}&saleStatus=2,3&month=${month}&year=${year}`
+    - Conditionally render each data cell as `<a href={url}>` when `canLinkToOrders` is true, or as a plain `<span>` when false.
+    - Style `totalSales` and `leakage` as `$X,XXX.XX` format using `.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })`.
+    - Style `leakage` in red, `salesCount` in green to visually communicate good/bad metrics.
+  - [ ] **[Widget]** In `src/components/dashboard/ChampionsLeagueWidget.tsx`:
+    - Pass `permissions`, `currentMonth`, `currentYear` props down to each `<PerformersTable>`.
+    - Ensure the `fetch` response now reads `agentId`, `salesCount`, `totalSales`, `leakage` from each row.
+  - [ ] Run unit test — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Log in as Super Admin → Dashboard shows the Champions League section → Top Performers table has columns: `#`, `Agent`, `Sales Count`, `Total Sales`, `Leakage Count`.
+  - [ ] Confirm that a backend executive / HR agent does NOT appear in either table.
+  - [ ] Click a "Sales Count" cell → `/orders` page opens, pre-filtered to that agent's completed orders (`saleStatus=1,4`) for the selected month.
+  - [ ] Click a "Leakage Count" cell → `/orders` opens pre-filtered to `saleStatus=2,3` for that agent.
+  - [ ] Navigate the month back one month → table refreshes → data reflects prior month → deep links update to the new month.
+  - [ ] Log in as a restricted agent (has `orders:create`, not `orders:view`) → Dashboard Champions League table cells are plain text (no links).
+  - [ ] Run `npx vitest run src/tests/Dashboard.test.tsx` → all green.
+
+---
+
+#### W-2902 — Backend Team Performance Widget (New API + Component + Permission Gating)
+
+**Goal:**
+Add a new dashboard widget positioned below Champions League displaying:
+1. **Top Performers panel** — backend executives ranked by most completed orders in the selected month (top 10).
+2. **Bottom Performers panel** — backend executives ranked by highest total pending backlog in the selected month (top 10, sorted by `totalPending DESC`).
+3. **Pending Cases by Category table** — one row per backend executive, columns for each workflow queue and a total pending count.
+All three sections share the same month navigator (same navigation pattern as Champions League). All three panels are gated by separate RBAC permission keys (dual-layer enforcement: UI hide + API 403).
+
+**Approach:**
+Add two new raw SQL functions to `dashboard.repository.ts`. Add a new API route at
+`/api/dashboard/backend-team`. Add a new client component `BackendTeamWidget.tsx`. Wire the
+widget into the dashboard server page. All cells must be clickable deep links to the Orders page
+using the existing `backendExecutiveId` query param (already wired end-to-end). Deep links are
+rendered as plain text when the viewer lacks `orders:view` and `orders:create`.
+
+> [!IMPORTANT]
+> The scope column for date filtering in backend queries is `order_created_date` (not
+> `order_date`). Backend executive assignment occurs at order creation time. Using `order_date`
+> (the sale date) would exclude orders still in progress. Use `MONTH(o.order_created_date)` and
+> `YEAR(o.order_created_date)` in the WHERE clause. All three panels must use this same column.
+
+> [!NOTE]
+> Use LEFT JOIN from `users` to `crm_orders` (not inner join). This ensures backend executives
+> with zero completed or zero pending orders in a given month still appear as rows in the table,
+> displaying `0` counts rather than being silently dropped. This is important for the Pending
+> Cases table to show the full team roster at all times.
+
+> [!IMPORTANT]
+> The `GET /api/dashboard/backend-team` route must perform a dual-permission check. The
+> user must have AT LEAST ONE of: `dashboard:backend-top-performer`,
+> `dashboard:backend-bottom-performer`, or `dashboard:backend-pending-cases`. If NONE of the
+> three are present, return `403 Forbidden`. Do NOT use `super-admin` bypass alone — the
+> `hasPermission` helper already handles `super-admin` internally, so no special case is needed.
+> The response body includes all three datasets, and the client filters which panels to show
+> based on individual permission keys.
+
+---
+
+- [ ] **RED — Integration (`src/tests/backend-team.test.ts` — new file):**
+  - [ ] Test: `GET /api/dashboard/backend-team?month=M&year=Y` with a session that has NONE of the three backend permissions → assert response is `403 Forbidden`.
+  - [ ] Test: `GET /api/dashboard/backend-team?month=M&year=Y` with a session that has only `dashboard:backend-top-performer` → assert response is `200 OK` (any one permission unlocks the endpoint).
+  - [ ] Test: Response JSON shape is `{ topPerformers: BackendPerformerRow[], bottomPerformers: BackendPerformerRow[], pendingByCategory: BackendPendingRow[] }`.
+  - [ ] Test: Seed a backend executive (designation `Backend Specialist`, `status=1`) with 3 completed orders and 2 pending booking orders in month M. Assert their `completedCount = 3` in `topPerformers` and `pendingBooking = 2` in `pendingByCategory`.
+  - [ ] Test: Seed a backend executive with `status=0` (inactive). Assert they do NOT appear in any of the three lists.
+  - [ ] Test: Seed a user with designation `Sales Associate` who also has `orderBackendExecutiveId` pointing to their uid. Assert they do NOT appear in the backend performer lists (designation filter applies).
+  - [ ] Test: `GET /api/dashboard/backend-team` without `month`/`year` params → should default to current EST month/year and return `200 OK` (no crash on missing params).
+  - [ ] Test: Top performers list is sorted by `completedCount DESC`. Bottom performers list is sorted by `totalPending DESC`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Backend (Repository → Service → API Route):**
+  - [ ] **[Repository]** In `src/repository/dashboard.repository.ts`, add `getBackendTeamPerformers(month: number, year: number, limit = 10)`:
+    ```sql
+    SELECT
+      u.uid AS agentId,
+      COALESCE(u.nickname, u.name) AS agentName,
+      SUM(CASE WHEN o.order_current_status = 'Completed Orders' THEN 1 ELSE 0 END) AS completedCount,
+      SUM(CASE WHEN o.order_current_status IN (
+        'Pending Booking','Pending Shipment','Pending Delivery',
+        'Pending Feedback','Pending Resolutions'
+      ) THEN 1 ELSE 0 END) AS totalPending
+    FROM users u
+    LEFT JOIN crm_orders o
+      ON o.order_backend_executive_id = u.uid
+      AND o.parent_order_id IS NULL
+      AND MONTH(o.order_created_date) = ${month}
+      AND YEAR(o.order_created_date) = ${year}
+    WHERE u.designation IN ('Backend Specialist', 'Backend Associate')
+      AND u.status = 1
+    GROUP BY u.uid, u.nickname, u.name
+    ORDER BY completedCount DESC
+    LIMIT ${limit}
+    ```
+    Return `{ agentId, agentName, completedCount, totalPending }[]`.
+  - [ ] **[Repository]** Add `getBackendPendingByCategory(month: number, year: number)` with the same LEFT JOIN but selecting per-queue counts:
+    ```sql
+    SUM(CASE WHEN o.order_current_status = 'Pending Booking' THEN 1 ELSE 0 END) AS pendingBooking,
+    SUM(CASE WHEN o.order_current_status = 'Pending Shipment' THEN 1 ELSE 0 END) AS pendingShipment,
+    SUM(CASE WHEN o.order_current_status = 'Pending Delivery' THEN 1 ELSE 0 END) AS pendingDelivery,
+    SUM(CASE WHEN o.order_current_status = 'Pending Feedback' THEN 1 ELSE 0 END) AS pendingFeedback,
+    SUM(CASE WHEN o.order_current_status = 'Pending Resolutions' THEN 1 ELSE 0 END) AS pendingResolutions,
+    SUM(CASE WHEN o.order_current_status IN (
+      'Pending Booking','Pending Shipment','Pending Delivery',
+      'Pending Feedback','Pending Resolutions'
+    ) THEN 1 ELSE 0 END) AS totalPending,
+    SUM(CASE WHEN o.order_current_status = 'Completed Orders' THEN 1 ELSE 0 END) AS completedCount
+    ```
+    Ordered `ORDER BY totalPending DESC`. No LIMIT (shows entire backend team).
+  - [ ] **[Service]** In `src/service/dashboard.service.ts`, add `getBackendTeamDashboard(month: number, year: number)`:
+    - Calls `getBackendTeamPerformers(month, year)` once → returns top performers (sorted DESC).
+    - For bottom performers: calls `getBackendTeamPerformers(month, year)` again but the repo function is sorted DESC — create a second overload or separate function `getBackendTeamBottomPerformers` sorted `totalPending DESC` using the same query differently, OR call `getBackendPendingByCategory` and derive bottom performers from it. **Recommended**: create a single `getBackendTeamAggregateSummary(month, year)` that returns all three datasets in one SQL query and let the service sort/slice for top/bottom panels.
+    - Returns `{ topPerformers, bottomPerformers, pendingByCategory }`.
+  - [ ] **[API Route]** Create `src/app/api/dashboard/backend-team/route.ts`:
+    - Resolve session → check `dashboard:backend-top-performer` OR `dashboard:backend-bottom-performer` OR `dashboard:backend-pending-cases`. If none → `403`.
+    - Parse `month` and `year` from query params. Default to current EST month/year if missing.
+    - Call `dashboardService.getBackendTeamDashboard(month, year)`.
+    - Return `NextResponse.json({ topPerformers, bottomPerformers, pendingByCategory })`.
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **RED — Unit (`src/tests/BackendTeamWidget.test.tsx` — new file):**
+  - [ ] Test: Render `<BackendTeamWidget permissions={permissionsWithAll} .../>`. Assert it renders a month navigator (prev/next arrows and month-year label).
+  - [ ] Test: With `dashboard:backend-top-performer` permission present → assert top performers panel title renders.
+  - [ ] Test: With `dashboard:backend-bottom-performer` absent → assert bottom performers panel is NOT rendered.
+  - [ ] Test: With `dashboard:backend-pending-cases` present → assert the Pending Cases table renders with column headers: `Agent`, `Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`, `Total Pending`, `Completed`.
+  - [ ] Test: With `orders:view` permission → assert backend executive name cells are `<a>` tags with `href` containing `backendExecutiveId=`.
+  - [ ] Test: With neither `orders:view` nor `orders:create` → assert all cells render as plain text (no `<a>` tags).
+  - [ ] Test: With ALL three backend permissions absent → assert the widget renders `null` (nothing shown).
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Types → Component → Page):**
+  - [ ] **[Types]** In `src/types/dashboard.ts`, add:
+    ```typescript
+    export interface BackendPerformerRow {
+      agentId: number;
+      agentName: string;
+      completedCount: number;
+      totalPending: number;
+    }
+    export interface BackendPendingRow {
+      agentId: number;
+      agentName: string;
+      pendingBooking: number;
+      pendingShipment: number;
+      pendingDelivery: number;
+      pendingFeedback: number;
+      pendingResolutions: number;
+      totalPending: number;
+      completedCount: number;
+    }
+    ```
+  - [ ] **[Component]** Create `src/components/dashboard/BackendTeamWidget.tsx`:
+    - Props: `permissions: string`, `initialData?: { topPerformers, bottomPerformers, pendingByCategory }`.
+    - Derive booleans: `canShowTop`, `canShowBottom`, `canShowPending` from permissions.
+    - If none of the three are true → return `null`.
+    - Month navigator: identical pattern to `ChampionsLeagueWidget` — state for `currentMonth` / `currentYear`, prev/next handlers, skip fetch on initial mount when current month matches SSR data.
+    - `fetchBackendData(month, year)` → `GET /api/dashboard/backend-team?month=M&year=Y` → updates state.
+    - Render three sections (each gated by its own permission boolean):
+      1. **Top Performers panel** — table with columns: `#`, `Agent`, `Completed`, `Pending`. Cells clickable to `/orders?backendExecutiveId={uid}&status=Completed+Orders` (completed) and `/orders?backendExecutiveId={uid}` (agent name).
+      2. **Bottom Performers panel** — same columns, sorted by `totalPending` DESC. Cells link to appropriate order filters.
+      3. **Pending Cases table** — full-width table, columns: `Agent`, `Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`, `Total Pending`, `Completed`. Each count cell links to `/orders?backendExecutiveId={uid}&status={Queue Name}`. Color-code cells: 0 = neutral, 1–2 = amber, 3+ = red for pending counts. Completed counts in green.
+    - All link cells conditionally wrapped in `<a>` only when `hasPermission(permissions, 'orders:view') || hasPermission(permissions, 'orders:create')` is true.
+  - [ ] **[Dashboard Page]** In the dashboard server page (`src/app/dashboard/page.tsx` or equivalent):
+    - Fetch initial backend team data for the current EST month using `dashboardService.getBackendTeamDashboard(month, year)` if the user has any of the three backend permissions.
+    - Pass `permissions` and `initialData` to `<BackendTeamWidget>`.
+    - Place `<BackendTeamWidget>` below the `<ChampionsLeagueWidget>` block.
+  - [ ] Run unit test — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Log in as Super Admin → Backend Team Performance widget renders below Champions League.
+  - [ ] Widget has a month navigator — navigate to prior month → data refreshes → pending/completed counts change.
+  - [ ] Top Performers panel shows backend executives sorted by completed count (highest first). Bottom Performers shows sorted by total pending (highest backlog first).
+  - [ ] Pending Cases table shows one row per active backend executive, even for those with zero counts in the current month.
+  - [ ] Click a "Pending Booking" cell → Opens `/orders?backendExecutiveId=X&status=Pending+Booking`. Orders page shows only that executive's pending booking orders.
+  - [ ] Click a "Completed" count → Opens `/orders?backendExecutiveId=X&status=Completed+Orders`.
+  - [ ] Log in as a user who has `dashboard:backend-top-performer` but NOT `dashboard:backend-bottom-performer` → Only the Top Performers panel renders; Bottom Performers panel is hidden.
+  - [ ] Log in as a user with NONE of the three backend permissions → Widget is completely hidden (no heading, no panels).
+  - [ ] Directly hit `GET /api/dashboard/backend-team` with a session that has no backend permissions → response is `403 Forbidden`.
+  - [ ] Run `npx vitest run src/tests/backend-team.test.ts` → all green.
+
+---
+
+#### W-2903 — Permission Records & Seed Script Updates
+
+**Goal:**
+Add the three new backend permission records to both the `seed.sql` baseline (for dev/test
+environments) and a standalone `scripts/sql/add-backend-permissions.sql` script (for production).
+Ensure `seed.sql` is fully idempotent so that re-running it at any time never deletes or
+overwrites existing data.
+
+**Approach:**
+`seed.sql` has been rewritten with all `DELETE FROM` statements removed and all inserts using
+`INSERT IGNORE` or `ON DUPLICATE KEY UPDATE`. The three new permissions (IDs 55, 56, 57) are
+included in the permissions block and mapped to Super Admin (role_id 1) and Admin (role_id 2)
+via `INSERT IGNORE INTO crm_role_permissions`. The standalone production migration script at
+`scripts/sql/add-backend-permissions.sql` contains only the additive INSERT IGNORE statements
+needed on a live database that already exists.
+
+> [!NOTE]
+> No Prisma migration is needed. These are data-only changes (DML). Running `prisma migrate dev`
+> for a data-only change would create a spurious empty migration file in `_prisma_migrations`.
+
+> [!IMPORTANT]
+> The standalone production script (`scripts/sql/add-backend-permissions.sql`) must be run
+> exactly **once** against the production database after deploying the Phase 29 code. It is
+> idempotent (`INSERT IGNORE`), so running it again is safe (no-op). Running it BEFORE deploying
+> the code is also safe — the new permission rows will just sit unused until the widget code is
+> live.
+
+---
+
+- [ ] **Verify seed.sql idempotency:**
+  - [ ] Confirm `seed.sql` has NO `DELETE FROM` statements on any content table (`crm_orders`, `crm_customers`, `crm_customer_cards`, `crm_comments`, `crm_attendance`, `users`, etc.).
+  - [ ] Confirm all `INSERT INTO crm_designations` uses `INSERT IGNORE`.
+  - [ ] Confirm all `INSERT INTO crm_roles` uses `ON DUPLICATE KEY UPDATE`.
+  - [ ] Confirm all `INSERT INTO crm_permissions` uses `ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description)`.
+  - [ ] Confirm all `INSERT INTO crm_role_permissions` uses `INSERT IGNORE`.
+  - [ ] Confirm all `INSERT INTO users` uses `INSERT IGNORE`.
+  - [ ] Run `seed.sql` against local Docker DB twice back-to-back → confirm no error on second run and existing data is unchanged.
+
+- [ ] **Verify new permissions in seed.sql:**
+  - [ ] Confirm permission rows for IDs 55, 56, 57 exist with correct `permission_name` and `permission_description` values.
+  - [ ] Confirm `crm_role_permissions` includes `(1, 55)`, `(1, 56)`, `(1, 57)` for Super Admin.
+  - [ ] Confirm `crm_role_permissions` includes `(2, 55)`, `(2, 56)`, `(2, 57)` for Admin.
+  - [ ] Confirm NO other role (Manager, Team Lead, HR, etc.) is pre-assigned these permissions by default.
+
+- [ ] **Verify production SQL script:**
+  - [ ] `scripts/sql/add-backend-permissions.sql` exists and contains `INSERT IGNORE INTO crm_permissions` for IDs 55, 56, 57.
+  - [ ] Script contains `INSERT IGNORE INTO crm_role_permissions` for `(1,55),(1,56),(1,57),(2,55),(2,56),(2,57)`.
+  - [ ] Script contains a `USE jd_crm;` header statement.
+  - [ ] Script contains verification comment showing the SELECT query to confirm successful execution.
+  - [ ] Run the script against local Docker DB → confirm the three rows appear in `crm_permissions`. Run again → confirm no duplicate-key error.
+
+- [ ] **Verification chain:**
+  - [ ] Re-run `seed.sql` locally while the Docker DB has real order data → confirm zero orders are deleted, zero users are deleted, zero customers are deleted.
+  - [ ] `SELECT * FROM crm_permissions WHERE permission_id IN (55,56,57);` → returns 3 rows.
+  - [ ] `SELECT * FROM crm_role_permissions WHERE permission_id IN (55,56,57);` → returns 6 rows (role_id 1 and 2 for each of the 3 permission IDs).
+  - [ ] Log in as the Admin user → navigate to Settings → Permissions Matrix → confirm the three new permissions appear in the matrix as assignable to roles.
+
+---
+
+#### Phase 29 Summary Checklist
+
+- [x] W-2901: Sales Performer Table Redesign — **Integration tests GREEN**
+- [x] W-2901: Sales Performer Table Redesign — **Unit tests GREEN**
+- [x] W-2901: Sales Performer Table Redesign — **Manual verification complete**
+- [x] W-2902: Backend Team Performance Widget — **Integration tests GREEN**
+- [x] W-2902: Backend Team Performance Widget — **Unit tests GREEN**
+- [x] W-2902: Backend Team Performance Widget — **Manual verification complete**
+- [x] W-2903: Permission Records & Seed Script — **Idempotency verified**
+- [x] W-2903: Permission Records & Seed Script — **Production script verified**
+- [x] Full `npm run test` passes with **358+ tests green** (no regressions)
+- [x] `npm run lint` → 0 warnings
+- [x] `npm run typecheck` → 0 errors
+- [x] **Phase 29 COMPLETE** → Update progress table to `[x] COMPLETED`
+
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -5595,4 +5951,56 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Edit Form Input Test Compliance**:
     - Configured the initial cards state inside [EditOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditOrderForm.tsx) to format loaded card numbers and exp dates on load, ensuring `fireEvent.change` matches input value expectations correctly in `EditOrderForm.test.tsx` and passes all Vitest test suites.
   - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
+
+### Session 67 — July 10, 2026
+  **Phase 29 Completion: Dashboard Sales Performer & Dual-Filter Backend widget**
+  - **Team Performance Designation Filtering**: Filtered monthly score performer card lists to include only active sales agents (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`) in [dashboard.repository.ts](file:///src/repository/dashboard.repository.ts).
+  - **Dual Month Navigators & State Tracking**: Split the backend dashboard widget into two sections with independent date state parameters (one for top/bottom performers and one for category case breakdown). Formatted navigators as gray pill controls styled matching the main Champions League headers. Used `useRef` first-mount tracking to ensure navigating back to initial months correctly executes fetches.
+  - **Underline Styling and Ordering Upgrades**: Swapped column order inside the bottom performers table to position the `PENDING` backlog column before the `COMPLETED` column. Removed the underlines from all performers and backlog widget links. Sliced performers display arrays to a maximum of 3.
+  - **Orders Query Parameter Synchronization**: Integrated URL query parameter checks in [OrderListContainer.tsx](file:///src/components/OrderListContainer.tsx) to parse `agentId`, `teamId`, `month`, and `year`, translating them to active filters and dynamically range-calculating dates to sync dashboard links with orders view.
+  - **Verification**: Updated [dashboard.test.ts](file:///src/tests/dashboard.test.ts) (adding designation records to mock users) and [BackendTeamWidget.test.tsx](file:///src/tests/BackendTeamWidget.test.tsx) assertions. All 36 Vitest integration and unit tests are 100% green. Zero compiler warnings.
+
+### Session 68 — July 10, 2026
+  **Section Header Unification, Widget Relocation, and Test Alignment**
+  - **Section Header Unification**: Unified the "Backend Team Performance" widget section header style with the rest of the dashboard by removing the widget's internal duplicate header and wrapping it inside a global `<DashboardSectionHeader title="Backend Team Performance" />` block in [dashboard_client_page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/dashboard_client_page.tsx).
+  - **Widget Relocation**: Relocated the unified Backend Team Performance section header and widget component to render directly above the "Fresh Orders" heading on the dashboard.
+  - **Test Suite Alignment**:
+    - Fixed [seed.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/seed.test.ts) to assert the correct seeded permission count of `57` (representing the 54 baseline permissions plus 3 new dashboard permissions).
+    - Fixed [performance.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/performance.test.ts) by adding the required `designation: 'Sales Associate'` field to mock test agents, aligning them with the repository query filters and restoring tests to 100% green.
+  - **Verification**: Confirmed all unit, integration, and UI tests compile and pass. Checked `npm run lint` and `npm run typecheck` are clean.
+
+### Session 69 — July 11, 2026
+  **Designation-Filtered & Active/Inactive Grouped Dropdowns, Zero-Sale Performer Suppression, and Card Layout Styling Polishes**
+  - **Designation-Filtered & Grouped Dropdowns**:
+    - Updated agent forms and search parameters to retrieve both active and inactive agents by removing the `status: 1` constraint on queries in `/orders/new` and `/orders/[id]/edit`.
+    - Added `designation` and `status` to agent selection lookups across pages.
+    - Updated dropdown lists for Sales Agent (7 designations), Backend Executive (2), QA Verifier (1), and Sourcing/Part Found By to display users separated into `Active` and `Inactive` HTML `<optgroup>`s, supporting historical data lookups while preventing incorrect user designation inputs.
+    - Configured client-side designation filters in [OrderListContainer.tsx](file:///src/components/OrderListContainer.tsx) agent filters (Agent, Backend Executive, Part Found By) and [AdvancedChartWidget.tsx](file:///src/components/dashboard/AdvancedChartWidget.tsx) dropdowns.
+  - **Stale URL Parameter Sync Fix**:
+    - Handled URL syncing inside [OrderListContainer.tsx](file:///src/components/OrderListContainer.tsx) to automatically reset local agent/team filters upon mounting if the authenticated user lacks global `orders:view` privileges, matching backend security overrides and preventing misleading filter badges.
+  - **Zero-Sale Suppression & Fixed Heights**:
+    - Refactored Champion's League queries (`getTopPerformers`, `getBottomPerformers`) and team monthly performers (`getTeamMonthlyTopPerformers`, `getTeamMonthlyBottomPerformers`) in [dashboard.repository.ts](file:///src/repository/dashboard.repository.ts) to filter out agents with no orders by asserting `COUNT(o.crm_order_id) AS orderCount` and using a `HAVING orderCount > 0` constraint.
+    - Standardized the white performers card box inside [TeamMonthlyScoresWidget.tsx](file:///src/components/dashboard/TeamMonthlyScoresWidget.tsx) to a static `185px` height. Pre-filled empty slots with `&nbsp;` spacing rows up to 3 elements to maintain identical header positions and layout alignments across all cards.
+  - **Layout & Typographic Polishes**:
+    - Repositioned the Team Monthly Cards to use a single-row flex layout (`flex-wrap: nowrap !important`) that dynamically scales down (`min-width: 0`, `flex: 1 1 340px`) to prevent card line wrap on desktop viewports.
+    - Rendered `"VS"` separator texts centered between cards.
+    - Added responsive CSS media queries at `1200px` and `900px` screen breakpoints inside [TeamMonthlyScoresWidget.tsx](file:///src/components/dashboard/TeamMonthlyScoresWidget.tsx) to scale down card title sizes, labels, net margin amounts, and performer name/amounts proportionally, completely preventing layout squishing and text overlapping.
+    - Updated disputes display labels: `Ref` ➔ `Refund` and `Chg` ➔ `Cbk`.
+  - **Verification**: Verified that Next.js client component compilation is fully successful and the application builds cleanly.
+
+### Session 70 — July 11, 2026
+  **Test Suite Compliance, Final Margin Rename, Widget UI Explanatory Notes & Sales Count Link Filters**
+  - **Failing Tests Resolution**:
+    - Added missing `designation` and `status: 1` properties to mocked agent data in `AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`, and `AdvancedChartWidget.test.tsx` to satisfy dropdown filters.
+    - Updated mock Backend Executive designation to `'Backend Specialist'` in `OrderListContainer.test.tsx` to pass the `BACKEND_DESIGNATIONS` filter constraint.
+    - Changed the designation of the mock backend agent to `'Backend Associate'` in `dashboard.test.ts` to correctly exclude it from the sales-only Champions League widget.
+    - Fixed bottom performer retrieval in `dashboard.repository.ts` (`getTeamMonthlyTopPerformers` and `getTeamMonthlyBottomPerformers`) by changing the `LEFT JOIN` status constraint to `sale_status IN ('1', '2', '3', '4')` and using `CASE` statements to sum only Sold/Partial Refund amounts, allowing Carlos (who only has a chargebacked order) to show up as a bottom performer with `0` amount rather than being excluded from results.
+    - All 7 failing vitest integration and unit tests are now 100% green.
+  - **Renamed to Final Margin**: Renamed **"Net Margin"** to **"Final Margin"** in the Team Monthly Scores widget.
+  - **Widget UI Explanatory Notes**: Added small, subtle `0.65rem` font size **Note:** guide blocks explaining key terminology in simple terms at the bottom of the top Scoreboard metrics cards, the Team Monthly Scores widget, and the Champions League leaderboard.
+  - **Sales Count Link Filter**: Updated the clickable sales count link in the Champions League tables to filter by `saleStatus=1,2,3,4` (including refunded/chargebacked orders), and updated test assertions in `PerformersTable.test.tsx` accordingly.
+  - **Verification**: Verified all tests compile and pass successfully, linting and typecheck are clean.
+
+
+
 

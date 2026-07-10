@@ -11,11 +11,13 @@ import PendingCountsRow from '../components/dashboard/PendingCountsRow';
 import TeamMonthlyScoresWidget from '../components/dashboard/TeamMonthlyScoresWidget';
 import ChampionsLeagueWidget from '../components/dashboard/ChampionsLeagueWidget';
 import AdvancedChartWidget from '../components/dashboard/AdvancedChartWidget';
+import BackendTeamWidget from '../components/dashboard/BackendTeamWidget';
 
 interface DashboardPageProps {
   initialMetrics?: DashboardMetrics;
   userPermissions: string;
   userName: string;
+  initialBackendData?: any;
 }
 
 const DashboardSectionHeader = ({ title }: { title: string }) => (
@@ -28,6 +30,7 @@ export default function DashboardPage({
   initialMetrics = {},
   userPermissions = '',
   userName = '',
+  initialBackendData,
 }: DashboardPageProps) {
   const permissions = userPermissions;
   
@@ -211,22 +214,8 @@ export default function DashboardPage({
               ))}
             </div>
             
-            <div className="kpi-swipe-indicators">
-              {combos.map((_, idx) => (
-                <span
-                  key={idx}
-                  className={`swipe-dot ${idx === activeIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    if (gridRef.current) {
-                      gridRef.current.scrollTo({
-                        left: idx * gridRef.current.clientWidth,
-                        behavior: 'smooth'
-                      });
-                    }
-                  }}
-                  title={`Go to slide ${idx + 1}`}
-                />
-              ))}
+            <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              <strong>Note:</strong> Sales figures (Year, Month, Today, Net Sales) include successful orders (Sold and Partially Refunded) and exclude fully refunded or chargebacked orders.
             </div>
           </div>
         </>
@@ -262,6 +251,20 @@ export default function DashboardPage({
           <DashboardSectionHeader title="Orders Journey" />
           <PendingCountsRow pendingCounts={initialMetrics.pendingCounts} />
         </>
+      )}
+
+      {(hasPermission(permissions, 'dashboard:backend-top-performer') ||
+        hasPermission(permissions, 'dashboard:backend-bottom-performer') ||
+        hasPermission(permissions, 'dashboard:backend-pending-cases')) && (
+          <>
+            <DashboardSectionHeader title="Backend Team Performance" />
+            <BackendTeamWidget
+              initialData={initialBackendData}
+              permissions={permissions}
+              initialMonth={estNow.month}
+              initialYear={estNow.year}
+            />
+          </>
       )}
 
       {/* Recent Orders table */}

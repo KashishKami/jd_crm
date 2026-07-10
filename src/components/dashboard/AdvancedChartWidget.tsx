@@ -13,6 +13,8 @@ interface AgentOption {
   name: string;
   teamId: number;
   nickname?: string | null;
+  designation?: string | null;
+  status?: number | null;
 }
 
 export default function AdvancedChartWidget() {
@@ -277,11 +279,18 @@ export default function AdvancedChartWidget() {
             onChange={(e) => setSelectedAgent(e.target.value)}
           >
             <option value="">All Agents</option>
-            {filteredAgents.map((a) => (
-              <option key={a.uid} value={a.uid}>
-                {a.nickname || a.name}
-              </option>
-            ))}
+            {(() => {
+              const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive'];
+              const scoped = filteredAgents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
+              const active = scoped.filter(a => a.status === 1);
+              const inactive = scoped.filter(a => a.status !== 1);
+              return (
+                <>
+                  {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                  {inactive.length > 0 && <optgroup label="Inactive">{inactive.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
+                </>
+              );
+            })()}
           </select>
         </div>
 
