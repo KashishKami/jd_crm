@@ -191,15 +191,15 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
               gap: 6px;
               background: #f8fafc;
               transition: all 0.2s ease;
-              flex: 1 1 340px;
-              max-width: 360px;
+              flex: 1 1 380px;
+              max-width: none;
               min-width: 0;
             }
             .team-monthly-vs {
               display: flex;
               align-items: center;
               justify-content: center;
-              padding: 0 8px;
+              padding: 0 24px;
               color: #94a3b8;
               font-weight: 800;
               font-size: 0.8rem;
@@ -209,6 +209,7 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
             
             /* Responsive Font Sizes to Prevent Overflows */
             @media (max-width: 1200px) {
+              .team-monthly-card { max-width: 360px !important; flex: 1 1 340px !important; }
               .team-monthly-card h4 { font-size: 0.82rem !important; }
               .team-monthly-card .team-metric-label { font-size: 0.7rem !important; }
               .team-monthly-card .team-metric-val { font-size: 0.7rem !important; }
@@ -220,6 +221,7 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
               .team-monthly-vs { font-size: 0.72rem !important; padding: 0 6px !important; }
             }
             @media (max-width: 900px) {
+              .team-monthly-card { max-width: 360px !important; flex: 1 1 340px !important; }
               .team-monthly-card h4 { font-size: 0.75rem !important; }
               .team-monthly-card .team-metric-label { font-size: 0.64rem !important; }
               .team-monthly-card .team-metric-val { font-size: 0.64rem !important; }
