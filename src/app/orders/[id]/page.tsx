@@ -217,54 +217,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canViewAuditLog = hasPermission(permissions, 'orders:view-audit-log');
   let viewLogs: any[] = [];
   if (canViewLog) {
-    try {
-      const { headers } = await import('next/headers');
-      const reqHeaders = await headers();
-      const cookie = reqHeaders.get('cookie') || '';
-      
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-      const viewsRes = await fetch(`${baseUrl}/api/orders/${crmOrderId}/views`, {
-        headers: {
-          cookie,
-        },
-      });
-      if (viewsRes.ok) {
-        viewLogs = await viewsRes.json();
-      } else {
-        // Fallback directly to DB
-        const orderRepository = await import('../../../repository/order.repository');
-        viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
-      }
-    } catch (e) {
-      // Fallback directly to DB
-      const orderRepository = await import('../../../repository/order.repository');
-      viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
-    }
+    const orderRepository = await import('../../../repository/order.repository');
+    viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
   }
 
   let auditLogs: any[] = [];
   if (canViewAuditLog) {
-    try {
-      const { headers } = await import('next/headers');
-      const reqHeaders = await headers();
-      const cookie = reqHeaders.get('cookie') || '';
-      
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-      const auditRes = await fetch(`${baseUrl}/api/orders/${crmOrderId}/audit-log`, {
-        headers: {
-          cookie,
-        },
-      });
-      if (auditRes.ok) {
-        auditLogs = await auditRes.json();
-      } else {
-        const orderRepository = await import('../../../repository/order.repository');
-        auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
-      }
-    } catch (e) {
-      const orderRepository = await import('../../../repository/order.repository');
-      auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
-    }
+    const orderRepository = await import('../../../repository/order.repository');
+    auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
   }
   
   if (auditLogs.length > 0) {
