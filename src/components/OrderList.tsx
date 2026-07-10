@@ -7,6 +7,7 @@ import { hasPermission } from '../service/permission.service';
 import { staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
 import { formatDateDDMMYYYY } from '../lib/date';
+import OrderCommentsPopup from './OrderCommentsPopup';
 
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '—';
@@ -92,6 +93,7 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const canCreate = hasPermission(permissions, 'orders:create');
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
+  const [activeCommentsOrderId, setActiveCommentsOrderId] = useState<number | null>(null);
 
   // Format date helper
   const formatDate = (dateVal: string | Date | null) => {
@@ -495,25 +497,46 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                     </div>
                   </td>
                   <td className="actions-cell">
-                    <div className="action-buttons">
-                      {isDisabled ? (
-                        <span className="action-link-btn view" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
-                          Details
-                        </span>
-                      ) : (
-                        <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
-                          Details
-                        </Link>
-                      )}
-                      {isDisabledEdit ? (
-                        <span className="action-link-btn edit" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
-                          Edit
-                        </span>
-                      ) : (
-                        <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
-                          Edit
-                        </Link>
-                      )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        onClick={() => setActiveCommentsOrderId(order.crmOrderId)}
+                        className="action-link-btn view"
+                        title="View Comments"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                          color: 'var(--accent-color)',
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                      </button>
+                      <div className="action-buttons" style={{ display: 'flex', gap: '12px', justifyContent: 'center', width: '100%' }}>
+                        {isDisabled ? (
+                          <span className="action-link-btn view" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
+                            Details
+                          </span>
+                        ) : (
+                          <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
+                            Details
+                          </Link>
+                        )}
+                        {isDisabledEdit ? (
+                          <span className="action-link-btn edit" style={{ fontSize: '0.92em', cursor: 'not-allowed', color: '#94a3b8' }}>
+                            Edit
+                          </span>
+                        ) : (
+                          <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
+                            Edit
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -525,12 +548,30 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   );
 
   if (hideWrapper) {
-    return tableContent;
+    return (
+      <>
+        {tableContent}
+        {activeCommentsOrderId !== null && (
+          <OrderCommentsPopup
+            orderId={activeCommentsOrderId}
+            onClose={() => setActiveCommentsOrderId(null)}
+          />
+        )}
+      </>
+    );
   }
 
   return (
-    <div className="table-wrapper card-with-accent">
-      {tableContent}
-    </div>
+    <>
+      <div className="table-wrapper card-with-accent">
+        {tableContent}
+      </div>
+      {activeCommentsOrderId !== null && (
+        <OrderCommentsPopup
+          orderId={activeCommentsOrderId}
+          onClose={() => setActiveCommentsOrderId(null)}
+        />
+      )}
+    </>
   );
 }

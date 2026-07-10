@@ -422,10 +422,22 @@ export async function getPendingCounts(filters?: {
       saleStatus: true,
       orderAmountCharged: true,
       orderRefundAmount: true,
+      workflowHistory: {
+        select: {
+          oldValue: true,
+          newValue: true,
+        },
+      },
       childOrders: {
         select: {
           orderCurrentStatus: true,
           saleStatus: true,
+          workflowHistory: {
+            select: {
+              oldValue: true,
+              newValue: true,
+            },
+          },
         },
       },
     },
@@ -439,6 +451,7 @@ export async function getPendingCounts(filters?: {
     'Pending Feedback': { amount: 0, count: 0 },
     'Pending Resolutions': { amount: 0, count: 0 },
     'Completed Orders': { amount: 0, count: 0 },
+    'Resolved Orders': { amount: 0, count: 0 },
     'Returned Orders': { amount: 0, count: 0 },
     'Cancelled Orders': { amount: 0, count: 0 },
   };
@@ -477,6 +490,25 @@ export async function getPendingCounts(filters?: {
     if (isCompleted) {
       res['Completed Orders'].amount += finalMargin;
       res['Completed Orders'].count += 1;
+
+      // Resolved Orders check (order went from Pending Resolutions to Completed Orders)
+      const isResolved = (
+        order.orderCurrentStatus === 'Completed Orders' &&
+        order.workflowHistory &&
+        order.workflowHistory.some(h => h.oldValue === 'Pending Resolutions' && h.newValue === 'Completed Orders')
+      ) || (
+        order.childOrders && order.childOrders.some(c => 
+          c.orderCurrentStatus === 'Completed Orders' &&
+          c.workflowHistory &&
+          c.workflowHistory.some(h => h.oldValue === 'Pending Resolutions' && h.newValue === 'Completed Orders')
+        )
+      );
+
+      if (isResolved) {
+        res['Resolved Orders'].amount += finalMargin;
+        res['Resolved Orders'].count += 1;
+      }
+
       continue; // Exclude from other statuses in tabs
     }
 

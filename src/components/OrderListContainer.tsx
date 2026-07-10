@@ -254,20 +254,24 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
           <h1 className="page-title">
             {statusFilter === 'Completed Orders' 
               ? 'Completed Orders' 
-              : statusFilter === 'Returned Orders'
-                ? 'Returned Orders'
-                : statusFilter 
-                  ? `${statusFilter} Queue` 
-                  : 'Sales Orders Pipeline'}
+              : statusFilter === 'Resolved Orders'
+                ? 'Resolved'
+                : statusFilter === 'Returned Orders'
+                  ? 'Returned Orders'
+                  : statusFilter 
+                    ? `${statusFilter} Queue` 
+                    : 'Sales Orders Pipeline'}
           </h1>
           <p className="page-subtitle">
             {statusFilter === 'Completed Orders'
               ? 'Review and manage all completed orders — Sold and Partial Refund (orders where money was received)'
-              : statusFilter === 'Returned Orders'
-                ? 'Review and resolve processing failures, returns, disputes, or same-day voids'
-                : statusFilter 
-                  ? `Review and manage orders currently in ${statusFilter} state`
-                  : 'Monitor real-time customer bookings, purchase margins, and pipeline status.'
+              : statusFilter === 'Resolved Orders'
+                ? 'Review and track all cases wherein we resolved customer’s issues after their product was delivered'
+                : statusFilter === 'Returned Orders'
+                  ? 'Review and resolve processing failures, returns, disputes, or same-day voids'
+                  : statusFilter 
+                    ? `Review and manage orders currently in ${statusFilter} state`
+                    : 'Monitor real-time customer bookings, purchase margins, and pipeline status.'
             }
           </p>
         </div>
@@ -355,6 +359,14 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
               className={`tab-btn ${statusFilter === 'Cancelled Orders' ? 'active' : ''}`}
             >
               Cancelled Orders
+            </button>
+          )}
+          {hasPermission(permissions, 'orders:view-completed') && (
+            <button
+              onClick={() => setStatusFilter('Resolved Orders')}
+              className={`tab-btn ${statusFilter === 'Resolved Orders' ? 'active' : ''}`}
+            >
+              Resolved
             </button>
           )}
         </div>
@@ -603,6 +615,27 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
                 <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Completed Orders Queue</h4>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#15803d' }}>
                   This queue shows orders with Sale Status: <strong>Sold</strong> or <strong>Partial Refund</strong> — orders where money was received from the customer.
+                </p>
+              </div>
+            </div>
+          )}
+          {statusFilter === 'Resolved Orders' && (
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px',
+              color: '#166534',
+              alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>✅</span>
+              <div>
+                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>Resolved Tab</h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#15803d' }}>
+                  This tab displays completed orders and deals that transitioned from <strong>Pending Resolutions</strong> directly to <strong>Completed Orders</strong>, helping track customer issue resolutions.
                 </p>
               </div>
             </div>

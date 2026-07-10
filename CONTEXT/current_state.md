@@ -5951,13 +5951,12 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Edit Form Input Test Compliance**:
     - Configured the initial cards state inside [EditOrderForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditOrderForm.tsx) to format loaded card numbers and exp dates on load, ensuring `fireEvent.change` matches input value expectations correctly in `EditOrderForm.test.tsx` and passes all Vitest test suites.
   - **Verification**: Verified that all unit, integration, and UI tests pass, and ESLint / type checks are completely green.
-
 ### Session 67 — July 10, 2026
   **Phase 29 Completion: Dashboard Sales Performer & Dual-Filter Backend widget**
   - **Team Performance Designation Filtering**: Filtered monthly score performer card lists to include only active sales agents (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`) in [dashboard.repository.ts](file:///src/repository/dashboard.repository.ts).
   - **Dual Month Navigators & State Tracking**: Split the backend dashboard widget into two sections with independent date state parameters (one for top/bottom performers and one for category case breakdown). Formatted navigators as gray pill controls styled matching the main Champions League headers. Used `useRef` first-mount tracking to ensure navigating back to initial months correctly executes fetches.
   - **Underline Styling and Ordering Upgrades**: Swapped column order inside the bottom performers table to position the `PENDING` backlog column before the `COMPLETED` column. Removed the underlines from all performers and backlog widget links. Sliced performers display arrays to a maximum of 3.
-  - **Orders Query Parameter Synchronization**: Integrated URL query parameter checks in [OrderListContainer.tsx](file:///src/components/OrderListContainer.tsx) to parse `agentId`, `teamId`, `month`, and `year`, translating them to active filters and dynamically range-calculating dates to sync dashboard links with orders view.
+  - **Orders Query Parameter Synchronization**: Integrated URL query parameter checks in [OrderListContainer.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderListContainer.tsx) to parse `agentId`, `teamId`, `month`, and `year`, translating them to active filters and dynamically range-calculating dates to sync dashboard links with orders view.
   - **Verification**: Updated [dashboard.test.ts](file:///src/tests/dashboard.test.ts) (adding designation records to mock users) and [BackendTeamWidget.test.tsx](file:///src/tests/BackendTeamWidget.test.tsx) assertions. All 36 Vitest integration and unit tests are 100% green. Zero compiler warnings.
 
 ### Session 68 — July 10, 2026
@@ -6001,6 +6000,20 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Sales Count Link Filter**: Updated the clickable sales count link in the Champions League tables to filter by `saleStatus=1,2,3,4` (including refunded/chargebacked orders), and updated test assertions in `PerformersTable.test.tsx` accordingly.
   - **Verification**: Verified all tests compile and pass successfully, linting and typecheck are clean.
 
-
-
-
+### Session 71 — July 11, 2026
+  **Resolved Orders Filter & Tab UI, Comments Action Portal Popup, Vendor Hover Popover details, and Vendor Detail Card Styling Upgrades**
+  - **Resolved Orders backend and UI**:
+    - Implemented backend query logic inside [order.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/order.repository.ts) and [dashboard.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/dashboard.repository.ts) to filter "Resolved Orders"—i.e. orders whose current status is `Completed Orders` and workflow history logs a status transition from `Pending Resolutions` to `Completed Orders`.
+    - Introduced a "Resolved" tab positioned at the very end of navigation buttons in [OrderListContainer.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderListContainer.tsx), including green info banners and page headers.
+  - **Comments Action Portal Popup**:
+    - Created [OrderCommentsPopup.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderCommentsPopup.tsx) using React Portal (`createPortal` directly onto `document.body`) to bypass ancestor layout transform containment contexts.
+    - Placed a `[💬]` comments button in the Order List Actions column in [OrderList.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/OrderList.tsx), triggering the 3-card sliding chronological carousel popup modal.
+  - **Vendor Hover Popover Card**:
+    - Implemented absolute-positioned vendor hover cards showing Name, Email, Phone, and State for Part Suppliers in both single-part and multi-part dropdown mappings in [page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/orders/%5Bid%5D/page.tsx).
+    - Verified logged-in users' `vendors:view` permission before rendering a redirect link to the vendor detail page in the hover card.
+    - Styled hover containers with a distinct blue text color and dotted underline transitioning to solid on hover.
+    - Fixed popover cropping by applying inline `overflow: 'visible'` on the collapsible allocations details card.
+  - **Vendor Page Card Font & Overlap Layout Fixes**:
+    - Applied `Georgia, serif` font family to the profile sidebar card on [page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/vendors/%5Bid%5D/page.tsx).
+    - Refactored metadata lists using flex rows with a fixed label width and `word-break: break-word` on details values to wrap early and prevent overlap.
+  - **Verification**: Created and verified new vitest test suites `resolved_orders.test.ts`, `CommentPopup.test.tsx`, `vendor_hover.test.ts` and updated `VendorDetail.test.tsx` assertions. All vitest checks are 100% green and `npm run typecheck` builds successfully.

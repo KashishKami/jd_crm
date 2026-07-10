@@ -62,6 +62,18 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
       }
     });
 
+    // Ensure at least one customer exists
+    let customer = await prisma.crmCustomers.findFirst();
+    if (!customer) {
+      customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Perf Test Customer',
+          customerPhone: '555-555-5555',
+          customerEmail: 'perf@example.com',
+        },
+      });
+    }
+
     // Create a target month date
     const targetDate = new Date(Date.UTC(2026, 5, 15)); // June 15, 2026
 
@@ -71,7 +83,7 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
         data: [
           {
             crmOrderId: 9001,
-            orderCustomerId: 1,
+            orderCustomerId: customer.customerId,
             orderSalesAgentId: agentA.uid,
             orderSalesAgentName: agentA.name,
             orderAmountCharged: '1000.00',
@@ -81,7 +93,7 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
           },
           {
             crmOrderId: 9002,
-            orderCustomerId: 1,
+            orderCustomerId: customer.customerId,
             orderSalesAgentId: agentA.uid,
             orderSalesAgentName: agentA.name,
             orderAmountCharged: '500.00',
@@ -97,7 +109,7 @@ describe('Database Performance and Caching Integration Tests (W-1807)', () => {
         data: [
           {
             crmOrderId: 9003,
-            orderCustomerId: 1,
+            orderCustomerId: customer.customerId,
             orderSalesAgentId: agentB.uid,
             orderSalesAgentName: agentB.name,
             orderAmountCharged: '800.00',

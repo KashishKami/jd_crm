@@ -359,6 +359,33 @@ export async function findAll(filters: OrderFilters): Promise<any> {
           { childOrders: { some: { orderCurrentStatus: 'Completed Orders', saleStatus: { in: ['1', '4'] } } } }
         ]
       });
+    } else if (filters.status === 'Resolved Orders') {
+      andConditions.push({
+        OR: [
+          {
+            orderCurrentStatus: 'Completed Orders',
+            workflowHistory: {
+              some: {
+                oldValue: 'Pending Resolutions',
+                newValue: 'Completed Orders',
+              },
+            },
+          },
+          {
+            childOrders: {
+              some: {
+                orderCurrentStatus: 'Completed Orders',
+                workflowHistory: {
+                  some: {
+                    oldValue: 'Pending Resolutions',
+                    newValue: 'Completed Orders',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
     } else if (filters.status === 'Returned Orders') {
       andConditions.push({
         OR: [

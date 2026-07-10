@@ -1,7 +1,39 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { prisma } from '../lib/db';
 
 describe('Database Connection Integration Test', () => {
+  beforeAll(async () => {
+    let customer = await prisma.crmCustomers.findFirst();
+    if (!customer) {
+      customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Connection Customer',
+          customerPhone: '555-555-5555',
+          customerEmail: 'conn@example.com',
+        },
+      });
+    }
+
+    const order = await prisma.crmOrders.findFirst({
+      where: {
+        orderMakeModel: {
+          contains: ' ',
+        },
+      },
+    });
+    if (!order) {
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderMakeModel: 'Ford Mustang',
+          orderPart: 'Engine',
+          saleStatus: '1',
+          orderCurrentStatus: 'Pending',
+        },
+      });
+    }
+  });
+
   it('should connect to database and retrieve the seeded admin user with team info', async () => {
     const adminUser = await prisma.users.findFirst({
       where: {

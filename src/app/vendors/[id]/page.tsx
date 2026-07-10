@@ -373,7 +373,7 @@ export default function VendorDetailPage() {
 
       <div className="profile-container">
         {/* Sidebar Info Card */}
-        <div className="profile-sidebar" style={{ width: '100%' }}>
+        <div className="profile-sidebar" style={{ width: '100%', fontFamily: 'Georgia, serif' }}>
           <div className="profile-avatar" style={{ background: vendor.vendorStatus === 1 ? 'linear-gradient(135deg, var(--accent-color), #60a5fa)' : 'linear-gradient(135deg, #ef4444, #f87171)' }}>
             {vendor.vendorName[0]?.toUpperCase()}
           </div>
@@ -383,41 +383,41 @@ export default function VendorDetailPage() {
           </div>
 
           <div className="profile-meta-list">
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Contact Person</span>
-              <span className="profile-meta-value">{vendor.vendorContactPerson}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Contact Person</span>
+              <span className="profile-meta-value" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorContactPerson}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Phone</span>
-              <span className="profile-meta-value font-mono">{vendor.vendorPhone}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Phone</span>
+              <span className="profile-meta-value font-mono" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorPhone}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Alternate Phone 1</span>
-              <span className="profile-meta-value font-mono">{vendor.vendorAlternatePhone1 || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Alternate Phone 1</span>
+              <span className="profile-meta-value font-mono" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorAlternatePhone1 || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Alternate Phone 2</span>
-              <span className="profile-meta-value font-mono">{vendor.vendorAlternatePhone2 || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Alternate Phone 2</span>
+              <span className="profile-meta-value font-mono" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorAlternatePhone2 || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Email</span>
-              <span className="profile-meta-value font-mono">{vendor.vendorEmail || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Email</span>
+              <span className="profile-meta-value font-mono" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorEmail || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Fax Number</span>
-              <span className="profile-meta-value font-mono">{vendor.vendorFax || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Fax Number</span>
+              <span className="profile-meta-value font-mono" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorFax || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Country</span>
-              <span className="profile-meta-value">{vendor.vendorCountry || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Country</span>
+              <span className="profile-meta-value" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorCountry || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">State/Province</span>
-              <span className="profile-meta-value">{vendor.vendorState || '—'}</span>
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>State/Province</span>
+              <span className="profile-meta-value" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{vendor.vendorState || '—'}</span>
             </div>
-            <div className="profile-meta-item">
-              <span className="profile-meta-label">Payment Methods</span>
-              <span className="profile-meta-value">{(() => {
+            <div className="profile-meta-item" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', width: '100%' }}>
+              <span className="profile-meta-label" style={{ flexShrink: 0, marginRight: '8px', maxWidth: '140px' }}>Payment Methods</span>
+              <span className="profile-meta-value" style={{ wordBreak: 'break-word', textAlign: 'right' }}>{(() => {
                 try {
                   if (vendor.vendorPaymentMode) {
                     const parsed = JSON.parse(vendor.vendorPaymentMode);

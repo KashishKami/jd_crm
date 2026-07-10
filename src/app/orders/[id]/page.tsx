@@ -201,6 +201,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canDelete = hasPermission(permissions, 'orders:delete');
   const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
   const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
+  const canViewVendors = hasPermission(permissions, 'vendors:view');
 
   const saleHistory = canViewSaleHistory ? await prisma.crmSaleStatusHistory.findMany({
     where: { orderId: crmOrderId },
@@ -338,10 +339,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   // Group Parts Supplier for dropdown details
   const supplierRows = allParts.map((part, idx) => {
+    const vendor = part.vendor;
     const vendorName = part.vendor?.vendorName || part.orderVendorName || 'Unassigned';
     const partName = part.orderPart || `Part #${idx + 1}`;
     const feedback = part.orderVendorFeedback || 'Positive';
     return {
+      vendor,
       vendorName,
       partName,
       feedback,
@@ -379,6 +382,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         }
         details:not([open]) summary .details-arrow {
           transform: rotate(0deg);
+        }
+        .vendor-hover-container {
+          position: relative;
+          display: inline-block;
+          color: #0284c7;
+          border-bottom: 1px dotted #0284c7;
+          cursor: pointer;
+          transition: color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+        }
+        .vendor-hover-container:hover {
+          color: #0369a1;
+          border-bottom-style: solid;
+        }
+        .vendor-hover-container:hover .vendor-popover {
+          visibility: visible !important;
+          opacity: 1 !important;
         }
       `}} />
 
@@ -615,7 +634,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </div>
 
           {/* Card 4: Collapsible Staff allocations */}
-          <details className="profile-main" style={{ padding: '24px', backgroundColor: 'var(--bg-primary)' }}>
+          <details className="profile-main" style={{ padding: '24px', backgroundColor: 'var(--bg-primary)', overflow: 'visible' }}>
             <summary style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', listStyle: 'none' }}>
               <h3 className="form-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
                 Staff Allocations
@@ -671,7 +690,52 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     </div>
                     <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                       <span className="form-label">Parts Supplier</span>
-                      <span className="info-value" style={{ fontWeight: '600' }}>{order.vendor?.vendorName || order.orderVendorName || 'Unassigned'}</span>
+                      <span className="info-value" style={{ fontWeight: '600' }}>
+                        {order.vendor ? (
+                          <span className="vendor-hover-container">
+                            {order.vendor.vendorName}
+                            <span className="vendor-popover" style={{
+                              visibility: 'hidden',
+                              opacity: 0,
+                              position: 'absolute',
+                              bottom: '125%',
+                              right: 0,
+                              backgroundColor: '#ffffff',
+                              color: '#334155',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '8px',
+                              padding: '12px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                              zIndex: 9999,
+                              width: '260px',
+                              transition: 'opacity 0.2s, visibility 0.2s',
+                              textAlign: 'left',
+                              fontWeight: 'normal',
+                              lineHeight: '1.4',
+                              pointerEvents: 'auto',
+                              textTransform: 'none',
+                            }}>
+                              <div style={{ fontWeight: 'bold', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px', color: '#0f172a' }}>
+                                {order.vendor.vendorName}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div><strong>Email:</strong> {order.vendor.vendorEmail || '—'}</div>
+                                <div><strong>Phone:</strong> {order.vendor.vendorPhone || '—'}</div>
+                                <div><strong>State:</strong> {order.vendor.vendorState || '—'}</div>
+                              </div>
+                              {canViewVendors && (
+                                <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '6px', textAlign: 'right' }}>
+                                  <Link href={`/vendors/${order.vendor.vendorId}`} style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 'bold', textDecoration: 'none' }}>
+                                    View Vendor Details →
+                                  </Link>
+                                </div>
+                              )}
+                            </span>
+                          </span>
+                        ) : (
+                          order.orderVendorName || 'Unassigned'
+                        )}
+                      </span>
                     </div>
                     <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
                       <span className="form-label">Vendor Feedback</span>
@@ -732,7 +796,53 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                               alignItems: 'center',
                               wordBreak: 'break-word'
                             }}>
-                              <span>{row.vendorName}</span>
+                              <span>
+                                {row.vendor ? (
+                                  <span className="vendor-hover-container">
+                                    {row.vendor.vendorName}
+                                    <span className="vendor-popover" style={{
+                                      visibility: 'hidden',
+                                      opacity: 0,
+                                      position: 'absolute',
+                                      bottom: '125%',
+                                      left: '50%',
+                                      transform: 'translateX(-50%)',
+                                      backgroundColor: '#ffffff',
+                                      color: '#334155',
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: '8px',
+                                      padding: '12px',
+                                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                      zIndex: 9999,
+                                      width: '260px',
+                                      transition: 'opacity 0.2s, visibility 0.2s',
+                                      textAlign: 'left',
+                                      fontWeight: 'normal',
+                                      lineHeight: '1.4',
+                                      pointerEvents: 'auto',
+                                      textTransform: 'none',
+                                    }}>
+                                      <div style={{ fontWeight: 'bold', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px', color: '#0f172a' }}>
+                                        {row.vendor.vendorName}
+                                      </div>
+                                      <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div><strong>Email:</strong> {row.vendor.vendorEmail || '—'}</div>
+                                        <div><strong>Phone:</strong> {row.vendor.vendorPhone || '—'}</div>
+                                        <div><strong>State:</strong> {row.vendor.vendorState || '—'}</div>
+                                      </div>
+                                      {canViewVendors && (
+                                        <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '6px', textAlign: 'right' }}>
+                                          <Link href={`/vendors/${row.vendor.vendorId}`} style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 'bold', textDecoration: 'none' }}>
+                                            View Vendor Details →
+                                          </Link>
+                                        </div>
+                                      )}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  row.vendorName
+                                )}
+                              </span>
                               <span>{row.partName}</span>
                               <span style={{ color: row.feedback === 'Negative' ? '#ef4444' : '#10b981', fontWeight: '600', whiteSpace: 'nowrap' }}>{row.feedback}</span>
                             </div>

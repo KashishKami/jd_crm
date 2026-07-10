@@ -145,4 +145,21 @@ describe('VendorDetailPage Unit Tests', () => {
       expect(screen.queryByText('Feedback Drilldown: Negative Orders')).toBeNull();
     });
   });
+
+  it('[RED] should apply Georgia font to the sidebar card and word-wrap the details values to prevent overlapping', async () => {
+    render(<VendorDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryAllByText('Active Supplier').length).toBeGreaterThan(0);
+    });
+
+    const profileName = screen.getByRole('heading', { name: 'Active Supplier', level: 3 });
+    const sidebar = profileName.closest('.profile-sidebar') as HTMLElement;
+    expect(sidebar).not.toBeNull();
+    expect(sidebar.style.fontFamily).toContain('Georgia');
+
+    // Verify email value wrapper has early wrapping style
+    const emailVal = screen.getByText('active@supplier.com');
+    expect(emailVal.style.wordBreak).toBe('break-word');
+  });
 });
