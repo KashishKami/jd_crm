@@ -41,4 +41,9 @@ describe('LoginForm Unit Test', () => {
       });
     });
   });
+
+  it('should render the unified JD CRM header and not mention Monolith', () => {
+    render(<LoginForm />);
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('JD CRM');
+  });
 });

@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JD CRM Monolith",
+  title: "JD CRM",
   description: "Modernized Next.js CRM system",
 };
 

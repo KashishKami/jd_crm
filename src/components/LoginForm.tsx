@@ -37,7 +37,7 @@ export default function LoginForm() {
 
   return (
     <div className="login-card">
-      <h2 className="login-title">JD CRM Monolith</h2>
+      <h2 className="login-title">JD CRM</h2>
       <p className="login-subtitle">Sign in to your account</p>
       
       {error && <div className="error-message" role="alert">{error}</div>}

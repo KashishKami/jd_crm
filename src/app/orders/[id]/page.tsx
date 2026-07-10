@@ -684,13 +684,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 {allParts.length === 1 ? (
                   // Single Part: normal static fields
                   <>
-                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                      <span className="form-label">Part Found By</span>
+                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', alignItems: 'flex-start' }}>
+                      <span className="form-label" style={{ flexShrink: 0, marginRight: '16px' }}>Part Found By</span>
                       <span className="info-value" style={{ fontWeight: '600' }}>{order.orderPartFoundByName || '—'}</span>
                     </div>
-                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                      <span className="form-label">Parts Supplier</span>
-                      <span className="info-value" style={{ fontWeight: '600' }}>
+                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', alignItems: 'flex-start' }}>
+                      <span className="form-label" style={{ flexShrink: 0, marginRight: '16px' }}>Parts Supplier</span>
+                      <span className="info-value" style={{ fontWeight: '600', fontSize: '0.85rem', textAlign: 'right' }}>
                         {order.vendor ? (
                           <span className="vendor-hover-container">
                             {order.vendor.vendorName}
@@ -737,8 +737,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         )}
                       </span>
                     </div>
-                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <span className="form-label">Vendor Feedback</span>
+                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <span className="form-label" style={{ flexShrink: 0, marginRight: '16px' }}>Vendor Feedback</span>
                       <span className="info-value" style={{ fontWeight: '600', color: order.orderVendorFeedback === 'Negative' ? '#ef4444' : '#10b981' }}>
                         {order.orderVendorFeedback || 'Positive'}
                       </span>
