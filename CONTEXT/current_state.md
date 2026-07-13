@@ -6245,6 +6245,9 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Prisma 7 Compatibility & Config Linting**:
     - Removed the `url` property from the `schema.prisma` datasource block to conform to Prisma 7.
     - Simplified `prisma.config.ts` into a dependency-free, named object default export to prevent module load failures (`dotenv` and `prisma/config`) in pruned production containers, resolving the anonymous default export ESLint warning.
+  - **Dashboard Sales Performers Designations Expansion**:
+    - Added `'Backend Specialist'` and `'Backend Associate'` to the allowed sales agent designations in Champions League and Team Monthly performer queries (`getTopPerformers`, `getBottomPerformers`, `getTeamMonthlyTopPerformers`, and `getTeamMonthlyBottomPerformers`) inside [dashboard.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/dashboard.repository.ts).
+    - Updated the backendAgent mock in [dashboard.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/dashboard.test.ts) to `'Quality Associate'` to maintain leaderboard exclusion assertions.
   - **Deployment Guide Sequence Updates**:
     - Added an `[!IMPORTANT]` alert box to Step 2.4 in [jd-crm-vps-deployment-guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/jd-crm-vps-deployment-guide.md) specifying that the database migration must be executed after the first CI/CD run (Step 2.7).
   - **Verification**: Confirmed local Docker compose builds cleanly and starts services. Verified Prisma migration and SQL seeding commands run successfully inside containers. Ran linter and typecheck to verify 100% clean codebase.

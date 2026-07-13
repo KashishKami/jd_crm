@@ -26,6 +26,8 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY}:latest   # Image pulled from GitHub Container Registry
     container_name: jd_crm_app
     restart: always
+    ports:
+      - "3080:3080"                              # Exposed for direct IP access in Phase 2
     # No "ports:" here — Traefik handles routing, no direct port exposure needed
     environment:
       DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@database:3306/jd_crm"

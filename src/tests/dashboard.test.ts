@@ -788,13 +788,13 @@ describe('Dashboard Integration Tests', () => {
           designation: 'Sales Specialist',
         },
       });
-      const backendAgent = await prisma.users.create({
+      const qaAgent = await prisma.users.create({
         data: {
-          name: 'Backend Rep',
+          name: 'QA Rep',
           username: 'agent_bob_test',
           teamId: team!.teamId,
           roleId: role!.roleId,
-          designation: 'Backend Associate',
+          designation: 'Quality Associate',
         },
       });
 
@@ -845,7 +845,7 @@ describe('Dashboard Integration Tests', () => {
         },
       });
 
-      // Backend agent order (should NOT be returned because of designation)
+      // QA agent order (should NOT be returned because of designation)
       await prisma.crmOrders.create({
         data: {
           orderCustomerId: customer.customerId,
@@ -853,8 +853,8 @@ describe('Dashboard Integration Tests', () => {
           orderAmountCharged: '1000',
           orderRefundAmount: '0',
           orderDate: targetDate,
-          orderSalesAgentId: backendAgent.uid,
-          orderSalesAgentName: backendAgent.name,
+          orderSalesAgentId: qaAgent.uid,
+          orderSalesAgentName: qaAgent.name,
           orderVendorName: 'TEAM_TEST',
         },
       });
@@ -870,9 +870,9 @@ describe('Dashboard Integration Tests', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
 
-      // Top performers must NOT contain Backend Rep
+      // Top performers must NOT contain QA Rep
       const topNames = data.topPerformers.map((p: any) => p.agentName);
-      expect(topNames).not.toContain('Backend Rep');
+      expect(topNames).not.toContain('QA Rep');
       expect(topNames).toContain('Sales Rep');
 
       const repRow = data.topPerformers.find((p: any) => p.agentName === 'Sales Rep');
@@ -887,7 +887,7 @@ describe('Dashboard Integration Tests', () => {
       await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });
       await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
       await prisma.users.deleteMany({
-        where: { uid: { in: [salesAgent.uid, backendAgent.uid] } },
+        where: { uid: { in: [salesAgent.uid, qaAgent.uid] } },
       });
     });
   });

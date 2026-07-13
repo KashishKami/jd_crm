@@ -525,6 +525,12 @@ GitHub Secrets store sensitive values (passwords, keys) that your GitHub Actions
 3. In the left sidebar: **Secrets and variables** → **Actions**.
 4. Click **New repository secret** and add each of these:
 
+> [!WARNING]
+> **Passwords with Special Characters (`@`, `#`, `$`):**
+> - **In `DATABASE_URL` (or raw connection strings):** If your database password contains `@` or `#`, you **must URL-encode them** (e.g., `@` becomes `%40`, `#` becomes `%23`). Otherwise, the Prisma connection URL parser will crash.
+> - **In `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` secrets:** Paste the **raw** password exactly as it is (do NOT URL-encode it here).
+> - **Escape `$` in Compose:** If a password contains a literal dollar sign (`$`), it must be escaped as `$$` in any Docker compose files to prevent interpolation errors.
+
 | Secret Name | What to put in the Value field |
 |---|---|
 | `VPS_HOST` | Your VPS IP address (e.g., `103.163.224.78`) |
