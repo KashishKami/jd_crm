@@ -8,15 +8,42 @@ export const metadata = {
 };
 
 export default async function AgentsPage() {
-  const designations = await prisma.crmDesignations.findMany({
-    select: {
-      designationId: true,
-      designationName: true,
-    },
-    orderBy: {
-      designationName: 'asc',
-    },
-  });
+  const [designations, agents] = await Promise.all([
+    prisma.crmDesignations.findMany({
+      select: {
+        designationId: true,
+        designationName: true,
+      },
+      orderBy: {
+        designationName: 'asc',
+      },
+    }),
+    prisma.users.findMany({
+      select: {
+        uid: true,
+        name: true,
+        nickname: true,
+        designation: true,
+        status: true,
+        teamId: true,
+        roleId: true,
+        agentId: true,
+        role: {
+          select: {
+            roleName: true,
+          },
+        },
+        team: {
+          select: {
+            teamName: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    }),
+  ]);
 
-  return <AgentList designations={designations} />;
+  return <AgentList designations={designations} initialAgents={agents as any} />;
 }

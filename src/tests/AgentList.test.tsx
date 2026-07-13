@@ -63,6 +63,30 @@ describe('AgentList Component Unit Tests', () => {
     );
   });
 
+  it('should render agents immediately and NOT call fetch when initialAgents is provided', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<AgentList designations={[]} initialAgents={mockAgents as any} />);
+
+    // Check that fetch was NOT called for agents
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/agents'));
+
+    // Check that agents render immediately
+    await waitFor(() => {
+      expect(screen.queryByText('Ten')).not.toBeNull();
+      expect(screen.queryByText('Eleven')).not.toBeNull();
+    });
+  });
+
   it('should render a table of agents from mocked API response', async () => {
     vi.mocked(useSession).mockReturnValue({
       data: {

@@ -23,6 +23,40 @@ describe('CustomerList Component Unit Tests', () => {
     vi.unstubAllGlobals();
   });
 
+  it('should render customer list immediately and NOT call fetch when initialCustomers is provided', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Agent User',
+          userPermissions: 'customers:view',
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as any);
+
+    const mockInitialCustomers = [
+      {
+        customerId: 1,
+        customerName: 'Mary Johnson',
+        customerEmail: 'mary@example.com',
+        customerPhone: '555-1234',
+      },
+    ];
+
+    render(<CustomerList initialCustomers={mockInitialCustomers} />);
+
+    // Check that fetch was NOT called for customers
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/customers'));
+
+    // Check that customers render immediately
+    await waitFor(() => {
+      expect(screen.queryByText('Mary Johnson')).not.toBeNull();
+    });
+    expect(screen.queryByText('mary@example.com')).not.toBeNull();
+    expect(screen.queryByText('555-1234')).not.toBeNull();
+  });
+
   it('should render customer list using customerName', async () => {
     vi.mocked(useSession).mockReturnValue({
       data: {

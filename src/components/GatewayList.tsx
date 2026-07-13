@@ -8,10 +8,14 @@ import { Gateway } from '../types/gateway';
 import { fadeInPage, staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
 
-export default function GatewayList() {
+interface GatewayListProps {
+  initialGateways?: Gateway[];
+}
+
+export default function GatewayList({ initialGateways }: GatewayListProps = {}) {
   const { data: session } = useSession();
-  const [gateways, setGateways] = useState<Gateway[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [gateways, setGateways] = useState<Gateway[]>(initialGateways || []);
+  const [loading, setLoading] = useState(!initialGateways);
   const [error, setError] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +27,7 @@ export default function GatewayList() {
   const canReport = hasPermission(permissions, 'gateways:report');
 
   useEffect(() => {
+    if (initialGateways && initialGateways.length > 0) return;
     const fetchGateways = async () => {
       setLoading(true);
       setError(null);
@@ -38,7 +43,7 @@ export default function GatewayList() {
       }
     };
     fetchGateways();
-  }, []);
+  }, [initialGateways]);
 
   useEffect(() => {
     if (!loading && containerRef.current) {

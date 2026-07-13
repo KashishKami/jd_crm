@@ -11,6 +11,7 @@ export default withAuth(
     const routePermissionMap: Record<string, string> = {
       '/vendors': 'vendors:view',
       '/agents': 'agents:view',
+      '/customers': 'customers:view',
       '/gateways': 'gateways:view',
       '/orders': 'orders:view',
       '/pending/booking': 'orders:view-pending-booking',

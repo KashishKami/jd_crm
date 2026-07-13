@@ -81,6 +81,27 @@ describe('OrderListContainer Unit Tests', () => {
     global.fetch = originalFetch;
   });
 
+  it('[RED] should render dropdowns immediately and NOT call fetch for agents or teams when initialAgents and initialTeams are provided', async () => {
+    const mockInitialAgents = [
+      { uid: 1, name: 'Alice Agent', nickname: 'Alice', designation: 'Sales Associate', status: 1 },
+    ];
+    const mockInitialTeams = [
+      { teamId: 10, teamName: 'Alpha Team' },
+    ];
+
+    render(<OrderListContainer initialAgents={mockInitialAgents} initialTeams={mockInitialTeams} />);
+
+    // Check that fetch was NOT called for agents or teams
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/agents'));
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/teams'));
+
+    // Check that dropdowns render with the provided initial options
+    await waitFor(() => {
+      expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
+      expect(screen.getByText('Alpha Team')).toBeDefined();
+    });
+  });
+
   it('[RED] should fetch pending counts and render stats summary card with count and margin totals', async () => {
     render(<OrderListContainer />);
 

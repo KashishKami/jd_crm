@@ -8,10 +8,14 @@ import { fadeInPage, staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
 import CustomerCards from './CustomerCards';
 
-export default function CustomerList() {
+interface CustomerListProps {
+  initialCustomers?: Customer[];
+}
+
+export default function CustomerList({ initialCustomers }: CustomerListProps = {}) {
   const { data: session, status } = useSession();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
+  const [loading, setLoading] = useState(!initialCustomers);
   const [error, setError] = useState<string | null>(null);
   
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -30,6 +34,9 @@ export default function CustomerList() {
   // Fetch customers
   useEffect(() => {
     if (status !== 'authenticated') return;
+    if (initialCustomers && initialCustomers.length > 0) {
+      return;
+    }
 
     let active = true;
     const fetchCustomers = async () => {
@@ -61,7 +68,7 @@ export default function CustomerList() {
     return () => {
       active = false;
     };
-  }, [status]);
+  }, [status, initialCustomers]);
 
   // Page entrance animation
   useEffect(() => {

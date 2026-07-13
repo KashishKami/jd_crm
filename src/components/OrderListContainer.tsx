@@ -11,13 +11,15 @@ import OrderList from './OrderList';
 
 interface OrderListContainerProps {
   initialStatus?: string;
+  initialAgents?: any[];
+  initialTeams?: any[];
 }
 
-function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
+function OrderListContainerContent({ initialStatus, initialAgents, initialTeams }: OrderListContainerProps) {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [agents, setAgents] = useState<any[]>(initialAgents || []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +27,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus || '');
   const [saleStatusFilter, setSaleStatusFilter] = useState<string>('');
   const [agentFilter, setAgentFilter] = useState<string>('');
-  const [teams, setTeams] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>(initialTeams || []);
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>('');
   const [partFoundByFilter, setPartFoundByFilter] = useState<string>('');
@@ -99,6 +101,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
   // Fetch agents for dropdown
   useEffect(() => {
     if (status !== 'authenticated') return;
+    if (initialAgents && initialAgents.length > 0) return;
     const fetchAgents = async () => {
       try {
         const res = await fetch('/api/agents');
@@ -111,11 +114,12 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       }
     };
     fetchAgents();
-  }, [status]);
+  }, [status, initialAgents]);
 
   // Fetch teams for dropdown
   useEffect(() => {
     if (status !== 'authenticated') return;
+    if (initialTeams && initialTeams.length > 0) return;
     const fetchTeams = async () => {
       try {
         const res = await fetch('/api/teams');
@@ -128,7 +132,7 @@ function OrderListContainerContent({ initialStatus }: OrderListContainerProps) {
       }
     };
     fetchTeams();
-  }, [status]);
+  }, [status, initialTeams]);
 
   // Fetch pending counts when filters change
   useEffect(() => {

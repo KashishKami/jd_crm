@@ -11,12 +11,13 @@ import { gsap } from 'gsap';
 
 interface AgentListProps {
   designations?: { designationId: number; designationName: string }[];
+  initialAgents?: Agent[];
 }
 
-export default function AgentList({ designations = [] }: AgentListProps) {
+export default function AgentList({ designations = [], initialAgents }: AgentListProps) {
   const { data: session } = useSession();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [agents, setAgents] = useState<Agent[]>(initialAgents || []);
+  const [loading, setLoading] = useState(!initialAgents);
   const [error, setError] = useState<string | null>(null);
   
   // Filter States
@@ -40,6 +41,9 @@ export default function AgentList({ designations = [] }: AgentListProps) {
   const canEdit = hasPermission(permissions, 'agents:edit');
 
   useEffect(() => {
+    if (initialAgents && initialAgents.length > 0 && refetchTrigger === 0) {
+      return;
+    }
     let active = true;
     const fetchAgents = async () => {
       setLoading(true);
@@ -71,7 +75,7 @@ export default function AgentList({ designations = [] }: AgentListProps) {
     return () => {
       active = false;
     };
-  }, [refetchTrigger]);
+  }, [refetchTrigger, initialAgents]);
 
   // Page fade-in effect on initial load
   useEffect(() => {
