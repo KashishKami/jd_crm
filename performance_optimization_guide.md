@@ -120,3 +120,65 @@ CREATE INDEX idx_orders_sales_agent ON crm_orders (order_sales_agent_id);
 CREATE INDEX idx_orders_status ON crm_orders (order_status);
 CREATE INDEX idx_orders_date ON crm_orders (order_date);
 ```
+
+---
+
+## 4. Sequential Query Waterfalling in Server-Side Rendering & APIs
+
+### The Problem
+Even when you optimize code to call the database directly on the server (avoiding HTTP loopbacks), performance can still degrade if you execute multiple independent database queries **sequentially** using separate `await` statements. 
+
+When your application is deployed to cloud platforms (like Vercel serverless functions) and your database is hosted on a separate managed database server, there is a round-trip network latency (e.g., 50ms–100ms) for every database transaction.
+
+Running queries sequentially forces your serverless function to wait for each query to finish before sending the next one:
+
+```
+[Serverless Function]                       [Database Server]
+        │                                           │
+        │─── Query 1 (Find Order) ─────────────────>│  (80ms latency)
+        │<── Return Order Data ─────────────────────│
+        │                                           │
+        │─── Query 2 (Fetch Sale History) ─────────>│  (80ms latency)
+        │<── Return History Data ───────────────────│
+        │                                           │
+        │─── Query 3 (Fetch Audit Logs) ───────────>│  (80ms latency)
+        │<── Return Audit Logs ─────────────────────│
+        ▼
+   (Total network wait time: 240ms)
+```
+
+### The Solution: Parallel Query Execution (`Promise.all`)
+Since these queries are independent and do not rely on each other's outputs, they should be fired concurrently. Using JavaScript's native `Promise.all` allows the runtime to send all queries to the database concurrently, reducing the total wait time to just the duration of the single slowest query:
+
+```
+[Serverless Function]                       [Database Server]
+        │                                           │
+        │─── Query 1 (Find Order) ─────────────────>│
+        │─── Query 2 (Fetch Sale History) ─────────>│  (Executed in parallel)
+        │─── Query 3 (Fetch Audit Logs) ───────────>│
+        │                                           │
+        │<── Return All Results Concurrently ───────│  (80ms total latency)
+        ▼
+   (Total network wait time: 80ms)
+```
+
+#### Code Comparison:
+
+*❌ **Bad (Sequential Awaits):***
+```typescript
+// Each await blocks the thread, causing sequential network round-trips
+const order = await prisma.crmOrders.findUnique({ where: { crmOrderId } });
+const saleHistory = await prisma.crmSaleStatusHistory.findMany({ where: { orderId } });
+const auditLogs = await prisma.crmOrderAuditLogs.findMany({ where: { orderId } });
+```
+
+*✅ **Good (Parallel Promise.all):***
+```typescript
+// All queries execute concurrently, resolving in a single round-trip time
+const [order, saleHistory, auditLogs] = await Promise.all([
+  prisma.crmOrders.findUnique({ where: { crmOrderId } }),
+  prisma.crmSaleStatusHistory.findMany({ where: { orderId } }),
+  prisma.crmOrderAuditLogs.findMany({ where: { orderId } }),
+]);
+```
+

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../service/permission.service';
 import { prisma } from '../../../lib/db';
+import * as orderRepository from '../../../repository/order.repository';
 import OrderCommentsSection from '../../../components/OrderCommentsSection';
 import { formatDateDDMMYYYY } from '../../../lib/date';
 import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
@@ -118,30 +119,47 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
-  const order = await prisma.crmOrders.findUnique({
-    where: { crmOrderId },
-    include: {
-      customer: {
-        include: {
-          cards: true,
+  const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
+  const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
+  const canViewLog = hasPermission(permissions, 'orders:view-log');
+  const canViewAuditLog = hasPermission(permissions, 'orders:view-audit-log');
+
+  const [order, saleHistory, workflowHistory, rawViewLogs, rawAuditLogs] = await Promise.all([
+    prisma.crmOrders.findUnique({
+      where: { crmOrderId },
+      include: {
+        customer: {
+          include: {
+            cards: true,
+          },
         },
-      },
-      vendor: true,
-      gateway: true,
-      salesAgent: true,
-      verifier: true,
-      backendExecutive: true,
-      partFoundBy: true,
-      childOrders: {
-        include: {
-          vendor: true,
-          gateway: true,
-          backendExecutive: true,
-          partFoundBy: true,
+        vendor: true,
+        gateway: true,
+        salesAgent: true,
+        verifier: true,
+        backendExecutive: true,
+        partFoundBy: true,
+        childOrders: {
+          include: {
+            vendor: true,
+            gateway: true,
+            backendExecutive: true,
+            partFoundBy: true,
+          }
         }
-      }
-    },
-  });
+      },
+    }),
+    canViewSaleHistory ? prisma.crmSaleStatusHistory.findMany({
+      where: { orderId: crmOrderId },
+      orderBy: { changedAt: 'asc' },
+    }) : Promise.resolve([]),
+    canViewWorkflowHistory ? prisma.crmOrderCurrentStatusHistory.findMany({
+      where: { orderId: crmOrderId },
+      orderBy: { changedAt: 'asc' },
+    }) : Promise.resolve([]),
+    canViewLog ? orderRepository.getOrderViews(crmOrderId) : Promise.resolve([]),
+    canViewAuditLog ? orderRepository.getAuditLogByOrderId(crmOrderId) : Promise.resolve([]),
+  ]);
 
   if (!order) {
     notFound();
@@ -162,8 +180,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }
 
   // Fire-and-forget: log the view event in the database
-  const orderRepo = await import('../../../repository/order.repository');
-  orderRepo.logOrderView(
+  orderRepository.logOrderView(
     crmOrderId,
     Number(session.user.id),
     session.user.nickname || session.user.name || 'Agent'
@@ -199,33 +216,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canDelete = hasPermission(permissions, 'orders:delete');
-  const canViewSaleHistory = hasPermission(permissions, 'orders:view-sale-status-history');
-  const canViewWorkflowHistory = hasPermission(permissions, 'orders:view-workflow-history');
   const canViewVendors = hasPermission(permissions, 'vendors:view');
 
-  const saleHistory = canViewSaleHistory ? await prisma.crmSaleStatusHistory.findMany({
-    where: { orderId: crmOrderId },
-    orderBy: { changedAt: 'asc' },
-  }) : [];
-
-  const workflowHistory = canViewWorkflowHistory ? await prisma.crmOrderCurrentStatusHistory.findMany({
-    where: { orderId: crmOrderId },
-    orderBy: { changedAt: 'asc' },
-  }) : [];
-
-  const canViewLog = hasPermission(permissions, 'orders:view-log');
-  const canViewAuditLog = hasPermission(permissions, 'orders:view-audit-log');
-  let viewLogs: any[] = [];
-  if (canViewLog) {
-    const orderRepository = await import('../../../repository/order.repository');
-    viewLogs = JSON.parse(JSON.stringify(await orderRepository.getOrderViews(crmOrderId)));
-  }
-
-  let auditLogs: any[] = [];
-  if (canViewAuditLog) {
-    const orderRepository = await import('../../../repository/order.repository');
-    auditLogs = JSON.parse(JSON.stringify(await orderRepository.getAuditLogByOrderId(crmOrderId)));
-  }
+  const viewLogs = JSON.parse(JSON.stringify(rawViewLogs));
+  let auditLogs: any[] = JSON.parse(JSON.stringify(rawAuditLogs));
   
   if (auditLogs.length > 0) {
     const maskCardNumHelper = (num: string | null) => {

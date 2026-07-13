@@ -16,9 +16,6 @@ export default async function Home() {
 
   const permissions = session.user.userPermissions || '';
 
-  // Fetch the metrics server-side
-  const metrics = await dashboardService.getMetricsForUser(session);
-
   const estParts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -28,14 +25,15 @@ export default async function Home() {
   const currentMonth = parseInt(estParts.month);
   const currentYear = parseInt(estParts.year);
 
-  let initialBackendData = null;
-  if (
-    hasPermission(permissions, 'dashboard:backend-top-performer') ||
-    hasPermission(permissions, 'dashboard:backend-bottom-performer') ||
-    hasPermission(permissions, 'dashboard:backend-pending-cases')
-  ) {
-    initialBackendData = await dashboardService.getBackendTeamDashboard(session, currentMonth, currentYear);
-  }
+  // Fetch metrics and backend team dashboard data concurrently
+  const [metrics, initialBackendData] = await Promise.all([
+    dashboardService.getMetricsForUser(session),
+    (
+      hasPermission(permissions, 'dashboard:backend-top-performer') ||
+      hasPermission(permissions, 'dashboard:backend-bottom-performer') ||
+      hasPermission(permissions, 'dashboard:backend-pending-cases')
+    ) ? dashboardService.getBackendTeamDashboard(session, currentMonth, currentYear) : Promise.resolve(null)
+  ]);
 
   return (
     <DashboardPage
