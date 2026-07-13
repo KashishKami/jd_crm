@@ -463,23 +463,17 @@ scp "C:\Users\Administrator\Desktop\jd_crm_backup.sql" root@YOUR_VPS_IP:/tmp/jd_
 
 #### Step C — Start the database container first
 
-Go back to your **SSH terminal** on the VPS. Start just the database container using the production compose file:
+Go back to your **SSH terminal** on the VPS. 
 
+Since you executed the GitHub Actions workflow first (Step 2.7), **the `.env` file has already been automatically created and populated** with your secure database passwords and secrets! You do not need to create it manually.
+
+You can verify that the file exists and is populated by running:
 ```bash
 cd /opt/jd-crm
-
-# First, create your production .env file (see Step 2.5 for what to put in it)
-nano .env
+cat .env
 ```
 
-For now, paste these minimal values and save (`Ctrl+O`, `Enter`, `Ctrl+X`):
-```env
-MYSQL_ROOT_PASSWORD=choose_a_strong_root_password_here
-MYSQL_USER=crm_user
-MYSQL_PASSWORD=choose_a_strong_user_password_here
-```
-
-Start only the database:
+Now, start only the database container:
 ```bash
 docker compose -f docker-compose.prod.yml up -d database
 ```
@@ -700,6 +694,16 @@ curl http://YOUR_VPS_IP:3080
 Or simply open `http://YOUR_VPS_IP:3080` in your browser.
 
 > **Note:** At this stage, the app is accessible via the raw VPS IP on port 3080. There is no HTTPS yet — that comes in Phase 3.
+
+> [!NOTE]
+> **Why are there only two files (`.env` and `docker-compose.prod.yml`) in `/opt/jd-crm/`?**
+> - **The Code is inside the Image:** Your entire application code is packaged inside the compiled Docker image (`ghcr.io/kashishkami/jd_crm:latest`) pulled from GHCR. You do not need the raw code folders on the VPS.
+> - **`.env` is Managed Automatically:** You **do not** need to manually add values to the `/opt/jd-crm/.env` file. GitHub Actions automatically writes the production secrets to this file on every successful deployment.
+> - **Where are the database and upload volumes stored?**
+>   Docker stores named volumes in the VPS host system's default Docker volume directory:
+>   - Database: `/var/lib/docker/volumes/jd-crm_mysql_data/_data`
+>   - Uploads: `/var/lib/docker/volumes/jd-crm_crm_uploads/_data`
+>   These are managed automatically by Docker, ensuring your data is safe and fully persistent across container updates.
 
 You can also check container status by SSHing into your VPS:
 ```bash
