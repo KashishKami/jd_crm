@@ -518,7 +518,7 @@ describe('EditOrderForm Unit Tests', () => {
       (order as any).orderLiftgateNeeded = 'Yes';
 
       const mockAgents = [
-        { uid: 5, name: 'Agent Neo', nickname: 'Neo', status: 1 }
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo', designation: 'Sales Associate', status: 1 }
       ];
 
       render(
@@ -545,7 +545,7 @@ describe('EditOrderForm Unit Tests', () => {
       (order as any).orderLiftgateNeeded = 'No';
 
       const mockAgents = [
-        { uid: 5, name: 'Agent Neo', nickname: 'Neo', status: 1 }
+        { uid: 5, name: 'Agent Neo', nickname: 'Neo', designation: 'Sales Associate', status: 1 }
       ];
 
       render(
@@ -794,6 +794,33 @@ describe('EditOrderForm Unit Tests', () => {
         expect(blacklistedOption).toBeDefined();
         expect(blacklistedOption?.text).toBe('[BLACKLISTED] 🚩 Blacklisted Vendor');
         expect(blacklistedOption?.style.color).toBe('red');
+      });
+    });
+
+    describe('W-2501: EditOrderForm Part Found By designation filter', () => {
+      it('should filter Part Found By options to show only designated agents (7 designations)', () => {
+        const mockAgents = [
+          { uid: 1, name: 'Alice Agent', nickname: 'Alice', designation: 'Sales Associate', status: 1 },
+          { uid: 2, name: 'Bob Executive', nickname: 'Bob', designation: 'Backend Specialist', status: 1 },
+          { uid: 3, name: 'Nainika HR', nickname: 'Nainika', designation: 'HR', status: 1 },
+          { uid: 4, name: 'Charlie Associate', nickname: 'Charlie', designation: 'Backend Associate', status: 1 },
+          { uid: 5, name: 'Danny Boss', nickname: 'Danny', designation: 'Director', status: 1 },
+        ];
+        render(<EditOrderForm order={getMockOrder('Pending Booking')} vendors={[]} gateways={[]} agents={mockAgents} />);
+
+        const pfbSelect = document.getElementById('orderPartFoundById') as HTMLSelectElement;
+        expect(pfbSelect).not.toBeNull();
+
+        const options = Array.from(pfbSelect.options).map(opt => opt.text);
+
+        // Alice, Bob, and Charlie should be present
+        expect(options).toContain('Alice');
+        expect(options).toContain('Bob');
+        expect(options).toContain('Charlie');
+
+        // Nainika and Danny should NOT be present
+        expect(options).not.toContain('Nainika');
+        expect(options).not.toContain('Danny');
       });
     });
   });

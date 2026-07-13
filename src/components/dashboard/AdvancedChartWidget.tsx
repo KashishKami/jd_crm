@@ -280,7 +280,7 @@ export default function AdvancedChartWidget() {
           >
             <option value="">All Agents</option>
             {(() => {
-              const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive'];
+              const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
               const scoped = filteredAgents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
               const active = scoped.filter(a => a.status === 1);
               const inactive = scoped.filter(a => a.status !== 1);

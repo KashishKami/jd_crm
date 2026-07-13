@@ -404,6 +404,43 @@ describe('Order Management Integration Tests', () => {
         expect(data['Pending Booking']).toHaveProperty('count');
         expect(data['Pending Booking']).toHaveProperty('amount');
       });
+
+      it('[RED] should filter pending-counts by partFoundById', async () => {
+        // 1. Create a test user for part found by
+        const pfbUser = await prisma.users.create({
+          data: {
+            name: 'PFB User Test',
+            username: 'pfb_user_test_filters',
+            teamId: testTeam.teamId,
+            roleId: testRole.roleId,
+          },
+        });
+
+        // 2. Set orderPartFoundById on testOrder
+        await prisma.crmOrders.update({
+          where: { crmOrderId: testOrder.crmOrderId },
+          data: { orderPartFoundById: pfbUser.uid, orderCurrentStatus: 'Pending Booking' },
+        });
+
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: { id: '1', name: 'Authorized User', userPermissions: 'orders:view' },
+        });
+
+        const { GET } = await import('../app/api/orders/pending-counts/route');
+        const req = new Request(`http://localhost/api/orders/pending-counts?partFoundById=${pfbUser.uid}`);
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data['Pending Booking']?.count).toBe(1);
+
+        // Cleanup
+        await prisma.crmOrders.update({
+          where: { crmOrderId: testOrder.crmOrderId },
+          data: { orderPartFoundById: null },
+        });
+        await prisma.users.delete({ where: { uid: pfbUser.uid } });
+      });
     });
   });
 

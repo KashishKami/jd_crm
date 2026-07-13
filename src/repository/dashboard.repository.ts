@@ -183,8 +183,7 @@ export async function getTopPerformers(limit = 5, month?: number, year?: number)
       AND o.order_sales_agent_id IS NOT NULL
       AND o.order_date >= ${start}
       AND o.order_date < ${end}
-      AND o.sale_status IN ('1', '2', '3', '4')
-      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate')
     GROUP BY u.uid
     HAVING salesCount > 0
     ORDER BY totalSales DESC
@@ -244,7 +243,7 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
       AND o.order_date >= ${start}
       AND o.order_date < ${end}
       AND o.sale_status IN ('1', '2', '3', '4')
-      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate')
     GROUP BY u.uid
     HAVING salesCount > 0
     ORDER BY totalSales ASC
@@ -365,6 +364,7 @@ export async function getPendingCounts(filters?: {
   agentId?: number;
   teamId?: number;
   backendExecutiveId?: number;
+  partFoundById?: number;
   dateFrom?: string;
   dateTo?: string;
   saleStatus?: string;
@@ -398,6 +398,18 @@ export async function getPendingCounts(filters?: {
     }
     if (filters.backendExecutiveId) {
       where.orderBackendExecutiveId = filters.backendExecutiveId;
+    }
+    if (filters.partFoundById) {
+      where.OR = [
+        { orderPartFoundById: filters.partFoundById },
+        {
+          childOrders: {
+            some: {
+              orderPartFoundById: filters.partFoundById,
+            },
+          },
+        },
+      ];
     }
     if (filters.dateFrom || filters.dateTo) {
       const dateFilter: Prisma.DateTimeNullableFilter = {};
@@ -600,7 +612,7 @@ export async function getTeamMonthlyTopPerformers(teamId: number, month: number,
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
-      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate')
     GROUP BY u.uid, u.nickname, u.name
     HAVING orderCount > 0
     ORDER BY amount DESC
@@ -639,7 +651,7 @@ export async function getTeamMonthlyBottomPerformers(teamId: number, month: numb
       AND o.order_date >= ${start}
       AND o.order_date <  ${end}
     WHERE u.team_id = ${teamId}
-      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive')
+      AND u.designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate')
     GROUP BY u.uid, u.nickname, u.name
     HAVING orderCount > 0
     ORDER BY amount ASC

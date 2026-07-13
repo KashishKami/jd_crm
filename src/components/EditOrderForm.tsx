@@ -1030,8 +1030,10 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                             >
                               <option value="">Select or Type</option>
                               {(() => {
-                                const active = agents.filter(a => a.status === 1);
-                                const inactive = agents.filter(a => a.status !== 1);
+                                const PART_FOUND_BY_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
+                                const filtered = agents.filter(a => PART_FOUND_BY_DESIGNATIONS.includes(a.designation || ''));
+                                const active = filtered.filter(a => a.status === 1);
+                                const inactive = filtered.filter(a => a.status !== 1);
                                 return (
                                   <>
                                     {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1342,7 +1344,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 >
                   <option value="">Select or Type</option>
                   {(() => {
-                    const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Executive'];
+                    const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                     const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
                     const active = filtered.filter(a => a.status === 1);
                     const inactive = filtered.filter(a => a.status !== 1);

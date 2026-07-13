@@ -38,6 +38,9 @@ describe('OrderListContainer Unit Tests', () => {
           json: async () => [
             { uid: 1, name: 'Alice Agent', nickname: 'Alice', designation: 'Sales Associate', status: 1 },
             { uid: 2, name: 'Bob Executive', nickname: 'Bob', designation: 'Backend Specialist', status: 1 },
+            { uid: 3, name: 'Nainika HR', nickname: 'Nainika', designation: 'HR', status: 1 },
+            { uid: 4, name: 'Charlie Associate', nickname: 'Charlie', designation: 'Backend Associate', status: 1 },
+            { uid: 5, name: 'Danny Boss', nickname: 'Danny', designation: 'Director', status: 1 },
           ],
         });
       }
@@ -210,5 +213,24 @@ describe('OrderListContainer Unit Tests', () => {
         expect(screen.getByText(/Cancelled Orders Queue/i)).toBeDefined();
       });
     });
+
+    it('[RED] should filter Part Found By dropdown options to show only designated agents (7 designations)', async () => {
+      render(<OrderListContainer />);
+      await waitFor(() => {
+          expect(screen.getByLabelText(/Part Found By/i)).toBeDefined();
+        });
+
+        const select = screen.getByLabelText(/Part Found By/i) as HTMLSelectElement;
+        const options = Array.from(select.options).map(opt => opt.text);
+
+        // Alice, Bob, and Charlie should be present
+        expect(options).toContain('Alice');
+        expect(options).toContain('Bob');
+        expect(options).toContain('Charlie');
+
+        // Nainika and Danny should NOT be present (since HR and Director are not in the 7 designations)
+        expect(options).not.toContain('Nainika');
+        expect(options).not.toContain('Danny');
+      });
+    });
   });
-});

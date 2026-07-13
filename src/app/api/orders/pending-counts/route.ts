@@ -35,6 +35,8 @@ export async function GET(request: Request) {
 
   const backendExecutiveIdStr = searchParams.get('backendExecutiveId');
   const backendExecutiveId = backendExecutiveIdStr ? Number(backendExecutiveIdStr) : undefined;
+  const partFoundByIdStr = searchParams.get('partFoundById');
+  const partFoundById = partFoundByIdStr ? Number(partFoundByIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
 
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
       agentId,
       teamId,
       backendExecutiveId,
+      partFoundById,
       dateFrom,
       dateTo,
       saleStatus,
