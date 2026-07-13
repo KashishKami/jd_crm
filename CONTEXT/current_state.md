@@ -6250,6 +6250,8 @@ In this session, we finalized the Phase 24 features and made the following layou
     - Updated the backendAgent mock in [dashboard.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/dashboard.test.ts) to `'Quality Associate'` to maintain leaderboard exclusion assertions.
   - **Deployment Guide Sequence Updates**:
     - Added an `[!IMPORTANT]` alert box to Step 2.4 in [jd-crm-vps-deployment-guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/jd-crm-vps-deployment-guide.md) specifying that the database migration must be executed after the first CI/CD run (Step 2.7).
+  - **Docker Build Caching Optimization**:
+    - Integrated Docker Buildx and the GitHub Actions Cache backend (`type=gha`) in [deploy.yml](file:///c:/Users/Administrator/Desktop/JD%20CRM/.github/workflows/deploy.yml) to cache compiled Docker layers and significantly accelerate subsequent builds.
   - **Verification**: Confirmed local Docker compose builds cleanly and starts services. Verified Prisma migration and SQL seeding commands run successfully inside containers. Ran linter and typecheck to verify 100% clean codebase.
 
 
