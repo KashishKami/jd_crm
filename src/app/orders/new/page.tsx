@@ -2,6 +2,8 @@ import React from 'react';
 import { prisma } from '../../../lib/db';
 import AddOrderForm from '../../../components/AddOrderForm';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'New Order - JD CRM',
   description: 'Intake new sales booking, customer, and card details',

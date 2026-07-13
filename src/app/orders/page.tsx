@@ -2,6 +2,8 @@ import React from 'react';
 import OrderListContainer from '../../components/OrderListContainer';
 import { prisma } from '../../lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Orders Pipeline - JD CRM',
   description: 'Manage sales intake, bookings, margins, and status queues',

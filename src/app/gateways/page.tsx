@@ -2,6 +2,8 @@ import React from 'react';
 import GatewayList from '../../components/GatewayList';
 import * as gatewayRepository from '../../repository/gateway.repository';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Payment Gateways - JD CRM',
   description: 'Manage payment processors and view performance reports',

@@ -435,6 +435,12 @@ xxxxxxxxxxxx   root_default   bridge    local
 
 ### 2.4 Migrate the Database from GoDaddy to VPS
 
+> [!IMPORTANT]
+> **EXECUTE THIS STEP AFTER STEP 2.7 HAS SUCCESSFULLY RUN.**
+> You cannot perform this database migration until the first GitHub Actions workflow has successfully run (Step 2.7). This is because the VPS requires `docker-compose.prod.yml` (copied in Step 2.6) and the compiled Docker image in GHCR (built in Step 2.7) to start the database container and run the Prisma migrations. 
+> 
+> *For now, read through this section to understand the steps, then skip directly to **2.5 Configure GitHub Secrets** and return here after the first pipeline run completes.*
+
 > **This step is critical.** Your app is currently on Vercel connecting to a GoDaddy shared hosting database. For the VPS to work correctly (without cross-internet latency on every query), you must move the database to the VPS container.
 
 #### Step A — Export from GoDaddy (on your Windows PC)

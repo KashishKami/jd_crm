@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # ─── MySQL Database ───────────────────────────
   database:
     image: mysql:8.0
     container_name: jd_crm_db
@@ -11,9 +12,42 @@ services:
       MYSQL_USER: crm_user
       MYSQL_PASSWORD: crm_password
     ports:
-      - "3306:3306"
+      - "3306:3306"       # Expose for local DB tools (DBeaver, TablePlus)
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - jdcrm_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Next.js Application ──────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jd_crm_app
+    restart: always
+    ports:
+      - "3080:3080"       # Access at http://localhost:3080
+    environment:
+      DATABASE_URL: "mysql://crm_user:crm_password@database:3306/jd_crm"
+      NEXTAUTH_SECRET: "your-local-dev-secret-change-this"
+      NEXTAUTH_URL: "http://localhost:3080"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - jdcrm_net
+    volumes:
+      - crm_uploads:/app/public/uploads
+
+networks:
+  jdcrm_net:
+    driver: bridge
 
 volumes:
   mysql_data:
+  crm_uploads:

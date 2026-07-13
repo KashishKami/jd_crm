@@ -6232,3 +6232,21 @@ In this session, we finalized the Phase 24 features and made the following layou
     - Reduced the connection pool limit from 20 to 10 to protect the database server from connection starvation during concurrent serverless container scaling.
   - **Test Verification**: Created new unit and integration tests asserting the dropdown filtering and counts API behavior. Verified all new and existing tests pass cleanly.
 
+### Session 74 — July 14, 2026
+  **Production Docker Setup, Standalone Next.js Build-Time DB Fixes, Upload Volume Mapping, and Prisma 7 Configuration Refactors (Phase 1 Complete)**
+  - **Next.js Standalone Build Configurations**:
+    - Configured `output: 'standalone'` in [next.config.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/next.config.ts) for optimized production images.
+    - Resolved build-time database hangups by marking pre-fetching routes (`/orders`, `/orders/new`, `/agents`, `/customers`, `/gateways`) as `force-dynamic`.
+  - **Docker Setup & Persistence**:
+    - Built a 3-stage `Dockerfile` (deps ➔ builder ➔ runner) with a non-root `nextjs` user.
+    - Configured `.dockerignore` to filter out local dependencies, caches, and backups.
+    - Updated `docker-compose.yml` and `docker-compose.prod.yml` to define and map the `crm_uploads` persistent volume to `/app/public/uploads` for comment attachments and card images.
+    - Changed `/app/public` copy ownership inside the Dockerfile using `--chown=nextjs:nodejs` to fix directory write permission errors.
+  - **Prisma 7 Compatibility & Config Linting**:
+    - Removed the `url` property from the `schema.prisma` datasource block to conform to Prisma 7.
+    - Simplified `prisma.config.ts` into a dependency-free, named object default export to prevent module load failures (`dotenv` and `prisma/config`) in pruned production containers, resolving the anonymous default export ESLint warning.
+  - **Deployment Guide Sequence Updates**:
+    - Added an `[!IMPORTANT]` alert box to Step 2.4 in [jd-crm-vps-deployment-guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/jd-crm-vps-deployment-guide.md) specifying that the database migration must be executed after the first CI/CD run (Step 2.7).
+  - **Verification**: Confirmed local Docker compose builds cleanly and starts services. Verified Prisma migration and SQL seeding commands run successfully inside containers. Ran linter and typecheck to verify 100% clean codebase.
+
+
