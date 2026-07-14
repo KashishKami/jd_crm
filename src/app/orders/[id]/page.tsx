@@ -361,7 +361,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <h1 className="page-title">Order Details #{order.crmOrderId}</h1>
           </div>
           <p className="page-subtitle" style={{ marginTop: '4px' }}>
-            Placed on {order.orderDate ? formatDateDDMMYYYY(order.orderDate) : '—'} • Created {formatDateDDMMYYYY(order.orderCreatedDate)}
+            Order placed on {order.orderDate ? formatDateDDMMYYYY(order.orderDate) : '—'} • Order entry on {formatDateDDMMYYYY(order.orderCreatedDate)}
           </p>
         </div>
         <div className="flex gap-3">

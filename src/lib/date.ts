@@ -131,3 +131,40 @@ export function getCurrentEstDateTime(): { date: string; time: string } {
     time: `${hour}:${minute}`
   };
 }
+
+/**
+ * Returns how many EST calendar days have elapsed since `referenceDate`.
+ * Uses EST date boundaries (America/New_York) so the counter increments at
+ * midnight Eastern time, not at UTC midnight (which is ~8 PM EST).
+ *
+ * Examples:
+ *   referenceDate = today EST  → 0
+ *   referenceDate = yesterday EST → 1
+ *   referenceDate = 5 days ago EST → 5
+ */
+export function getEstCalendarDaysDiff(referenceDate: Date | string): number {
+  const refDate = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  if (isNaN(refDate.getTime())) return 0;
+
+  const now = new Date();
+  const estFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  // Convert a Date to its EST calendar day as a UTC-midnight ms value,
+  // so simple subtraction gives whole-day counts without timezone drift.
+  const toEstDayUtc = (d: Date): number => {
+    const parts = estFormatter.formatToParts(d);
+    const y   = parseInt(parts.find(p => p.type === 'year')!.value);
+    const m   = parseInt(parts.find(p => p.type === 'month')!.value);
+    const day = parseInt(parts.find(p => p.type === 'day')!.value);
+    return Date.UTC(y, m - 1, day);
+  };
+
+  const nowDay = toEstDayUtc(now);
+  const refDay = toEstDayUtc(refDate);
+  return Math.max(0, Math.floor((nowDay - refDay) / (1000 * 60 * 60 * 24)));
+}

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import OrderList from '../components/OrderList';
+import { getEstCalendarDaysDiff } from '../lib/date';
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({
@@ -253,21 +254,23 @@ describe('OrderList W-1601 Unit Tests', () => {
 
   describe('W-1905: Time in Status Column', () => {
     it('should display the aging text for active statuses, but show empty/hyphen for Completed and Returned statuses', () => {
-      // 4 days ago
+      // Use an orderDate 4 days ago for Pending Booking (days now counted from sale date)
       const fourDaysAgo = new Date();
       fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+      const fourDaysAgoDateStr = fourDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD
 
       const mockOrders = [
         {
           crmOrderId: 301,
-          orderDate: '2026-06-30',
+          // For Pending Booking the days counter uses orderDate, not orderCurrentStatusUpdateDate
+          orderDate: fourDaysAgoDateStr,
           orderMakeModel: '2026 Ford Bronco',
           orderPart: 'Engine',
           orderTotalPitched: '1000',
           orderVendorPrice: '700',
           orderAmountCharged: '300',
           orderCurrentStatus: 'Pending Booking',
-          orderCurrentStatusUpdateDate: fourDaysAgo,
+          orderCurrentStatusUpdateDate: new Date(), // irrelevant for Pending Booking
           customer: {
             customerName: 'John Active',
             customerEmail: 'active@example.com',
@@ -307,9 +310,9 @@ describe('OrderList W-1601 Unit Tests', () => {
 
       render(<OrderList orders={mockOrders as any} />);
 
-      const rowActive = screen.getByRole('row', { name: /#301/i });
+      const rowActive    = screen.getByRole('row', { name: /#301/i });
       const rowCompleted = screen.getByRole('row', { name: /#302/i });
-      const rowReturned = screen.getByRole('row', { name: /#303/i });
+      const rowReturned  = screen.getByRole('row', { name: /#303/i });
 
       expect(rowActive.textContent).toContain('Pending Booking');
       expect(rowActive.textContent).toContain('(for 4 days)');
@@ -317,6 +320,144 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(rowCompleted.textContent).not.toContain('(for 4 days)');
       expect(rowReturned.textContent).toContain('Returned Orders');
       expect(rowReturned.textContent).not.toContain('(for 4 days)');
+    });
+  });
+
+  // ─── EST timezone & Pending Booking days fix ─────────────────────────────────
+
+  describe('getEstCalendarDaysDiff unit tests', () => {
+    it('returns 0 when the reference date is today in EST', () => {
+      const now = new Date();
+      expect(getEstCalendarDaysDiff(now)).toBe(0);
+    });
+
+    it('returns the correct number of whole EST calendar days for a past date', () => {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setUTCDate(threeDaysAgo.getUTCDate() - 3);
+      // Allow 3 or 4 depending on where exactly the EST midnight boundary falls
+      const result = getEstCalendarDaysDiff(threeDaysAgo);
+      expect(result).toBeGreaterThanOrEqual(2);
+      expect(result).toBeLessThanOrEqual(4);
+    });
+
+    it('accepts a string date and parses it correctly', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const isoString = yesterday.toISOString();
+      const result = getEstCalendarDaysDiff(isoString);
+      expect(result).toBeGreaterThanOrEqual(0);
+    });
+
+    it('returns 0 (never negative) for a future reference date', () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      expect(getEstCalendarDaysDiff(tomorrow)).toBe(0);
+    });
+
+    it('returns 0 for an invalid date string without throwing', () => {
+      expect(getEstCalendarDaysDiff('not-a-date')).toBe(0);
+    });
+  });
+
+  describe('W-2801: Pending Booking days counted from sale date (orderDate), not entry date', () => {
+    it('should count days from orderDate for Pending Booking status', () => {
+      // Sale happened 7 days ago, but was entered today (orderCurrentStatusUpdateDate = now)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const saleDateStr = sevenDaysAgo.toISOString().split('T')[0];
+
+      const mockOrders = [
+        {
+          crmOrderId: 401,
+          orderDate: saleDateStr,         // sale date: 7 days ago
+          orderMakeModel: '2026 Toyota Camry',
+          orderPart: 'Engine',
+          orderTotalPitched: '2000',
+          orderVendorPrice: '1200',
+          orderAmountCharged: '800',
+          orderCurrentStatus: 'Pending Booking',
+          orderCurrentStatusUpdateDate: new Date(), // entry was today — should be ignored
+          customer: {
+            customerName: 'Late Entry Customer',
+            customerEmail: 'late@example.com',
+          },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const row = screen.getByRole('row', { name: /#401/i });
+      // Should show 7 days (from sale date), NOT 0 days (from entry date)
+      expect(row.textContent).toContain('(for 7 days)');
+    });
+
+    it('should use orderCurrentStatusUpdateDate for non-Pending-Booking statuses', () => {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const mockOrders = [
+        {
+          crmOrderId: 402,
+          orderDate: new Date().toISOString().split('T')[0], // sale date is today
+          orderMakeModel: '2026 Honda Accord',
+          orderPart: 'Transmission',
+          orderTotalPitched: '3000',
+          orderVendorPrice: '2000',
+          orderAmountCharged: '1000',
+          orderCurrentStatus: 'Pending Shipment',
+          orderCurrentStatusUpdateDate: threeDaysAgo, // status was updated 3 days ago
+          customer: {
+            customerName: 'Shipment Customer',
+            customerEmail: 'ship@example.com',
+          },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const row = screen.getByRole('row', { name: /#402/i });
+      // Pending Shipment should count from orderCurrentStatusUpdateDate (3 days), not orderDate (0 days)
+      expect(row.textContent).toContain('(for 3 days)');
+    });
+
+    it('child order in Pending Booking inherits parent orderDate for its day count', () => {
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      const saleDateStr = fiveDaysAgo.toISOString().split('T')[0];
+
+      const mockOrders = [
+        {
+          crmOrderId: 403,
+          orderDate: saleDateStr,         // parent sale date: 5 days ago
+          orderMakeModel: '2026 Ford F-150',
+          orderPart: 'Engine',
+          orderTotalPitched: '5000',
+          orderVendorPrice: '3000',
+          orderAmountCharged: '2000',
+          orderCurrentStatus: 'Pending Shipment', // parent is in Shipment
+          orderCurrentStatusUpdateDate: new Date(),
+          customer: {
+            customerName: 'Multi Part Customer',
+            customerEmail: 'multi@example.com',
+          },
+          childOrders: [
+            {
+              crmOrderId: 4031,
+              orderMakeModel: '2026 Ford F-150',
+              orderPart: 'Transmission',
+              orderCurrentStatus: 'Pending Booking', // child is still in Booking
+              orderCurrentStatusUpdateDate: new Date(), // entry was today — should be ignored
+              saleStatus: null,
+            },
+          ],
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const row = screen.getByRole('row', { name: /#403/i });
+      // Child part in Pending Booking should show 5 days from parent's sale date
+      expect(row.textContent).toContain('(for 5 days)');
     });
   });
 });

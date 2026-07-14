@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
 import { staggerEntrance } from '../lib/animations';
 import { gsap } from 'gsap';
-import { formatDateDDMMYYYY } from '../lib/date';
+import { formatDateDDMMYYYY, getEstCalendarDaysDiff } from '../lib/date';
 import OrderCommentsPopup from './OrderCommentsPopup';
 
 function maskPhone(phone: string | null | undefined): string {
@@ -156,20 +156,33 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const getDaysInStatus = (order: any) => {
-    const getSingleDays = (o: any) => {
+    const getSingleDays = (o: any, parentSaleDate?: string | Date | null) => {
       const status = o.orderCurrentStatus || '';
       const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
-      if (isTerminal || !o.orderCurrentStatusUpdateDate) return -1;
+      if (isTerminal) return -1;
+      // Pending Booking: days are measured from the actual sale date (orderDate),
+      // not the entry/status-update timestamp, to handle late-entry orders correctly.
+      if (status === 'Pending Booking') {
+        const saleDate = parentSaleDate ?? o.orderDate ?? null;
+        if (!saleDate) return -1;
+        const raw = new Date(saleDate as string | Date);
+        if (isNaN(raw.getTime())) return -1;
+        // orderDate is a @db.Date (timezone-naive). Prisma returns it as midnight UTC,
+        // which EST converts to the previous evening. Normalize to noon UTC so that
+        // getEstCalendarDaysDiff sees the correct EST calendar day.
+        const refDate = new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate(), 12, 0, 0));
+        return getEstCalendarDaysDiff(refDate);
+      }
+      if (!o.orderCurrentStatusUpdateDate) return -1;
       const updateDate = new Date(o.orderCurrentStatusUpdateDate);
       if (isNaN(updateDate.getTime())) return -1;
-      const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
-      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return getEstCalendarDaysDiff(updateDate);
     };
 
     let maxDays = getSingleDays(order);
     if (order.childOrders) {
       for (const child of order.childOrders) {
-        const childDays = getSingleDays(child);
+        const childDays = getSingleDays(child, order.orderDate);
         if (childDays > maxDays) {
           maxDays = childDays;
         }
@@ -456,13 +469,22 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                         {(() => {
                           const status = order.orderCurrentStatus || '';
                           const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
-                          if (isTerminal || !order.orderCurrentStatusUpdateDate) return null;
-                          
-                          const updateDate = new Date(order.orderCurrentStatusUpdateDate);
-                          if (isNaN(updateDate.getTime())) return null;
-                          
-                          const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
-                          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                          if (isTerminal) return null;
+                          // Pending Booking: count EST calendar days from the actual sale date
+                          let refDate: Date | null = null;
+                          if (status === 'Pending Booking') {
+                            if (order.orderDate) {
+                              const raw = new Date(order.orderDate as string | Date);
+                              // Normalize @db.Date midnight UTC → noon UTC to prevent EST day rollback
+                              if (!isNaN(raw.getTime())) {
+                                refDate = new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate(), 12, 0, 0));
+                              }
+                            }
+                          } else if (order.orderCurrentStatusUpdateDate) {
+                            refDate = new Date(order.orderCurrentStatusUpdateDate);
+                          }
+                          if (!refDate || isNaN(refDate.getTime())) return null;
+                          const diffDays = getEstCalendarDaysDiff(refDate);
                           return (
                             <span style={{ fontSize: '0.7rem', color: '#1e293b', marginTop: '2px', fontWeight: 500, textAlign: 'center' }}>
                               (for {diffDays} day{diffDays === 1 ? '' : 's'})
@@ -479,13 +501,22 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                           {(() => {
                             const status = child.orderCurrentStatus || '';
                             const isTerminal = status === 'Completed Orders' || status === 'Returned Orders' || status === 'Cancelled Orders';
-                            if (isTerminal || !child.orderCurrentStatusUpdateDate) return null;
-                            
-                            const updateDate = new Date(child.orderCurrentStatusUpdateDate);
-                            if (isNaN(updateDate.getTime())) return null;
-                            
-                            const diffTime = Math.max(0, new Date().getTime() - updateDate.getTime());
-                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                            if (isTerminal) return null;
+                            // Pending Booking child: use parent's sale date (child has no orderDate)
+                            let refDate: Date | null = null;
+                            if (status === 'Pending Booking') {
+                              if (order.orderDate) {
+                                const raw = new Date(order.orderDate as string | Date);
+                                // Normalize @db.Date midnight UTC → noon UTC to prevent EST day rollback
+                                if (!isNaN(raw.getTime())) {
+                                  refDate = new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate(), 12, 0, 0));
+                                }
+                              }
+                            } else if (child.orderCurrentStatusUpdateDate) {
+                              refDate = new Date(child.orderCurrentStatusUpdateDate);
+                            }
+                            if (!refDate || isNaN(refDate.getTime())) return null;
+                            const diffDays = getEstCalendarDaysDiff(refDate);
                             return (
                               <span style={{ fontSize: '0.7rem', color: '#1e293b', marginTop: '2px', fontWeight: 500, textAlign: 'center' }}>
                                 (for {diffDays} day{diffDays === 1 ? '' : 's'})

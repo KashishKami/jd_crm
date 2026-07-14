@@ -1106,3 +1106,97 @@ kept unchanged to avoid production RBAC disruption.
 - No `prisma migrate` commands are needed. No schema changes. No existing data is modified.
 - The `crm_permissions` table gains 3 new rows (IDs 55, 56, 57).
 - The `crm_role_permissions` table gains 6 new rows (3 for Super Admin, 3 for Admin).
+
+---
+
+## Decision D35 — Pending Booking Workflow Status Days: Counted from Sale Date, Not Entry Date
+
+**Date:** 2026-07-15
+**Session:** 75
+**Status:** Implemented
+
+### Context
+
+JD CRM supports late order entry — a sale that happens on one date can be formally entered into the CRM on a later date. Two separate timestamps are captured for every order:
+
+- orderDate — the actual date the sale occurred (the "sale date")
+- orderCreatedDate — the date the order was recorded in the CRM (the "entry date")
+
+The workflow status system tracks how many days an order has been in each status (e.g. Pending Booking, Pending Shipment, etc.) and displays this as a badge — "(for N days)" — in both the Orders List and the Recent Orders dashboard widget. This badge drives urgency awareness for the team.
+
+**The Bug:** When a new order with no vendor assigned is created, its workflow status defaults to Pending Booking and orderCurrentStatusUpdateDate is stamped to 
+ew Date() — the CRM entry timestamp. If the sale happened 5 days ago but was only entered today, the badge would show "(for 0 days)" instead of "(for 5 days)". This directly misleads the team about the age of the booking.
+
+Additionally, the raw millisecond difference used to compute the day count was anchored to UTC midnight, so the counter could tick over at 8 PM EST (end of the US business day), causing the display to jump by a day mid-afternoon on the East Coast.
+
+### Decision
+
+**D35.1 — For Pending Booking, orderCurrentStatusUpdateDate is stamped to the sale date at creation, not the entry date**
+
+When a new order resolves to Pending Booking status (no vendor assigned, saleStatus not Returned/Cancelled/Void), the orderCurrentStatusUpdateDate field in the database is set to 	oUtcNoonDate(orderDateVal) — noon UTC on the sale date — instead of 
+ew Date().
+
+This approach was chosen over the alternatives because:
+
+- **orderCurrentStatusUpdateDate is the single source of truth for "when did this status start"**. Making it reflect the sale date for Pending Booking is semantically correct: the booking has been pending since the sale happened, regardless of when it was logged.
+- **No new column is required.** Using the existing field keeps the query surface small and avoids schema migrations.
+- **orderCreatedDate (the entry timestamp) is preserved as-is.** The UI already distinguishes the two: the order detail page now shows "Order placed on" for orderDate and "Order entry on" for orderCreatedDate, making the separation explicit.
+- **The workflow history log (crmOrderCurrentStatusHistory.changedAt) is intentionally NOT changed.** The log records when the booking was *entered into the system* — this is the correct audit semantics. Backdating the log would destroy accurate entry tracking. The display days counter and the audit log answer different questions: "how old is this booking?" vs. "when did someone record it?".
+
+**D35.2 — The days display uses EST calendar days, not raw millisecond division**
+
+A new utility function getEstCalendarDaysDiff(referenceDate) was added to src/lib/date.ts. It:
+
+1. Converts both "now" and the reference date to their EST calendar date using Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York' }).
+2. Computes the difference in whole calendar days based on those EST dates.
+
+This ensures the "(for N days)" counter increments at EST midnight, not UTC midnight. The raw millisecond approach (Math.floor(msElapsed / 86400000)) was incorrect because it would advance the count at ~8 PM EST on any given day, misaligning with the team's EST business day.
+
+**D35.3 — For Pending Booking specifically, the days display uses orderDate as the reference**
+
+In OrderList.tsx, the inline day calculation for both parent orders and child orders was updated:
+
+- If orderCurrentStatus === 'Pending Booking': use order.orderDate (sale date) as the reference for getEstCalendarDaysDiff().
+- For all other active statuses: use orderCurrentStatusUpdateDate as before.
+- Child orders in Pending Booking inherit the parent order's orderDate (child rows have no orderDate of their own).
+
+The sort comparator (getDaysInStatus) follows the same logic so ordering is consistent with display.
+
+**D35.4 — "Created" label renamed to "Entry on" in Order Detail page**
+
+The subtitle on the Order Details page (src/app/orders/[id]/page.tsx) was changed from:
+
+`
+Placed on {saleDate} • Created {entryDate}
+`
+to:
+`
+Order placed on {saleDate} • Order entry on {entryDate}
+`
+
+This makes the distinction between sale date and entry date self-explanatory to any team member reading the order header without needing external documentation.
+
+### Alternatives Considered
+
+| Alternative | Rejected Because |
+|---|---|
+| Add a new pendingBookingStartDate column | Unnecessary schema change; orderCurrentStatusUpdateDate already serves this role semantically |
+| Show days from orderDate for ALL statuses | Wrong for Pending Shipment etc. — those status clocks correctly start from the status transition, not the original sale |
+| Backdate crmOrderCurrentStatusHistory.changedAt | Corrupts the audit trail; the log should record when the system event actually occurred |
+| Compute days on the server and return them from the API | Overcomplicates the data layer; the calculation is a pure UI concern that is correctly handled client-side |
+
+### Files Changed
+
+- src/lib/date.ts — Added getEstCalendarDaysDiff(referenceDate) export
+- src/components/OrderList.tsx — Updated getDaysInStatus(), parent display block, child display block
+- src/repository/order.repository.ts — parentInitialStatus / childInitialStatus variables; conditional orderCurrentStatusUpdateDate at creation
+- src/app/orders/[id]/page.tsx — "Order placed on" / "Order entry on" label fix
+
+### Tests Added / Updated
+
+- src/tests/OrderList.test.tsx
+  - W-1905 test updated: Pending Booking order now uses orderDate (sale date) as the 4-day reference
+  - New getEstCalendarDaysDiff unit tests describe block (5 cases)
+  - New W-2801 describe block: Pending Booking counts from sale date, Pending Shipment uses update date, child order inherits parent sale date
+- src/tests/orders.test.ts
+  - New W-2801 integration describe block (2 tests): DB-level assertion that orderCurrentStatusUpdateDate equals the sale date for Pending Booking; and equals entry time for Pending Shipment

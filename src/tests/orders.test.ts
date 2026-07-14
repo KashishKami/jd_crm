@@ -3389,6 +3389,165 @@ describe('Order Management Integration Tests', () => {
       await prisma.crmOrders.deleteMany({ where: { crmOrderId: { in: [parent.crmOrderId, childId] } } });
     });
   });
+
+  // ─── W-2801: Pending Booking orderCurrentStatusUpdateDate = sale date ───────
+
+  describe('W-2801: Pending Booking orderCurrentStatusUpdateDate equals sale date at creation', () => {
+    /**
+     * When an order is entered late (e.g. sale was July 10, entry is July 14),
+     * Pending Booking's orderCurrentStatusUpdateDate must be stamped to the sale
+     * date (orderDate) so the UI days counter correctly shows days since the sale,
+     * not days since the CRM entry.
+     */
+    it('should set orderCurrentStatusUpdateDate to the sale date for a new Pending Booking order', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: 'Authorized Creator',
+          userPermissions: 'orders:create',
+        },
+      });
+
+      // Sale happened 5 days ago but is being entered today
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      const saleDateStr = fiveDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      const payload = {
+        customerName: 'Late Entry Buyer',
+        customerPhone: '5550001111',
+        customerEmail: 'new.buyer@example.com',
+        customerNameOncard: 'Late Entry Buyer',
+        customerCardNumber: '4111999988887777',
+        customerCardExpDate: '11/29',
+        customerCardCvv: '321',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2024 Dodge Charger',
+        orderPart: 'Alternator',
+        orderTotalPitched: '600',
+        orderVendorPrice: '350',
+        orderAmountCharged: '250',
+        // No vendor assigned → will become Pending Booking
+        orderVendorId: null,
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        saleStatus: '1',
+        orderDate: saleDateStr,
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      const createdOrderId: number = body.crmOrderId ?? body.orderId;
+      expect(createdOrderId).toBeDefined();
+
+      const createdOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: createdOrderId },
+      });
+      expect(createdOrder).not.toBeNull();
+      expect(createdOrder!.orderCurrentStatus).toBe('Pending Booking');
+
+      // The key assertion: orderCurrentStatusUpdateDate must match the sale date,
+      // not today's entry timestamp.
+      const statusUpdateDate = createdOrder!.orderCurrentStatusUpdateDate;
+      expect(statusUpdateDate).not.toBeNull();
+
+      // Extract the UTC date string (YYYY-MM-DD) from both and compare.
+      // The value is stored at noon UTC (via toUtcNoonDate), so toISOString()
+      // gives us the correct YYYY-MM-DD prefix.
+      const statusDateStr = statusUpdateDate!.toISOString().split('T')[0];
+      expect(statusDateStr).toBe(saleDateStr);
+
+      // Sanity: orderCreatedDate should still be today (the entry timestamp)
+      const createdDateStr = createdOrder!.orderCreatedDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      expect(createdDateStr).toBe(todayStr);
+
+      // Cleanup
+      await prisma.crmOrderCurrentStatusHistory.deleteMany({ where: { orderId: createdOrderId } });
+      await prisma.crmSaleStatusHistory.deleteMany({ where: { orderId: createdOrderId } });
+      await prisma.crmOrders.delete({ where: { crmOrderId: createdOrderId } });
+    });
+
+    it('should set orderCurrentStatusUpdateDate to NOW for a Pending Shipment order (vendor assigned)', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: String(testUser.uid),
+          name: 'Authorized Creator',
+          userPermissions: 'orders:create',
+        },
+      });
+
+      const beforeCreate = new Date();
+
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      const saleDateStr = fiveDaysAgo.toISOString().split('T')[0];
+
+      const payload = {
+        customerName: 'Shipment Buyer',
+        customerPhone: '5551112222',
+        customerEmail: 'new.buyer@example.com',
+        customerNameOncard: 'Shipment Buyer',
+        customerCardNumber: '4111888877776666',
+        customerCardExpDate: '09/28',
+        customerCardCvv: '456',
+        customerCardCopyStatus: 'No',
+        customerCardPhotoStatus: 'No',
+        orderMakeModel: '2024 Ford Explorer',
+        orderPart: 'Radiator',
+        orderTotalPitched: '800',
+        orderVendorPrice: '500',
+        orderAmountCharged: '300',
+        // Vendor assigned → becomes Pending Shipment
+        orderVendorId: testVendor.vendorId,
+        orderPaymentGatewayId: testGateway.gatewayId,
+        orderSalesAgentId: testUser.uid,
+        saleStatus: '1',
+        orderDate: saleDateStr,
+      };
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      const createdOrderId: number = body.crmOrderId ?? body.orderId;
+
+      const createdOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: createdOrderId },
+      });
+      expect(createdOrder!.orderCurrentStatus).toBe('Pending Shipment');
+
+      // For non-Pending-Booking, orderCurrentStatusUpdateDate should be NOW (entry time)
+      const statusUpdateDate = createdOrder!.orderCurrentStatusUpdateDate!;
+      const afterCreate = new Date();
+      expect(statusUpdateDate.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime() - 5000);
+      expect(statusUpdateDate.getTime()).toBeLessThanOrEqual(afterCreate.getTime() + 5000);
+
+      // orderCurrentStatusUpdateDate should NOT equal the sale date
+      const statusDateStr = statusUpdateDate.toISOString().split('T')[0];
+      expect(statusDateStr).not.toBe(saleDateStr);
+
+      // Cleanup
+      await prisma.crmOrderCurrentStatusHistory.deleteMany({ where: { orderId: createdOrderId } });
+      await prisma.crmSaleStatusHistory.deleteMany({ where: { orderId: createdOrderId } });
+      await prisma.crmOrders.delete({ where: { crmOrderId: createdOrderId } });
+    });
+  });
 });
 
 

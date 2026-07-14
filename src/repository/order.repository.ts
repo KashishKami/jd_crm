@@ -177,6 +177,14 @@ export async function createWithCustomerAndCard(
 
     const finalSaleStatus = data.saleStatus || parentPart.saleStatus || '1';
 
+    // Compute the initial workflow status for the parent order so we can reuse
+    // it in both orderCurrentStatus and orderCurrentStatusUpdateDate.
+    const parentInitialStatus = (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
+      ? 'Returned Orders'
+      : finalSaleStatus === '6'
+        ? 'Cancelled Orders'
+        : (parentPart.orderCurrentStatus || (parentPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'));
+
     const parentOrder = await tx.crmOrders.create({
       data: {
         orderCustomerId: customer.customerId,
@@ -206,15 +214,15 @@ export async function createWithCustomerAndCard(
         orderPartFoundByName: parentPartFoundByName,
         orderLiftgateNeeded: orderLiftgateNeeded,
         saleStatus: finalSaleStatus,
-        orderCurrentStatus: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
-          ? 'Returned Orders'
-          : finalSaleStatus === '6'
-            ? 'Cancelled Orders'
-            : (parentPart.orderCurrentStatus || (parentPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking')),
+        orderCurrentStatus: parentInitialStatus,
         orderRefundAmount: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
           ? (orderAmountCharged || null)
           : (orderRefundAmountInput || null),
-        orderCurrentStatusUpdateDate: new Date(),
+        // For Pending Booking, stamp the sale date so the UI days counter measures
+        // from when the sale actually happened, not when the order was entered.
+        orderCurrentStatusUpdateDate: parentInitialStatus === 'Pending Booking'
+          ? toUtcNoonDate(orderDateVal)
+          : new Date(),
         orderDate: toUtcNoonDate(orderDateVal),
         orderVendorFeedback: parentPart.orderVendorFeedback || 'Positive',
         orderClientFeedback: 'Positive',
@@ -234,6 +242,12 @@ export async function createWithCustomerAndCard(
         const childPartFoundByName = childPart.orderPartFoundById ? userMap.get(childPart.orderPartFoundById) || null : null;
         const childVendorName = childPart.orderVendorId ? vendorMap.get(childPart.orderVendorId) || null : null;
 
+        const childInitialStatus = (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
+          ? 'Returned Orders'
+          : finalSaleStatus === '6'
+            ? 'Cancelled Orders'
+            : (childPart.orderCurrentStatus || (childPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking'));
+
         const childOrder = await tx.crmOrders.create({
           data: {
             orderCustomerId: customer.customerId,
@@ -249,12 +263,11 @@ export async function createWithCustomerAndCard(
             orderPartFoundById: childPart.orderPartFoundById || null,
             orderPartFoundByName: childPartFoundByName,
             saleStatus: null,
-            orderCurrentStatus: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
-              ? 'Returned Orders'
-              : finalSaleStatus === '6'
-                ? 'Cancelled Orders'
-                : (childPart.orderCurrentStatus || (childPart.orderVendorId ? 'Pending Shipment' : 'Pending Booking')),
-            orderCurrentStatusUpdateDate: new Date(),
+            orderCurrentStatus: childInitialStatus,
+            // Same Pending Booking rule: stamp sale date so day count is correct
+            orderCurrentStatusUpdateDate: childInitialStatus === 'Pending Booking'
+              ? toUtcNoonDate(orderDateVal)
+              : new Date(),
             orderVendorFeedback: childPart.orderVendorFeedback || 'Positive',
             orderClientFeedback: 'Positive',
             orderResolution: 'Resolved',

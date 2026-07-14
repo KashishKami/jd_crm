@@ -6257,3 +6257,30 @@ In this session, we finalized the Phase 24 features and made the following layou
   - **Verification**: Confirmed local Docker compose builds cleanly and starts services. Verified Prisma migration and SQL seeding commands run successfully inside containers. Ran linter and typecheck to verify 100% clean codebase.
 
 
+
+### Session 75 — July 15, 2026
+  **Pending Booking Days Fix (EST Timezone), Order Entry Date Label Rename, and W-2801 Tests**
+  - **Order Detail Page Label Rename**:
+    - Changed the subtitle on the Order Details page (src/app/orders/[id]/page.tsx) from "Placed on {saleDate} • Created {entryDate}" to **"Order placed on {saleDate} • Order entry on {entryDate}"**. This makes the sale date vs. CRM entry date distinction immediately clear to all team members, especially relevant for late-entered orders.
+  - **getEstCalendarDaysDiff utility added** (src/lib/date.ts):
+    - New export that computes whole **EST calendar days** elapsed since a reference date. Uses Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York' }) to convert both "now" and the reference date to their EST calendar date before diffing, so the counter increments at EST midnight rather than UTC midnight (~8 PM EST). Replaces the raw millisecond division approach that was timezone-unaware.
+  - **Pending Booking days counted from sale date** (src/components/OrderList.tsx):
+    - When orderCurrentStatus === 'Pending Booking', the "(for N days)" badge now uses orderDate (the sale date) as the reference instead of orderCurrentStatusUpdateDate. This fixes the core issue where a late-entered booking showed "0 days" when the sale was actually days old.
+    - Child orders in Pending Booking inherit the parent's orderDate for their day count (child orders have no orderDate of their own).
+    - All other active statuses (Pending Shipment, Pending Delivery, etc.) continue to use orderCurrentStatusUpdateDate unchanged.
+    - The sort comparator (getDaysInStatus) follows the same routing logic for consistent ordering.
+    - Applies to both the Orders List page and the Recent Orders dashboard widget (both render OrderList).
+  - **orderCurrentStatusUpdateDate stamped to sale date for Pending Booking at creation** (src/repository/order.repository.ts):
+    - Extracted parentInitialStatus and childInitialStatus variables before each crmOrders.create() call in createWithCustomerAndCard().
+    - When the initial status resolves to 'Pending Booking', orderCurrentStatusUpdateDate is now set to 	oUtcNoonDate(orderDateVal) (sale date at noon UTC) instead of 
+ew Date().
+    - All other initial statuses (Pending Shipment, Returned Orders, Cancelled Orders) still use 
+ew Date().
+    - orderCreatedDate remains 
+ew Date() in all cases — the entry timestamp is preserved.
+    - Workflow history logs (crmOrderCurrentStatusHistory.changedAt) were intentionally left as 
+ew Date() to preserve audit trail accuracy.
+  - **Tests Added / Updated**:
+    - src/tests/OrderList.test.tsx: Updated W-1905 test to use orderDate (not orderCurrentStatusUpdateDate) as the 4-day reference for Pending Booking. Added getEstCalendarDaysDiff unit test block (5 cases: today=0, past, string input, future=0, invalid=0). Added W-2801 component test block (3 cases: Pending Booking counts from sale date, Pending Shipment uses update date, child inherits parent sale date).
+    - src/tests/orders.test.ts: Added W-2801 integration test block (2 DB-verified cases): asserts orderCurrentStatusUpdateDate equals the sale date for a newly created Pending Booking order, and equals entry time for a Pending Shipment order.
+  - **Verification**: 	sc --noEmit passed with 0 errors. eslint passed with 0 warnings. TypeScript types are clean across all changed files.
