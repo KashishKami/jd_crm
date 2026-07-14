@@ -718,3 +718,5 @@ pm2 restart jd-crm
 - Log in to [hpanel.hostinger.com](https://hpanel.hostinger.com) → VPS → your server.
 - Check if the server shows as **Running**. If stopped, click **Start**.
 - Use Hostinger's built-in **Browser Terminal** (in hPanel) as an emergency backup to access the server without SSH.
+
+
