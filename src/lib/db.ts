@@ -22,7 +22,7 @@ if (globalForPrisma.prisma) {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: decodeURIComponent(url.pathname.replace(/^\//, '')),
-    connectionLimit: 10,
+    connectionLimit: 25,    // increased from 10 — handles ~25 concurrent DB ops comfortably
     allowPublicKeyRetrieval: true,
     connectTimeout: 30000,   // 30s socket connect timeout (default is ~1s, too short for remote DBs)
     acquireTimeout: 60000,   // 60s max wait to acquire a pooled connection
