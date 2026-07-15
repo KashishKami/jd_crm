@@ -40,6 +40,7 @@ export interface RecentOrderRow {
 export interface MetricValue {
   amount: number;
   count: number;
+  sparklineData?: number[];
 }
 
 export interface ComparisonMetricValue {
@@ -48,14 +49,15 @@ export interface ComparisonMetricValue {
   lastAmount: number;
   lastCount: number;
   percentageChange: number;
+  sparklineData?: number[];
 }
 
 export interface DashboardMetrics {
   thisYearSales?: ComparisonMetricValue;
   totalSalesThisMonth?: ComparisonMetricValue;
   todaySales?: ComparisonMetricValue;
-  chargebackThisMonth?: MetricValue;
-  refundThisMonth?: MetricValue;
+  chargebackThisMonth?: ComparisonMetricValue;
+  refundThisMonth?: ComparisonMetricValue;
   netSales?: ComparisonMetricValue;
   topPerformers?: PerformerRow[];
   bottomPerformers?: PerformerRow[];

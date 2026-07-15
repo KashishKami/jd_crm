@@ -60,6 +60,43 @@ function getEstDateUTC(d: Date = new Date()): Date {
   ));
 }
 
+function fillSparklineGaps(
+  rawRows: { label: string; amount: number }[],
+  start: Date,
+  end: Date,
+  granularity: 'daily' | 'monthly' | 'yearly'
+): number[] {
+  const result: number[] = [];
+  const map = new Map(rawRows.map(r => [r.label, r.amount]));
+
+  if (granularity === 'yearly') {
+    const startYear = start.getUTCFullYear();
+    const endYear = end.getUTCFullYear() - 1; // exclusive end
+    for (let y = startYear; y <= endYear; y++) {
+      result.push(map.get(String(y)) ?? 0);
+    }
+  } else if (granularity === 'monthly') {
+    const temp = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    const final = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    while (temp < final) {
+      const label = `${temp.getUTCFullYear()}-${String(temp.getUTCMonth() + 1).padStart(2, '0')}`;
+      result.push(map.get(label) ?? 0);
+      temp.setUTCMonth(temp.getUTCMonth() + 1);
+    }
+  } else {
+    // daily
+    const temp = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+    const final = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+    while (temp < final) {
+      const label = `${temp.getUTCFullYear()}-${String(temp.getUTCMonth() + 1).padStart(2, '0')}-${String(temp.getUTCDate()).padStart(2, '0')}`;
+      result.push(map.get(label) ?? 0);
+      temp.setUTCDate(temp.getUTCDate() + 1);
+    }
+  }
+
+  return result;
+}
+
 export async function getMetricsForUser(session: any) {
   const permissions = session?.user?.userPermissions || '';
 
@@ -83,6 +120,18 @@ export async function getMetricsForUser(session: any) {
   const prevDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   const prevDayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
+  // Sparkline date ranges
+  const curYear = now.getFullYear();
+  const yearStart = curYear - 4;
+  const sparkYearStart = new Date(Date.UTC(yearStart, 0, 1));
+  const sparkYearEnd = new Date(Date.UTC(curYear + 1, 0, 1));
+
+  const spark6MonthsStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 5, 1));
+  const spark6MonthsEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
+
+  const spark7DaysStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+  const spark7DaysEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+
   // Build a list of concurrent tasks — only for permissions the user actually has.
   // Each task is a tuple of [key, promise]. They all fire in parallel, then we assemble
   // the metrics object from the settled results.
@@ -95,12 +144,14 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd),
         dashboardRepository.getSalesBetweenDates(prevYearStart, prevYearEnd),
-      ]).then(([current, previous]) => ({
+        dashboardRepository.getSparklineData(sparkYearStart, sparkYearEnd, ['1', '4'], 'yearly'),
+      ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, sparkYearStart, sparkYearEnd, 'yearly'),
       })),
     ]);
   }
@@ -111,12 +162,14 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getSalesBetweenDates(curMonthStart, curMonthEnd),
         dashboardRepository.getSalesBetweenDates(prevMonthStart, prevMonthEnd),
-      ]).then(([current, previous]) => ({
+        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['1', '4'], 'monthly'),
+      ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
       })),
     ]);
   }
@@ -127,22 +180,52 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getSalesBetweenDates(curDayStart, curDayEnd),
         dashboardRepository.getSalesBetweenDates(prevDayStart, prevDayEnd),
-      ]).then(([current, previous]) => ({
+        dashboardRepository.getSparklineData(spark7DaysStart, spark7DaysEnd, ['1', '4'], 'daily'),
+      ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, spark7DaysStart, spark7DaysEnd, 'daily'),
       })),
     ]);
   }
 
   if (hasPermission(permissions, 'dashboard:chargeback')) {
-    tasks.push(['chargebackThisMonth', dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd)]);
+    tasks.push([
+      'chargebackThisMonth',
+      Promise.all([
+        dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd),
+        dashboardRepository.getChargebackThisMonth(prevMonthStart, prevMonthEnd),
+        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['3'], 'monthly'),
+      ]).then(([current, previous, sparkRaw]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
+      })),
+    ]);
   }
 
   if (hasPermission(permissions, 'dashboard:refund')) {
-    tasks.push(['refundThisMonth', dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd)]);
+    tasks.push([
+      'refundThisMonth',
+      Promise.all([
+        dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd),
+        dashboardRepository.getRefundThisMonth(prevMonthStart, prevMonthEnd),
+        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['2'], 'monthly'),
+      ]).then(([current, previous, sparkRaw]) => ({
+        amount: current.amount,
+        count: current.count,
+        lastAmount: previous.amount,
+        lastCount: previous.count,
+        percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
+      })),
+    ]);
   }
 
   if (hasPermission(permissions, 'dashboard:net-sales')) {
@@ -151,12 +234,14 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd),
         dashboardRepository.getNetSalesBetweenDates(prevMonthStart, prevMonthEnd),
-      ]).then(([current, previous]) => ({
+        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['1', '4'], 'monthly'),
+      ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
+        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
       })),
     ]);
   }

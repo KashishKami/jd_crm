@@ -741,3 +741,97 @@ export async function getBackendTeamPerformance(month: number, year: number) {
     completedCount: Number(r.completedCount || 0),
   }));
 }
+
+export async function getSparklineData(
+  start: Date,
+  end: Date,
+  saleStatuses: string[],
+  granularity: 'daily' | 'monthly' | 'yearly'
+): Promise<{ label: string; amount: number }[]> {
+  if (granularity === 'yearly') {
+    const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
+      SELECT
+        CAST(YEAR(order_date) AS CHAR) AS label,
+        SUM(
+          CASE
+            WHEN sale_status IN ('1', '4') THEN
+              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '2' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '3' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            ELSE 0
+          END
+        ) AS amount
+      FROM crm_orders
+      WHERE sale_status IN (${Prisma.join(saleStatuses)})
+        AND parent_order_id IS NULL
+        AND order_date >= ${start}
+        AND order_date < ${end}
+      GROUP BY label
+      ORDER BY label ASC
+    `;
+    return rows.map(r => ({
+      label: String(r.label),
+      amount: parseFloat(r.amount ?? '0'),
+    }));
+  } else if (granularity === 'monthly') {
+    const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
+      SELECT
+        DATE_FORMAT(order_date, '%Y-%m') AS label,
+        SUM(
+          CASE
+            WHEN sale_status IN ('1', '4') THEN
+              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '2' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '3' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            ELSE 0
+          END
+        ) AS amount
+      FROM crm_orders
+      WHERE sale_status IN (${Prisma.join(saleStatuses)})
+        AND parent_order_id IS NULL
+        AND order_date >= ${start}
+        AND order_date < ${end}
+      GROUP BY label
+      ORDER BY label ASC
+    `;
+    return rows.map(r => ({
+      label: String(r.label),
+      amount: parseFloat(r.amount ?? '0'),
+    }));
+  } else {
+    // daily
+    const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
+      SELECT
+        DATE_FORMAT(order_date, '%Y-%m-%d') AS label,
+        SUM(
+          CASE
+            WHEN sale_status IN ('1', '4') THEN
+              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '2' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            WHEN sale_status = '3' THEN
+              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+            ELSE 0
+          END
+        ) AS amount
+      FROM crm_orders
+      WHERE sale_status IN (${Prisma.join(saleStatuses)})
+        AND parent_order_id IS NULL
+        and order_date >= ${start}
+        AND order_date < ${end}
+      GROUP BY label
+      ORDER BY label ASC
+    `;
+    return rows.map(r => ({
+      label: String(r.label),
+      amount: parseFloat(r.amount ?? '0'),
+    }));
+  }
+}

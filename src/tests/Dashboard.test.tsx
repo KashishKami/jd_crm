@@ -12,7 +12,8 @@ vi.mock('next-auth/react', () => ({
 const globalFetch = global.fetch;
 
 import { useSession } from 'next-auth/react';
-import DashboardPage from '../app/dashboard_client_page'; // We can write a client wrapper or test page that is easy to render.
+import DashboardPage from '../app/dashboard_client_page';
+import MetricCard from '../components/dashboard/MetricCard';
 
 describe('Dashboard Component Unit Tests', () => {
   const mockMetrics = {
@@ -407,6 +408,31 @@ describe('Dashboard Component Unit Tests', () => {
         expect(global.fetch).toHaveBeenCalled();
         expect(screen.getByText('$3,000.00')).toBeDefined();
       });
+    });
+  });
+
+  describe('MetricCard Sparkline Rendering', () => {
+    it('should render a line sparkline when sparklineData is provided', () => {
+      const testSparkline = [10, 20, 15, 30, 25];
+      const { container } = render(
+        <MetricCard
+          title="Sales Sparkline Test"
+          amount={1000}
+          count={10}
+          lastAmount={800}
+          lastCount={8}
+          percentageChange={25}
+          sparklineData={testSparkline}
+        />
+      );
+
+      // Verify a path is rendered in the sparkline
+      const paths = container.querySelectorAll('path');
+      expect(paths.length).toBeGreaterThanOrEqual(2);
+      // The stroke path is the second path (first is fill path)
+      const strokePath = paths[1];
+      expect(strokePath).not.toBeNull();
+      expect(strokePath?.getAttribute('d')).toContain('M ');
     });
   });
 });

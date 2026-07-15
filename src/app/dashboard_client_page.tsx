@@ -91,6 +91,7 @@ export default function DashboardPage({
       lastCount: initialMetrics.thisYearSales.lastCount,
       percentageChange: initialMetrics.thisYearSales.percentageChange,
       periodLabel: 'last year',
+      sparklineData: initialMetrics.thisYearSales.sparklineData,
     });
   }
 
@@ -107,6 +108,7 @@ export default function DashboardPage({
       lastCount: initialMetrics.totalSalesThisMonth.lastCount,
       percentageChange: initialMetrics.totalSalesThisMonth.percentageChange,
       periodLabel: 'last month',
+      sparklineData: initialMetrics.totalSalesThisMonth.sparklineData,
     });
   }
 
@@ -123,6 +125,7 @@ export default function DashboardPage({
       lastCount: initialMetrics.todaySales.lastCount,
       percentageChange: initialMetrics.todaySales.percentageChange,
       periodLabel: 'yesterday',
+      sparklineData: initialMetrics.todaySales.sparklineData,
     });
   }
 
@@ -139,10 +142,11 @@ export default function DashboardPage({
       lastCount: initialMetrics.netSales.lastCount,
       percentageChange: initialMetrics.netSales.percentageChange,
       periodLabel: 'last month',
+      sparklineData: initialMetrics.netSales.sparklineData,
     });
   }
 
-  // 5. Refunds (No comparisons, placed 5th)
+  // 5. Refunds
   if (hasPermission(permissions, 'dashboard:refund') && initialMetrics.refundThisMonth !== undefined) {
     cards.push({
       title: 'Refunds This Month',
@@ -151,11 +155,15 @@ export default function DashboardPage({
       countLabel: 'Refunds',
       prefix: '$',
       link: `/pending/returned?saleStatus=2&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
-      description: 'Returned funds this month',
+      lastAmount: initialMetrics.refundThisMonth.lastAmount,
+      lastCount: initialMetrics.refundThisMonth.lastCount,
+      percentageChange: initialMetrics.refundThisMonth.percentageChange,
+      periodLabel: 'last month',
+      sparklineData: initialMetrics.refundThisMonth.sparklineData,
     });
   }
 
-  // 6. Chargebacks (No comparisons, placed 6th)
+  // 6. Chargebacks
   if (hasPermission(permissions, 'dashboard:chargeback') && initialMetrics.chargebackThisMonth !== undefined) {
     cards.push({
       title: 'Chargebacks This Month',
@@ -164,7 +172,11 @@ export default function DashboardPage({
       countLabel: 'Chargebacks',
       prefix: '$',
       link: `/pending/returned?saleStatus=3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
-      description: 'Disputed orders this month',
+      lastAmount: initialMetrics.chargebackThisMonth.lastAmount,
+      lastCount: initialMetrics.chargebackThisMonth.lastCount,
+      percentageChange: initialMetrics.chargebackThisMonth.percentageChange,
+      periodLabel: 'last month',
+      sparklineData: initialMetrics.chargebackThisMonth.sparklineData,
     });
   }
 

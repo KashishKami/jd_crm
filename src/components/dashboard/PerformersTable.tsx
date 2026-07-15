@@ -58,8 +58,9 @@ export default function PerformersTable({
 
                 const agentUrl = `/orders?agentId=${row.agentId}&month=${month}&year=${year}`;
                 const salesUrl = `/orders?agentId=${row.agentId}&saleStatus=1,2,3,4&month=${month}&year=${year}`;
+                const totalSalesUrl = `/orders?agentId=${row.agentId}&saleStatus=1,4&month=${month}&year=${year}`;
                 const leakageUrl = `/orders?agentId=${row.agentId}&saleStatus=2,3&month=${month}&year=${year}`;
-
+ 
                 return (
                   <tr key={idx}>
                     <td style={{ fontWeight: 700, color: idx === 0 && isTop ? 'var(--accent-color)' : 'var(--text-muted)' }}>
@@ -98,7 +99,7 @@ export default function PerformersTable({
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>
                       {canLinkToOrders ? (
-                        <a href={salesUrl} style={{ textDecoration: 'none', color: isTop ? '#16a34a' : '#dc2626' }}>
+                        <a href={totalSalesUrl} style={{ textDecoration: 'none', color: isTop ? '#16a34a' : '#dc2626' }}>
                           ${totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </a>
                       ) : (

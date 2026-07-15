@@ -96,9 +96,34 @@ describe('Dashboard Integration Tests', () => {
       expect(data.netSales).toHaveProperty('lastCount');
       expect(data.netSales).toHaveProperty('percentageChange');
 
-      // Assert no comparison fields exist on refunds and chargebacks
-      expect(data.refundThisMonth).not.toHaveProperty('lastAmount');
-      expect(data.chargebackThisMonth).not.toHaveProperty('lastAmount');
+      // Assert comparison fields exist on refunds and chargebacks
+      expect(data.refundThisMonth).toHaveProperty('lastAmount');
+      expect(data.chargebackThisMonth).toHaveProperty('lastAmount');
+
+      // Assert sparklineData exists and is correct format
+      expect(data.thisYearSales).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.thisYearSales.sparklineData)).toBe(true);
+      expect(data.thisYearSales.sparklineData.length).toBe(5);
+
+      expect(data.totalSalesThisMonth).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.totalSalesThisMonth.sparklineData)).toBe(true);
+      expect(data.totalSalesThisMonth.sparklineData.length).toBe(6);
+
+      expect(data.todaySales).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.todaySales.sparklineData)).toBe(true);
+      expect(data.todaySales.sparklineData.length).toBe(7);
+
+      expect(data.netSales).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.netSales.sparklineData)).toBe(true);
+      expect(data.netSales.sparklineData.length).toBe(6);
+
+      expect(data.refundThisMonth).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.refundThisMonth.sparklineData)).toBe(true);
+      expect(data.refundThisMonth.sparklineData.length).toBe(6);
+
+      expect(data.chargebackThisMonth).toHaveProperty('sparklineData');
+      expect(Array.isArray(data.chargebackThisMonth.sparklineData)).toBe(true);
+      expect(data.chargebackThisMonth.sparklineData.length).toBe(6);
     });
 
     it('should restrict metrics based on permissions', async () => {

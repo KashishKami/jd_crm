@@ -40,6 +40,7 @@ export default async function Home() {
       initialMetrics={metrics}
       userPermissions={permissions}
       userName={session.user.name || ''}
+      currentUserId={session.user.id}
       initialBackendData={initialBackendData}
     />
   );

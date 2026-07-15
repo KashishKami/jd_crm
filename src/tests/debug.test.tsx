@@ -78,7 +78,7 @@ describe('Debug AdvancedChartWidget', () => {
       const texts = Array.from(document.querySelectorAll('span, div')).map(el => el.textContent);
       console.log('RENDERED TEXTS:', texts);
 
-      const el = screen.getByText(/\$500/);
+      const el = screen.getAllByText(/^\$500$/)[0];
       console.log('FOUND ELEMENT:', el.outerHTML);
       expect(el).toBeDefined();
     });

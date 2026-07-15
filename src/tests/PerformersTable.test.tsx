@@ -84,6 +84,10 @@ describe('PerformersTable Unit Tests', () => {
     expect(salesLink).toBeDefined();
     expect(salesLink?.textContent).toBe('5');
 
+    const totalSalesLink = links.find(l => l.getAttribute('href')?.includes('agentId=10') && l.getAttribute('href')?.includes('saleStatus=1,4'));
+    expect(totalSalesLink).toBeDefined();
+    expect(totalSalesLink?.textContent).toBe('$1,500.00');
+
     const leakageLink = links.find(l => l.getAttribute('href')?.includes('agentId=10') && l.getAttribute('href')?.includes('saleStatus=2,3'));
     expect(leakageLink).toBeDefined();
     expect(leakageLink?.textContent).toBe('$120.00');

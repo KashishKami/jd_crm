@@ -1248,6 +1248,83 @@
   transition: all 0.15s ease-in-out;
 }
 
+.advanced-chart-layout-wrapper {
+  display: grid;
+  grid-template-columns: 65% 35%;
+  grid-template-rows: auto auto;
+  gap: 24px;
+  width: 100%;
+}
+
+.legend-row {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+}
+
+.filters-row {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.advanced-chart-svg-container {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  position: relative;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.chart-summary-panel {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-left: 2px solid #f1f5f9;
+  padding-left: 24px;
+  width: 100%;
+}
+
+/* Responsive Advanced Chart & Summary Panel Layout */
+@media (max-width: 1024px) {
+  .advanced-chart-layout-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  .filters-row {
+    order: 1 !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .legend-row {
+    order: 2 !important;
+    width: 100% !important;
+  }
+  .advanced-chart-svg-container {
+    order: 3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .chart-summary-panel {
+    order: 4 !important;
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 2px solid #f1f5f9 !important;
+    padding-left: 0 !important;
+    padding-top: 24px !important;
+  }
+}
+
 /* Premium Pagination Styles */
 .pagination-bar {
   display: flex;

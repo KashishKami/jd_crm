@@ -6284,3 +6284,38 @@ ew Date() to preserve audit trail accuracy.
     - src/tests/OrderList.test.tsx: Updated W-1905 test to use orderDate (not orderCurrentStatusUpdateDate) as the 4-day reference for Pending Booking. Added getEstCalendarDaysDiff unit test block (5 cases: today=0, past, string input, future=0, invalid=0). Added W-2801 component test block (3 cases: Pending Booking counts from sale date, Pending Shipment uses update date, child inherits parent sale date).
     - src/tests/orders.test.ts: Added W-2801 integration test block (2 DB-verified cases): asserts orderCurrentStatusUpdateDate equals the sale date for a newly created Pending Booking order, and equals entry time for a Pending Shipment order.
   - **Verification**: 	sc --noEmit passed with 0 errors. eslint passed with 0 warnings. TypeScript types are clean across all changed files.
+
+
+### Session 76 - July 15, 2026
+  **Advanced Performance Analytics Layout Alignment, SVG Aspect Ratio & 60% Space Allocation**
+  - **Centered Header and Filters**:
+    - Center-aligned the heading text and page subtitle of the `Advanced Performance Analytics` widget.
+    - Centered the `Center`, `Agent`, and `Range` filters, including the custom range date pickers and apply/cancel action buttons.
+  - **Stretched SVG Chart & Aspect Ratio Fit**:
+    - Added `preserveAspectRatio="none"` to the `<svg>` component to allow horizontal stretching to fill the container without creating blank vertical/horizontal margin padding space.
+    - Redesigned the horizontal `x` coordinate calculation to stretch data points from the left-most Y-axis coordinate (`paddingX`) to the right-most boundary (`svgWidth - paddingX`).
+    - Adjusted backing hover detection rectangles to dynamically span from the half-way point of the previous bin to the half-way point of the next bin for precise interactive tooltips.
+  - **60% Layout Row Allocation**:
+    - Configured the left SVG Chart container to take exactly 60% of the row space (`flex: '0 0 60%'`).
+    - Made the right Summary panel take the remaining 40% dynamically using `flex: '1'`.
+  - **Unit Tests Verification**:
+    - Fixed matching duplicate value labels by utilizing `screen.getAllByText` in tooltip assertions.
+    - Verified all tests in `AdvancedChartWidget.test.tsx` compile and pass.
+
+
+
+### Session 77 - July 15, 2026
+  **Advanced Performance Analytics Visual Polish, Responsive Layout Grid, Net Sales Count, and Test Fixes**
+  - **Net Sales Order Count**:
+    - Added the successful order count (Sold and Partial Refund orders) in the **Net Sales** summary card (rendered as `(N Orders)` below the amount), aligning its style with the other summary cards.
+  - **Narrower Filter Dropdowns**:
+    - Decreased the widths of all Advanced Chart filters (Center: 120px, Agent: 140px, Range: 120px) to save horizontal space and create a more compact UI.
+  - **Responsive CSS Grid Layout**:
+    - Redesigned the chart layout using **CSS Grid** (`65% / 35%` split on desktop). On desktop, the filters are positioned on top of the Summary section (right column, row 1), horizontally aligned in line with the chart's legend (left column, row 1), and centered horizontally within the Summary panel space.
+    - On mobile/tablet, the layout switches to a flexible column layout, reordering the filters using CSS `order: 1` to place them at the top of the chart widget, above the legend and the SVG canvas, centered horizontally across the viewport.
+  - **Left-Aligned Header**:
+    - Left-aligned the Advanced Performance Analytics widget title and subtitle header on all screen formats to match the formatting style of the other widgets in the CRM.
+  - **Unit Tests Fixes**:
+    - Updated `src/tests/AdvancedChartWidget.test.tsx` to use case-sensitive matching for `(1 refund)` and `(1 chargeback)` to prevent matching collision with the Summary panel's capitalized metrics.
+    - Updated `src/tests/debug.test.tsx` to use `screen.getAllByText` for the `$500` hover tooltip assertion to prevent conflicts with the axis label.
+    - Verified all 383 tests in the test suite pass successfully.

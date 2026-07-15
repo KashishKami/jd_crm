@@ -144,18 +144,41 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
 
     // Tooltip should appear containing the values for salesAmount (500, count 2), refundsAmount (100, count 1), chargebacksAmount (50, count 1)
     await waitFor(() => {
-      const texts = Array.from(document.querySelectorAll('span, div')).map(el => el.textContent);
-      console.log('ADVANCED CHART WIDGET TEST RENDERED TEXTS:', texts);
-      expect(screen.getByText(/^\$500$/)).toBeDefined();
-      expect(screen.getByText(/\(2 sales\)/i)).toBeDefined();
-      expect(screen.getByText(/^\$100$/)).toBeDefined();
-      expect(screen.getByText(/\(1 refund\)/i)).toBeDefined();
-      expect(screen.getByText(/^\$50$/)).toBeDefined();
-      expect(screen.getByText(/\(1 chargeback\)/i)).toBeDefined();
+      try {
+        expect(screen.getAllByText(/^\$500$/)[0]).toBeDefined();
+        expect(screen.getByText(/\(2 sales\)/)).toBeDefined();
+        expect(screen.getAllByText(/^\$100$/)[0]).toBeDefined();
+        expect(screen.getByText(/\(1 refund\)/)).toBeDefined();
+        expect(screen.getAllByText(/^\$50$/)[0]).toBeDefined();
+        expect(screen.getByText(/\(1 chargeback\)/)).toBeDefined();
+      } catch (err: any) {
+        console.error('ASSERTION ERROR MESSAGE:', err.message || err);
+        throw err;
+      }
     });
 
     // Move mouse out
     fireEvent.mouseOut(groupElement!);
     expect(screen.queryByText(/Sales amount:/i)).toBeNull();
+  });
+
+  it('should display the Summary panel on the right with correct aggregated data points', async () => {
+    render(<AdvancedChartWidget />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Summary \(/i)).toBeDefined();
+    });
+
+    expect(screen.getByText(/^\$1,600\.00$/)).toBeDefined();
+    expect(screen.getByText(/8 Orders/i)).toBeDefined();
+
+    expect(screen.getByText(/^\$100\.00$/)).toBeDefined();
+    expect(screen.getByText(/1 Refund/i)).toBeDefined();
+
+    expect(screen.getByText(/^\$200\.00$/)).toBeDefined();
+    expect(screen.getByText(/2 Chargebacks/i)).toBeDefined();
+
+    expect(screen.getByText(/^\$1,300\.00$/)).toBeDefined();
+    expect(screen.getByText(/5 Orders/i)).toBeDefined();
   });
 });
