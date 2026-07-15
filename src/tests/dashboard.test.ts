@@ -570,6 +570,20 @@ describe('Dashboard Integration Tests', () => {
       expect(res.status).toBe(403);
     });
 
+    it('should return 200 OK if user lacks dashboard:view-advanced-chart permission but provides a specific agentId', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Agent', userPermissions: 'dashboard:total-sales' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/advanced-chart/route');
+      const req = new Request('http://localhost/api/dashboard/advanced-chart?range=7d&agentId=101');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+    });
+
     it('should return 7 items for range 7d for permitted user with clustered columns data', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
         user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },

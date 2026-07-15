@@ -6319,3 +6319,22 @@ ew Date() to preserve audit trail accuracy.
     - Updated `src/tests/AdvancedChartWidget.test.tsx` to use case-sensitive matching for `(1 refund)` and `(1 chargeback)` to prevent matching collision with the Summary panel's capitalized metrics.
     - Updated `src/tests/debug.test.tsx` to use `screen.getAllByText` for the `$500` hover tooltip assertion to prevent conflicts with the axis label.
     - Verified all 383 tests in the test suite pass successfully.
+
+
+
+### Session 78 - July 15, 2026
+  **Advanced Performance Analytics Permission Update and TDD Implementation**
+  - **Everyone Can View Widget**:
+    - Removed the frontend permission guard in `src/app/dashboard_client_page.tsx`, rendering `<AdvancedChartWidget />` unconditionally so all authenticated users can see the chart.
+    - Passed down `userPermissions` and `currentUserId` as props from the parent server/client page context.
+  - **Hiding 'All Agents' Selection**:
+    - In `src/components/dashboard/AdvancedChartWidget.tsx`, conditionally omitted the `<option value="">All Agents</option>` element from the Agent select dropdown if the user lacks `dashboard:view-advanced-chart` permission.
+  - **Selected Agent Defaults & Fallbacks**:
+    - When loading agents, if a user lacks the chart permission, dynamically default the `selectedAgent` state to their own `currentUserId` (if present in the list) or the first available active agent.
+    - Added a `useEffect` hook that dynamically resets the selected agent to a valid agent of the newly selected Center whenever the Center (team) is changed, preventing empty/all agents selection states.
+  - **Backend Security Guard**:
+    - In `src/service/dashboard.service.ts` (`getAdvancedChartMetrics`), if a user lacks the `dashboard:view-advanced-chart` permission, permit the request if a specific `agentId` query parameter is provided. Throw a `Forbidden` (403) error if `agentId` is omitted (All Agents dataset request).
+  - **Test Suite Updates**:
+    - Added a new route integration test in `src/tests/dashboard.test.ts` verifying 403 Forbidden for aggregate queries, and 200 OK for single-agent queries from unauthorized sessions.
+    - Added a new unit test in `src/tests/AdvancedChartWidget.test.tsx` verifying that unauthorized users have "All Agents" hidden and default to their own user ID.
+    - Updated all existing unit tests in `AdvancedChartWidget.test.tsx` and `debug.test.tsx` to pass the correct permission props to maintain green builds.

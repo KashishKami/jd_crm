@@ -373,8 +373,11 @@ export async function getAdvancedChartMetrics(
   endDateStr?: string
 ) {
   const permissions = session?.user?.userPermissions || '';
-  if (!hasPermission(permissions, 'dashboard:view-advanced-chart')) {
-    throw new Error('Forbidden');
+  const hasChartPermission = hasPermission(permissions, 'dashboard:view-advanced-chart');
+  if (!hasChartPermission) {
+    if (agentId === undefined || agentId === null) {
+      throw new Error('Forbidden');
+    }
   }
 
   const now = getEstDateUTC(new Date());

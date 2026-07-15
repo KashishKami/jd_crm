@@ -63,7 +63,7 @@ describe('Debug AdvancedChartWidget', () => {
   });
 
   it('debugs tooltip hover matching', async () => {
-    const { container } = render(<AdvancedChartWidget />);
+    const { container } = render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
     await waitFor(() => {
       expect(container.querySelector('svg')).not.toBeNull();
     });
@@ -85,7 +85,7 @@ describe('Debug AdvancedChartWidget', () => {
   });
 
   it('does not contain rolling window options in range select but contains calendar-aligned options', async () => {
-    render(<AdvancedChartWidget />);
+    render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
     await waitFor(() => {
       expect(screen.queryByText(/Last 7 days/i)).toBeNull();
       expect(screen.queryByText(/Last 30 days/i)).toBeNull();

@@ -181,7 +181,7 @@ describe('Dashboard Component Unit Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Team Monthly Scores')).toBeDefined();
-      expect(screen.getByText('IT Park')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'IT Park', level: 4 })).toBeDefined();
       expect(screen.getByText('15 Sales')).toBeDefined();
       expect(screen.getByText('1. Alice')).toBeDefined();
       expect(screen.getByText('$2,000')).toBeDefined();
@@ -270,7 +270,7 @@ describe('Dashboard Component Unit Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('IT Park')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'IT Park', level: 4 })).toBeDefined();
       expect(screen.queryByText(/Top Performer:/)).toBeNull();
       expect(screen.queryByText(/Bottom Performer:/)).toBeNull();
     });

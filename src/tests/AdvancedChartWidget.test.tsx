@@ -63,7 +63,7 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
   });
 
   it('should render Center (team) dropdown and dynamic Agent dropdown', async () => {
-    render(<AdvancedChartWidget />);
+    render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
 
     // Wait for Center and Agent dropdowns to load
     await waitFor(() => {
@@ -91,7 +91,7 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
   });
 
   it('should render Custom Range date fields and Apply/Cancel buttons only when custom range is selected', async () => {
-    render(<AdvancedChartWidget />);
+    render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/range/i)).toBeDefined();
@@ -123,7 +123,7 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
   });
 
   it('should display hover tooltip card with correct aggregated sales, refunds, and chargeback amounts/counts', async () => {
-    const { container } = render(<AdvancedChartWidget />);
+    const { container } = render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
 
     await waitFor(() => {
       expect(container.querySelector('svg')).not.toBeNull();
@@ -163,7 +163,7 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
   });
 
   it('should display the Summary panel on the right with correct aggregated data points', async () => {
-    render(<AdvancedChartWidget />);
+    render(<AdvancedChartWidget userPermissions="dashboard:view-advanced-chart" />);
 
     await waitFor(() => {
       expect(screen.getByText(/Summary \(/i)).toBeDefined();
@@ -180,5 +180,21 @@ describe('AdvancedChartWidget Redesigned Unit Tests', () => {
 
     expect(screen.getByText(/^\$1,300\.00$/)).toBeDefined();
     expect(screen.getByText(/5 Orders/i)).toBeDefined();
+  });
+
+  it('should restrict All Agents option and default to own user ID if user lacks dashboard:view-advanced-chart permission', async () => {
+    render(<AdvancedChartWidget userPermissions="dashboard:total-sales" currentUserId="101" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/agent/i)).toBeDefined();
+    });
+
+    const agentSelect = screen.getByLabelText(/agent/i) as HTMLSelectElement;
+
+    // All Agents option should NOT exist in the dropdown
+    expect(agentSelect.querySelector('option[value=""]')).toBeNull();
+
+    // The selected value should default to the current user's ID ("101")
+    expect(agentSelect.value).toBe('101');
   });
 });

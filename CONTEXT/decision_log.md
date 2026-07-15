@@ -1200,3 +1200,37 @@ This makes the distinction between sale date and entry date self-explanatory to 
   - New W-2801 describe block: Pending Booking counts from sale date, Pending Shipment uses update date, child order inherits parent sale date
 - src/tests/orders.test.ts
   - New W-2801 integration describe block (2 tests): DB-level assertion that orderCurrentStatusUpdateDate equals the sale date for Pending Booking; and equals entry time for Pending Shipment
+
+
+
+## Decision D36 - Advanced Chart Permissions: Allow All Users to View Widget with Specific Agent Lock
+
+### Context
+Historically, the `Advanced Performance Analytics` dashboard widget was restricted strictly to users with the `dashboard:view-advanced-chart` permission. Any user without this permission was prevented from viewing the widget, and the backend API endpoint (`/api/dashboard/advanced-chart`) would return a `403 Forbidden` error unconditionally.
+However, we wanted all users to have access to these advanced analytics, but with a critical security constraint: users without the explicit chart permission must not be able to view the aggregated sales performance of all agents combined ("All Agents" dataset). They should only be allowed to view individual agent statistics (e.g., their own performance).
+
+### Decision
+1. **Frontend**:
+   - Render the `<AdvancedChartWidget />` unconditionally (remove the permission wrap) on the dashboard client page.
+   - Pass the user's `permissions` and `currentUserId` as props to the widget.
+   - For users without `dashboard:view-advanced-chart` permission:
+     - Conditionally omit the `<option value="">All Agents</option>` from the Agent select dropdown.
+     - Default the `selectedAgent` state to the user's `currentUserId` (or first available agent) on mount.
+     - Add a reactive fallback effect to ensure that when a user switches the Center (team), the select state updates to a valid agent of the newly selected center instead of resetting back to empty ("All Agents").
+2. **Backend**:
+   - Update `getAdvancedChartMetrics` inside `src/service/dashboard.service.ts` so that users lacking `dashboard:view-advanced-chart` permission can still successfully request data, provided they specify a specific `agentId` query parameter.
+   - If the `agentId` is omitted (null or undefined, representing a request for aggregate "All Agents" sales), the request is rejected with a `403 Forbidden` error.
+
+### Alternatives Considered
+- **Client-side only filtering**: Reject because users could inspect network requests or modify query parameters to view the aggregate statistics of other agents, violating the data privacy constraint.
+- **Separate backend endpoints**: Rejected because updating the existing endpoint keeps the code clean and maintains consistency in route handling.
+
+### Files Changed
+- `src/service/dashboard.service.ts` - Updated permission checks inside `getAdvancedChartMetrics` to check for `agentId` when permissions are missing.
+- `src/app/dashboard_client_page.tsx` - Render widget unconditionally and pass permissions/userId.
+- `src/components/dashboard/AdvancedChartWidget.tsx` - Implement frontend props, dropdown filter exclusion, mount default selection, and change fallback updates.
+
+### Tests Added / Updated
+- `src/tests/dashboard.test.ts` - Added route integration test verifying that unauthorized users querying specific `agentId` return `200 OK` while aggregate queries return `403 Forbidden`.
+- `src/tests/AdvancedChartWidget.test.tsx` - Added component test ensuring "All Agents" option is hidden and default agent selected. Passed full permissions props to existing tests to keep them green.
+- `src/tests/debug.test.tsx` - Updated props in render calls to keep tests passing.

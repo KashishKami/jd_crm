@@ -17,6 +17,7 @@ interface DashboardPageProps {
   initialMetrics?: DashboardMetrics;
   userPermissions: string;
   userName: string;
+  currentUserId?: string;
   initialBackendData?: any;
 }
 
@@ -30,6 +31,7 @@ export default function DashboardPage({
   initialMetrics = {},
   userPermissions = '',
   userName = '',
+  currentUserId = '',
   initialBackendData,
 }: DashboardPageProps) {
   const permissions = userPermissions;
@@ -233,9 +235,7 @@ export default function DashboardPage({
         </>
       )}
 
-      {hasPermission(permissions, 'dashboard:view-advanced-chart') && (
-        <AdvancedChartWidget />
-      )}
+      <AdvancedChartWidget userPermissions={permissions} currentUserId={currentUserId} />
 
       {/* Leaderboard and Performance standings */}
       {(hasPermission(permissions, 'dashboard:top-performer') || 

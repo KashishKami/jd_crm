@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AdvancedChartDataPoint } from '../../types/dashboard';
+import { hasPermission } from '../../service/permission.service';
 
 const getSmoothPath = (points: { x: number; y: number }[]) => {
   if (points.length === 0) return '';
@@ -61,7 +62,15 @@ interface AgentOption {
   status?: number | null;
 }
 
-export default function AdvancedChartWidget() {
+interface AdvancedChartWidgetProps {
+  userPermissions?: string;
+  currentUserId?: string;
+}
+
+export default function AdvancedChartWidget({
+  userPermissions = '',
+  currentUserId = '',
+}: AdvancedChartWidgetProps) {
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -77,31 +86,75 @@ export default function AdvancedChartWidget() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const hasChartPermission = useMemo(() => {
+    return hasPermission(userPermissions, 'dashboard:view-advanced-chart');
+  }, [userPermissions]);
+
   // Fetch teams and agents on mount
   useEffect(() => {
     fetch('/api/teams')
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setTeams(data))
+      .then((data) => setTeams(Array.isArray(data) ? data : []))
       .catch((err) => console.error('Error fetching teams:', err));
 
     fetch('/api/agents')
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setAgents(data))
+      .then((data) => {
+        const agentsList = Array.isArray(data) ? data : [];
+        setAgents(agentsList);
+        if (!hasChartPermission) {
+          const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
+          const activeSalesAgents = agentsList.filter((a: any) => a.status === 1 && SALES_DESIGNATIONS.includes(a.designation || ''));
+          
+          let defaultAgentId = '';
+          if (currentUserId && agentsList.some((a: any) => a.uid === Number(currentUserId))) {
+            defaultAgentId = String(currentUserId);
+          } else if (activeSalesAgents.length > 0) {
+            defaultAgentId = String(activeSalesAgents[0].uid);
+          } else if (agentsList.length > 0) {
+            defaultAgentId = String(agentsList[0].uid);
+          }
+          
+          if (defaultAgentId) {
+            setSelectedAgent(defaultAgentId);
+          }
+        }
+      })
       .catch((err) => console.error('Error fetching agents:', err));
-  }, []);
+  }, [hasChartPermission, currentUserId]);
 
   // Filter agents client-side based on the selected team (Center)
   const filteredAgents = useMemo(() => {
+    if (!Array.isArray(agents)) return [];
     return agents.filter((a) => !selectedTeam || a.teamId === Number(selectedTeam));
   }, [agents, selectedTeam]);
 
   // Derive effective agent: if current selection is no longer in the filtered list, treat as unselected.
-  // This avoids calling setState inside a useEffect (lint: react-hooks/set-state-in-effect).
+  // For users without chart permission, fallback to a valid agent instead of 'All Agents' ('').
   const effectiveAgent = useMemo(() => {
-    if (!selectedTeam || !selectedAgent) return selectedAgent;
-    const exists = filteredAgents.some((a) => a.uid === Number(selectedAgent));
-    return exists ? selectedAgent : '';
-  }, [selectedTeam, selectedAgent, filteredAgents]);
+    if (!selectedAgent) {
+      if (!hasChartPermission && filteredAgents.length > 0) {
+        const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
+        const activeSales = filteredAgents.filter(a => a.status === 1 && SALES_DESIGNATIONS.includes(a.designation || ''));
+        return activeSales.length > 0 ? String(activeSales[0].uid) : String(filteredAgents[0].uid);
+      }
+      return '';
+    }
+
+    if (selectedTeam) {
+      const exists = filteredAgents.some((a) => a.uid === Number(selectedAgent));
+      if (!exists) {
+        if (!hasChartPermission && filteredAgents.length > 0) {
+          const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
+          const activeSales = filteredAgents.filter(a => a.status === 1 && SALES_DESIGNATIONS.includes(a.designation || ''));
+          return activeSales.length > 0 ? String(activeSales[0].uid) : String(filteredAgents[0].uid);
+        }
+        return '';
+      }
+    }
+
+    return selectedAgent;
+  }, [selectedTeam, selectedAgent, filteredAgents, hasChartPermission]);
 
   const rangeLabel = useMemo(() => {
     switch (range) {
@@ -124,13 +177,15 @@ export default function AdvancedChartWidget() {
     let chargebacksAmount = 0;
     let chargebacksCount = 0;
 
-    for (const d of data) {
-      activeSalesAmount += d.salesAmount;
-      activeSalesCount += d.salesCount;
-      refundsAmount += d.refundsAmount;
-      refundsCount += d.refundsCount;
-      chargebacksAmount += d.chargebacksAmount;
-      chargebacksCount += d.chargebacksCount;
+    if (Array.isArray(data)) {
+      for (const d of data) {
+        activeSalesAmount += d?.salesAmount || 0;
+        activeSalesCount += d?.salesCount || 0;
+        refundsAmount += d?.refundsAmount || 0;
+        refundsCount += d?.refundsCount || 0;
+        chargebacksAmount += d?.chargebacksAmount || 0;
+        chargebacksCount += d?.chargebacksCount || 0;
+      }
     }
 
     // Total Sales in the summary card includes Sold, Partial Refund, Refunded, and Chargebacked
@@ -173,7 +228,7 @@ export default function AdvancedChartWidget() {
         const res = await fetch(url);
         const json = res.ok ? await res.json() : [];
         if (!cancelled) {
-          setData(json);
+          setData(Array.isArray(json) ? json : []);
           setLoading(false);
         }
       } catch (err) {
@@ -256,8 +311,9 @@ export default function AdvancedChartWidget() {
   const chartHeight = svgHeight - 2 * paddingY;
 
   const getX = (i: number) => {
+    const offset = 30; // offset in pixels to prevent Y-axis overlap
     if (data.length <= 1) return paddingX + chartWidth / 2;
-    return paddingX + (i / (data.length - 1)) * chartWidth;
+    return paddingX + offset + (i / (data.length - 1)) * (chartWidth - 2 * offset);
   };
 
   // Max value calculation across all clustered columns (sales, refunds, chargebacks)
@@ -365,7 +421,7 @@ export default function AdvancedChartWidget() {
                 style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px' }}
               >
                 <option value="">All Centers</option>
-                {teams.map((t) => (
+                {Array.isArray(teams) && teams.map((t) => (
                   <option key={t.teamId} value={t.teamId}>
                     {t.teamName}
                   </option>
@@ -382,7 +438,7 @@ export default function AdvancedChartWidget() {
                 onChange={(e) => setSelectedAgent(e.target.value)}
                 style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px' }}
               >
-                <option value="">All Agents</option>
+                {hasChartPermission && <option value="">All Agents</option>}
                 {(() => {
                   const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                   const scoped = filteredAgents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
@@ -712,21 +768,21 @@ export default function AdvancedChartWidget() {
 
                 {/* X Axis Labels */}
                 {data.map((d, idx) => {
-                  const x = paddingX + idx * binWidth + binWidth / 2;
+                  const x = getX(idx);
                   const y = paddingY + chartHeight + 20;
 
                   if (!shouldShowLabel(idx)) return null;
 
-                  let labelText = d.label;
-                  if (granularity === 'daily' && d.label.length === 10) {
-                    const [y, m, dPart] = d.label.split('-');
+                  let labelText = d?.label || '';
+                  if (granularity === 'daily' && labelText.length === 10) {
+                    const [y, m, dPart] = labelText.split('-');
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const mIdx = parseInt(m, 10) - 1;
                     if (mIdx >= 0 && mIdx < 12) {
                       labelText = `${monthNames[mIdx]} ${parseInt(dPart, 10)}`;
                     }
-                  } else if (granularity === 'monthly' && d.label.length === 7) {
-                    const [yPart, mPart] = d.label.split('-');
+                  } else if (granularity === 'monthly' && labelText.length === 7) {
+                    const [yPart, mPart] = labelText.split('-');
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const mIdx = parseInt(mPart, 10) - 1;
                     if (mIdx >= 0 && mIdx < 12) {
