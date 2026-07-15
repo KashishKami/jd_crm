@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
 import { AgentDetail } from '../types/agent';
@@ -14,6 +15,7 @@ interface AgentProfileViewProps {
 
 export default function AgentProfileView({ agent }: AgentProfileViewProps) {
   const { data: session } = useSession();
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'academic' | 'professional' | 'bank_emergency'>('basic');
 
@@ -26,6 +28,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
     if (containerRef.current) {
       fadeInPage(containerRef.current);
     }
+    sessionStorage.setItem('coming_from_detail', 'true');
   }, []);
 
   // Helper to format dates
@@ -41,9 +44,9 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
           <p className="page-subtitle">Detailed information for {agent.name}</p>
         </div>
         <div className="action-buttons">
-          <Link href="/agents" className="btn-secondary-custom">
+          <button onClick={() => router.back()} className="btn-secondary-custom">
             Back to Directory
-          </Link>
+          </button>
           {canEdit && (
             <Link href={`/agents/${agent.uid}/edit`} className="btn-primary-custom">
               <svg className="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

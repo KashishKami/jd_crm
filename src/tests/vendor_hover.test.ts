@@ -14,6 +14,11 @@ vi.mock('next-auth', () => ({
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(),
   redirect: vi.fn(),
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+  }),
 }));
 
 describe('Vendor Hover Details Integration Tests', () => {

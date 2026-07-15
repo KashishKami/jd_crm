@@ -9,6 +9,21 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
+const pushSpy = vi.fn();
+const mockGet = vi.fn().mockReturnValue(null);
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: mockGet,
+  }),
+  useRouter: () => ({
+    push: pushSpy,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/vendors',
+}));
+
+
 afterEach(() => {
   cleanup();
 });
@@ -164,5 +179,62 @@ describe('VendorList Component Unit Tests', () => {
         })
       );
     });
+  });
+
+  it('[RED] should read page from URL query parameters on mount', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'vendors:view,vendors:edit',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'page') return '2';
+      return null;
+    });
+
+    render(<VendorList />);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('page=2'));
+    });
+  });
+
+  it('[RED] should update URL query parameters and restore scroll position on scroll/page changes', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'vendors:view,vendors:edit',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    mockGet.mockReturnValue(null);
+
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/vendors',
+      search: '?page=1',
+    } as any;
+
+    render(<VendorList />);
+
+    fireEvent.scroll(window, { target: { scrollY: 100 } });
+    expect(setItemSpy).toHaveBeenCalledWith(expect.stringContaining('scroll_position_/vendors'), '100');
+
+    setItemSpy.mockRestore();
+    scrollToSpy.mockRestore();
+    window.location = originalLocation as any;
   });
 });

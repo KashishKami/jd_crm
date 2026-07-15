@@ -1,45 +1,179 @@
 'use client';
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import { VendorWithMetrics } from '../types/vendor';
-import { staggerEntrance, fadeInPage } from '../lib/animations';
+import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import VendorStatusBadge from './VendorStatusBadge';
 
-export default function VendorList() {
+function VendorListContent() {
   const { data: session } = useSession();
   const [vendors, setVendors] = useState<VendorWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<number>(1); // 1 = Active, 0 = Blacklisted
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const isCachedRef = useRef(false);
 
   // Pagination states
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
+  const [hasAnimated, setHasAnimated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // If returning from a detail page, skip animation unconditionally
+    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
+    // Also skip if there is already a saved scroll position for this URL
+    const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+    const savedScroll = sessionStorage.getItem(scrollKey);
+    return !!(savedScroll && parseInt(savedScroll, 10) > 0);
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
+  const animCtxRef = useRef<gsap.Context | null>(null);
+  const isFirstRender = useRef(true);
+  const isRestoringRef = useRef(true);
+
+  // Synchronize on mount ONLY if coming from a vendor details page
+  useEffect(() => {
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
+    sessionStorage.removeItem('coming_from_detail');
+
+    if (comingFromDetail) {
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+
+      // Restore filter values from URL
+      const statusParam = params.get('status');
+      if (statusParam !== null) setStatusFilter(parseInt(statusParam, 10));
+
+      // Load cache
+      const cacheKey = `cached_vendors_${window.location.pathname}${window.location.search}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsedCache = JSON.parse(cached);
+          setVendors(parsedCache.data || parsedCache || []);
+          setTotalPages(parsedCache.pages || 1);
+          setTotalItems(parsedCache.total || 0);
+          setLoading(false);
+          isCachedRef.current = true;
+        } catch (_) {}
+      }
+
+      // Check if a saved scroll position exists to skip stagger animations
+      const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(scrollKey);
+      if (savedScroll && parseInt(savedScroll, 10) > 0) {
+        setHasAnimated(true);
+      }
+    } else {
+      // Clear cache and scroll positions for this page since we are navigating fresh
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_vendors_'))) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    }
+    isRestoringRef.current = false;
+  }, []);
 
   const permissions = session?.user?.userPermissions || '';
   const canCreate = hasPermission(permissions, 'vendors:create');
   const canEdit = hasPermission(permissions, 'vendors:edit');
 
-  // Reset page when filter changes
+  // Synchronize URL search parameters with page state
   useEffect(() => {
+    if (!searchParams) return;
+    const pageParam = searchParams.get('page');
+    if (pageParam !== null) {
+      const parsedPage = parseInt(pageParam, 10) || 1;
+      setPage(prev => parsedPage !== prev ? parsedPage : prev);
+    }
+  }, [searchParams]);
+
+  // Sync all active filters + page into the URL whenever they change
+  useEffect(() => {
+    if (isRestoringRef.current) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setPage(1);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      params.set('status', String(statusFilter));
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
   }, [statusFilter]);
+
+  // Save scroll position to sessionStorage on scroll
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleScroll = () => {
+      if (window.scrollY > 0) {
+        const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+        sessionStorage.setItem(key, String(window.scrollY));
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [page, statusFilter]);
+
+  // Restore scroll position when loading completes.
+  // Use double-rAF instead of setTimeout so we reliably run *after* Next.js's
+  // own scroll-to-top that fires on client-side navigation.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!loading && vendors.length > 0) {
+      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(key);
+      if (savedScroll) {
+        const scrollY = parseInt(savedScroll, 10);
+        let raf1: number, raf2: number;
+        raf1 = requestAnimationFrame(() => {
+          raf2 = requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+        });
+        return () => {
+          cancelAnimationFrame(raf1);
+          cancelAnimationFrame(raf2);
+        };
+      }
+    }
+  }, [loading, vendors]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('page', String(newPage));
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.pushState(null, '', newUrl);
+    }
+  };
 
   useEffect(() => {
     let active = true;
     const fetchVendors = async () => {
-      setLoading(true);
+      if (!isCachedRef.current) {
+        setLoading(true);
+      }
       setError(null);
       try {
         const res = await fetch(`/api/vendors?status=${statusFilter}&page=${page}&limit=${limit}`);
@@ -52,10 +186,22 @@ export default function VendorList() {
             setVendors(data.data);
             setTotalPages(data.pages || 1);
             setTotalItems(data.total || 0);
+
+            // Save to sessionStorage
+            if (typeof window !== 'undefined') {
+              const key = `cached_vendors_${window.location.pathname}${window.location.search}`;
+              sessionStorage.setItem(key, JSON.stringify(data));
+            }
           } else {
             setVendors(data || []);
             setTotalPages(1);
             setTotalItems(data ? data.length : 0);
+
+            // Save to sessionStorage
+            if (typeof window !== 'undefined') {
+              const key = `cached_vendors_${window.location.pathname}${window.location.search}`;
+              sessionStorage.setItem(key, JSON.stringify(data));
+            }
           }
         }
       } catch (err: unknown) {
@@ -66,6 +212,7 @@ export default function VendorList() {
       } finally {
         if (active) {
           setLoading(false);
+          isCachedRef.current = false;
         }
       }
     };
@@ -86,16 +233,26 @@ export default function VendorList() {
     return () => ctx.revert();
   }, []);
 
-  // Stagger animation on table rows
+  // Stagger animation on table rows — fires once per mount.
   useEffect(() => {
-    if (tableRowsRef.current && vendors.length > 0) {
+    if (tableRowsRef.current && vendors.length > 0 && !hasAnimated) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      const ctx = gsap.context(() => {
-        staggerEntrance(rows);
+      animCtxRef.current = gsap.context(() => {
+        fadeInStagger(rows, 0.05, () => {
+          setHasAnimated(true);
+        });
       });
-      return () => ctx.revert();
     }
-  }, [vendors]);
+  }, [vendors, hasAnimated]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animCtxRef.current) {
+        animCtxRef.current.revert();
+      }
+    };
+  }, []);
 
   const handleToggleStatus = async (vendorId: number, currentStatus: number) => {
     const actionText = currentStatus === 1 ? 'blacklist' : 'restore';
@@ -195,7 +352,7 @@ export default function VendorList() {
             </thead>
             <tbody ref={tableRowsRef}>
               {vendors.map((vendor) => (
-                <tr key={vendor.vendorId} style={{ opacity: 0 }}>
+                <tr key={vendor.vendorId} style={{ opacity: hasAnimated ? 1 : 0 }}>
                   <td>
                     <Link href={`/vendors/${vendor.vendorId}`} prefetch={false} className="font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                       {vendor.vendorName}
@@ -238,7 +395,7 @@ export default function VendorList() {
         {totalPages > 1 && (
           <div className="pagination-bar">
             <button 
-              onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+              onClick={() => handlePageChange(Math.max(page - 1, 1))} 
               disabled={page === 1}
               className="pagination-btn"
             >
@@ -248,7 +405,7 @@ export default function VendorList() {
               Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
             </span>
             <button 
-              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+              onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
               disabled={page === totalPages}
               className="pagination-btn"
             >
@@ -259,5 +416,17 @@ export default function VendorList() {
       </>
     )}
   </div>
+  );
+}
+
+export default function VendorList() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <VendorListContent />
+    </Suspense>
   );
 }

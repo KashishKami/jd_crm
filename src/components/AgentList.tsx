@@ -1,12 +1,13 @@
 'use client';
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import { Agent } from '../types/agent';
-import { staggerEntrance, fadeInPage } from '../lib/animations';
+import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 
 interface AgentListProps {
@@ -14,11 +15,12 @@ interface AgentListProps {
   initialAgents?: Agent[];
 }
 
-export default function AgentList({ designations = [], initialAgents }: AgentListProps) {
+function AgentListContent({ designations = [], initialAgents }: AgentListProps) {
   const { data: session } = useSession();
   const [agents, setAgents] = useState<Agent[]>(initialAgents || []);
   const [loading, setLoading] = useState(!initialAgents);
   const [error, setError] = useState<string | null>(null);
+  const isCachedRef = useRef(false);
   
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,13 +30,90 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
   const [statusFilter, setStatusFilter] = useState('1'); // Default to "1" (Active)
 
   // Pagination States
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [page, setPage] = useState(1);
   const limit = 20;
+  const [hasAnimated, setHasAnimated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // If returning from a detail page, skip animation unconditionally
+    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
+    // Also skip if there is already a saved scroll position for this URL
+    const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+    const savedScroll = sessionStorage.getItem(scrollKey);
+    return !!(savedScroll && parseInt(savedScroll, 10) > 0);
+  });
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
+  const animCtxRef = useRef<gsap.Context | null>(null);
+  const isFirstRender = useRef(true);
+  const isRestoringRef = useRef(true);
+
+  // Synchronize on mount ONLY if coming from an agent details page
+  useEffect(() => {
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
+    sessionStorage.removeItem('coming_from_detail');
+
+    if (comingFromDetail) {
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+
+      // Restore all filter values from URL
+      const search = params.get('search');
+      if (search !== null) setSearchTerm(search);
+      const designation = params.get('designation');
+      if (designation !== null) setDesignationFilter(designation);
+      const team = params.get('team');
+      if (team !== null) setTeamFilter(team);
+      const role = params.get('role');
+      if (role !== null) setRoleFilter(role);
+      const status = params.get('status');
+      if (status !== null) setStatusFilter(status);
+
+      // Load cache
+      const cacheKey = `cached_agents_${window.location.pathname}${window.location.search}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsedCache = JSON.parse(cached);
+          setAgents(parsedCache);
+          setLoading(false);
+          isCachedRef.current = true;
+        } catch (_) {}
+      }
+
+      // Check if a saved scroll position exists to skip stagger animations
+      const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(scrollKey);
+      if (savedScroll && parseInt(savedScroll, 10) > 0) {
+        setHasAnimated(true);
+      }
+    } else {
+      // Clear cache and scroll positions for this page since we are navigating fresh
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_agents_'))) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    }
+    isRestoringRef.current = false;
+  }, []);
+
+  // Synchronize URL search parameters with page state
+  useEffect(() => {
+    if (!searchParams) return;
+    const pageParam = searchParams.get('page');
+    if (pageParam !== null) {
+      const parsedPage = parseInt(pageParam, 10) || 1;
+      setPage(prev => parsedPage !== prev ? parsedPage : prev);
+    }
+  }, [searchParams]);
 
   const permissions = session?.user?.userPermissions || '';
   const canCreate = hasPermission(permissions, 'agents:create');
@@ -46,7 +125,9 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
     }
     let active = true;
     const fetchAgents = async () => {
-      setLoading(true);
+      if (!isCachedRef.current) {
+        setLoading(true);
+      }
       setError(null);
       try {
         // Fetch all agents (omitting status parameter lets backend return all records)
@@ -57,6 +138,12 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
         const data = await res.json();
         if (active) {
           setAgents(data);
+
+          // Save to sessionStorage
+          if (typeof window !== 'undefined') {
+            const key = `cached_agents_${window.location.pathname}${window.location.search}`;
+            sessionStorage.setItem(key, JSON.stringify(data));
+          }
         }
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : 'An error occurred while fetching agents.';
@@ -66,6 +153,7 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
       } finally {
         if (active) {
           setLoading(false);
+          isCachedRef.current = false;
         }
       }
     };
@@ -90,10 +178,49 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
   const teams = Array.from(new Set(agents.map(a => a.team?.teamName).filter(Boolean))).sort() as string[];
   const roles = Array.from(new Set(agents.map(a => a.role?.roleName).filter(Boolean))).sort() as string[];
 
-  // Reset page when any filter changes
+  // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
+    if (isRestoringRef.current) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setPage(1);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      if (searchTerm) params.set('search', searchTerm);
+      if (designationFilter && designationFilter !== 'all') params.set('designation', designationFilter);
+      if (teamFilter && teamFilter !== 'all') params.set('team', teamFilter);
+      if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter);
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
   }, [searchTerm, designationFilter, teamFilter, roleFilter, statusFilter]);
+
+  // Save scroll position to sessionStorage on scroll
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleScroll = () => {
+      if (window.scrollY > 0) {
+        const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+        sessionStorage.setItem(key, String(window.scrollY));
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [page, searchTerm, designationFilter, teamFilter, roleFilter, statusFilter]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('page', String(newPage));
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.pushState(null, '', newUrl);
+    }
+  };
 
   // Client-side filtering logic
   const filteredAgents = agents.filter(agent => {
@@ -137,16 +264,52 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
   const startIndex = (page - 1) * limit;
   const paginatedAgents = filteredAgents.slice(startIndex, startIndex + limit);
 
-  // Stagger entrance on table rows whenever the paginated agents list changes
+  // Stagger entrance on table rows — fires once per mount.
+  // !hasAnimated is sufficient: it is set to true by the onComplete callback
+  // and prevents re-triggering on subsequent paginatedAgents reference changes.
   useEffect(() => {
-    if (tableRowsRef.current && paginatedAgents.length > 0) {
+    if (tableRowsRef.current && paginatedAgents.length > 0 && !hasAnimated) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      const ctx = gsap.context(() => {
-        staggerEntrance(rows);
+      animCtxRef.current = gsap.context(() => {
+        fadeInStagger(rows, 0.05, () => {
+          setHasAnimated(true);
+        });
       });
-      return () => ctx.revert();
     }
-  }, [paginatedAgents]);
+  }, [paginatedAgents, hasAnimated]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animCtxRef.current) {
+        animCtxRef.current.revert();
+      }
+    };
+  }, []);
+
+  // Restore scroll position when loading completes or items render.
+  // Use double-rAF instead of setTimeout so we reliably run *after* Next.js's
+  // own scroll-to-top that fires on client-side navigation.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!loading && paginatedAgents.length > 0) {
+      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(key);
+      if (savedScroll) {
+        const scrollY = parseInt(savedScroll, 10);
+        let raf1: number, raf2: number;
+        raf1 = requestAnimationFrame(() => {
+          raf2 = requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+        });
+        return () => {
+          cancelAnimationFrame(raf1);
+          cancelAnimationFrame(raf2);
+        };
+      }
+    }
+  }, [loading, paginatedAgents]);
 
   const handleToggleStatus = async (uid: number, currentStatus: number) => {
     if (!confirm(`Are you sure you want to ${currentStatus === 1 ? 'deactivate' : 'activate'} this agent?`)) {
@@ -314,7 +477,7 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
             </thead>
             <tbody ref={tableRowsRef}>
               {paginatedAgents.map((agent) => (
-                <tr key={agent.uid} style={{ opacity: 0 }}>
+                <tr key={agent.uid} style={{ opacity: hasAnimated ? 1 : 0 }}>
                   <td>
                     <div className="name-cell">
                       <div className="avatar-circle">{(agent.nickname || agent.name)[0]?.toUpperCase()}</div>
@@ -374,7 +537,7 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
         {totalPages > 1 && (
           <div className="pagination-bar">
             <button 
-              onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+              onClick={() => handlePageChange(Math.max(page - 1, 1))} 
               disabled={page === 1}
               className="pagination-btn"
             >
@@ -384,7 +547,7 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
               Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
             </span>
             <button 
-              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+              onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
               disabled={page === totalPages}
               className="pagination-btn"
             >
@@ -395,5 +558,17 @@ export default function AgentList({ designations = [], initialAgents }: AgentLis
       </>
     )}
   </div>
+  );
+}
+
+export default function AgentList(props: AgentListProps) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <AgentListContent {...props} />
+    </Suspense>
   );
 }

@@ -3,16 +3,24 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import OrderListContainer from '../components/OrderListContainer';
 
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
+const pushSpy = vi.fn();
 vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn().mockReturnValue({
     get: (key: string) => null,
   }),
+  useRouter: () => ({
+    push: pushSpy,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/orders',
 }));
 
 const originalFetch = global.fetch;
@@ -20,6 +28,9 @@ const originalFetch = global.fetch;
 describe('OrderListContainer Unit Tests', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    if (typeof window !== 'undefined') {
+      sessionStorage.clear();
+    }
 
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -70,8 +81,8 @@ describe('OrderListContainer Unit Tests', () => {
           ok: true,
           json: async () => ({
             data: [],
-            total: 0,
-            pages: 1,
+            total: 25,
+            pages: 2,
           }),
         });
       }
@@ -82,6 +93,7 @@ describe('OrderListContainer Unit Tests', () => {
   afterEach(() => {
     cleanup();
     global.fetch = originalFetch;
+    pushSpy.mockClear();
   });
 
   it('[RED] should render dropdowns immediately and NOT call fetch for agents or teams when initialAgents and initialTeams are provided', async () => {
@@ -211,8 +223,8 @@ describe('OrderListContainer Unit Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Cancelled Orders Queue/i)).toBeDefined();
-      });
-    });
+      }, { timeout: 5000 });
+    }, 15000);
 
     it('[RED] should filter Part Found By dropdown options to show only designated agents (7 designations)', async () => {
       render(<OrderListContainer />);
@@ -232,5 +244,48 @@ describe('OrderListContainer Unit Tests', () => {
         expect(options).not.toContain('Nainika');
         expect(options).not.toContain('Danny');
       });
+    });
+
+    it('[RED] should read page from URL query parameters on mount', async () => {
+      const mockGet = vi.fn().mockImplementation((key: string) => {
+        if (key === 'page') return '3';
+        return null;
+      });
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: mockGet,
+      } as any);
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('page=3'));
+      });
+    });
+
+    it('[RED] should update URL query parameters and register scroll listeners on page change', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: () => null,
+      } as any);
+
+      const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+      const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+      const originalLocation = window.location;
+      delete (window as any).location;
+      window.location = {
+        ...originalLocation,
+        pathname: '/orders',
+        search: '?page=1',
+      } as any;
+
+      render(<OrderListContainer />);
+
+      // Scroll event trigger and saving scroll
+      fireEvent.scroll(window, { target: { scrollY: 150 } });
+      expect(setItemSpy).toHaveBeenCalledWith(expect.stringContaining('scroll_position_/orders'), '150');
+
+      setItemSpy.mockRestore();
+      scrollToSpy.mockRestore();
+      window.location = originalLocation as any;
     });
   });

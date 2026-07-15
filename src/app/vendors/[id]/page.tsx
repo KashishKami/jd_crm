@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { hasPermission } from '../../../service/permission.service';
@@ -27,6 +27,7 @@ interface LinkedOrder {
 
 export default function VendorDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params?.id ? Number(params.id) : NaN;
   const { data: session } = useSession();
 
@@ -51,6 +52,7 @@ export default function VendorDetailPage() {
     if (containerRef.current) {
       fadeInPage(containerRef.current);
     }
+    sessionStorage.setItem('coming_from_detail', 'true');
   }, []);
 
   // Fetch Vendor Info
@@ -225,9 +227,9 @@ export default function VendorDetailPage() {
     return (
       <div className="error-box">
         <p>{error || 'Vendor not found'}</p>
-        <Link href="/vendors" className="btn-secondary-custom">
+        <button onClick={() => router.back()} className="btn-secondary-custom">
           Back to Directory
-        </Link>
+        </button>
       </div>
     );
   }
@@ -240,9 +242,9 @@ export default function VendorDetailPage() {
           <p className="page-subtitle">Supplier Profile & Performance Metrics Ledger</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Link href="/vendors" className="btn-secondary-custom">
+          <button onClick={() => router.back()} className="btn-secondary-custom">
             Back to Directory
-          </Link>
+          </button>
           {canEdit && (
             <>
               <Link href={`/vendors/${vendor.vendorId}/edit`} className="btn-primary-custom" style={{ backgroundColor: '#475569', boxShadow: 'none' }}>

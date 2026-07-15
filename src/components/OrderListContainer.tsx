@@ -22,6 +22,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const [agents, setAgents] = useState<any[]>(initialAgents || []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isCachedRef = useRef(false);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus || '');
@@ -42,14 +43,159 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const limit = 20;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+  const isRestoringRef = useRef(true);
 
   const permissions = session?.user?.userPermissions || '';
   const canCreate = hasPermission(permissions, 'orders:create');
 
-  // Reset page when filters change
+  // Synchronize URL search parameters with page state
   useEffect(() => {
+    if (!searchParams) return;
+    const pageParam = searchParams.get('page');
+    if (pageParam !== null) {
+      const parsedPage = parseInt(pageParam, 10) || 1;
+      setPage(prev => parsedPage !== prev ? parsedPage : prev);
+    }
+  }, [searchParams]);
+
+  // Synchronize on mount ONLY if coming from an order details page.
+  // coming_from_detail is set by DetailPageMarker when the detail page mounts,
+  // so it is reliably present before the user navigates back.
+  // IMPORTANT: This must be defined BEFORE the filter-change effect so that
+  // React fires it first on mount, setting isRestoringRef=false before
+  // the filter-change effect runs and consumes isFirstRender correctly.
+  useEffect(() => {
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
+    sessionStorage.removeItem('coming_from_detail');
+
+    if (comingFromDetail) {
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+
+      const statusParam = params.get('status');
+      if (statusParam !== null) setStatusFilter(statusParam);
+
+      const saleStatusParam = params.get('saleStatus');
+      if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
+
+      const agentParam = params.get('agentId');
+      if (agentParam !== null) setAgentFilter(agentParam);
+
+      const teamParam = params.get('teamId');
+      if (teamParam !== null) setTeamFilter(teamParam);
+
+      const backendParam = params.get('backendExecutiveId');
+      if (backendParam !== null) setBackendExecutiveFilter(backendParam);
+
+      const partFoundParam = params.get('partFoundById');
+      if (partFoundParam !== null) setPartFoundByFilter(partFoundParam);
+
+      const fromParam = params.get('dateFrom');
+      if (fromParam !== null) setDateFrom(fromParam);
+
+      const toParam = params.get('dateTo');
+      if (toParam !== null) setDateTo(toParam);
+
+      // Load cache
+      const cacheKey = `cached_orders_${window.location.pathname}${window.location.search}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsedCache = JSON.parse(cached);
+          setOrders(parsedCache.data || parsedCache || []);
+          setTotalPages(parsedCache.pages || Math.ceil((parsedCache.total || 0) / limit) || 1);
+          setTotalItems(parsedCache.total || 0);
+          setLoading(false);
+          isCachedRef.current = true;
+        } catch (_) {}
+      }
+    } else {
+      // Clear cache and scroll positions for this page since we are navigating fresh
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_orders_'))) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    }
+    isRestoringRef.current = false;
+  }, []);
+
+  // Sync all active filters + page into the URL whenever they change
+  useEffect(() => {
+    if (isRestoringRef.current) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setPage(1);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      if (statusFilter) params.set('status', statusFilter);
+      if (saleStatusFilter) params.set('saleStatus', saleStatusFilter);
+      if (agentFilter) params.set('agentId', agentFilter);
+      if (teamFilter) params.set('teamId', teamFilter);
+      if (backendExecutiveFilter) params.set('backendExecutiveId', backendExecutiveFilter);
+      if (partFoundByFilter) params.set('partFoundById', partFoundByFilter);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
   }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
+
+  // Save scroll position to sessionStorage on scroll
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleScroll = () => {
+      if (window.scrollY > 0) {
+        const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+        sessionStorage.setItem(key, String(window.scrollY));
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [page, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
+
+  // Restore scroll position when loading completes and rows are in the DOM.
+  // Depends on both `loading` and `orders` so that when the cache is hit
+  // (loading stays false but orders updates), this effect re-evaluates.
+  // Use double-rAF so we run reliably after Next.js's own scroll-to-top.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!loading && orders.length > 0) {
+      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(key);
+      if (savedScroll) {
+        const scrollY = parseInt(savedScroll, 10);
+        let raf1: number, raf2: number;
+        raf1 = requestAnimationFrame(() => {
+          raf2 = requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+        });
+        return () => {
+          cancelAnimationFrame(raf1);
+          cancelAnimationFrame(raf2);
+        };
+      }
+    }
+  }, [loading, orders]);
+
+
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('page', String(newPage));
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.pushState(null, '', newUrl);
+    }
+  };
 
   // Synchronize URL search parameters with filter states
   useEffect(() => {
@@ -81,8 +227,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       setDateFrom(startStr);
       setDateTo(endStr);
     } else {
-      if (fromParam !== null) setDateFrom(fromParam);
-      if (toParam !== null) setDateTo(toParam);
+      setDateFrom(fromParam || '');
+      setDateTo(toParam || '');
     }
   }, [searchParams]);
 
@@ -175,7 +321,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
 
     let active = true;
     const fetchOrders = async () => {
-      setLoading(true);
+      if (!isCachedRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
       const params = new URLSearchParams();
@@ -201,10 +349,22 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
             setOrders(data.data);
             setTotalPages(data.pages || Math.ceil((data.total || 0) / limit) || 1);
             setTotalItems(data.total || 0);
+
+            // Save to sessionStorage
+            if (typeof window !== 'undefined') {
+              const key = `cached_orders_${window.location.pathname}${window.location.search}`;
+              sessionStorage.setItem(key, JSON.stringify(data));
+            }
           } else {
             setOrders(data || []);
             setTotalPages(1);
             setTotalItems(data ? data.length : 0);
+
+            // Save to sessionStorage
+            if (typeof window !== 'undefined') {
+              const key = `cached_orders_${window.location.pathname}${window.location.search}`;
+              sessionStorage.setItem(key, JSON.stringify(data));
+            }
           }
         }
       } catch (err: unknown) {
@@ -215,6 +375,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       } finally {
         if (active) {
           setLoading(false);
+          isCachedRef.current = false;
         }
       }
     };
@@ -724,7 +885,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           {totalPages > 1 && (
             <div className="pagination-bar">
               <button 
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))} 
+                onClick={() => handlePageChange(Math.max(page - 1, 1))} 
                 disabled={page === 1}
                 className="pagination-btn"
               >
@@ -734,7 +895,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
                 Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
               </span>
               <button 
-                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))} 
+                onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
                 disabled={page === totalPages}
                 className="pagination-btn"
               >

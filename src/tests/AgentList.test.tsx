@@ -9,6 +9,21 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
+const pushSpy = vi.fn();
+const mockGet = vi.fn().mockReturnValue(null);
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: mockGet,
+  }),
+  useRouter: () => ({
+    push: pushSpy,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/agents',
+}));
+
+
 afterEach(() => {
   cleanup();
 });
@@ -290,6 +305,76 @@ describe('AgentList Component Unit Tests', () => {
       // Check that role column header IS rendered
       expect(screen.getByText('Role')).toBeDefined();
     });
+  });
+
+  it('[RED] should read page from URL query parameters on mount', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'page') return '2';
+      return null;
+    });
+
+    const twentyFiveAgents = Array.from({ length: 25 }, (_, i) => ({
+      uid: 10 + i,
+      name: `Agent ${10 + i}`,
+      nickname: `Agent${10 + i}`,
+      username: `agent_${10 + i}`,
+      email: `agent${10 + i}@crm.com`,
+      status: 1,
+      role: { roleName: 'Sales Agent' },
+      team: { teamName: 'IT Park' },
+      designation: 'Sales Representative',
+    }));
+
+    render(<AgentList initialAgents={twentyFiveAgents as any} />);
+
+    // Since page is 2, the pagination info should display page 2
+    await waitFor(() => {
+      expect(screen.getByText(/Page/i).textContent).toContain('Page 2 of');
+    });
+  });
+
+  it('[RED] should update URL query parameters and restore scroll position on scroll/page changes', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    mockGet.mockReturnValue(null);
+
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/agents',
+      search: '?page=1',
+    } as any;
+
+    render(<AgentList initialAgents={mockAgents as any} />);
+
+    fireEvent.scroll(window, { target: { scrollY: 120 } });
+    expect(setItemSpy).toHaveBeenCalledWith(expect.stringContaining('scroll_position_/agents'), '120');
+
+    setItemSpy.mockRestore();
+    scrollToSpy.mockRestore();
+    window.location = originalLocation as any;
   });
 });
 

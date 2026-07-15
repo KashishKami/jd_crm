@@ -12,6 +12,11 @@ vi.mock('next-auth/react', () => ({
 
 vi.mock('next/navigation', () => ({
   useParams: vi.fn(),
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+  }),
 }));
 
 afterEach(() => {

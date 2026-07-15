@@ -4,17 +4,17 @@ export function fadeInPage(element: Element, delay: number = 0) {
   if (typeof window === 'undefined' || !element) return;
   gsap.fromTo(
     element,
-    { opacity: 0, y: 20 },
-    { opacity: 1, y: 0, duration: 0.4, delay, ease: 'power2.out' }
+    { opacity: 0 },
+    { opacity: 1, duration: 0.4, delay, ease: 'power2.out' }
   );
 }
 
-export function staggerEntrance(elements: Element[] | NodeList | HTMLCollection, stagger: number = 0.05) {
+export function staggerEntrance(elements: Element[] | NodeList | HTMLCollection, stagger: number = 0.05, onComplete?: () => void) {
   if (typeof window === 'undefined' || !elements || elements.length === 0) return;
   gsap.fromTo(
     elements,
     { opacity: 0, y: 20 },
-    { opacity: 1, y: 0, duration: 0.4, stagger, ease: 'power2.out' }
+    { opacity: 1, y: 0, duration: 0.4, stagger, ease: 'power2.out', onComplete }
   );
 }
 
@@ -22,12 +22,12 @@ export function staggerEntrance(elements: Element[] | NodeList | HTMLCollection,
  * Smooth opacity-only fade-in for table rows or list items.
  * Avoids the jitter caused by y-offset translation on already-laid-out DOM elements.
  */
-export function fadeInStagger(elements: Element[] | NodeList | HTMLCollection, stagger: number = 0.04) {
+export function fadeInStagger(elements: Element[] | NodeList | HTMLCollection, stagger: number = 0.04, onComplete?: () => void) {
   if (typeof window === 'undefined' || !elements || elements.length === 0) return;
   gsap.fromTo(
     elements,
     { opacity: 0 },
-    { opacity: 1, duration: 0.35, stagger, ease: 'power1.out' }
+    { opacity: 1, duration: 0.35, stagger, ease: 'power1.out', onComplete }
   );
 }
 

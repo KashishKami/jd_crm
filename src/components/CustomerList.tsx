@@ -17,6 +17,18 @@ export default function CustomerList({ initialCustomers }: CustomerListProps = {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [loading, setLoading] = useState(!initialCustomers);
   const [error, setError] = useState<string | null>(null);
+  const [hasAnimated, setHasAnimated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // If returning from a detail page, skip animation unconditionally
+    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
+    // Also skip if there is already a saved scroll position for this URL
+    const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+    const savedScroll = sessionStorage.getItem(key);
+    if (savedScroll && parseInt(savedScroll, 10) > 0) {
+      return true;
+    }
+    return false;
+  });
   
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [selectedCustomerName, setSelectedCustomerName] = useState<string>('');
@@ -27,6 +39,7 @@ export default function CustomerList({ initialCustomers }: CustomerListProps = {
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
   const cardsPanelRef = useRef<HTMLDivElement>(null);
+  const animCtxRef = useRef<gsap.Context | null>(null);
 
   const permissions = session?.user?.userPermissions || '';
   const canViewCards = hasPermission(permissions, 'customers:view-cards');
@@ -79,16 +92,26 @@ export default function CustomerList({ initialCustomers }: CustomerListProps = {
     return () => ctx.revert();
   }, [status]);
 
-  // Stagger table rows when customer data loads
+  // Stagger table rows when customer data loads — fires once per mount.
   useEffect(() => {
-    if (tableRowsRef.current && customers.length > 0) {
+    if (tableRowsRef.current && customers.length > 0 && !hasAnimated) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      const ctx = gsap.context(() => {
-        staggerEntrance(rows);
+      animCtxRef.current = gsap.context(() => {
+        staggerEntrance(rows, 0.05, () => {
+          setHasAnimated(true);
+        });
       });
-      return () => ctx.revert();
     }
-  }, [customers]);
+  }, [customers, hasAnimated]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animCtxRef.current) {
+        animCtxRef.current.revert();
+      }
+    };
+  }, []);
 
   // Fetch cards when selectedCustomerId changes
   useEffect(() => {
@@ -195,7 +218,7 @@ export default function CustomerList({ initialCustomers }: CustomerListProps = {
                     {customers.map((customer) => (
                       <tr 
                         key={customer.customerId}
-                        style={{ opacity: 0 }}
+                        style={{ opacity: hasAnimated ? 1 : 0 }}
                         className={`border-b last:border-0 border-slate-100/80 hover:bg-slate-50/50 transition-colors cursor-pointer ${
                           selectedCustomerId === customer.customerId ? 'bg-blue-50/20' : ''
                         }`}

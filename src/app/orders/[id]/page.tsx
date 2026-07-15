@@ -11,6 +11,8 @@ import { formatDateDDMMYYYY } from '../../../lib/date';
 import SaleStatusTimeline from '../../../components/SaleStatusTimeline';
 import WorkflowStatusTimeline from '../../../components/WorkflowStatusTimeline';
 import DeleteOrderButton from '../../../components/DeleteOrderButton';
+import BackButton from '../../../components/BackButton';
+import DetailPageMarker from '../../../components/DetailPageMarker';
 import OrderViewLog from '../../../components/OrderViewLog';
 import OrderAuditLog from '../../../components/OrderAuditLog';
 import LedgerCardItem from '../../../components/LedgerCardItem';
@@ -307,6 +309,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="agents-page-container">
+      <DetailPageMarker />
       <style dangerouslySetInnerHTML={{ __html: `
         details summary::-webkit-details-marker {
           display: none !important;
@@ -365,6 +368,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </p>
         </div>
         <div className="flex gap-3">
+          <BackButton label="Back to Orders" />
           {canEdit && (
             <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom" style={{ textDecoration: 'none' }}>
               Edit Order

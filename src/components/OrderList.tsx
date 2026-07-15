@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
-import { staggerEntrance } from '../lib/animations';
+import { fadeInStagger } from '../lib/animations';
 import { gsap } from 'gsap';
 import { formatDateDDMMYYYY, getEstCalendarDaysDiff } from '../lib/date';
 import OrderCommentsPopup from './OrderCommentsPopup';
@@ -94,6 +94,16 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
   const [activeCommentsOrderId, setActiveCommentsOrderId] = useState<number | null>(null);
+  const [hasAnimated, setHasAnimated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const savedScroll = sessionStorage.getItem(key);
+      if (savedScroll && parseInt(savedScroll, 10) > 0) {
+        return true;
+      }
+    }
+    return false;
+  });
 
   // Format date helper
   const formatDate = (dateVal: string | Date | null) => {
@@ -211,69 +221,82 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
     }
   };
 
-  const sortedOrders = [...orders].sort((a, b) => {
-    if (!sortBy) return 0;
-    
-    let comparison = 0;
-    switch (sortBy) {
-      case 'crmOrderId': {
-        comparison = a.crmOrderId - b.crmOrderId;
-        break;
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      if (!sortBy) return 0;
+      
+      let comparison = 0;
+      switch (sortBy) {
+        case 'crmOrderId': {
+          comparison = a.crmOrderId - b.crmOrderId;
+          break;
+        }
+        case 'orderDate': {
+          const dateA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
+          const dateB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
+          comparison = dateA - dateB;
+          break;
+        }
+        case 'customerName': {
+          const nameA = (a.customer?.customerName || '').toLowerCase();
+          const nameB = (b.customer?.customerName || '').toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        }
+        case 'salesAgent': {
+          const agentA = (a.salesAgent?.nickname || a.salesAgent?.name || '').toLowerCase();
+          const agentB = (b.salesAgent?.nickname || b.salesAgent?.name || '').toLowerCase();
+          comparison = agentA.localeCompare(agentB);
+          break;
+        }
+        case 'saleStatus': {
+          const labelA = getSaleStatusLabel(a.saleStatus).toLowerCase();
+          const labelB = getSaleStatusLabel(b.saleStatus).toLowerCase();
+          comparison = labelA.localeCompare(labelB);
+          break;
+        }
+        case 'pricing': {
+          comparison = getFinalMargin(a) - getFinalMargin(b);
+          break;
+        }
+        case 'daysInStatus': {
+          comparison = getDaysInStatus(a) - getDaysInStatus(b);
+          break;
+        }
+        default:
+          break;
       }
-      case 'orderDate': {
-        const dateA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
-        const dateB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
-        comparison = dateA - dateB;
-        break;
+      
+      if (comparison === 0) {
+        return b.crmOrderId - a.crmOrderId;
       }
-      case 'customerName': {
-        const nameA = (a.customer?.customerName || '').toLowerCase();
-        const nameB = (b.customer?.customerName || '').toLowerCase();
-        comparison = nameA.localeCompare(nameB);
-        break;
-      }
-      case 'salesAgent': {
-        const agentA = (a.salesAgent?.nickname || a.salesAgent?.name || '').toLowerCase();
-        const agentB = (b.salesAgent?.nickname || b.salesAgent?.name || '').toLowerCase();
-        comparison = agentA.localeCompare(agentB);
-        break;
-      }
-      case 'saleStatus': {
-        const labelA = getSaleStatusLabel(a.saleStatus).toLowerCase();
-        const labelB = getSaleStatusLabel(b.saleStatus).toLowerCase();
-        comparison = labelA.localeCompare(labelB);
-        break;
-      }
-      case 'pricing': {
-        comparison = getFinalMargin(a) - getFinalMargin(b);
-        break;
-      }
-      case 'daysInStatus': {
-        comparison = getDaysInStatus(a) - getDaysInStatus(b);
-        break;
-      }
-      default:
-        break;
-    }
-    
-    if (comparison === 0) {
-      return b.crmOrderId - a.crmOrderId;
-    }
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [orders, sortBy, sortOrder]);
 
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
+  const animCtxRef = useRef<gsap.Context | null>(null);
 
   // Stagger table rows entrance
   useEffect(() => {
-    if (tableRowsRef.current && sortedOrders.length > 0) {
+    if (tableRowsRef.current && sortedOrders.length > 0 && !hasAnimated) {
       const rows = tableRowsRef.current.querySelectorAll('tr');
-      const ctx = gsap.context(() => {
-        staggerEntrance(rows);
+      animCtxRef.current = gsap.context(() => {
+        fadeInStagger(rows, 0.05, () => {
+          setHasAnimated(true);
+        });
       });
-      return () => ctx.revert();
     }
-  }, [sortedOrders]);
+  }, [sortedOrders, hasAnimated]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animCtxRef.current) {
+        animCtxRef.current.revert();
+      }
+    };
+  }, []);
 
   const renderSortableHeader = (label: string, field: string) => {
     const isSorted = sortBy === field;
@@ -316,7 +339,7 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
               const isDisabled = !canView && canCreate && Number(order.orderSalesAgentId) !== Number(session?.user?.id);
               const isDisabledEdit = isDisabled || !canEdit;
               return (
-                <tr key={order.crmOrderId} style={{ opacity: 0 }}>
+                <tr key={order.crmOrderId} style={{ opacity: hasAnimated ? 1 : 0 }}>
                   <td>
                     <span className="font-mono font-semibold text-slate-500" style={{ fontSize: '0.95em' }}>
                       #{order.crmOrderId}

@@ -6258,10 +6258,10 @@ In this session, we finalized the Phase 24 features and made the following layou
 
 
 
-### Session 75 — July 15, 2026
+### Session 75 ï¿½ July 15, 2026
   **Pending Booking Days Fix (EST Timezone), Order Entry Date Label Rename, and W-2801 Tests**
   - **Order Detail Page Label Rename**:
-    - Changed the subtitle on the Order Details page (src/app/orders/[id]/page.tsx) from "Placed on {saleDate} • Created {entryDate}" to **"Order placed on {saleDate} • Order entry on {entryDate}"**. This makes the sale date vs. CRM entry date distinction immediately clear to all team members, especially relevant for late-entered orders.
+    - Changed the subtitle on the Order Details page (src/app/orders/[id]/page.tsx) from "Placed on {saleDate} ï¿½ Created {entryDate}" to **"Order placed on {saleDate} ï¿½ Order entry on {entryDate}"**. This makes the sale date vs. CRM entry date distinction immediately clear to all team members, especially relevant for late-entered orders.
   - **getEstCalendarDaysDiff utility added** (src/lib/date.ts):
     - New export that computes whole **EST calendar days** elapsed since a reference date. Uses Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York' }) to convert both "now" and the reference date to their EST calendar date before diffing, so the counter increments at EST midnight rather than UTC midnight (~8 PM EST). Replaces the raw millisecond division approach that was timezone-unaware.
   - **Pending Booking days counted from sale date** (src/components/OrderList.tsx):
@@ -6277,7 +6277,7 @@ ew Date().
     - All other initial statuses (Pending Shipment, Returned Orders, Cancelled Orders) still use 
 ew Date().
     - orderCreatedDate remains 
-ew Date() in all cases — the entry timestamp is preserved.
+ew Date() in all cases ï¿½ the entry timestamp is preserved.
     - Workflow history logs (crmOrderCurrentStatusHistory.changedAt) were intentionally left as 
 ew Date() to preserve audit trail accuracy.
   - **Tests Added / Updated**:
@@ -6338,3 +6338,76 @@ ew Date() to preserve audit trail accuracy.
     - Added a new route integration test in `src/tests/dashboard.test.ts` verifying 403 Forbidden for aggregate queries, and 200 OK for single-agent queries from unauthorized sessions.
     - Added a new unit test in `src/tests/AdvancedChartWidget.test.tsx` verifying that unauthorized users have "All Agents" hidden and default to their own user ID.
     - Updated all existing unit tests in `AdvancedChartWidget.test.tsx` and `debug.test.tsx` to pass the correct permission props to maintain green builds.
+
+
+### Session 79 - July 15, 2026
+  **Persistent Pagination, Scroll Position Restoration, and Opacity-Only Table Row Animations (SWR Cache Pattern)**
+  - **SWR Caching & Loading State Polish**:
+    - Implemented a Stale-While-Revalidate (SWR) cache in \OrderListContainer.tsx\, \AgentList.tsx\, and \VendorList.tsx\ using \sessionStorage\. On mount, cached data is loaded immediately if present, bypassing the initial loading spinners and enabling instant rendering.
+    - Added background re-fetching in the main resource fetch hooks to update the lists silently without visual layout shifts.
+  - **Scroll Position Saving and Restoration**:
+    - Registered scroll listeners on list pages to save scroll coordinates in \sessionStorage\ whenever the user scrolls.
+    - Restores the saved scroll position instantly upon navigating back to the list page.
+  - **Skip Row Animations on Return Navigation**:
+    - Check for saved scroll position on mount. If a scroll position exists (> 0), the component skips the GSAP stagger animation and renders rows fully opaque immediately to allow instant scroll restoration.
+  - **Jitter-Free Table Stagger Animations**:
+    - Replaced the \staggerEntrance\ animation (which translates on the Y-axis and caused table layout jitters and vertical stretching gaps) with \adeInStagger\ (which performs a smooth opacity-only stagger) in \AgentList.tsx\, \OrderList.tsx\, \VendorList.tsx\, \CustomerList.tsx\, and \GatewayList.tsx\.
+  - **Universal Client Navigation Back Buttons**:
+    - Updated detail-to-list back buttons in \AgentProfileView.tsx\ and \VendorDetailPage\ to use \
+outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (like page and active filters) and scroll state are preserved.
+    - Created a new reusable client-side \BackButton\ component in \src/components/BackButton.tsx\. Added this button to the Server Component in the orders details page (\src/app/orders/[id]/page.tsx\) to support identical history-based navigation.
+  - **TDD Test Alignment**:
+    - Updated unit test assertions in \AgentList.test.tsx\ to handle pagination elements with text content split across child tags.
+    - Increased \waitFor\ timeout thresholds in \OrderListContainer.test.tsx\ and added sessionStorage sanitization in \eforeEach\ to prevent flaky test suite runs.
+    - Successfully verified all 41 unit tests in modified list suites pass.
+
+
+### Session 80 - July 15, 2026
+  **Scroll Position Restoration Guard, Page Number Reset Race Condition Fix, and Opacity-Only Page Fade Animations**
+  - **Scroll Position Reset Prevention**:
+    - Implemented a \window.scrollY > 0\ check in all list scroll-position listeners (\OrderListContainer.tsx\, \AgentList.tsx\, \VendorList.tsx\). This prevents Next.js client-side navigation transitions (which scroll the viewport to 0 on link clicks) from accidentally saving and overwriting the correct scroll position in \sessionStorage\ with \ \.
+  - **Page State Restoration Race Condition Fix**:
+    - Added an \isRestoringRef\ ref in all three lists to flag initial mount parameter syncs. This prevents the filter-change \useEffect\ hooks from resetting the page to \1\ on the initial hydration/mount sync.
+    - Aligned the filter-change \useEffect\ in \AgentList.tsx\ to also respect the \isFirstRender\ guard, preventing immediate page resets upon component initialization.
+  - **Opacity-Only Page Animations**:
+    - Modified the global \adeInPage\ utility function in \nimations.ts\ to perform a clean, opacity-only fade-in animation without any Y-axis translation. This completely eliminates layout shifts and page-level vertical jitters when complex tables/lists are rendered.
+  - **Unit Test Coverage**:
+    - Verified that all 41 unit tests in \AgentList.test.tsx\, \VendorList.test.tsx\, \OrderList.test.tsx\, and \OrderListContainer.test.tsx\ compile cleanly and pass successfully.
+
+
+### Session 81 - July 15, 2026
+  **Status Report: Unresolved Agent List Animation & Back Navigation Scroll Issues**
+  - **Task Description (What was requested)**:
+    - Eliminate the jittery row stagger animations on list pages (where rows flash or render fully visible before starting the transition).
+    - Ensure that returning to lists via custom UI back buttons or browser back navigation restores the exact page number and scroll position.
+    - Guarantee pagination and scroll restoration only trigger when returning from the respective details page.
+  - **Current Unresolved Issues (What is NOT done)**:
+    - **Agent List Animation Jitter**: Table rows still flash fully visible before the opacity stagger begins, causing a visual jitter where a white line goes down the table columns.
+    - **Scroll Position Restoration on Back Buttons**: Navigating back via browser back or custom back buttons fails to restore the scroll position (the page jumps back to the top).
+
+
+### Session 82 - July 16, 2026
+  **Animation Jitter Root Cause Fix, Scroll Restoration Race Condition Fix, and Full Filter State Persistence on Back Navigation**
+  - **Root Cause Analysis**:
+    - Identified three distinct root causes for the outstanding Session 81 issues through code investigation:
+      1. hasAnimated was initialized to useState(false) (not a lazy initializer) in AgentList.tsx and VendorList.tsx, meaning the sessionStorage check for skipping animations ran in a useEffect (post-paint) ï¿½ always one render too late to prevent the animation from launching.
+      2. The animation useEffect had paginatedAgents in its dependency array, causing it to re-trigger when cached data was loaded and produced a new array reference, racing with setHasAnimated(true) from the GSAP onComplete.
+      3. The scroll restoration used setTimeout(50ms) which lost the race against Next.js App Router's own scroll-to-top that fires after component mount on client-side navigation.
+  - **Animation Skip on Page Restoration**:
+    - Converted hasAnimated from useState(false) to a **lazy initializer** in AgentList.tsx, VendorList.tsx, GatewayList.tsx, and CustomerList.tsx.
+    - The lazy initializer reads coming_from_detail from sessionStorage **synchronously at render time** (before any paint), returning 	rue unconditionally if present. Also returns 	rue if a saved scroll position > 0 exists for the current URL.
+    - This guarantees rows render with opacity: 1 from render #1 on all restoration paths, so no animation can ever fire.
+  - **GatewayList Stagger Fix**:
+    - Switched GatewayList.tsx from staggerEntrance (Y-axis translate, caused jitter) to adeInStagger (opacity-only) to match the other list components.
+  - **Scroll Restoration Race Condition Fix**:
+    - Replaced setTimeout(50ms) with a **double equestAnimationFrame** pattern in AgentList.tsx, VendorList.tsx, and OrderListContainer.tsx.
+    - The double-rAF ensures window.scrollTo runs after Next.js App Router's own scroll-to-top callback, reliably winning the race on back-navigation.
+    - Also added orders to the OrderListContainer scroll restore useEffect dependency array so the effect re-evaluates after cached rows render (previously loading could already be alse on mount when cache was hit, causing scrollTo to fire against an empty DOM).
+  - **Full Filter State Persistence on Back Navigation**:
+    - AgentList.tsx: Filter-change useEffect now builds a fresh URLSearchParams and writes all active filter values (search, designation, 	eam, ole, status) into the URL on every change. Restoration useEffect now reads all these params back and calls the corresponding setState functions to fully restore the filter UI.
+    - VendorList.tsx: Same pattern applied for statusFilter (the tab toggle).
+    - OrderListContainer.tsx: Already had this pattern correctly implemented; no changes needed.
+  - **Dev Mode Caveat (React StrictMode)**:
+    - Animation jitter (double-animation effect) and restoration corruption in dev mode are caused by React 18 StrictMode's intentional double-invoke of effects. coming_from_detail is consumed and removed on the first invoke, so the second invoke falls into the else branch and clears sessionStorage cache/scroll, corrupting the restoration flow. These are **dev-only artifacts** and do not occur in production builds.
+    - Confirmed all fixes work correctly in the production build (pm run build + ode .next/standalone/server.js).
+  - **OrderListContainer Filter URL Inconsistency Fix**: The restoration useEffect was defined after the filter-change useEffect in the file. React fires effects in definition order, so on fresh navigation the filter-change fired first (skipped by isRestoringRef), the restoration fired second with no state changes, and isFirstRender was never consumed â€” causing the first user-initiated filter change to be silently dropped and the URL to not update. Fixed by moving the restoration effect to be defined before the filter-change effect, matching the pattern already used in AgentList.tsx.

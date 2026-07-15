@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { hasPermission } from '../service/permission.service';
 import { Gateway } from '../types/gateway';
-import { fadeInPage, staggerEntrance } from '../lib/animations';
+import { fadeInPage, fadeInStagger } from '../lib/animations';
 import { gsap } from 'gsap';
 
 interface GatewayListProps {
@@ -17,9 +17,19 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
   const [gateways, setGateways] = useState<Gateway[]>(initialGateways || []);
   const [loading, setLoading] = useState(!initialGateways);
   const [error, setError] = useState<string | null>(null);
+  const [hasAnimated, setHasAnimated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // If returning from a detail page, skip animation unconditionally
+    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
+    // Also skip if there is already a saved scroll position for this URL
+    const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+    const savedScroll = sessionStorage.getItem(key);
+    return !!(savedScroll && parseInt(savedScroll, 10) > 0);
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
+  const animCtxRef = useRef<gsap.Context | null>(null);
 
   const permissions = session?.user?.userPermissions ?? '';
   const canCreate = hasPermission(permissions, 'gateways:create');
@@ -46,17 +56,33 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
   }, [initialGateways]);
 
   useEffect(() => {
-    if (!loading && containerRef.current) {
-      const ctx = gsap.context(() => {
+    if (!loading && containerRef.current && !hasAnimated) {
+      animCtxRef.current = gsap.context(() => {
         fadeInPage(containerRef.current!);
         if (tableBodyRef.current) {
           const rows = tableBodyRef.current.querySelectorAll('tr');
-          staggerEntrance(rows);
+          if (rows.length > 0) {
+            fadeInStagger(rows, 0.05, () => {
+              setHasAnimated(true);
+            });
+          } else {
+            setHasAnimated(true);
+          }
+        } else {
+          setHasAnimated(true);
         }
       });
-      return () => ctx.revert();
     }
-  }, [loading]);
+  }, [loading, hasAnimated]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animCtxRef.current) {
+        animCtxRef.current.revert();
+      }
+    };
+  }, []);
 
   const handleToggleStatus = async (gateway: Gateway) => {
     const newStatus = gateway.gatewayStatus === 1 ? 0 : 1;
@@ -130,7 +156,7 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
                 </tr>
               ) : (
                 gateways.map((gateway, index) => (
-                  <tr key={gateway.gatewayId} style={{ opacity: 0 }}>
+                  <tr key={gateway.gatewayId} style={{ opacity: hasAnimated ? 1 : 0 }}>
                     <td className="font-mono text-slate-500">{index + 1}</td>
                     <td style={{ fontWeight: '600' }}>{gateway.gatewayName}</td>
                     <td>
