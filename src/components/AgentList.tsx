@@ -23,17 +23,39 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
   const isCachedRef = useRef(false);
   
   // Filter States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [designationFilter, setDesignationFilter] = useState('all');
-  const [teamFilter, setTeamFilter] = useState('all');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('1'); // Default to "1" (Active)
+  // Filter states — lazy-initialized from URL so that on back-navigation
+  // the values are already correct before any effect runs, preventing a
+  // spurious Render #2 that would call setPage(1).
+  const [searchTerm, setSearchTerm] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('search') || '';
+  });
+  const [designationFilter, setDesignationFilter] = useState(() => {
+    if (typeof window === 'undefined') return 'all';
+    return new URLSearchParams(window.location.search).get('designation') || 'all';
+  });
+  const [teamFilter, setTeamFilter] = useState(() => {
+    if (typeof window === 'undefined') return 'all';
+    return new URLSearchParams(window.location.search).get('team') || 'all';
+  });
+  const [roleFilter, setRoleFilter] = useState(() => {
+    if (typeof window === 'undefined') return 'all';
+    return new URLSearchParams(window.location.search).get('role') || 'all';
+  });
+  const [statusFilter, setStatusFilter] = useState(() => {
+    if (typeof window === 'undefined') return '1';
+    return new URLSearchParams(window.location.search).get('status') || '1';
+  });
 
-  // Pagination States
+  // Pagination States — lazy-initialized from URL so back-navigation restores
+  // the correct page number before any effect runs (same pattern as filters).
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+  });
   const limit = 20;
   const [hasAnimated, setHasAnimated] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -50,10 +72,12 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
   const animCtxRef = useRef<gsap.Context | null>(null);
-  const isFirstRender = useRef(true);
   const isRestoringRef = useRef(true);
 
   // Synchronize on mount ONLY if coming from an agent details page
+  // Synchronize on mount ONLY if coming from an agent details page.
+  // Filters are lazy-initialized from the URL, so only page and cache
+  // restoration are needed here.
   useEffect(() => {
     const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
     sessionStorage.removeItem('coming_from_detail');
@@ -62,18 +86,6 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       if (pageParam) setPage(parseInt(pageParam, 10) || 1);
-
-      // Restore all filter values from URL
-      const search = params.get('search');
-      if (search !== null) setSearchTerm(search);
-      const designation = params.get('designation');
-      if (designation !== null) setDesignationFilter(designation);
-      const team = params.get('team');
-      if (team !== null) setTeamFilter(team);
-      const role = params.get('role');
-      if (role !== null) setRoleFilter(role);
-      const status = params.get('status');
-      if (status !== null) setStatusFilter(status);
 
       // Load cache
       const cacheKey = `cached_agents_${window.location.pathname}${window.location.search}`;
@@ -102,6 +114,8 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
         }
       }
     }
+    // Synchronous is safe: filters are lazy-initialized from URL, so no
+    // filter state changes here — no Render #2 from filter deps to race against.
     isRestoringRef.current = false;
   }, []);
 
@@ -178,13 +192,37 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
   const teams = Array.from(new Set(agents.map(a => a.team?.teamName).filter(Boolean))).sort() as string[];
   const roles = Array.from(new Set(agents.map(a => a.role?.roleName).filter(Boolean))).sort() as string[];
 
+  const prevFiltersRef = useRef({
+    searchTerm,
+    designationFilter,
+    teamFilter,
+    roleFilter,
+    statusFilter,
+  });
+
   // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
     if (isRestoringRef.current) return;
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+
+    // Check if any filter actually changed
+    const changed =
+      prevFiltersRef.current.searchTerm !== searchTerm ||
+      prevFiltersRef.current.designationFilter !== designationFilter ||
+      prevFiltersRef.current.teamFilter !== teamFilter ||
+      prevFiltersRef.current.roleFilter !== roleFilter ||
+      prevFiltersRef.current.statusFilter !== statusFilter;
+
+    // Update the ref
+    prevFiltersRef.current = {
+      searchTerm,
+      designationFilter,
+      teamFilter,
+      roleFilter,
+      statusFilter,
+    };
+
+    if (!changed) return;
+
     setPage(1);
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams();

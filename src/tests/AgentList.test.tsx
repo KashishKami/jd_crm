@@ -67,6 +67,10 @@ describe('AgentList Component Unit Tests', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    // Reset location query parameters to prevent test leakage
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/agents');
+    }
     // Mock window.confirm
     window.confirm = vi.fn().mockReturnValue(true);
     // Mock global fetch
@@ -334,6 +338,10 @@ describe('AgentList Component Unit Tests', () => {
       team: { teamName: 'IT Park' },
       designation: 'Sales Representative',
     }));
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '?page=2');
+    }
 
     render(<AgentList initialAgents={twentyFiveAgents as any} />);
 

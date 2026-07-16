@@ -16,15 +16,23 @@ function VendorListContent() {
   const [vendors, setVendors] = useState<VendorWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<number>(1); // 1 = Active, 0 = Blacklisted
+  const [statusFilter, setStatusFilter] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    const param = new URLSearchParams(window.location.search).get('status');
+    return param !== null ? parseInt(param, 10) : 1; // 1 = Active, 0 = Blacklisted
+  });
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const isCachedRef = useRef(false);
 
-  // Pagination states
+  // Pagination states — lazy-initialized from URL so back-navigation restores
+  // the correct page number before any effect runs (same pattern as filters).
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
@@ -41,10 +49,11 @@ function VendorListContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
   const animCtxRef = useRef<gsap.Context | null>(null);
-  const isFirstRender = useRef(true);
   const isRestoringRef = useRef(true);
 
-  // Synchronize on mount ONLY if coming from a vendor details page
+  // Synchronize on mount ONLY if coming from a vendor details page.
+  // statusFilter is lazy-initialized from the URL, so only page and cache
+  // restoration are needed here.
   useEffect(() => {
     const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
     sessionStorage.removeItem('coming_from_detail');
@@ -53,10 +62,6 @@ function VendorListContent() {
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       if (pageParam) setPage(parseInt(pageParam, 10) || 1);
-
-      // Restore filter values from URL
-      const statusParam = params.get('status');
-      if (statusParam !== null) setStatusFilter(parseInt(statusParam, 10));
 
       // Load cache
       const cacheKey = `cached_vendors_${window.location.pathname}${window.location.search}`;
@@ -87,6 +92,8 @@ function VendorListContent() {
         }
       }
     }
+    // Synchronous is safe: statusFilter is lazy-initialized from URL, so no
+    // filter state changes here — no Render #2 from filter deps to race against.
     isRestoringRef.current = false;
   }, []);
 
@@ -104,13 +111,24 @@ function VendorListContent() {
     }
   }, [searchParams]);
 
+  const prevFiltersRef = useRef({
+    statusFilter,
+  });
+
   // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
     if (isRestoringRef.current) return;
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+
+    // Check if statusFilter actually changed
+    const changed = prevFiltersRef.current.statusFilter !== statusFilter;
+
+    // Update the ref
+    prevFiltersRef.current = {
+      statusFilter,
+    };
+
+    if (!changed) return;
+
     setPage(1);
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams();

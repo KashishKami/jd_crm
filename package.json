@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3080",
     "build": "prisma generate && next build",
+    "build:local": "prisma generate && next build && xcopy /E /I /Y .next\\static .next\\standalone\\.next\\static && xcopy /E /I /Y public .next\\standalone\\public",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

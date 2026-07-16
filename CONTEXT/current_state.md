@@ -5983,7 +5983,7 @@ In this session, we finalized the Phase 24 features and made the following layou
 
 ---
 
-## Session 56 — 2026-07-08 (Performance Optimizations)
+### Session 56 — 2026-07-08 (Performance Optimizations)
 
 **Context:** Application was deployed on Vercel + GoDaddy shared hosting (~30 MySQL workers) and was experiencing severe slowness under concurrent load. The following backend code changes were made to address all identified performance bottlenecks. **No schema changes. No API contract changes. No test changes.** All 300 tests should continue to pass.
 
@@ -6041,7 +6041,7 @@ In this session, we finalized the Phase 24 features and made the following layou
 
 
 
-## Session 59 — July 9, 2026 (Phase 26.6 Completion)
+### Session 59 — July 9, 2026 (Phase 26.6 Completion)
 - **Database & Domain Constraint:** Successfully migrated `saleStatus` to a parent-only global field, ensuring child rows store `null` while inheriting constraint operations like order workflow queue cascades (`Returned Orders` / `Cancelled Orders`).
 - **UI Harmonization:** Form designs in `AddOrderForm.tsx` and `EditOrderForm.tsx` match the six-section layout with responsive collapsible/expandable card behaviors. Combined Deal Pricing summary fields are fully verified. All Vitest tests are green.
 
@@ -6411,3 +6411,18 @@ outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (lik
     - Animation jitter (double-animation effect) and restoration corruption in dev mode are caused by React 18 StrictMode's intentional double-invoke of effects. coming_from_detail is consumed and removed on the first invoke, so the second invoke falls into the else branch and clears sessionStorage cache/scroll, corrupting the restoration flow. These are **dev-only artifacts** and do not occur in production builds.
     - Confirmed all fixes work correctly in the production build (pm run build + ode .next/standalone/server.js).
   - **OrderListContainer Filter URL Inconsistency Fix**: The restoration useEffect was defined after the filter-change useEffect in the file. React fires effects in definition order, so on fresh navigation the filter-change fired first (skipped by isRestoringRef), the restoration fired second with no state changes, and isFirstRender was never consumed — causing the first user-initiated filter change to be silently dropped and the URL to not update. Fixed by moving the restoration effect to be defined before the filter-change effect, matching the pattern already used in AgentList.tsx.
+ 
+
+### Session 83 - July 16, 2026
+  **Standalone Production Assets Copy, Back-Navigation Page Reset Fix, and Test Pollution Fix**
+  - **Standalone Production Build Fix**:
+    - Resolved blank page crashes for dynamic SSR pages like `/orders` and `/agents` in the standalone build by copying `.next/static` and `public/` assets to `.next/standalone/`.
+    - Added a `build:local` helper script in `package.json` to automate this local asset copy for Windows environments while keeping the production Dockerfile-compliant build script intact.
+  - **Back-Navigation Page Reset Fix**:
+    - Converted the `page` state in `OrderListContainer.tsx`, `VendorList.tsx`, and `AgentList.tsx` to be **lazy-initialized** from the URL search parameters (`useState(() => ...)`), matching the filter state initialization.
+    - Introduced a `prevFiltersRef` in all three components to track filter changes and only trigger `setPage(1)` (and URL updates) when a filter's value has *actually changed* compared to its previous state. This prevents mount-time/restoration-time execution from triggering a spurious reset to page 1.
+  - **Test Pollution & Mock Alignments**:
+    - Cleared test pollution by resetting `window.location.search` via `window.history.replaceState` in `beforeEach` of `AgentList.test.tsx`.
+    - Explicitly set `window.location.search` to `?page=2` in the pagination mount test to match the mocked search parameters, ensuring the lazy state initializer correctly reads page 2.
+    - Verified all 9 unit tests in `AgentList.test.tsx` pass successfully.
+

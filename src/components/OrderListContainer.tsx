@@ -24,26 +24,55 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const [error, setError] = useState<string | null>(null);
   const isCachedRef = useRef(false);
 
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatus || '');
-  const [saleStatusFilter, setSaleStatusFilter] = useState<string>('');
-  const [agentFilter, setAgentFilter] = useState<string>('');
+  // Filter states — lazy-initialized from URL so that on back-navigation
+  // the values are already correct before any effect runs, preventing a
+  // spurious Render #2 that would call setPage(1).
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return initialStatus || '';
+    return new URLSearchParams(window.location.search).get('status') || initialStatus || '';
+  });
+  const [saleStatusFilter, setSaleStatusFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('saleStatus') || '';
+  });
+  const [agentFilter, setAgentFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('agentId') || '';
+  });
   const [teams, setTeams] = useState<any[]>(initialTeams || []);
-  const [teamFilter, setTeamFilter] = useState<string>('');
-  const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>('');
-  const [partFoundByFilter, setPartFoundByFilter] = useState<string>('');
+  const [teamFilter, setTeamFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('teamId') || '';
+  });
+  const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('backendExecutiveId') || '';
+  });
+  const [partFoundByFilter, setPartFoundByFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('partFoundById') || '';
+  });
   const [pendingCounts, setPendingCounts] = useState<Record<string, { amount: number; count: number }>>({});
-  const [dateFrom, setDateFrom] = useState<string>('');
-  const [dateTo, setDateTo] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('dateFrom') || '';
+  });
+  const [dateTo, setDateTo] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('dateTo') || '';
+  });
 
-  // Pagination states
-  const [page, setPage] = useState(1);
+  // Pagination states — lazy-initialized from URL so back-navigation restores
+  // the correct page number before any effect runs (same pattern as filters).
+  const [page, setPage] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const isFirstRender = useRef(true);
   const isRestoringRef = useRef(true);
 
   const permissions = session?.user?.userPermissions || '';
@@ -60,11 +89,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   }, [searchParams]);
 
   // Synchronize on mount ONLY if coming from an order details page.
-  // coming_from_detail is set by DetailPageMarker when the detail page mounts,
-  // so it is reliably present before the user navigates back.
-  // IMPORTANT: This must be defined BEFORE the filter-change effect so that
-  // React fires it first on mount, setting isRestoringRef=false before
-  // the filter-change effect runs and consumes isFirstRender correctly.
+  // Filters are lazy-initialized from the URL, so only page and cache
+  // restoration are needed here. The filter-change effect is blocked by
+  // isRestoringRef until this effect completes, ensuring no spurious setPage(1).
   useEffect(() => {
     const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
     sessionStorage.removeItem('coming_from_detail');
@@ -73,30 +100,6 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       if (pageParam) setPage(parseInt(pageParam, 10) || 1);
-
-      const statusParam = params.get('status');
-      if (statusParam !== null) setStatusFilter(statusParam);
-
-      const saleStatusParam = params.get('saleStatus');
-      if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
-
-      const agentParam = params.get('agentId');
-      if (agentParam !== null) setAgentFilter(agentParam);
-
-      const teamParam = params.get('teamId');
-      if (teamParam !== null) setTeamFilter(teamParam);
-
-      const backendParam = params.get('backendExecutiveId');
-      if (backendParam !== null) setBackendExecutiveFilter(backendParam);
-
-      const partFoundParam = params.get('partFoundById');
-      if (partFoundParam !== null) setPartFoundByFilter(partFoundParam);
-
-      const fromParam = params.get('dateFrom');
-      if (fromParam !== null) setDateFrom(fromParam);
-
-      const toParam = params.get('dateTo');
-      if (toParam !== null) setDateTo(toParam);
 
       // Load cache
       const cacheKey = `cached_orders_${window.location.pathname}${window.location.search}`;
@@ -120,16 +123,52 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
         }
       }
     }
+    // Synchronous is safe: since filters are lazy-initialized from the URL,
+    // the restoration effect does NOT change any filter state — no Render #2
+    // from filter dep changes, so no race condition to protect against.
     isRestoringRef.current = false;
   }, []);
+
+  const prevFiltersRef = useRef({
+    statusFilter,
+    saleStatusFilter,
+    agentFilter,
+    teamFilter,
+    backendExecutiveFilter,
+    partFoundByFilter,
+    dateFrom,
+    dateTo,
+  });
 
   // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
     if (isRestoringRef.current) return;
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+
+    // Check if any filter actually changed
+    const changed =
+      prevFiltersRef.current.statusFilter !== statusFilter ||
+      prevFiltersRef.current.saleStatusFilter !== saleStatusFilter ||
+      prevFiltersRef.current.agentFilter !== agentFilter ||
+      prevFiltersRef.current.teamFilter !== teamFilter ||
+      prevFiltersRef.current.backendExecutiveFilter !== backendExecutiveFilter ||
+      prevFiltersRef.current.partFoundByFilter !== partFoundByFilter ||
+      prevFiltersRef.current.dateFrom !== dateFrom ||
+      prevFiltersRef.current.dateTo !== dateTo;
+
+    // Update the ref to the current values
+    prevFiltersRef.current = {
+      statusFilter,
+      saleStatusFilter,
+      agentFilter,
+      teamFilter,
+      backendExecutiveFilter,
+      partFoundByFilter,
+      dateFrom,
+      dateTo,
+    };
+
+    if (!changed) return;
+
     setPage(1);
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams();
