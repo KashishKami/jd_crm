@@ -55,6 +55,22 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
 
       vi.restoreAllMocks();
     });
+
+    it('should correctly calculate days label when followUpDate is a JS Date object in western timezone without shifting day', () => {
+      // Mock "now" to be 2026-07-16T20:00:00Z (July 16 at 11am in Anchorage)
+      const mockNow = DateTime.fromISO('2026-07-16T20:00:00Z');
+      vi.spyOn(DateTime, 'now').mockReturnValue(mockNow as any);
+
+      const tz = 'America/Anchorage';
+
+      // Prisma Date object representing midnight UTC on July 17:
+      const dateObj = new Date('2026-07-17T00:00:00.000Z');
+      
+      expect(computeDaysLabel(dateObj, '17:00', tz)).toBe('Tomorrow');
+      expect(computeDaysLabel('2026-07-17', '17:00', tz)).toBe('Tomorrow');
+
+      vi.restoreAllMocks();
+    });
   });
 
   describe('getAllFollowUps filter scoping', () => {

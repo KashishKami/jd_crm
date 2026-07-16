@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { DateTime } from 'luxon';
 import { hasPermission } from '../service/permission.service';
 import FollowUpNotesPopup from './FollowUpNotesPopup';
+import { formatPhoneNumber } from '../lib/formatPhone';
 
 interface FollowUpListProps {
   followUps: any[];
@@ -31,13 +32,6 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
     }
   };
 
-  const formatCallbackTime = (dateStr: string, timeStr: string, tz: string): string => {
-    const pureDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    const dt = DateTime.fromISO(`${pureDate}T${timeStr}`, { zone: tz });
-    if (!dt.isValid) return `${dateStr} · ${timeStr}`;
-    return `${dt.toFormat('LLL d, yyyy · h:mm a')} ${dt.offsetNameShort}`;
-  };
-
   const getDaysLabelBadgeClass = (label: string): string => {
     if (label?.startsWith('Due by')) {
       return 'status-dot-badge badge-overdue';
@@ -56,21 +50,6 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
     const dt = typeof dateStr === 'string' ? DateTime.fromISO(dateStr) : DateTime.fromJSDate(dateStr);
     if (!dt.isValid) return '—';
     return dt.toRelative() || '—';
-  };
-
-  const formatQuotedOptions = (options: string | null): React.ReactNode => {
-    if (!options) return '—';
-    return (
-      <div 
-        style={{ 
-          whiteSpace: 'pre-line', 
-          fontSize: '0.74rem', 
-          lineHeight: '1.3',
-        }}
-      >
-        {options}
-      </div>
-    );
   };
 
   const handleDelete = async (id: number) => {
@@ -93,21 +72,20 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
             <thead>
               <tr>
                 <th>Follow-Up Date & Time</th>
-                <th>Customer</th>
-                <th>Phone</th>
+                <th>Customer Information</th>
+                <th>Location</th>
                 <th>Part Required</th>
-                <th>Quoted Options</th>
                 {canViewAll && <th>Agent</th>}
                 <th>Priority</th>
                 <th>Status</th>
                 <th>Last Contact</th>
-                <th className="actions-cell">Actions</th>
+                <th className="actions-cell" style={{ textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {followUps.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewAll ? 10 : 9} className="text-center text-slate-400 py-8">
+                  <td colSpan={canViewAll ? 9 : 8} className="text-center text-slate-400 py-8">
                     No follow-ups found.
                   </td>
                 </tr>
@@ -115,27 +93,53 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                 followUps.map((f) => (
                   <tr key={f.followUpId}>
                     <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span className="font-medium" style={{ color: 'var(--text-main)' }}>
-                          {formatCallbackTime(f.followUpDate, f.followUpTime, f.customerTimezone)}
-                        </span>
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textAlign: 'center' }}>
                         <div>
                           <span className={getDaysLabelBadgeClass(f.daysLabel)}>
                             {f.daysLabel}
                           </span>
                         </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            const pureDate = f.followUpDate.includes('T') ? f.followUpDate.split('T')[0] : f.followUpDate;
+                            const dt = DateTime.fromISO(`${pureDate}T${f.followUpTime}`, { zone: f.customerTimezone });
+                            if (!dt.isValid) {
+                              return (
+                                <>
+                                  <span className="font-medium" style={{ color: 'var(--text-main)' }}>{f.followUpTime}</span>
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{f.followUpDate}</span>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <span className="font-medium" style={{ color: 'var(--text-main)' }}>
+                                  {dt.toFormat('h:mm a')}
+                                </span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                  {dt.toFormat('LLL d, yyyy')}
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </td>
                     <td>
                       <div>
-                        <div className="font-medium" style={{ color: 'var(--text-main)' }}>{f.customerName}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {f.customerState}, {f.customerCountry}
+                        <div className="font-bold" style={{ color: 'var(--text-main)' }}>{f.customerName}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {f.customerPhone ? formatPhoneNumber(f.customerPhone) : '—'}
                         </div>
                       </div>
                     </td>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--text-main)' }}>
-                      {f.customerPhone || '—'}
+                    <td>
+                      <div>
+                        <div className="font-medium" style={{ color: 'var(--text-main)' }}>{f.customerState || '—'}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {f.customerCountry || '—'}
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <div>
@@ -144,9 +148,6 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                           {f.vehicleYearMakeModel}
                         </div>
                       </div>
-                    </td>
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {formatQuotedOptions(f.quotedOptions)}
                     </td>
                     {canViewAll && (
                       <td className="font-medium" style={{ color: 'var(--text-main)' }}>
@@ -194,6 +195,13 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                             }}
                           >
                             Details
+                          </Link>
+                          <Link
+                            href={`/follow-ups/${f.followUpId}/edit`}
+                            className="action-link-btn edit"
+                            style={{ fontSize: '0.72rem', fontWeight: 600 }}
+                          >
+                            Edit
                           </Link>
                         </div>
                       </div>

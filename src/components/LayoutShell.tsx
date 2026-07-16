@@ -6,6 +6,7 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { fadeInPage } from '../lib/animations';
 import { useLenis } from './LenisProvider';
+import GlobalFollowUpNotifications from './GlobalFollowUpNotifications';
 
 interface LayoutShellProps {
   children: React.ReactNode;
@@ -62,6 +63,7 @@ export default function LayoutShell({ children }: LayoutShellProps) {
       <main ref={mainRef} className={mainClassName} style={{ position: 'relative' }}>
         {children}
       </main>
+      {pathname !== '/follow-ups' && <GlobalFollowUpNotifications />}
     </div>
   );
 }

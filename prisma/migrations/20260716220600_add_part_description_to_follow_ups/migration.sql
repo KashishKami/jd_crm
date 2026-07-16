@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `crm_follow_ups` ADD COLUMN `part_description` TEXT NULL;

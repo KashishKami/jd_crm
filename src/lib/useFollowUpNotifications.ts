@@ -12,7 +12,7 @@ export interface ToastNotification {
 
 export function useFollowUpNotifications() {
   const [activeNotifications, setActiveNotifications] = useState<ToastNotification[]>([]);
-  const shownIdsRef = useRef<Set<number>>(new Set());
+  const shownIdsRef = useRef<Set<string>>(new Set());
 
   const pollDueFollowUps = useCallback(async () => {
     try {
@@ -25,10 +25,11 @@ export function useFollowUpNotifications() {
 
         dueRecords.forEach((record) => {
           const id = record.followUpId;
+          const key = `${id}-${record.followUpDate}-${record.followUpTime}`;
           // Skip if already shown/dismissed in the current tab session
-          if (shownIdsRef.current.has(id)) return;
+          if (shownIdsRef.current.has(key)) return;
 
-          shownIdsRef.current.add(id);
+          shownIdsRef.current.add(key);
 
           const toast: ToastNotification = {
             followUpId: id,
@@ -42,9 +43,13 @@ export function useFollowUpNotifications() {
 
           // Fire OS Notification if permitted
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification('Follow-Up Due', {
+            const n = new Notification('Follow-Up Due', {
               body: `${record.customerName} — ${record.partRequired}`,
             });
+            n.onclick = () => {
+              window.focus();
+              window.location.href = `/follow-ups/${record.followUpId}`;
+            };
           }
         });
 

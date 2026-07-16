@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import FollowUpList from './FollowUpList';
-import { useFollowUpNotifications } from '../lib/useFollowUpNotifications';
+import GlobalFollowUpNotifications from './GlobalFollowUpNotifications';
 
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
 
@@ -34,7 +34,6 @@ interface FollowUpListContainerProps {
 function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpListContainerProps) {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
-  const { activeNotifications, dismissNotification } = useFollowUpNotifications();
 
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +68,20 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('agentId') || '';
   });
+
+  // Search states
+  const [searchVal, setSearchVal] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('search') || '';
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState(searchVal);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchVal);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchVal]);
 
   // Pagination
   const [page, setPage] = useState(() => {
@@ -137,6 +150,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     dateTo,
     teamFilter,
     agentFilter,
+    search: debouncedSearch,
   });
 
   // URL synchronizer: writes active filters into search params, sets page = 1 on filter change
@@ -149,7 +163,8 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       prevFiltersRef.current.dateFrom !== dateFrom ||
       prevFiltersRef.current.dateTo !== dateTo ||
       prevFiltersRef.current.teamFilter !== teamFilter ||
-      prevFiltersRef.current.agentFilter !== agentFilter;
+      prevFiltersRef.current.agentFilter !== agentFilter ||
+      prevFiltersRef.current.search !== debouncedSearch;
 
     prevFiltersRef.current = {
       priorityFilter,
@@ -158,6 +173,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       dateTo,
       teamFilter,
       agentFilter,
+      search: debouncedSearch,
     };
 
     if (!changed) return;
@@ -172,11 +188,12 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       if (dateTo) params.set('followUpDateTo', dateTo);
       if (teamFilter) params.set('teamId', teamFilter);
       if (agentFilter) params.set('agentId', agentFilter);
+      if (debouncedSearch) params.set('search', debouncedSearch);
 
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', newUrl);
     }
-  }, [priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter]);
+  }, [priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter, debouncedSearch]);
 
   // Save scroll position on scroll
   useEffect(() => {
@@ -222,6 +239,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     const toParam = searchParams.get('followUpDateTo');
     const teamParam = searchParams.get('teamId');
     const agentParam = searchParams.get('agentId');
+    const searchParam = searchParams.get('search');
 
     if (priorityParam !== null) setPriorityFilter(priorityParam);
     if (statusParam !== null) setStatusFilter(statusParam);
@@ -229,6 +247,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     if (toParam !== null) setDateTo(toParam);
     if (teamParam !== null) setTeamFilter(teamParam);
     if (agentParam !== null) setAgentFilter(agentParam);
+    if (searchParam !== null) setSearchVal(searchParam);
   }, [searchParams]);
 
   // Clear team/agent selection if view all is lacking
@@ -290,6 +309,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     if (statusFilter) queryParams.set('status', statusFilter);
     if (dateFrom) queryParams.set('followUpDateFrom', dateFrom);
     if (dateTo) queryParams.set('followUpDateTo', dateTo);
+    if (debouncedSearch) queryParams.set('search', debouncedSearch);
     if (canViewAll) {
       if (teamFilter) queryParams.set('teamId', teamFilter);
       if (agentFilter) queryParams.set('agentId', agentFilter);
@@ -318,7 +338,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   useEffect(() => {
     fetchFollowUps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, page, priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter]);
+  }, [status, page, priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter, debouncedSearch]);
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
@@ -356,47 +376,30 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
   return (
     <div className="agents-page-container">
-      {/* Toast notifications container */}
-      {activeNotifications.length > 0 && (
-        <div className="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full">
-          {activeNotifications.map((notif) => (
-            <div
-              key={notif.followUpId}
-              className="bg-white border-l-4 border-amber-500 rounded-lg shadow-xl p-4 flex justify-between items-start gap-4 transition-all"
-            >
-              <div className="flex-1">
-                <h4 className="font-bold text-slate-800 text-sm">Follow-up Call Back Due!</h4>
-                <p className="text-xs text-slate-600 mt-1">
-                  <strong>{notif.customerName}</strong> is waiting for a call.
-                </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Part: {notif.partRequired} | Scheduled: {notif.followUpTime}
-                </p>
-              </div>
-              <button
-                onClick={() => dismissNotification(notif.followUpId)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-sm px-1.5 py-0.5 rounded hover:bg-slate-50"
-              >
-                Dismiss
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Header and Add button */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Follow Up Callbacks</h1>
+          <h1 className="page-title">Follow Ups</h1>
           <p className="page-subtitle">
-            Manage scheduled prospects, callback timezones, and options.
+            Manage scheduled prospects, follow-up timezones, and options.
           </p>
         </div>
-        {canCreate && (
-          <Link href="/follow-ups/new" className="btn-primary-custom">
-            Add Follow-ups
-          </Link>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <input
+            type="text"
+            placeholder="Search by customer name or phone..."
+            value={searchVal}
+            onChange={(e) => setSearchVal(e.target.value)}
+            className="filter-select-custom"
+            style={{ width: '260px', height: '38px', padding: '0 12px' }}
+          />
+          {canCreate && (
+            <Link href="/follow-ups/new" className="btn-primary-custom">
+              Add Follow-ups
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Advanced Filters Block */}
@@ -520,7 +523,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
       {loading ? (
         <div className="text-center p-8">
-          <p className="text-slate-400">Loading callbacks...</p>
+          <p className="text-slate-400">Loading follow-ups...</p>
         </div>
       ) : (
         <>
@@ -541,7 +544,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
                 Previous
               </button>
               <div className="pagination-info" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems} callbacks)
+                Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems} follow-ups)
               </div>
               <button
                 onClick={() => handlePageChange(page + 1)}
@@ -554,6 +557,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
           )}
         </>
       )}
+      <GlobalFollowUpNotifications />
     </div>
   );
 }
@@ -562,7 +566,7 @@ export default function FollowUpListContainer({ initialAgents, initialTeams }: F
   return (
     <Suspense fallback={
       <div className="text-center p-8">
-        <p className="text-slate-400">Loading callbacks container...</p>
+        <p className="text-slate-400">Loading follow-ups container...</p>
       </div>
     }>
       <FollowUpListContainerContent initialAgents={initialAgents} initialTeams={initialTeams} />

@@ -19,6 +19,7 @@ export interface FollowUpCreateInput {
   customerTimezone: string;
   vehicleYearMakeModel: string;
   partRequired: string;
+  partDescription?: string | null;
   quotedOptions?: string | null;
   followUpDate: Date | string;
   followUpTime: string;
@@ -36,6 +37,7 @@ export interface FollowUpUpdateInput {
   customerTimezone?: string;
   vehicleYearMakeModel?: string;
   partRequired?: string;
+  partDescription?: string | null;
   quotedOptions?: string | null;
   followUpDate?: Date | string;
   followUpTime?: string;
@@ -54,6 +56,7 @@ export interface FollowUpFilters {
   status?: string;
   followUpDateFrom?: string;
   followUpDateTo?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }

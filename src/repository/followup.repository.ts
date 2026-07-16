@@ -24,6 +24,7 @@ export async function create(data: FollowUpCreateInput): Promise<CrmFollowUps> {
       customerTimezone: data.customerTimezone,
       vehicleYearMakeModel: data.vehicleYearMakeModel,
       partRequired: data.partRequired,
+      partDescription: data.partDescription ?? null,
       quotedOptions: data.quotedOptions ?? null,
       followUpDate,
       followUpTime: data.followUpTime,
@@ -91,6 +92,13 @@ export async function findAll(filters: FollowUpFilters): Promise<FollowUpListRes
     }
   }
 
+  if (filters.search) {
+    where.OR = [
+      { customerName: { contains: filters.search } },
+      { customerPhone: { contains: filters.search } },
+    ];
+  }
+
   const [followUps, total] = await Promise.all([
     prisma.crmFollowUps.findMany({
       where,
@@ -124,6 +132,10 @@ export async function update(id: number, data: FollowUpUpdateInput): Promise<Crm
     updateData.followUpDate = new Date(data.followUpDate);
   }
 
+  if ('followUpDate' in data || 'followUpTime' in data) {
+    updateData.notificationSentAt = null;
+  }
+
   return prisma.crmFollowUps.update({
     where: {
       followUpId: id,
@@ -147,7 +159,7 @@ export async function findDueForNotification(): Promise<CrmFollowUps[]> {
   // Query for records where notification_sent_at is null and CONVERT_TZ(CONCAT(date, ' ', time, ':00'), customer_timezone, 'UTC')
   // is between UTC_TIMESTAMP() and DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
   // Let's use prisma.$queryRaw to fetch
-  return prisma.$queryRaw<CrmFollowUps[]>`
+  const rows = await prisma.$queryRaw<any[]>`
     SELECT * 
     FROM crm_follow_ups 
     WHERE notification_sent_at IS NULL 
@@ -162,6 +174,32 @@ export async function findDueForNotification(): Promise<CrmFollowUps[]> {
         'UTC'
       ) BETWEEN UTC_TIMESTAMP() AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
   `;
+
+  return rows.map((r) => ({
+    followUpId:           r.follow_up_id,
+    agentId:              r.agent_id,
+    agentName:            r.agent_name,
+    customerName:         r.customer_name,
+    customerPhone:        r.customer_phone,
+    customerState:        r.customer_state,
+    customerCountry:      r.customer_country,
+    customerTimezone:     r.customer_timezone,
+    vehicleYearMakeModel: r.vehicle_year_make_model,
+    partRequired:         r.part_required,
+    partDescription:      r.part_description,
+    quotedOptions:        r.quoted_options,
+    followUpDate:         r.follow_up_date,
+    followUpTime:         r.follow_up_time,
+    followUpReason:       r.follow_up_reason,
+    status:               r.status,
+    priority:             r.priority,
+    notes:                r.notes,
+    entryDate:            r.entry_date,
+    lastContact:          r.last_contact,
+    notificationSentAt:   r.notification_sent_at,
+    createdAt:            r.created_at,
+    updatedAt:            r.updated_at,
+  })) as CrmFollowUps[];
 }
 
 export async function markNotificationSent(id: number): Promise<CrmFollowUps> {

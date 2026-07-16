@@ -271,4 +271,84 @@ describe('Follow-Up API Endpoints (W-3106 & W-3107)', () => {
   });
 });
 
+describe('Follow-Ups Search (W-3154)', () => {
+  let testAgentId: number;
+
+  beforeAll(async () => {
+    const agent = await prisma.users.findFirst({
+      where: { roleId: 8 }
+    });
+    testAgentId = agent!.uid;
+
+    // Seed some distinct search targets
+    await prisma.crmFollowUps.createMany({
+      data: [
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'UniqueSearchNameApple',
+          customerPhone: '111-222-3333',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Toyota Camry',
+          partRequired: 'Engine',
+          followUpDate: new Date('2026-09-01'),
+          followUpTime: '14:00',
+          followUpReason: 'Reason 1',
+          status: 'Interested',
+          priority: 'High',
+        },
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'UniqueSearchNameBanana',
+          customerPhone: '444-555-6666',
+          customerState: 'Texas',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Chicago',
+          vehicleYearMakeModel: '2020 Toyota Camry',
+          partRequired: 'Engine',
+          followUpDate: new Date('2026-09-01'),
+          followUpTime: '14:00',
+          followUpReason: 'Reason 2',
+          status: 'Interested',
+          priority: 'High',
+        }
+      ]
+    });
+  });
+
+  it('should filter by customerName via search query param', async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce({
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+    });
+
+    // @ts-ignore
+    const { GET } = await import('../app/api/follow-ups/route');
+    const req = new Request('http://localhost/api/follow-ups?search=Apple');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.followUps.length).toBe(1);
+    expect(data.followUps[0].customerName).toBe('UniqueSearchNameApple');
+  });
+
+  it('should filter by customerPhone via search query param', async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce({
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+    });
+
+    // @ts-ignore
+    const { GET } = await import('../app/api/follow-ups/route');
+    const req = new Request('http://localhost/api/follow-ups?search=444-555');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.followUps.length).toBe(1);
+    expect(data.followUps[0].customerName).toBe('UniqueSearchNameBanana');
+  });
+});
+
+
 

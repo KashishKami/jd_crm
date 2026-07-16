@@ -46,6 +46,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 29** | Dashboard Enhancement — Sales Performer Redesign & Backend Team Performance Widget | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/types/dashboard.ts`, `src/components/dashboard/PerformersTable.tsx`, `src/components/dashboard/ChampionsLeagueWidget.tsx`, `src/components/dashboard/BackendTeamWidget.tsx` (new), `src/app/api/dashboard/champions-league/route.ts`, `src/app/api/dashboard/backend-team/route.ts` (new), dashboard server page, `scripts/sql/add-backend-permissions.sql` (new), `seed.sql` |
 | **Phase 30** | SSR Pre-fetch Waterfall Elimination — Orders, Agents, Customers & Gateways List Pages | **[x] COMPLETED** | `src/app/orders/page.tsx`, `src/app/agents/page.tsx`, `src/app/customers/page.tsx`, `src/app/gateways/page.tsx`, `src/components/OrderListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/CustomerList.tsx`, `src/components/GatewayList.tsx`, `src/tests/orders.test.ts`, `src/tests/agents.test.ts` |
 | **Phase 31** | Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/lib/geography.ts`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/app/api/follow-ups/due/route.ts`, `src/middleware.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/page.tsx`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/layout.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/geography.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts` |
+| **Phase 31.5** | Follow-Ups: Bug Fix (computeDaysLabel), UI Overhaul (columns, search, detail layout, Georgia font, EST timestamps, Callback→Follow Up rename), Part Description Field | **[x] COMPLETED** | `src/lib/formatPhone.ts` (new), `src/lib/useFollowUpNotifications.ts`, `src/service/followup.service.ts`, `src/repository/followup.repository.ts`, `src/types/followup.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/[id]/page.tsx`, `prisma/schema.prisma`, 1 migration, `src/tests/followup.service.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/followups.test.ts` |
 
 ---
 
@@ -5971,6 +5972,7 @@ Create a client-side hook `src/lib/useFollowUpNotifications.ts` (a custom React 
 - [x] `npm run typecheck` → 0 errors
 - [x] **Phase 31 COMPLETE** → Update progress table to `[x] COMPLETED`
 
+
 ---
 
 ## 3. Session Notes
@@ -7072,5 +7074,443 @@ outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (lik
     - Solved a multiple-elements match error in `AddFollowUpForm.test.tsx` by updating the submit button selector to use `getAllByText()[0]`.
     - Verified all linter checks, TypeScript checks, and Vitest test suites compile and pass successfully.
 
+
+
+
+
+---
+
+## Phase 31.5 — Follow-Ups Module: Bug Fixes, UI Overhaul, and Part Description Field
+
+**Status:** `[x] COMPLETED`
+
+**Prerequisite:** Phase 31 is COMPLETE. This phase adds 11 targeted changes to the existing follow-ups module: one bug fix (daysLabel computation), one database addition (part_description field), and nine UI/UX improvements.
+
+---
+
+### What Changed vs. the Original Plan
+
+| # | Change | Type |
+|---|--------|------|
+| 1 | Fix `computeDaysLabel` bug — wrong date extracted from Prisma Date object causes incorrect "Today" label | Bug Fix |
+| 2 | Phone number auto-format as-you-type in Add/Edit forms and formatted display in the list and detail page | UI |
+| 3 | List: Merge Name + Phone into "Customer Information" column; add "Location" column; remove "Quoted Options" column | UI |
+| 4 | List: Reformat Follow-Up Date/Time display — time on top, date below, no timezone suffix | UI |
+| 5 | List: Add search field (left of "Add Follow-up" button) filtering by customer name or phone | Feature |
+| 6 | Detail page: Remove "Customer Timezone" row; apply Georgia font to all detail content | UI |
+| 7 | Detail page: Merge "Classification" + "Follow-Up Schedule" sidebar cards into one; move "Notes or Remarks" card to top | UI |
+| 8 | Detail page + forms: Add partDescription textarea field ("Description of the Part") to Add, Edit, and Details pages | Feature |
+| 9 | Database: Add part_description TEXT NULL column to crm_follow_ups table | Schema |
+| 10 | All pages: Rename all UI label occurrences of "Callback" to "Follow Up" / "Follow Ups" | Rename |
+| 11 | All datetime displays (entryDate, lastContact) on detail page: show in EST (America/New_York) timezone | UI |
+| 12 | Toast notification: fix position (bottom-right), fix undefined body (snake_case mapping), add "Show Details" navigation button in both in-app txast and OS notification | Bug Fix + UI |
+
+---
+
+#### W-3151 — Bug Fix: computeDaysLabel Extracts Wrong Date from Prisma Date Object
+
+**Root cause:**
+`computeDaysLabel` in `src/service/followup.service.ts` has a timezone-conversion bug in its first branch. When `followUpDate instanceof Date` (which is always the case because Prisma deserializes MySQL `@db.Date` columns as JS Date objects set to UTC midnight), the function calls:
+
+```ts
+dateStr = DateTime.fromJSDate(followUpDate).setZone(customerTimezone).toFormat('yyyy-MM-dd');
+```
+
+A `@db.Date` value of `2026-07-17` is returned by Prisma as `2026-07-17T00:00:00.000Z` (UTC midnight). When `.setZone('America/Anchorage')` (UTC-9) is applied to UTC midnight, it becomes `2026-07-16T15:00:00-09:00` — the previous calendar day. The `toFormat('yyyy-MM-dd')` extracts `2026-07-16`, so `delta = 0` and the label incorrectly reads "Today" even though the follow-up is scheduled for tomorrow in the customer's timezone.
+
+The `else` branch already handles this correctly by doing `followUpDate.split('T')[0]` on a plain string value, extracting the literal stored date without timezone conversion. The fix: apply the same logic to the Date branch. Extract the UTC date string (`toISOString().split('T')[0]`), which is the timezone-naive intended date.
+
+Additionally, the notification hook `src/lib/useFollowUpNotifications.ts` performs client-side date comparisons. If it uses the browser's local `Date.now()`, a user in India (UTC+5:30) will see July 17 locally when Alaska is still July 16, causing premature notification firing. The hook must compare the follow-up datetime against the current instant in the customer's timezone using Luxon: construct `DateTime.fromISO(followUpDateT+followUpTime, { zone: customerTimezone })` and compare against `DateTime.now()` (which is always the current UTC instant regardless of local browser timezone).
+
+**Fix / Approach:**
+1. In `computeDaysLabel`, change the `instanceof Date` branch:
+   - BEFORE: `dateStr = DateTime.fromJSDate(followUpDate).setZone(customerTimezone).toFormat('yyyy-MM-dd');`
+   - AFTER: `dateStr = followUpDate.toISOString().split('T')[0];`
+2. In `useFollowUpNotifications.ts`: replace any `new Date()` / `Date.now()` comparisons for due-check with Luxon: `DateTime.fromISO(record.followUpDate + 'T' + record.followUpTime, { zone: record.customerTimezone }) <= DateTime.now()`.
+
+---
+
+- [x] **RED — Unit (`followup.service.test.ts`):**
+  - [x] Test: Call `computeDaysLabel` with `followUpDate = new Date('2026-07-17T00:00:00.000Z')` (a JS Date, as Prisma returns), `followUpTime = '17:00'`, `customerTimezone = 'America/Anchorage'`. Mock `DateTime.now()` to `2026-07-16T20:00:00Z` (= July 16 at 11am Alaska). Assert result is `'Tomorrow'`, NOT `'Today'`.
+  - [x] Test: Same inputs but `followUpDate = '2026-07-17'` (string). Assert result is also `'Tomorrow'` — confirming both branches behave identically.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Service):**
+  - [x] [Service] In `src/service/followup.service.ts`, in `computeDaysLabel`, replace the body of the `if (followUpDate instanceof Date)` branch with `dateStr = followUpDate.toISOString().split('T')[0];`
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **RED — Unit (`useFollowUpNotifications.test.ts`):**
+  - [x] Test: Mock `Date.now()` to simulate a browser in India (IST, UTC+5:30) at `2026-07-17T02:00:00+05:30` (= `2026-07-16T20:30:00Z`). A follow-up with `followUpDate = '2026-07-16'`, `followUpTime = '12:00'`, `customerTimezone = 'America/Anchorage'` should trigger a toast (in Alaska it is `12:30pm July 16` = past the 12:00 scheduled time).
+  - [x] Test: Same browser time. A follow-up with `followUpDate = '2026-07-17'`, `followUpTime = '09:00'`, `customerTimezone = 'America/Anchorage'` should NOT trigger a toast yet (in Alaska it is still July 16, and the follow-up is on July 17 Alaska).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Notification Hook):**
+  - [x] [Hook] In `src/lib/useFollowUpNotifications.ts`, replace any due-check using `new Date()` with: `DateTime.fromISO(record.followUpDate + 'T' + record.followUpTime, { zone: record.customerTimezone }) <= DateTime.now()`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Follow-up scheduled July 17, Alaska. User opens the page from India (where local time is already July 17). The list shows "Tomorrow" for that record, not "Today." At 9:00 AM Alaska time on July 17, the notification fires. → Done.
+
+---
+
+#### W-3152 — Phone Number Auto-Format as-you-type (Forms) and Formatted Display (List + Detail)
+
+**Root cause / Goal:**
+Phone fields in Add/Edit forms accept free-text input with no formatting. `AddOrderForm.tsx` already has a working `formatPhoneNumber` helper (lines 45-50) producing `xxx-xxx-xxxx` in real-time. Follow-up forms do not use it. The list and detail page also display raw unformatted phone numbers.
+
+**Fix / Approach:**
+1. Create `src/lib/formatPhone.ts` exporting `formatPhoneNumber`.
+2. Wire it to the `customerPhone` onChange handler in both Add and Edit forms (real-time, every keystroke).
+3. Import and apply it in `FollowUpList.tsx` and `src/app/follow-ups/[id]/page.tsx` for display.
+
+---
+
+- [x] **RED — Unit (`AddFollowUpForm.test.tsx`):**
+  - [x] Test: Type `5551234567` into the phone input. Assert displayed value is `555-123-4567`.
+  - [x] Test: Type `55`. Assert displayed value is `55` (no dashes yet).
+  - [x] Test: Type `5551236789abc`. Assert displayed value is `555-123-6789` (non-digits stripped, max 10 digits).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Utility + Components):**
+  - [x] [Utility] Create `src/lib/formatPhone.ts` with `formatPhoneNumber(value: string): string` — strips non-digits, caps at 10, inserts dashes at positions 3 and 6.
+  - [x] [Component] `src/components/AddFollowUpForm.tsx`: import `formatPhoneNumber`. In `handleChange`, add special case for `name === 'customerPhone'`: `setFormData(prev => ({ ...prev, customerPhone: formatPhoneNumber(value) }))`.
+  - [x] [Component] `src/components/EditFollowUpForm.tsx`: same change.
+  - [x] [Component] `src/components/FollowUpList.tsx`: wrap every `record.customerPhone` display with `formatPhoneNumber(record.customerPhone || '')`.
+  - [x] [Component] `src/app/follow-ups/[id]/page.tsx`: wrap the phone display span with `formatPhoneNumber(record.customerPhone || '')`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent types `9876543210` into the Phone field → field displays `987-654-3210` in real time → list shows `987-654-3210` → detail page shows `987-654-3210`. → Done.
+
+---
+
+#### W-3153 — List: Restructure Columns (Customer Info + Location), Remove Quoted Options, Reformat Date/Time Display
+
+**Root cause / Goal:**
+The current `FollowUpList.tsx` has separate "Customer" and "Phone" columns, a "Quoted Options" column rarely useful in a list overview, and a date/time column with timezone abbreviation. Agents need a cleaner, more scannable layout: combined customer info, explicit location, no quoted options, and a clean time/date stacked display.
+
+**Fix / Approach:**
+- Remove the standalone Phone column `<th>/<td>`.
+- Remove the Quoted Options column `<th>/<td>`.
+- Rename Customer column to "Customer Information" and render: name (bold) on top, formatted phone below (monospace, dimmer).
+- Add a "Location" column after Customer Information: state on top, country below (dimmer).
+- In the Follow-Up Date & Time cell: render time (`h:mm a`) on top, date (`LLL d, yyyy`) below; remove timezone abbreviation entirely.
+
+---
+
+- [x] **RED — Unit (`FollowUpList.test.tsx`):**
+  - [x] Test: Render `FollowUpList` with a mock record. Assert header contains "Customer Information" and does NOT contain a standalone "Phone" header.
+  - [x] Test: Assert header contains "Location" and does NOT contain "Quoted Options".
+  - [x] Test: Assert customer cell renders both the customer name AND formatted phone stacked.
+  - [x] Test: Assert location cell renders `customerState` and `customerCountry`.
+  - [x] Test: Assert date/time cell renders time string (h:mm a) and date string (LLL d, yyyy) as two elements, and does NOT render any timezone abbreviation (e.g., no 'EDT', 'GMT', 'EST').
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/components/FollowUpList.tsx`:
+    - Remove `<th>Phone</th>` and its `<td>`.
+    - Remove `<th>Quoted Options</th>` and its `<td>`.
+    - Rename `<th>Customer</th>` to `<th>Customer Information</th>`.
+    - Customer `<td>`: stack name (bold) + formatted phone (mono, smaller, dimmer).
+    - Add new `<th>Location</th>` column after Customer Information and matching `<td>` with state + country stacked.
+    - Date/Time `<td>`: render `dt.toFormat('h:mm a')` in a bold div and `dt.toFormat('LLL d, yyyy')` in a smaller dimmer div. Remove `dt.offsetNameShort`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Follow Ups list shows "Customer Information" (name + phone stacked), "Location" (state + country), no "Quoted Options", date/time as time-on-top date-below with no timezone label. → Done.
+
+---
+
+#### W-3154 — List: Add Search Field for Customer Name and Phone
+
+**Root cause / Goal:**
+No search capability exists on the Follow Ups list. Agents need a quick way to find a customer without scrolling through all records.
+
+**Fix / Approach:**
+1. Debounced search input in `FollowUpListContainer.tsx` header row (left of "Add Follow-up" button).
+2. `search` passed as URL param and to `GET /api/follow-ups`.
+3. Repository adds Prisma `OR` filter on `customerName` and `customerPhone` when `search` is non-empty.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: `GET /api/follow-ups?search=Apple` returns only records where `customerName` contains `"Apple"`. Records not matching are absent.
+  - [x] Test: `GET /api/follow-ups?search=987-654` returns only records where `customerPhone` contains `"987-654"`.
+  - [x] Test: `GET /api/follow-ups?search=` returns all records (no filter).
+  - [x] **Run — confirm RED (search param currently ignored; all records always returned).**
+
+- [x] **GREEN — Backend (Types → Repository → Service → Controller):**
+  - [x] [Types] Add `search?: string` to `FollowUpFilters` in `src/types/followup.ts`.
+  - [x] [Repository] In `src/repository/followup.repository.ts`, in `findAll`, add Prisma `where` OR clause: `{ customerName: { contains: search } }` and `{ customerPhone: { contains: search } }` when `search` is non-empty.
+  - [x] [Service] In `src/service/followup.service.ts`, pass `rawFilters.search` through to the filters object.
+  - [x] [Controller] In `src/app/api/follow-ups/route.ts`, extract `searchParams.get('search') ?? ''` and pass as `rawFilters.search`.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **RED — Unit (`FollowUpListContainer.test.tsx`):**
+  - [x] Test: Assert a search input element is present in the rendered DOM.
+  - [x] Test: Type `"Apple"` in the search input and advance timers by 350ms. Assert `fetch` was called with URL containing `search=Apple`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/components/FollowUpListContainer.tsx`: add `search` state initialized from URL params. Add debounced effect (300ms) to update URL and re-fetch on change. Render a search `<input>` styled with `.filter-select-custom` in the page header, left of the "Add Follow-up" button.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent types "Apple" in search box → after 300ms list filters to matching records → clearing field shows all records. → Done.
+
+---
+
+#### W-3155 — Detail Page: Remove Customer Timezone; Apply Georgia Font; EST Timestamps
+
+**Root cause / Goal:**
+Three improvements to `src/app/follow-ups/[id]/page.tsx`:
+1. "Customer Timezone" row exposes internal IANA strings (e.g., `America/Anchorage`) to agents who have no use for it. Remove it.
+2. All content must use Georgia serif font exclusively (per business typography preference for detail views).
+3. `entryDate` and `lastContact` timestamps display in raw UTC. They must show in EST (America/New_York) matching the same pattern used on the orders detail page via `formatDateTimeDDMMYYYY` from `src/lib/date.ts`, which already formats datetimes to America/New_York.
+
+**Fix / Approach:**
+1. Delete the "Customer Timezone" `<div className="form-group form-span-3">` JSX block entirely.
+2. In the existing inline `<style>` block, append: `.follow-up-details-container * { font-family: Georgia, serif !important; }`
+3. For `entryDate` and `lastContact`: replace `DateTime.fromJSDate(...).toFormat('yyyy-MM-dd HH:mm:ss')` with `DateTime.fromJSDate(...).setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a ZZZZ')`.
+
+---
+
+- [x] **RED — Unit (`FollowUpDetailPage.test.tsx`):**
+  - [x] Test: Render the page with a mock record that has `customerTimezone: 'America/Anchorage'`. Assert the string `'America/Anchorage'` does NOT appear in the DOM.
+  - [x] Test: Assert the `entryDate` display contains an EST-formatted string (e.g., contains `'EDT'` or `'EST'` timezone identifier).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/app/follow-ups/[id]/page.tsx`:
+    - Delete the Customer Timezone `<div className="form-group form-span-3">` block.
+    - Append `.follow-up-details-container * { font-family: Georgia, serif !important; }` to the inline `<style>` block.
+    - Replace both timestamp `.toFormat('yyyy-MM-dd HH:mm:ss')` calls with `.setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a ZZZZ')`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Detail page: no "Customer Timezone" row visible. All text is Georgia serif. Entry date reads e.g. `Jul 16, 2026 · 03:45 PM EDT`. → Done.
+
+---
+
+#### W-3156 — Detail Page: Merge Classification + Schedule Cards; Move Notes Card to Top
+
+**Root cause / Goal:**
+The detail page sidebar currently has 4 cards: Classification, Notes/Callback Remarks, Follow-Up Schedule, System Metadata. Desired new order and structure:
+1. "Notes or Remarks" card at the TOP.
+2. Single merged "Classification and Schedule" card containing: Status + Priority (row), Follow-Up Time + Relative Day (row), Reason (full-width row).
+3. "System Metadata" card at the bottom.
+The merged card's time display must use `h:mm a` on top and `LLL d, yyyy` below, with NO timezone suffix.
+
+**Fix / Approach:**
+Reorder and merge JSX sidebar cards in `src/app/follow-ups/[id]/page.tsx`. Replace the old `formatCallbackTime` local function with a new `formatFollowUpTime` that returns two lines (time + date) without timezone abbreviation.
+
+---
+
+- [x] **RED — Unit (`FollowUpDetailPage.test.tsx`):**
+  - [x] Test: Assert the first sidebar card heading is "Notes or Remarks".
+  - [x] Test: Assert there is a card with heading "Classification and Schedule" — NOT two separate cards "Classification" and "Follow-Up Schedule".
+  - [x] Test: Assert the "Classification and Schedule" card contains: `record.status`, `record.priority`, a formatted follow-up time (no timezone suffix), `daysLabel`, and `record.followUpReason` — all in one card.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/app/follow-ups/[id]/page.tsx`:
+    - Move the Notes card JSX to the first position in the sidebar.
+    - Delete the separate "Classification" and "Follow-Up Schedule" cards.
+    - Add one merged "Classification and Schedule" card with the layout described in the goal.
+    - Replace `formatCallbackTime` with `formatFollowUpTime` that formats time as `h:mm a` (top) and `LLL d, yyyy` (bottom), no offset suffix.
+    - Rename all "Notes / Callback Remarks" headings to "Notes or Remarks".
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Detail page sidebar: Notes or Remarks at top, then Classification and Schedule merged card (status + priority + follow-up time two-line + relative day badge + reason), then System Metadata. No timezone abbreviation in time display. → Done.
+
+---
+
+#### W-3157 — Database + Full Stack: Add part_description Field to Follow-Ups
+
+**Root cause / Goal:**
+Agents need to record a detailed free-text description of the specific part needed (e.g., "Driver side door, power window, red interior") alongside the existing `part_required` field. This requires a new nullable TEXT column `part_description` in `crm_follow_ups`, threaded through every architectural layer.
+
+**Fix / Approach:**
+1. Add `part_description TEXT NULL` to `crm_follow_ups` via Prisma migration (non-destructive: existing rows get NULL).
+2. Update types, repository, service, API routes, and all three frontend surfaces (Add form, Edit form, Detail page).
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: `POST /api/follow-ups` with `partDescription: "Driver side, red interior, power windows"` returns 201. Assert DB row has `part_description = 'Driver side, red interior, power windows'`.
+  - [x] Test: `GET /api/follow-ups/:id` returns `partDescription: "Driver side, red interior, power windows"` in the JSON body.
+  - [x] Test: `PATCH /api/follow-ups/:id` with `{ partDescription: "Updated description" }` persists the new value to DB.
+  - [x] Test: `POST /api/follow-ups` with NO `partDescription` field creates a row with `part_description = NULL` (field is optional).
+  - [x] **Run — confirm RED (partDescription is an unknown field today; POST ignores it).**
+
+- [x] **GREEN — Backend (Schema → Repository → Service → Controller):**
+  - [x] [Schema] In `prisma/schema.prisma`, inside `CrmFollowUps`, add immediately after `partRequired`: `partDescription  String?   @map("part_description") @db.Text`
+  - [x] [Migration] Run `npx prisma migrate dev --name add_part_description_to_follow_ups`. Confirm generated SQL: `ALTER TABLE crm_follow_ups ADD COLUMN part_description TEXT NULL AFTER part_required`. Apply to test DB: `npx prisma migrate deploy --schema=./prisma/schema.prisma` with `DATABASE_URL` pointing at `jd_crm_test`.
+  - [x] [Repository] In `src/repository/followup.repository.ts`:
+    - `create()`: add `partDescription: data.partDescription ?? null`.
+    - `update()`: add `partDescription: data.partDescription !== undefined ? data.partDescription : undefined`.
+    - `findAll()` select: add `partDescription: true`.
+    - `findById()` select: add `partDescription: true`.
+  - [x] [Types] In `src/types/followup.ts`: add `partDescription?: string | null` to `FollowUpCreateInput` and `FollowUpUpdateInput`; add `partDescription: string | null` to `FollowUpRecord`.
+  - [x] [Service] In `src/service/followup.service.ts`: pass `partDescription` through in `createFollowUp` and `updateFollowUp`.
+  - [x] [Controller] In `src/app/api/follow-ups/route.ts` (POST): extract `partDescription` from request body and pass to service.
+  - [x] [Controller] In `src/app/api/follow-ups/[id]/route.ts` (PATCH): extract `partDescription` from request body and pass to service.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **RED — Unit (`AddFollowUpForm.test.tsx`):**
+  - [x] Test: Assert a textarea with label "Description of the Part" is present in the rendered form.
+  - [x] Test: Fill the field with `"Chrome bumper, 2019 spec"` and submit. Assert fetch body contains `partDescription: "Chrome bumper, 2019 spec"`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Components):**
+  - [x] [Component] `src/components/AddFollowUpForm.tsx`: add `partDescription: ''` to formData state; add a full-width textarea with label "Description of the Part" after `partRequired` in the Vehicle & Part section; include `partDescription: formData.partDescription || null` in the POST payload.
+  - [x] [Component] `src/components/EditFollowUpForm.tsx`: same, with initial value `record.partDescription || ''` and included in PATCH payload.
+  - [x] [Component] `src/app/follow-ups/[id]/page.tsx`: in Vehicle & Part Specifications section, after the `partRequired` row, add a full-width display block labeled "Description of the Part" showing `record.partDescription` or an italic "No description provided." placeholder.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent creates follow-up with "Description of the Part" filled → detail page shows it under Vehicle & Part Specifications → agent edits → field pre-filled → saved changes reflected. → Done.
+
+---
+
+#### W-3158 — UI Rename: "Callback" to "Follow Up" / "Follow Ups" Everywhere
+
+**Root cause / Goal:**
+Leftover "Callback" terminology from the legacy PHP system still appears in page titles, card headings, labels, button text, and metadata descriptions. All visible, user-facing occurrences must be renamed. Variable names, function names, API routes, and DB columns are NOT renamed.
+
+**Rename map (UI strings only):**
+| Old String | New String |
+|---|---|
+| `Callback Details - JD CRM` (metadata title) | `Follow Up Details - JD CRM` |
+| `Callback Details #N` (page heading) | `Follow Up Details #N` |
+| `Prospect callback scheduled for` (subtitle) | `Follow-up scheduled for` |
+| `Notes / Callback Remarks` (card headings) | `Notes or Remarks` |
+| `Callback Time (Customer Timezone)` (label) | `Follow-Up Time` |
+| `Callback Time & Reason` (progress checklist item) | `Follow-Up Time & Reason` |
+| `View callback schedules...` (meta description) | `View follow-up schedules...` |
+
+Files affected: `src/app/follow-ups/[id]/page.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpListContainer.tsx`.
+
+---
+
+- [x] **RED — Unit (`FollowUpDetailPage.test.tsx`):**
+  - [x] Test: Render the detail page. Assert the page heading does NOT contain the text "Callback".
+  - [x] Test: Assert the heading contains "Follow Up Details".
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Multiple Components):**
+  - [x] Apply all renames from the table above across all listed files.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent navigates to any follow-up page → no visible UI label contains the word "Callback" → all headings, subtitles, card titles, and metadata use "Follow Up" / "Follow Ups". → Done.
+
+---
+
+#### W-3159 — Toast Notification: Wrong Position, Undefined Body, and Missing "Show Details" Navigation
+
+**Root cause / Goal:**
+Two bugs identified in the follow-up notification system:
+
+1. **Wrong position:** The in-app toast container is `fixed top-5 right-5` (top-right corner), which causes it to visually overlap the page header bar and appears as a dark "shadow" on the right edge of the header. Toasts must anchor to the **bottom-right** corner (`bottom-5 right-5`) to avoid this overlap.
+
+2. **Undefined OS notification body:** `useFollowUpNotifications.ts` fires an OS/browser notification using `record.customerName` and `record.partRequired`. However, `findDueForNotification()` in the repository uses a raw `prisma.$queryRaw` which returns **MySQL snake_case column names** (`customer_name`, `part_required`), not camelCase. Reading `record.customerName` on a snake_case object yields `undefined`, causing the browser OS notification to display **"Follow-Up Due / undefined — undefined"**.
+
+3. **No navigation on notification:** Neither the in-app toast card nor the OS browser notification provides any way to navigate to the specific follow-up's detail page. Both should offer a "Show Details" action routing the user to `/follow-ups/[followUpId]`.
+
+**Fix / Approach:**
+
+**A — Toast Position Fix (`FollowUpListContainer.tsx`):**
+- Change the toast wrapper div className from `fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full` to `fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full`.
+- This moves the entire toast stack to the bottom-right corner, away from the header bar.
+
+**B — Fix undefined notification body (`followup.repository.ts`):**
+- In `findDueForNotification()`, store the `prisma.$queryRaw` result into `rows`, then map each raw row to a camelCase-keyed object before returning:
+  ```ts
+  const rows = await prisma.$queryRaw<any[]>`SELECT * FROM crm_follow_ups WHERE ...`;
+  return rows.map((r) => ({
+    followUpId:        r.follow_up_id,
+    agentId:           r.agent_id,
+    customerName:      r.customer_name,
+    customerPhone:     r.customer_phone,
+    customerState:     r.customer_state,
+    customerCountry:   r.customer_country,
+    customerTimezone:  r.customer_timezone,
+    followUpDate:      r.follow_up_date,
+    followUpTime:      r.follow_up_time,
+    partRequired:      r.part_required,
+    status:            r.status,
+    priority:          r.priority,
+    followUpReason:    r.follow_up_reason,
+    notificationSentAt: r.notification_sent_at,
+    entryDate:         r.entry_date,
+    lastContact:       r.last_contact,
+  })) as CrmFollowUps[];
+  ```
+- The hook (`useFollowUpNotifications.ts`) already reads camelCase — no change needed there once the repository maps correctly.
+
+**C — "Show Details" button in in-app toast (`FollowUpListContainer.tsx`):**
+- The `ToastNotification` interface already carries `followUpId`.
+- Inside each toast card's action row, add a `<Link href={\`/follow-ups/${notif.followUpId}\`}>` with text **"Show Details"**, styled as a small secondary button (blue text, underline on hover), placed to the left of the existing Dismiss button.
+- Import `Link` from `next/link` if not already imported.
+
+**D — "Show Details" click handler in OS notification (`useFollowUpNotifications.ts`):**
+- After creating the `Notification` object, attach an `onclick` handler:
+  ```ts
+  const n = new Notification('Follow-Up Due', {
+    body: `${record.customerName} — ${record.partRequired}`,
+  });
+  n.onclick = () => {
+    window.focus();
+    window.location.href = `/follow-ups/${record.followUpId}`;
+  };
+  ```
+- Clicking the OS notification banner will focus the browser window and navigate directly to the detail page.
+
+---
+
+- [x] **RED — Unit (`FollowUpNotification.test.tsx` — new test file):**
+  - [x] Test: Render `FollowUpListContainer` with `useFollowUpNotifications` mocked to return one active notification (with `followUpId: 42`, `customerName: 'Alice Springs'`, `partRequired: 'Bumper'`). Assert a link/button with visible text `"Show Details"` is present in the DOM. Assert that link's `href` attribute is `/follow-ups/42`.
+  - [x] Test: Assert the toast wrapper element has Tailwind class `bottom-5` in its className. Assert it does NOT have class `top-5`.
+  - [x] **Run — confirm RED.**
+
+- [x] **RED — Unit (`followup.repository.test.ts`):**
+  - [x] Test: Mock `prisma.$queryRaw` to resolve with `[{ follow_up_id: 7, customer_name: 'Alice', part_required: 'Bumper', follow_up_time: '09:00', customer_timezone: 'America/New_York', notification_sent_at: null, agent_id: 1 }]`. Call `findDueForNotification()`. Assert the returned array has `[0].customerName === 'Alice'`, `[0].partRequired === 'Bumper'`, `[0].followUpId === 7`. Assert the returned array does NOT have property `customer_name` (snake_case not leaked).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (`followup.repository.ts`):**
+  - [x] In `findDueForNotification()`, capture the raw query into `const rows = await prisma.$queryRaw<any[]>\`...\`;` and return `rows.map((r) => ({ followUpId: r.follow_up_id, agentId: r.agent_id, customerName: r.customer_name, customerPhone: r.customer_phone, customerState: r.customer_state, customerCountry: r.customer_country, customerTimezone: r.customer_timezone, followUpDate: r.follow_up_date, followUpTime: r.follow_up_time, partRequired: r.part_required, status: r.status, priority: r.priority, followUpReason: r.follow_up_reason, notificationSentAt: r.notification_sent_at, entryDate: r.entry_date, lastContact: r.last_contact })) as CrmFollowUps[];`
+  - [x] Run repository unit test — **confirm GREEN.**
+
+- [x] **GREEN — Frontend (`FollowUpListContainer.tsx` + `useFollowUpNotifications.ts`):**
+  - [x] `FollowUpListContainer.tsx`: Change `top-5` → `bottom-5` in the toast container className.
+  - [x] `FollowUpListContainer.tsx`: Add `import Link from 'next/link';` at the top if not already present. Inside the toast card JSX, add `<Link href={\`/follow-ups/${notif.followUpId}\`} className="text-blue-600 hover:underline text-xs font-medium mr-2">Show Details</Link>` immediately before the Dismiss `<button>`.
+  - [x] `useFollowUpNotifications.ts`: Update the `new Notification(...)` block — use `record.customerName` and `record.partRequired` in the body (these now resolve correctly after the repo fix). After creating the notification object `const n = new Notification(...)`, add `n.onclick = () => { window.focus(); window.location.href = \`/follow-ups/${record.followUpId}\`; };`.
+  - [x] Run unit tests — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Open the Follow-Ups list page. The top-right area of the header bar no longer shows any dark overlay or shadow. → Done.
+  - [x] A follow-up becomes due. The OS browser notification body reads `"Alice Springs — Bumper"` (real customer name and part, not "undefined — undefined"). → Done.
+  - [x] Clicking the OS notification focuses the browser and navigates to `/follow-ups/42`. → Done.
+  - [x] The in-app toast card appears in the bottom-right corner. It contains a "Show Details" link. Clicking it navigates to `/follow-ups/42`. → Done.
+
+---
+
+#### Phase 31.5 Summary Checklist
+
+- [x] W-3151: computeDaysLabel Date-object branch bug fix + notification hook timezone fix — **Unit tests GREEN**
+- [x] W-3152: Phone number auto-format (forms + list + detail) — **Unit tests GREEN**
+- [x] W-3153: List column restructure (Customer Info + Location, remove Quoted Options, reformat date/time) — **Unit tests GREEN**
+- [x] W-3154: List search field (by name + phone) — **Integration + Unit tests GREEN**
+- [x] W-3155: Detail page: remove Customer Timezone, Georgia font, EST timestamps — **Unit tests GREEN**
+- [x] W-3156: Detail page: merge Classification + Schedule card, Notes card to top — **Unit tests GREEN**
+- [x] W-3157: part_description — Schema + migration + repo + service + controller + forms + detail — **Integration + Unit tests GREEN**
+- [x] W-3158: Rename "Callback" to "Follow Up" everywhere in UI — **Unit tests GREEN**
+- [x] W-3159: Toast position fix (bottom-right) + undefined notification body fix (snake_case mapping) + "Show Details" button in toast + OS notification click handler — **Unit tests GREEN**
+- [x] Full `npm run test` passes with **no regressions**
+- [x] `npm run lint` → 0 warnings
+- [x] `npm run typecheck` → 0 errors
+- [x] **Phase 31.5 COMPLETE** → Update progress table status to `[x] COMPLETED`
 
 

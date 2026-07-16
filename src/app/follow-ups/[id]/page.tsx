@@ -9,12 +9,13 @@ import * as followupService from '../../../service/followup.service';
 import BackButton from '../../../components/BackButton';
 import DeleteFollowUpButton from '../../../components/DeleteFollowUpButton';
 import DetailPageMarker from '../../../components/DetailPageMarker';
+import { formatPhoneNumber } from '../../../lib/formatPhone';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Callback Details - JD CRM',
-  description: 'View callback schedules, pricing options, customer timezone metadata, and notes',
+  title: 'Follow Up Details - JD CRM',
+  description: 'View follow-up schedules, pricing options, customer timezone metadata, and notes',
 };
 
 export default async function FollowUpDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -48,7 +49,7 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
   const canViewAll = hasPermission(permissions, 'follow-ups:view');
   const canEdit = hasPermission(permissions, 'follow-ups:create');
 
-  const formatCallbackTime = (dateVal: Date | string, timeStr: string, tz: string): string => {
+  const formatFollowUpTime = (dateVal: Date | string, timeStr: string, tz: string) => {
     let dateStr = '';
     if (dateVal instanceof Date) {
       dateStr = DateTime.fromJSDate(dateVal).setZone(tz).toFormat('yyyy-MM-dd');
@@ -56,8 +57,12 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
       dateStr = dateVal.split('T')[0];
     }
     const dt = DateTime.fromISO(`${dateStr}T${timeStr}`, { zone: tz });
-    if (!dt.isValid) return `${dateStr} · ${timeStr}`;
-    return `${dt.toFormat('LLL d, yyyy · h:mm a')} ${dt.offsetNameShort}`;
+    if (!dt.isValid) return { time: timeStr, date: dateStr, offset: '' };
+    return {
+      time: dt.toFormat('h:mm a'),
+      date: dt.toFormat('LLL d, yyyy'),
+      offset: dt.offsetNameShort
+    };
   };
 
   const daysLabel = followupService.computeDaysLabel(
@@ -69,14 +74,27 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
   const getPriorityBadgeClass = (priority: string): string => {
     switch (priority?.toLowerCase()) {
       case 'high':
-        return 'bg-rose-50 text-rose-700 border border-rose-200/50';
+        return 'status-dot-badge priority-high';
       case 'medium':
-        return 'bg-amber-50 text-amber-700 border border-amber-200/50';
+        return 'status-dot-badge priority-medium';
       case 'low':
-        return 'bg-emerald-50 text-emerald-700 border border-emerald-200/50';
+        return 'status-dot-badge priority-low';
       default:
-        return 'bg-slate-50 text-slate-500 border border-slate-200/50';
+        return 'status-dot-badge badge-future';
     }
+  };
+
+  const getDaysLabelBadgeClass = (label: string): string => {
+    if (label?.startsWith('Due by')) {
+      return 'status-dot-badge badge-overdue';
+    }
+    if (label === 'Today') {
+      return 'status-dot-badge badge-today';
+    }
+    if (label === 'Tomorrow') {
+      return 'status-dot-badge badge-tomorrow';
+    }
+    return 'status-dot-badge badge-future';
   };
 
   return (
@@ -88,6 +106,11 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
           .main-content:has(.follow-up-details-container) {
             padding-left: 20% !important;
             padding-right: 20% !important;
+          }
+        }
+        @media (min-width: 1025px) {
+          .order-form-sidebar {
+            width: 410px !important;
           }
         }
         .header-actions-flex {
@@ -114,13 +137,26 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
           height: clamp(28px, 3.2vw, 36px) !important;
           border-radius: 6px !important;
         }
+         .follow-up-details-container,
+        .follow-up-details-container * {
+          font-family: Georgia, serif !important;
+        }
+        .status-dot-badge {
+          display: inline-flex !important;
+          align-items: center !important;
+          font-weight: 600 !important;
+          font-size: 0.75rem !important;
+          padding: 4px 10px !important;
+          border-radius: 50px !important;
+          width: fit-content !important;
+        }
       `}} />
       
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <div>
-          <h1 className="page-title">Callback Details #{record.followUpId}</h1>
+          <h1 className="page-title">Follow Up Details #{record.followUpId}</h1>
           <p className="page-subtitle" style={{ marginTop: '4px' }}>
-            Prospect callback scheduled for {record.customerName}
+            Prospect follow-up scheduled for {record.customerName}
           </p>
         </div>
         <div className="flex gap-3 header-actions-flex">
@@ -155,7 +191,9 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                   </div>
                   <div className="form-group">
                     <span className="form-label">Phone Number</span>
-                    <span className="info-value font-mono">{record.customerPhone || '—'}</span>
+                    <span className="info-value font-mono">
+                      {record.customerPhone ? formatPhoneNumber(record.customerPhone) : '—'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -170,10 +208,6 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                     <span className="info-value">{record.customerCountry}</span>
                   </div>
                 </div>
-              </div>
-              <div className="form-group form-span-3">
-                <span className="form-label">Customer Timezone</span>
-                <span className="info-value font-mono">{record.customerTimezone}</span>
               </div>
             </div>
           </div>
@@ -193,6 +227,12 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                   <div className="form-group">
                     <span className="form-label">Part Required</span>
                     <span className="info-value italic">{record.partRequired}</span>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2', marginTop: '12px' }}>
+                    <span className="form-label">Description of the Part</span>
+                    <span className="info-value text-slate-700 whitespace-pre-wrap">
+                      {record.partDescription || <span className="text-slate-400 italic">No description provided.</span>}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -221,58 +261,55 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
 
         {/* Sidebar Info */}
         <div className="order-form-sidebar order-details-sidebar flex flex-col gap-6">
-          {/* Card 1: Classification */}
-          <div className="profile-main" style={{ padding: '20px' }}>
-            <h3 className="form-section-title" style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
-              Classification
-            </h3>
-            <div className="flex flex-col gap-4">
-              <div className="form-group">
-                <span className="form-label">Status</span>
-                <span className="info-value font-semibold">{record.status}</span>
-              </div>
-              <div className="form-group">
-                <span className="form-label">Priority</span>
-                <span className={`inline-block mt-1 badge ${getPriorityBadgeClass(record.priority)}`}>
-                  {record.priority}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Notes / Remarks */}
+          {/* Card 1: Notes / Remarks */}
           <div className="profile-main" style={{ padding: '20px' }}>
             <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
-              Notes / Callback Remarks
+              Notes or Remarks
             </h3>
             <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-lg text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]">
               {record.notes || <span className="text-slate-400 italic">No notes written.</span>}
             </div>
           </div>
 
-          {/* Card 3: Follow-Up Schedule */}
+          {/* Card 2: Classification & Schedule */}
           <div className="profile-main" style={{ padding: '20px' }}>
             <h3 className="form-section-title" style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
-              Follow-Up Schedule
+              Classification and Schedule
             </h3>
-            <div className="flex flex-col gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px 20px' }}>
               <div className="form-group">
-                <span className="form-label">Callback Time (Customer Timezone)</span>
-                <span className="info-value font-bold text-slate-800">
-                  {formatCallbackTime(record.followUpDate, record.followUpTime, record.customerTimezone)}
+                <span className="form-label">Status</span>
+                <span className="info-value font-semibold">{record.status}</span>
+              </div>
+              <div className="form-group">
+                <span className="form-label">Priority</span>
+                <span className={getPriorityBadgeClass(record.priority)} style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  {record.priority}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="form-group">
-                  <span className="form-label">Relative Day</span>
-                  <span className="inline-block mt-1 bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold px-2 py-0.5 rounded-full">
-                    {daysLabel}
-                  </span>
-                </div>
-                <div className="form-group">
-                  <span className="form-label">Reason</span>
-                  <span className="info-value">{record.followUpReason}</span>
-                </div>
+              <div className="form-group">
+                <span className="form-label">Follow-Up Time</span>
+                <span className="info-value font-bold text-slate-800" style={{ fontSize: '0.85rem', display: 'block', lineHeight: '1.4' }}>
+                  {(() => {
+                    const formatted = formatFollowUpTime(record.followUpDate, record.followUpTime, record.customerTimezone);
+                    return (
+                      <>
+                        <div>{formatted.time} on {formatted.date}</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>({formatted.offset})</div>
+                      </>
+                    );
+                  })()}
+                </span>
+              </div>
+              <div className="form-group">
+                <span className="form-label">Relative Day</span>
+                <span className={getDaysLabelBadgeClass(daysLabel)} style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  {daysLabel}
+                </span>
+              </div>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <span className="form-label">Reason</span>
+                <span className="info-value">{record.followUpReason}</span>
               </div>
             </div>
           </div>
@@ -290,14 +327,14 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
               <div className="form-group">
                 <span className="form-label">Entry Timestamp</span>
                 <span className="info-value font-mono">
-                  {DateTime.fromJSDate(record.entryDate || record.createdAt).toFormat('yyyy-MM-dd HH:mm:ss')}
+                  {DateTime.fromJSDate(record.entryDate || record.createdAt).setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a') + ' EST'}
                 </span>
               </div>
               <div className="form-group">
                 <span className="form-label">Last Contact Update</span>
                 <span className="info-value font-mono">
                   {record.lastContact 
-                    ? DateTime.fromJSDate(record.lastContact).toFormat('yyyy-MM-dd HH:mm:ss')
+                    ? DateTime.fromJSDate(record.lastContact).setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a') + ' EST'
                     : '—'}
                 </span>
               </div>

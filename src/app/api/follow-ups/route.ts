@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     status: searchParams.get('status') || undefined,
     followUpDateFrom: searchParams.get('followUpDateFrom') || undefined,
     followUpDateTo: searchParams.get('followUpDateTo') || undefined,
+    search: searchParams.get('search') || undefined,
     page: pageParam ? Number(pageParam) : 1,
     limit: limitParam ? Number(limitParam) : 10,
   };
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
       customerTimezone,
       vehicleYearMakeModel: body.vehicleYearMakeModel,
       partRequired: body.partRequired,
+      partDescription: body.partDescription || null,
       quotedOptions: body.quotedOptions || null,
       followUpDate: body.followUpDate,
       followUpTime: body.followUpTime,

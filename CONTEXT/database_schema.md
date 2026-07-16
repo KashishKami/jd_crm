@@ -951,6 +951,8 @@ model CrmFollowUps {
   customerTimezone    String    @map("customer_timezone") @db.VarChar(100)  // IANA string e.g. 'America/New_York' — auto-inferred server-side from customerState via STATE_TIMEZONE_MAP
   vehicleYearMakeModel String   @map("vehicle_year_make_model") @db.VarChar(255) // e.g. '2018 Honda Civic'
   partRequired        String    @map("part_required") @db.VarChar(255)
+  /// [Phase 31.5] Free-text description of the specific part needed (e.g. 'Driver side door, power window, red interior'). Optional supplement to partRequired.
+  partDescription     String?   @map("part_description") @db.Text
   /// Multi-line field. Each line is one quote option in the format: Price - Miles/Warranty (e.g. '$450 - 60k miles / 30 day warranty'). Lines separated by newline (\n). First line shown in list; all lines shown in detail page.
   quotedOptions       String?   @map("quoted_options") @db.Text
   followUpDate        DateTime  @map("follow_up_date") @db.Date             // Customer's local date — stored in customer's timezone
@@ -979,7 +981,7 @@ model CrmFollowUps {
 
 ## 4. `crm_follow_ups` Table Schema
 
-**[Phase 31]** New table for the Follow-Ups feature.
+**[Phase 31 + 31.5]** New table for the Follow-Ups feature. Phase 31.5 added the `part_description` column.
 
 *   **Engine:** InnoDB
 *   **Collation:** `utf8mb4_unicode_ci`
@@ -996,6 +998,7 @@ model CrmFollowUps {
 | `customer_timezone` | `varchar(100)` | NO | *None* | IANA timezone string (e.g. `'America/Los_Angeles'`). Auto-inferred server-side from `customer_state` via `STATE_TIMEZONE_MAP` in `geography.ts`. Never accepted from client. |
 | `vehicle_year_make_model` | `varchar(255)` | NO | *None* | Merged field: Year + Make + Model (e.g. `'2018 Honda Civic'`). Same single-field pattern as `order_make_model`. |
 | `part_required` | `varchar(255)` | NO | *None* | Part the prospect needs (e.g. `'Front Bumper'`). |
+| `part_description` | `text` | YES | `NULL` | **[Phase 31.5]** Free-text description of the specific part (e.g. `'Driver side door, power window, red interior'`). Optional supplement to `part_required`. Shown on Add/Edit forms and detail page under "Vehicle & Part Specifications". |
 | `quoted_options` | `text` | YES | `NULL` | Multi-line quoted pricing. Each line: `Price - Miles/Warranty` (e.g. `'$450 - 60k miles / 30 day warranty'`). Lines separated by `\n`. First line shown in list view; all lines shown in detail. |
 | `follow_up_date` | `date` | NO | *None* | The follow-up date **as stated by the customer in their own timezone**. Never converted to UTC for storage. |
 | `follow_up_time` | `varchar(5)` | NO | *None* | The follow-up time in `HH:MM` format **in the customer's timezone**. Never converted to UTC for storage. |

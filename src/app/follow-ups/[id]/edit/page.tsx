@@ -8,8 +8,8 @@ import EditFollowUpForm from '../../../../components/EditFollowUpForm';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Edit Callback - JD CRM',
-  description: 'Update callback schedule, vehicle, pricing options, status or notes',
+  title: 'Edit Follow-Up - JD CRM',
+  description: 'Update follow-up schedule, vehicle, pricing options, status or notes',
 };
 
 export default async function EditFollowUpPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +43,7 @@ export default async function EditFollowUpPage({ params }: { params: Promise<{ i
     <div className="agents-page-container">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Edit Follow-Up Callback</h1>
+          <h1 className="page-title">Edit Follow-Up</h1>
           <p className="page-subtitle">
             Modify scheduling parameters, status, priority, or notes for this prospect.
           </p>

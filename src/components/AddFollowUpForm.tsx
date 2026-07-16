@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { COUNTRY_STATE_MAP, STATE_TIMEZONE_MAP } from '../lib/geography';
+import { formatPhoneNumber } from '../lib/formatPhone';
 
 const REASON_OPTIONS = [
   'Waiting for customer decision',
@@ -61,6 +62,7 @@ export default function AddFollowUpForm() {
     customerState: '',
     vehicleYearMakeModel: '',
     partRequired: '',
+    partDescription: '',
     quotedOptions: '',
     followUpDate: '',
     followUpTime: '',
@@ -83,6 +85,11 @@ export default function AddFollowUpForm() {
         ...prev,
         customerCountry: value,
         customerState: '',
+      }));
+    } else if (name === 'customerPhone') {
+      setFormData((prev) => ({
+        ...prev,
+        customerPhone: formatPhoneNumber(value),
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -139,6 +146,7 @@ export default function AddFollowUpForm() {
           customerCountry: formData.customerCountry,
           vehicleYearMakeModel: formData.vehicleYearMakeModel,
           partRequired: formData.partRequired,
+          partDescription: formData.partDescription || null,
           quotedOptions: formData.quotedOptions || null,
           followUpDate: formData.followUpDate,
           followUpTime: formData.followUpTime,
@@ -250,6 +258,20 @@ export default function AddFollowUpForm() {
                 placeholder="e.g. Front Bumper"
               />
             </div>
+
+            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+              <label htmlFor="partDescription" className="form-label">
+                Part Description
+              </label>
+              <textarea
+                id="partDescription"
+                name="partDescription"
+                value={formData.partDescription}
+                onChange={handleChange}
+                className="form-input min-h-[80px] py-2"
+                placeholder="e.g. Color preference, condition details, specific trim requirements, etc."
+              />
+            </div>
           </div>
         </div>
 
@@ -321,7 +343,7 @@ export default function AddFollowUpForm() {
               placeholder={"Price - miles/warranty\nPrice - miles/warranty"}
             />
             <p className="text-xs text-slate-500 mt-1 italic">
-              * Press Enter to write multiple callback pricing options.
+              * Press Enter to write multiple follow-up pricing options.
             </p>
           </div>
         </div>
@@ -513,7 +535,7 @@ export default function AddFollowUpForm() {
               <span style={{ color: isScheduleFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
                 {isScheduleFilled ? '✓' : '○'}
               </span>
-              <span style={{ color: isScheduleFilled ? '#1e293b' : '#64748b' }}>Callback Time & Reason</span>
+              <span style={{ color: isScheduleFilled ? '#1e293b' : '#64748b' }}>Follow-Up Time & Reason</span>
             </div>
           </div>
         </div>
@@ -521,7 +543,7 @@ export default function AddFollowUpForm() {
         {/* Card 2: Notes / Remarks */}
         <div className="profile-main" style={{ padding: '20px' }}>
           <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
-            Notes / Callback Remarks
+            Notes / Follow-Up Remarks
           </h3>
           <div className="form-group form-grid-full">
             <label htmlFor="notes" className="form-label" style={{ display: 'none' }}>

@@ -150,6 +150,16 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 > - Users with neither permission receive a `403 Forbidden` from all `/api/follow-ups/*` endpoints and a redirect to `/access-denied` from `middleware.ts` on page load.
 > - `agentId` and `agentName` on new follow-up records are **always derived from the authenticated session** — never trusted from the client POST body.
 
+> [!NOTE]
+> **Phase 31.5 Follow-Up Module Updates:**
+> - **`part_description` field added (Phase 31.5):** The `crm_follow_ups` table now has an optional `part_description TEXT NULL` column (Prisma field: `partDescription`). This stores a free-text description of the specific part (e.g. "Driver side door, power window, red interior"). It appears on the Add form, Edit form, and Detail page under "Vehicle & Part Specifications".
+> - **Phone number format standard:** All `customer_phone` values are stored in `xxx-xxx-xxxx` format (enforced by the frontend `formatPhoneNumber` formatter in `src/lib/formatPhone.ts`). The formatter strips non-digit characters and caps at 10 digits. Display in the list and detail page also passes through this formatter.
+> - **`computeDaysLabel` correction:** The daysLabel ("Today", "Tomorrow", etc.) compares follow-up date/time against `DateTime.now()` using the **customer's own IANA timezone** (`customerTimezone`). The Prisma-returned `Date` object for `follow_up_date` is read as UTC date (`.toISOString().split('T')[0]`) — NOT timezone-shifted — before comparison.
+> - **Notification hook timezone:** `useFollowUpNotifications.ts` determines "due now" by constructing `DateTime.fromISO(followUpDate + 'T' + followUpTime, { zone: customerTimezone })` and comparing against `DateTime.now()`. This is browser-timezone-independent.
+> - **Detail page timestamps in EST:** `entry_date` and `last_contact` on the detail page are displayed in `America/New_York` (EST/EDT) using Luxon's `.setZone('America/New_York')`, matching the orders page convention.
+
+
+
 ### Super Admin
 | Permission Key | Legacy Code | Description |
 | :--- | :--- | :--- |

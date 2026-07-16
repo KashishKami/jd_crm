@@ -87,7 +87,7 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
     // Check table headers
     await waitFor(() => {
       expect(screen.queryByText('Follow-Up Date & Time')).not.toBeNull();
-      expect(screen.queryByText('Customer')).not.toBeNull();
+      expect(screen.queryByText('Customer Information')).not.toBeNull();
       expect(screen.queryByText('Part Required')).not.toBeNull();
       expect(screen.queryAllByText('Agent').length).toBeGreaterThan(0); // Admin sees agent column and filter
       expect(screen.queryByText('Alice Springs')).not.toBeNull();
@@ -96,6 +96,59 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
 
     // Check filters
     expect(screen.queryByText('Team')).not.toBeNull();
+  });
+
+  it('should restructure columns and format date/time correctly for W-3153', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: 1, userPermissions: 'follow-ups:view,follow-ups:create' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    vi.mocked(global.fetch).mockImplementation(async (url) => {
+      if (url.toString().includes('/api/follow-ups')) {
+        return {
+          ok: true,
+          json: async () => ({ followUps: mockFollowUps, total: 1 }),
+        } as any;
+      }
+      if (url.toString().includes('/api/teams') || url.toString().includes('/api/agents')) {
+        return {
+          ok: true,
+          json: async () => [],
+        } as any;
+      }
+      return { ok: false } as any;
+    });
+
+    render(<FollowUpListContainer />);
+
+    await waitFor(() => {
+      // Check that "Customer Information" header is present
+      expect(screen.queryByText('Customer Information')).not.toBeNull();
+      // Check that "Customer" (old header) is NOT present
+      expect(screen.queryByText('Customer')).toBeNull();
+      // Check that "Phone" header is NOT present
+      expect(screen.queryByText('Phone')).toBeNull();
+      // Check that "Quoted Options" header is NOT present
+      expect(screen.queryByText('Quoted Options')).toBeNull();
+      // Check that "Location" header is present
+      expect(screen.queryByText('Location')).not.toBeNull();
+
+      // Check customer info cell contents (name + formatted phone stacked)
+      expect(screen.queryByText('Alice Springs')).not.toBeNull();
+      expect(screen.queryByText('555-111-2222')).not.toBeNull();
+
+      // Check location cell contents (California + USA)
+      expect(screen.queryByText('California')).not.toBeNull();
+      expect(screen.queryByText('USA')).not.toBeNull();
+
+      // Check date/time cell formatting: no timezone label (EDT/EST/etc.)
+      expect(screen.queryByText(/EDT/)).toBeNull();
+      expect(screen.queryByText(/EST/)).toBeNull();
+      expect(screen.queryByText(/America\/Los_Angeles/)).toBeNull();
+    });
   });
 
   it('should hide Agent column and dropdowns for standard Agent', async () => {
@@ -158,5 +211,48 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
     });
 
     expect(screen.queryByText('Delete')).toBeNull();
+  });
+
+  it('should render search field and trigger fetch on change for W-3154', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: 1, userPermissions: 'follow-ups:view' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const mockFetch = vi.fn().mockImplementation(async (url) => {
+      if (url.toString().includes('/api/follow-ups')) {
+        return {
+          ok: true,
+          json: async () => ({ followUps: [], total: 0 }),
+        } as any;
+      }
+      return { ok: true, json: async () => [] } as any;
+    });
+    vi.mocked(global.fetch).mockImplementation(mockFetch);
+
+    render(<FollowUpListContainer />);
+
+    // Check search input is in the DOM
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Search by customer name or phone...')).not.toBeNull();
+    });
+    const searchInput = screen.getByPlaceholderText('Search by customer name or phone...');
+
+    // Type in search field
+    fireEvent.change(searchInput, { target: { value: 'Apple' } });
+
+    // Wait for debounce (300ms)
+    await new Promise(resolve => setTimeout(resolve, 450));
+
+    await waitFor(() => {
+      // Assert some fetch call was made with the search query
+      const searchCallExists = mockFetch.mock.calls.some(c => {
+        const urlStr = c[0].toString();
+        return urlStr.includes('/api/follow-ups') && urlStr.includes('search=Apple');
+      });
+      expect(searchCallExists).toBe(true);
+    });
   });
 });

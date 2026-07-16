@@ -5,8 +5,8 @@ import { prisma } from '../../lib/db';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Follow Up Callbacks - JD CRM',
-  description: 'Manage callback lists, schedules, states, and callback notifications',
+  title: 'Follow Ups - JD CRM',
+  description: 'Manage follow-up lists, schedules, states, and follow-up notifications',
 };
 
 export default async function FollowUpsPage() {

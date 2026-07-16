@@ -142,4 +142,21 @@ describe('AddFollowUpForm Component Unit Tests (W-3109)', () => {
     expect(payload.followUpTime).toBe('14:30');
     expect(pushMock).toHaveBeenCalledWith('/follow-ups');
   });
+
+  it('should auto-format phone numbers as the user types', () => {
+    render(<AddFollowUpForm />);
+    const phoneInput = screen.getByLabelText(/Phone Number/) as HTMLInputElement;
+
+    // Normal typing
+    fireEvent.change(phoneInput, { target: { value: '5551234567' } });
+    expect(phoneInput.value).toBe('555-123-4567');
+
+    // Incomplete typing
+    fireEvent.change(phoneInput, { target: { value: '55' } });
+    expect(phoneInput.value).toBe('55');
+
+    // Non-digits stripping and truncation
+    fireEvent.change(phoneInput, { target: { value: '5551236789abc' } });
+    expect(phoneInput.value).toBe('555-123-6789');
+  });
 });

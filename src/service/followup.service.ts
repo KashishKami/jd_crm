@@ -13,7 +13,7 @@ import {
 export function computeDaysLabel(followUpDate: Date | string, followUpTime: string, customerTimezone: string): string {
   let dateStr = '';
   if (followUpDate instanceof Date) {
-    dateStr = DateTime.fromJSDate(followUpDate).setZone(customerTimezone).toFormat('yyyy-MM-dd');
+    dateStr = followUpDate.toISOString().split('T')[0];
   } else {
     dateStr = followUpDate.split('T')[0];
   }

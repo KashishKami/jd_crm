@@ -441,6 +441,7 @@ model CrmFollowUps {
   customerTimezone     String    @map("customer_timezone") @db.VarChar(100)
   vehicleYearMakeModel String    @map("vehicle_year_make_model") @db.VarChar(255)
   partRequired         String    @map("part_required") @db.VarChar(255)
+  partDescription      String?   @map("part_description") @db.Text
   quotedOptions        String?   @map("quoted_options") @db.Text
   followUpDate         DateTime  @map("follow_up_date") @db.Date
   followUpTime         String    @map("follow_up_time") @db.VarChar(5)
