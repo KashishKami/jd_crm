@@ -26,6 +26,7 @@ This document describes the canonical database schema for the **new** JD CRM Typ
 | `crm_permissions` | **InnoDB** | `permission_id` | Yes | Fine-grained descriptive permissions library. |
 | `crm_role_permissions` | **InnoDB** | Composite | No | Junction table linking Roles to Permissions (Many-to-Many). |
 | `crm_teams` | **InnoDB** | `team_id` | Yes | Teams database (e.g. IT Park, DB Park, Alex). |
+| `crm_follow_ups` | **InnoDB** | `follow_up_id` | Yes | Prospect callback tracker with timezone-aware scheduling and notification support. **[Phase 31]** |
 | `crm_orders` | **InnoDB** | `crm_order_id` | Yes | Core table housing sales details, status, and pricing. |
 | `crm_vendors` | **InnoDB** | `vendor_id` | Yes | Third-party vendor directory. |
 | ~~`prequest`~~ | — | — | — | ❌ **Dropped** — no active code paths. |
@@ -45,7 +46,8 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
 
 ```text
 =========================================================================================================
-                                       JD CRM DATABASE ER DIAGRAM
+                                      JD CRM DATABASE ER DIAGRAM
+                                       (Post-Phase 31 — Current)
 =========================================================================================================
 
   [ UTILITY TABLES ]
@@ -67,27 +69,44 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
                                                                          │ 1
                                                                          │
                                                                          │ N
-  ┌──────────────────────┐                                    ┌──────────v───────────┐
-  │      crm_teams       │                                    │        users         │
-  ├──────────────────────┤                                    ├──────────────────────┤
-  │ team_id (PK)         ├───────────────────────────────────►│ uid (PK)             │
-  │ team_name            │ 1                                N │ role_id (FK)         │
-  └──────────────────────┘                                    │ team_id (FK)         │
-                                                              └──────────┬───────────┘
-                                                                         │
-         ┌───────────────────┬───────────────────┬───────────────────────┼───────────────────┐
-         │ 1                 │ 1                 │ 1                     │ 1                 │ 1
-         │                   │                   │                       │                   │
-         ▼ 1                 ▼ N                 ▼ N                     ▼ N                 ▼ N
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐        ┌──────────────┐    ┌──────────────┐
-  │users_profile │    │users_profile_│    │users_profile_│        │crm_attendance│    │  usercheck   │
-  │              │    │academic      │    │professional  │        │              │    │              │
-  ├──────────────┤    ├──────────────┤    ├──────────────┤        ├──────────────┤    ├──────────────┤
-  │profile_id    │    │academic_id   │    │professional_ │        │att_id (PK)   │    │id (PK)       │
-  │   (PK)       │    │   (PK)       │    │  id (PK)     │        │agent_id (FK) │    │user_id (FK)  │
-  │profile_user_ │    │academic_user_│    │professional_ │        └──────────────┘    └──────────────┘
-  │  id (FK, U)  │    │  id (FK)     │    │  user_id (FK)│
-  └──────────────┘    └──────────────┘    └──────────────┘
+  ┌──────────────────────┐                                   ┌──────────v───────────┐
+  │      crm_teams       │                                   │        users         │
+  ├──────────────────────┤                                   ├──────────────────────┤
+  │ team_id (PK)         ├──────────────────────────────────►│ uid (PK)             │
+  │ team_name            │ 1                               N │ role_id (FK)         │
+  └──────────────────────┘                                   │ team_id (FK)         │
+                                                             └──────────┬───────────┘
+                                                                        │
+         ┌───────────────────┬───────────────────┬─────────────────────┼────────────────────┬───────────────────┐
+         │ 1                 │ 1                 │ 1                   │ 1                  │ 1                 │ 1
+         │                   │                   │                     │                    │                   │
+         ▼ 1                 ▼ N                 ▼ N                   ▼ N                  ▼ N                 ▼ N
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     ┌──────────────┐    ┌──────────────┐    ┌─────────────────────┐
+  │users_profile │    │users_profile_│    │users_profile_│     │crm_attendance│    │  usercheck   │    │   crm_follow_ups    │
+  │              │    │academic      │    │professional  │     │              │    │              │    │    [Phase 31]       │
+  ├──────────────┤    ├──────────────┤    ├──────────────┤     ├──────────────┤    ├──────────────┤    ├─────────────────────┤
+  │profile_id    │    │academic_id   │    │professional_ │     │att_id (PK)   │    │id (PK)       │    │follow_up_id (PK)    │
+  │   (PK)       │    │   (PK)       │    │  id (PK)     │     │agent_id (FK) │    │user_id (FK)  │    │agent_id (FK)        │
+  │profile_user_ │    │academic_user_│    │professional_ │     └──────────────┘    └──────────────┘    │agent_name           │
+  │  id (FK, U)  │    │  id (FK)     │    │  user_id (FK)│                                             │customer_name        │
+  └──────────────┘    └──────────────┘    └──────────────┘                                             │customer_phone       │
+                                                                                                       │customer_state       │
+                                                                                                       │customer_country     │
+                                                                                                       │customer_timezone    │
+                                                                                                       │vehicle_year_make_   │
+                                                                                                       │  model              │
+                                                                                                       │part_required        │
+                                                                                                       │quoted_options (TEXT)│
+                                                                                                       │follow_up_date       │
+                                                                                                       │follow_up_time       │
+                                                                                                       │follow_up_reason     │
+                                                                                                       │status               │
+                                                                                                       │priority             │
+                                                                                                       │notes (TEXT)         │
+                                                                                                       │entry_date           │
+                                                                                                       │last_contact         │
+                                                                                                       │notification_sent_at │
+                                                                                                       └─────────────────────┘
 
   [ CUSTOMERS & ORDERS SYSTEM ]
   ┌──────────────────────┐      ┌──────────────────────┐      ┌──────────────────────┐
@@ -137,6 +156,15 @@ Below is the visual Entity-Relationship diagram for the database schema, detaili
                                                                 │ card_customer_│
                                                                 │  id (FK)      │
                                                                 └───────────────┘
+
+=========================================================================================================
+  KEY NOTES:
+  ─ crm_follow_ups has NO FK to crm_customers. Prospects are not yet customers.
+  ─ crm_follow_ups.agent_id → users.uid (ON DELETE RESTRICT). Same FK pattern as crm_attendance.
+  ─ crm_follow_ups.customer_timezone is auto-inferred server-side; never accepted from client body.
+  ─ crm_follow_ups.quoted_options is a multi-line TEXT field (one quote per line: Price - Miles/Warranty).
+  ─ notification_sent_at is reset to NULL whenever follow_up_date or follow_up_time is updated.
+=========================================================================================================
 ```
 
 ---
@@ -910,4 +938,103 @@ model Usercheck {
   @@index([userId])
   @@map("usercheck")
 }
+
+model CrmFollowUps {
+  followUpId          Int       @id @default(autoincrement()) @map("follow_up_id")
+  // FK to users.uid — snapshot pattern same as CrmAttendance
+  agentId             Int       @map("agent_id")
+  agentName           String    @map("agent_name") @db.VarChar(55)          // Denormalized snapshot of users.nickname at creation time
+  customerName        String    @map("customer_name") @db.VarChar(511)
+  customerPhone       String?   @map("customer_phone") @db.VarChar(25)
+  customerState       String    @map("customer_state") @db.VarChar(100)     // From COUNTRY_STATE_MAP in geography.ts
+  customerCountry     String    @map("customer_country") @db.VarChar(50)    // 'USA' or 'Canada'
+  customerTimezone    String    @map("customer_timezone") @db.VarChar(100)  // IANA string e.g. 'America/New_York' — auto-inferred server-side from customerState via STATE_TIMEZONE_MAP
+  vehicleYearMakeModel String   @map("vehicle_year_make_model") @db.VarChar(255) // e.g. '2018 Honda Civic'
+  partRequired        String    @map("part_required") @db.VarChar(255)
+  /// Multi-line field. Each line is one quote option in the format: Price - Miles/Warranty (e.g. '$450 - 60k miles / 30 day warranty'). Lines separated by newline (\n). First line shown in list; all lines shown in detail page.
+  quotedOptions       String?   @map("quoted_options") @db.Text
+  followUpDate        DateTime  @map("follow_up_date") @db.Date             // Customer's local date — stored in customer's timezone
+  followUpTime        String    @map("follow_up_time") @db.VarChar(5)       // 'HH:MM' in customer's timezone — stored as-stated, not converted to UTC
+  followUpReason      String    @map("follow_up_reason") @db.VarChar(255)   // Dropdown value OR 'Other: <custom text>' for free-text entries
+  status              String    @map("status") @db.VarChar(50)              // See Follow-Up Status Values below
+  priority            String    @map("priority") @db.VarChar(10)            // 'High', 'Medium', or 'Low'
+  notes               String?   @map("notes") @db.Text                      // Free-form remarks — no image attachment unlike crm_comments
+  entryDate           DateTime  @default(now()) @map("entry_date") @db.DateTime(0)         // Auto-set on INSERT — never editable
+  lastContact         DateTime? @map("last_contact") @db.DateTime(0)        // Set on create (= entryDate); updated by service when notes/status/reason/date/time changes
+  notificationSentAt  DateTime? @map("notification_sent_at") @db.DateTime(0) // NULL = notification not yet sent. Set by markNotificationSent(). Reset to NULL whenever followUpDate or followUpTime is updated.
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.DateTime(0)
+
+  agent               Users     @relation("FollowUpAgent", fields: [agentId], references: [uid], onDelete: Restrict)
+
+  @@index([agentId])
+  @@index([followUpDate])
+  @@index([status])
+  @@index([priority])
+  @@map("crm_follow_ups")
+}
 ```
+
+---
+
+## 4. `crm_follow_ups` Table Schema
+
+**[Phase 31]** New table for the Follow-Ups feature.
+
+*   **Engine:** InnoDB
+*   **Collation:** `utf8mb4_unicode_ci`
+
+| Column | Type | Null | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `follow_up_id` (PK) | `int(11)` | NO | *None* | Auto-Increment |
+| `agent_id` (FK) | `int(11)` | NO | *None* | Foreign Key → `users.uid`. `ON DELETE RESTRICT`. The agent who recorded this follow-up. |
+| `agent_name` | `varchar(55)` | NO | *None* | Denormalized snapshot of `users.nickname` at creation time. Same pattern as `crm_attendance.agent_name`. |
+| `customer_name` | `varchar(511)` | NO | *None* | Prospect full name in one field. |
+| `customer_phone` | `varchar(25)` | YES | `NULL` | Prospect phone number. |
+| `customer_state` | `varchar(100)` | NO | *None* | State or province name from `COUNTRY_STATE_MAP` (e.g. `'California'`, `'Ontario'`). |
+| `customer_country` | `varchar(50)` | NO | *None* | `'USA'` or `'Canada'`. |
+| `customer_timezone` | `varchar(100)` | NO | *None* | IANA timezone string (e.g. `'America/Los_Angeles'`). Auto-inferred server-side from `customer_state` via `STATE_TIMEZONE_MAP` in `geography.ts`. Never accepted from client. |
+| `vehicle_year_make_model` | `varchar(255)` | NO | *None* | Merged field: Year + Make + Model (e.g. `'2018 Honda Civic'`). Same single-field pattern as `order_make_model`. |
+| `part_required` | `varchar(255)` | NO | *None* | Part the prospect needs (e.g. `'Front Bumper'`). |
+| `quoted_options` | `text` | YES | `NULL` | Multi-line quoted pricing. Each line: `Price - Miles/Warranty` (e.g. `'$450 - 60k miles / 30 day warranty'`). Lines separated by `\n`. First line shown in list view; all lines shown in detail. |
+| `follow_up_date` | `date` | NO | *None* | The follow-up date **as stated by the customer in their own timezone**. Never converted to UTC for storage. |
+| `follow_up_time` | `varchar(5)` | NO | *None* | The follow-up time in `HH:MM` format **in the customer's timezone**. Never converted to UTC for storage. |
+| `follow_up_reason` | `varchar(255)` | NO | *None* | Dropdown selection or `'Other: <agent-typed text>'` for free-text entries. |
+| `status` | `varchar(50)` | NO | *None* | Current status. Values: `Interested`, `Call Back Later`, `No Answer`, `Busy`, `Voicemail`, `Waiting for Paycheck`, `Sale Closed`, `Not Interested`, `Price Too High`, `Purchased Elsewhere`, `Wrong Number`, `Spanish`. |
+| `priority` | `varchar(10)` | NO | *None* | `'High'`, `'Medium'`, or `'Low'`. |
+| `notes` | `text` | YES | `NULL` | Free-form agent remarks. No image attachment (unlike `crm_comments`). |
+| `entry_date` | `datetime` | NO | `current_timestamp()` | Auto-set on record creation. **Never editable after creation.** Represents when the follow-up was first logged. |
+| `last_contact` | `datetime` | YES | `NULL` | Set to `now()` on creation (= entry_date). Updated by `followup.service.ts` whenever `notes`, `status`, `follow_up_reason`, `follow_up_date`, or `follow_up_time` is changed. **Not updated for changes to `priority`, `quoted_options`, `customer_name`, etc.** |
+| `notification_sent_at` | `datetime` | YES | `NULL` | `NULL` = notification not yet fired for this record's scheduled time. Set to `now()` by `markNotificationSent()` when the notification toast fires. **Reset to `NULL` by the service layer whenever `follow_up_date` or `follow_up_time` is updated**, so the rescheduled follow-up fires a fresh notification. |
+| `created_at` | `datetime` | NO | `current_timestamp()` | Row creation timestamp. |
+| `updated_at` | `datetime` | NO | `current_timestamp()` (on update) | Automatically updated by Prisma `@updatedAt`. |
+
+### Follow-Up Reason Values (Dropdown)
+- `Waiting for customer decision`
+- `Customer asked to call tomorrow`
+- `Waiting for paycheck`
+- `Waiting for mechanic approval`
+- `Waiting for spouse approval`
+- `Waiting for VIN`
+- `Sent invoice`
+- `Payment reminder`
+- `Other: <custom text>` — stored as a single string in one column; the prefix `Other: ` is added by the form before submission.
+
+### Follow-Up Status Values (Dropdown)
+- `Interested`
+- `Call Back Later`
+- `No Answer`
+- `Busy`
+- `Voicemail`
+- `Waiting for Paycheck`
+- `Sale Closed`
+- `Not Interested`
+- `Price Too High`
+- `Purchased Elsewhere`
+- `Wrong Number`
+- `Spanish`
+
+### Timezone Strategy
+`follow_up_date` and `follow_up_time` are stored **exactly as the customer stated them** in their own timezone. The IANA timezone string is stored alongside in `customer_timezone`. UTC computation is performed at query time (for notification polling) using MySQL's `CONVERT_TZ()` function in the `findDueForNotification()` raw query — no UTC datetime column is stored.
+
+> **Migration:** `npx prisma migrate dev --name add_follow_ups_table`

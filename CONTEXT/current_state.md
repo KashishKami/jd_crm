@@ -45,6 +45,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 28** | Automated Weekly Backup — Saturday Evening Cron (Docker & Vercel) | **[ ] NOT STARTED** | `docker-compose.yml`, `api/admin/backup/trigger/route.ts` (new), `service/backup.service.ts` (new), `vercel.json` |
 | **Phase 29** | Dashboard Enhancement — Sales Performer Redesign & Backend Team Performance Widget | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/types/dashboard.ts`, `src/components/dashboard/PerformersTable.tsx`, `src/components/dashboard/ChampionsLeagueWidget.tsx`, `src/components/dashboard/BackendTeamWidget.tsx` (new), `src/app/api/dashboard/champions-league/route.ts`, `src/app/api/dashboard/backend-team/route.ts` (new), dashboard server page, `scripts/sql/add-backend-permissions.sql` (new), `seed.sql` |
 | **Phase 30** | SSR Pre-fetch Waterfall Elimination — Orders, Agents, Customers & Gateways List Pages | **[x] COMPLETED** | `src/app/orders/page.tsx`, `src/app/agents/page.tsx`, `src/app/customers/page.tsx`, `src/app/gateways/page.tsx`, `src/components/OrderListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/CustomerList.tsx`, `src/components/GatewayList.tsx`, `src/tests/orders.test.ts`, `src/tests/agents.test.ts` |
+| **Phase 31** | Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/lib/geography.ts`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/app/api/follow-ups/due/route.ts`, `src/middleware.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/page.tsx`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/layout.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/geography.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts` |
 
 ---
 
@@ -5374,6 +5375,604 @@ Convert `gateways/page.tsx` to an `async` Server Component. Fetch gateways via `
 
 ---
 
+### Phase 31 — Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications
+
+#### W-3101 — Database: `crm_follow_ups` Table & Prisma Model
+
+**Goal:**
+Create the `crm_follow_ups` table via a Prisma migration and update `schema.prisma` with the `CrmFollowUps` model. This is the foundational step. No API, no UI — just the schema.
+
+**Approach:**
+Add the `CrmFollowUps` model to `prisma/schema.prisma` with all columns as specified in `CONTEXT/database_schema.md`. Run `npx prisma migrate dev --name add_follow_ups_table`. Verify the table exists in the test database via `globalSetup.ts`'s automatic `db push` sync.
+
+The table stores follow-up records with: customer info (name, phone, state, country, timezone), vehicle info (year/make/model), part required, quoted options (multi-line `TEXT` field in `Price - Miles/Warranty` format), follow-up date + time in customer timezone, follow-up reason, status, priority, free-form notes, entry date, last contact, notification sent timestamp, and a FK to `users.uid` for the recording agent.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: Connect to `jd_crm_test` and verify `crm_follow_ups` table does NOT exist yet (confirming RED state before migration).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Schema → Migration):**
+  - [x] [Schema] Add `CrmFollowUps` model to `prisma/schema.prisma` exactly as defined in `CONTEXT/database_schema.md`. Key fields:
+    - `followUpId` INT PK auto-increment, `@map("follow_up_id")`
+    - `agentId` INT FK → `users.uid` `ON DELETE RESTRICT`, `@map("agent_id")`
+    - `agentName` VARCHAR(55) snapshot of `users.nickname`, `@map("agent_name")`
+    - `customerName` VARCHAR(511), `@map("customer_name")`
+    - `customerPhone` VARCHAR(25) nullable, `@map("customer_phone")`
+    - `customerState` VARCHAR(100), `@map("customer_state")`
+    - `customerCountry` VARCHAR(50) — `'USA'` or `'Canada'`, `@map("customer_country")`
+    - `customerTimezone` VARCHAR(100) IANA string e.g. `'America/New_York'`, `@map("customer_timezone")`
+    - `vehicleYearMakeModel` VARCHAR(255), `@map("vehicle_year_make_model")`
+    - `partRequired` VARCHAR(255), `@map("part_required")`
+    - `quotedOptions` TEXT nullable — multi-line `Price - Miles/Warranty` format, `@map("quoted_options")`
+    - `followUpDate` DATE (customer's local date), `@map("follow_up_date")`
+    - `followUpTime` VARCHAR(5) `HH:MM` in customer timezone, `@map("follow_up_time")`
+    - `followUpReason` VARCHAR(255) — dropdown value or `"Other: <custom text>"`, `@map("follow_up_reason")`
+    - `status` VARCHAR(50), `@map("status")`
+    - `priority` VARCHAR(10) — `'High'`, `'Medium'`, or `'Low'`, `@map("priority")`
+    - `notes` TEXT nullable — free-form remarks, no image, `@map("notes")`
+    - `entryDate` DateTime `@default(now())` — never editable after creation, `@map("entry_date")`
+    - `lastContact` DateTime nullable — updated by service layer on meaningful edits, `@map("last_contact")`
+    - `notificationSentAt` DateTime nullable — set when notification fires; reset to NULL whenever `followUpDate` or `followUpTime` is updated, `@map("notification_sent_at")`
+    - `createdAt` DateTime `@default(now())`, `@map("created_at")`
+    - `updatedAt` DateTime `@updatedAt`, `@map("updated_at")`
+    - Relation: `agent Users @relation("FollowUpAgent", fields: [agentId], references: [uid], onDelete: Restrict)`
+    - Indexes: `@@index([agentId])`, `@@index([followUpDate])`, `@@index([status])`, `@@index([priority])`
+    - Table map: `@@map("crm_follow_ups")`
+  - [x] [Users model] Add reverse relation: `followUps CrmFollowUps[] @relation("FollowUpAgent")` to the `Users` model in `schema.prisma`.
+  - [x] [Migration] Run `npx prisma migrate dev --name add_follow_ups_table`. Confirm migration file created under `prisma/migrations/`.
+  - [x] Verify `SHOW CREATE TABLE crm_follow_ups` in Docker container shows all columns and the FK constraint to `users`.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Run `npx prisma migrate dev` → no errors → `crm_follow_ups` table exists in `jd_crm` → `npm run test` still passes with no regressions → ✓ Done.
+
+---
+
+#### W-3102 — Seed: New Permissions & Role Assignments
+
+**Goal:**
+Seed two new permissions (`follow-ups:view` at ID 58, `follow-ups:create` at ID 59) and assign them to the correct roles so the access control matrix works before any API code is written.
+
+**Approach:**
+Add two new rows to the `crm_permissions` INSERT block in `seed.sql`. Assign both permissions to Super Admin (role 1) and Admin (role 2). Assign only `follow-ups:create` (ID 59) to Agent (role 8). Re-run seed on test DB; verify rows exist.
+
+**Permission keys (as per `project_data.md`):**
+- `follow-ups:view` (ID 58) — Admin-level. Unlocks view of ALL agents' follow-ups. Enables Center (Team) and Agent filters. Enables the Agent column in the list.
+- `follow-ups:create` (ID 59) — Agent-level. Grants access to the page but strictly scopes all data to the authenticated agent's own records. No Team/Agent filters or columns are shown.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: Query `crm_permissions` for `permission_name = 'follow-ups:view'`. Assert it does NOT exist yet.
+  - [x] Test: Query `crm_permissions` for `permission_name = 'follow-ups:create'`. Assert it does NOT exist yet.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Seed):**
+  - [x] [seed.sql] In the `crm_permissions` INSERT block, append:
+    ```sql
+    (58, 'follow-ups:view',   'Admin-level: view all follow-ups across all agents and centers'),
+    (59, 'follow-ups:create', 'Agent-level: create and view own follow-ups only')
+    ```
+  - [x] [seed.sql] In the `crm_role_permissions` block for **Super Admin (role 1)**, append `(1,58),(1,59)`.
+  - [x] [seed.sql] In the `crm_role_permissions` block for **Admin (role 2)**, append `(2,58),(2,59)`.
+  - [x] [seed.sql] In the `crm_role_permissions` block for **Agent (role 8)**, append `(8,59)` (only `follow-ups:create`, NOT `follow-ups:view`).
+  - [x] Re-run seed on the test database: `Get-Content "seed.sql" | docker exec -i jd_crm_db mysql -u root -proot_password jd_crm_test`.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] `SELECT * FROM crm_permissions WHERE permission_id IN (58, 59)` returns 2 rows → `SELECT * FROM crm_role_permissions WHERE permission_id IN (58, 59)` shows role 1 and 2 have both, role 8 has only 59 → ✓ Done.
+
+---
+
+#### W-3103 — Install `luxon` Dependency & Extend `geography.ts` with Timezone Map
+
+**Goal:**
+Install `luxon` + `@types/luxon` for timezone-aware datetime computations. Extend `src/lib/geography.ts` with a `STATE_TIMEZONE_MAP` that maps every US state and Canadian province to its primary IANA timezone string. This utility is used by the service layer and tests.
+
+**Approach:**
+Run `npm install luxon` and `npm install -D @types/luxon`. Add `STATE_TIMEZONE_MAP` to `geography.ts`. Write unit tests verifying the map covers all states/provinces in `COUNTRY_STATE_MAP` and returns the correct IANA string for spot-check states.
+
+**Canonical timezone assignments (primary timezone for states that span multiple):**
+- All US states map to their primary/most-populous timezone zone string (e.g. `Indiana → 'America/Indiana/Indianapolis'`, `Arizona → 'America/Phoenix'`, `Hawaii → 'Pacific/Honolulu'`, `Alaska → 'America/Anchorage'`).
+- All Canadian provinces/territories map correctly (e.g. `Ontario → 'America/Toronto'`, `British Columbia → 'America/Vancouver'`, `Saskatchewan → 'America/Regina'`).
+
+---
+
+- [x] **RED — Unit (`geography.test.ts`):**
+  - [x] Test: Import `STATE_TIMEZONE_MAP` from `src/lib/geography.ts`. Assert it is NOT undefined (fails because it does not exist yet).
+  - [x] Test: Every state/province key in `COUNTRY_STATE_MAP` (USA + Canada combined) has a corresponding entry in `STATE_TIMEZONE_MAP`. Assert no missing keys.
+  - [x] Test: `STATE_TIMEZONE_MAP['California']` equals `'America/Los_Angeles'`.
+  - [x] Test: `STATE_TIMEZONE_MAP['Ontario']` equals `'America/Toronto'`.
+  - [x] Test: `STATE_TIMEZONE_MAP['Arizona']` equals `'America/Phoenix'` (no DST — important edge case).
+  - [x] Test: `STATE_TIMEZONE_MAP['Saskatchewan']` equals `'America/Regina'` (no DST — important edge case).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Dependency + Utility):**
+  - [x] [Install] Run `npm install luxon` and `npm install -D @types/luxon`.
+  - [x] [geography.ts] Add `export const STATE_TIMEZONE_MAP: Record<string, string>` covering all 50 US states + DC + all 13 Canadian provinces/territories with their correct IANA timezone strings.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] `npm run typecheck` → 0 errors (luxon types resolved) → `npm run test` → geography tests GREEN → ✓ Done.
+
+---
+
+#### W-3104 — Repository Layer: `followup.repository.ts`
+
+**Goal:**
+Build the raw Prisma query layer for follow-ups. No business logic here — only data access functions called by the service layer.
+
+**Approach:**
+Create `src/repository/followup.repository.ts` with the following exported functions. Each function accepts typed parameters and returns typed Prisma results.
+
+**Functions to implement:**
+- `findAll(filters)` — paginated list query. Accepts: `agentId?: number`, `teamId?: number`, `priority?: string`, `status?: string`, `followUpDateFrom?: string`, `followUpDateTo?: string`, `page?: number`, `limit?: number`. Returns `{ followUps: CrmFollowUps[], total: number }`. When `agentId` is provided, adds `WHERE agent_id = agentId`. When `teamId` is provided, joins `users` on `agentId` and filters by `users.team_id = teamId`.
+- `findById(id: number)` — single record with agent relation joined (to get `agentName` fallback if needed).
+- `create(data: FollowUpCreateInput)` — inserts a new row. Sets `entryDate = now()`, `lastContact = now()`, `notificationSentAt = null`.
+- `update(id: number, data: FollowUpUpdateInput)` — partial update. If payload contains `followUpDate` or `followUpTime`, service layer must also set `notificationSentAt = null` (enforced in service, not repository). If payload contains any of `notes`, `status`, `followUpReason`, `followUpDate`, `followUpTime`, service layer sets `lastContact = now()`.
+- `delete(id: number)` — hard delete. Returns the deleted record for audit.
+- `findDueForNotification()` — returns all follow-ups where `notificationSentAt IS NULL` and the computed UTC fire datetime is within the next 5 minutes from `now()`. Uses a raw SQL approach: `WHERE notification_sent_at IS NULL AND CONVERT_TZ(CONCAT(follow_up_date, ' ', follow_up_time, ':00'), customer_timezone, 'UTC') BETWEEN UTC_TIMESTAMP() AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)`. Returns full records including `agentId`, `customerName`, `followUpDate`, `followUpTime`, `customerTimezone`.
+- `markNotificationSent(id: number)` — sets `notificationSentAt = now()` for one record.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: Call `followupRepository.create({ agentId: <seeded-agent-uid>, agentName: 'Test', customerName: 'John Doe', customerPhone: '5551234567', customerState: 'California', customerCountry: 'USA', customerTimezone: 'America/Los_Angeles', vehicleYearMakeModel: '2018 Honda Civic', partRequired: 'Front Bumper', quotedOptions: '$450 - 60k miles / 30 day warranty', followUpDate: '2026-09-01', followUpTime: '14:00', followUpReason: 'Waiting for customer decision', status: 'Interested', priority: 'High', notes: null })`. Assert returned record has correct `followUpId` (integer > 0), `entryDate` is set, `lastContact` is set, `notificationSentAt` is null.
+  - [x] Test: Call `followupRepository.findAll({ agentId: <seeded-agent-uid> })`. Assert returned `total >= 1` and the created record is present.
+  - [x] Test: Call `followupRepository.findById(<created-id>)`. Assert `customerName === 'John Doe'`.
+  - [x] Test: Call `followupRepository.update(<created-id>, { notes: 'Called, no answer' })`. Assert the returned record has `notes === 'Called, no answer'`.
+  - [x] Test: Call `followupRepository.delete(<created-id>)`. Assert it resolves without error. Assert subsequent `findById` returns null.
+  - [x] **Run — confirm RED (repository file does not exist).**
+
+- [x] **GREEN — Backend (Repository):**
+  - [x] [Types] Create `src/types/followup.ts` with:
+    - `FollowUpCreateInput` interface — all required and optional fields for creating a record (mirrors the column list above).
+    - `FollowUpUpdateInput` interface — all fields optional (Partial of the create input, minus `agentId`, `agentName`, `entryDate`).
+    - `FollowUpListResult` interface — `{ followUps: FollowUpRecord[], total: number }`.
+    - `FollowUpRecord` interface — full row shape returned from Prisma, including the joined `agent: { uid, name, nickname, teamId }` relation.
+    - `FollowUpFilters` interface — `agentId?, teamId?, priority?, status?, followUpDateFrom?, followUpDateTo?, page?, limit?`.
+  - [x] [Repository] Create `src/repository/followup.repository.ts` and implement all six functions listed in the Approach above.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 5 repository integration tests pass → `npm run test` → no regressions → ✓ Done.
+
+---
+
+#### W-3105 — Service Layer: `followup.service.ts`
+
+**Goal:**
+Build the business logic layer. This is where permission-based scoping, `lastContact` auto-update, `notificationSentAt` reset logic, the `daysLabel` computation, and the notification polling logic all live.
+
+**Approach:**
+Create `src/service/followup.service.ts`. This layer is called by API route handlers. It enforces rules that the repository layer does not know about.
+
+**Functions to implement:**
+- `getAllFollowUps(sessionUser, rawFilters)` — enforces access scoping: if `sessionUser` has `follow-ups:view`, passes filters as-is. If only `follow-ups:create`, overrides `agentId = sessionUser.uid` and strips `teamId`. Calls `findAll`. After fetching, maps each record to append `daysLabel: string` (see below).
+- `getFollowUpById(sessionUser, id)` — fetches by ID. If user only has `follow-ups:create`, checks `record.agentId === sessionUser.uid`; if not, throws `403 Forbidden`. Returns record.
+- `createFollowUp(sessionUser, data)` — validates required fields. Reads `agentName` from `sessionUser.nickname`. Calls `followupRepository.create`. Returns the created record.
+- `updateFollowUp(sessionUser, id, data)` — first calls `getFollowUpById` (which enforces ownership). Builds the update payload. **If `data.followUpDate` or `data.followUpTime` is present → adds `notificationSentAt: null` to payload.** **If any of `data.notes`, `data.status`, `data.followUpReason`, `data.followUpDate`, `data.followUpTime` is present → adds `lastContact: new Date()` to payload.** Calls `followupRepository.update`.
+- `deleteFollowUp(sessionUser, id)` — checks `follow-ups:view` permission (admin only can delete). Calls `followupRepository.delete`.
+- `getDueFollowUps(sessionUser)` — if `follow-ups:view`, fetches all agents' due records. If only `follow-ups:create`, scopes to own `agentId`. Calls `followupRepository.findDueForNotification()` with appropriate filter.
+- `markNotificationSent(id)` — thin wrapper over `followupRepository.markNotificationSent`.
+
+**`daysLabel` computation logic (pure function, export separately for testing):**
+```
+computeDaysLabel(followUpDate: string, followUpTime: string, customerTimezone: string): string
+  nowInTz = DateTime.now().setZone(customerTimezone)
+  today = nowInTz.startOf('day')
+  target = DateTime.fromISO(followUpDate, { zone: customerTimezone }).startOf('day')
+  delta = target.diff(today, 'days').days  // integer
+
+  if delta == 0:
+    // If the scheduled callback time is in the past today -> 'Due by 0 days'
+    scheduledTime = today.set({ hour: hours, minute: minutes })
+    if nowInTz > scheduledTime:
+      return 'Due by 0 days'
+    return 'Today'
+  if delta == 1  → return 'Tomorrow'
+  if delta > 1   → return `${delta} Days`
+  if delta == -1 → return 'Due by 1 day'  // overdue yesterday
+  if delta < -1  → return `Due by ${Math.abs(delta)} days`
+```
+
+---
+
+- [x] **RED — Unit (`followup.service.test.ts`):**
+  - [x] Test `computeDaysLabel`: With today as `2026-09-01T12:00:00` in `'America/New_York'`, scheduled for `2026-09-01` at `13:00` (future) → returns `'Today'`.
+  - [x] Test `computeDaysLabel`: Scheduled for `2026-09-01` at `11:00` (past) → returns `'Due by 0 days'`.
+  - [x] Test `computeDaysLabel`: `followUpDate = '2026-09-02'` → returns `'Tomorrow'`.
+  - [x] Test `computeDaysLabel`: `followUpDate = '2026-09-05'` → returns `'4 Days'`.
+  - [x] Test `computeDaysLabel`: `followUpDate = '2026-08-31'` (yesterday) → returns `'Due by 1 day'`.
+  - [x] Test `computeDaysLabel`: `followUpDate = '2026-08-25'` (7 days ago) → returns `'Due by 7 days'`.
+  - [x] Test `getAllFollowUps`: When `sessionUser` has only `follow-ups:create`, the `agentId` filter passed to `findAll` is forced to `sessionUser.uid` regardless of what `rawFilters.agentId` contained.
+  - [x] Test `getAllFollowUps`: When `sessionUser` has `follow-ups:view`, the `agentId` filter is passed through as-is.
+  - [x] Test `updateFollowUp`: When `data` includes `followUpDate`, the payload passed to `update` contains `notificationSentAt: null`.
+  - [x] Test `updateFollowUp`: When `data` includes only `priority`, the payload does NOT contain `notificationSentAt` and does NOT contain `lastContact`.
+  - [x] Test `updateFollowUp`: When `data` includes `status`, the payload contains `lastContact` (a Date).
+  - [x] Test `deleteFollowUp`: When `sessionUser` lacks `follow-ups:view`, throws error with message `'Forbidden'`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Service):**
+  - [x] Create `src/service/followup.service.ts` implementing all functions above.
+  - [x] Export `computeDaysLabel` as a named export for direct unit test access.
+  - [x] Import `luxon`'s `DateTime` for all timezone computations.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 11 service unit tests pass → ✓ Done.
+
+---
+
+#### W-3106 — API Routes: `GET/POST /api/follow-ups` & `GET/PATCH/DELETE /api/follow-ups/[id]`
+
+**Goal:**
+Build the two REST API route files. These are the only files that touch `NextResponse`, session extraction, and HTTP status codes. All business logic stays in the service layer.
+
+**Approach:**
+Follow the exact pattern of `src/app/api/orders/route.ts` and `src/app/api/orders/[id]/route.ts`.
+
+**`/api/follow-ups/route.ts` — GET (list) + POST (create):**
+- `GET`: Requires `follow-ups:view` OR `follow-ups:create`. If neither → 403. Parses query params: `agentId`, `teamId`, `priority`, `status`, `followUpDateFrom`, `followUpDateTo`, `page`, `limit`. Calls `followupService.getAllFollowUps(session.user, filters)`. Returns `200 { followUps, total }`.
+- `POST`: Requires `follow-ups:create`. Body must contain: `customerName` (required), `customerPhone` (optional), `customerState` (required), `customerCountry` (required), `vehicleYearMakeModel` (required), `partRequired` (required), `quotedOptions` (optional), `followUpDate` (required), `followUpTime` (required), `followUpReason` (required), `status` (required), `priority` (required), `notes` (optional). `agentId` and `agentName` are derived from `session.user.id` and `session.user.nickname` — never trusted from the client body. `customerTimezone` is derived server-side using `STATE_TIMEZONE_MAP[customerState]`. Calls `followupService.createFollowUp`. Returns `201` with the created record.
+
+**`/api/follow-ups/[id]/route.ts` — GET (single) + PATCH (update) + DELETE (delete):**
+- `GET`: Requires `follow-ups:view` OR `follow-ups:create`. Calls `followupService.getFollowUpById(session.user, id)`. Service enforces ownership for agent-only users. Returns `200` or `403`/`404`.
+- `PATCH`: Requires `follow-ups:create`. Body can contain any subset of editable fields: `customerName`, `customerPhone`, `customerState`, `customerCountry`, `vehicleYearMakeModel`, `partRequired`, `quotedOptions`, `followUpDate`, `followUpTime`, `followUpReason`, `status`, `priority`, `notes`. If `customerState` is in the body, re-derives `customerTimezone` from `STATE_TIMEZONE_MAP` and adds it to the update payload. Calls `followupService.updateFollowUp(session.user, id, data)`. Returns `200` with updated record.
+- `DELETE`: Requires `follow-ups:view` (admin only). Calls `followupService.deleteFollowUp(session.user, id)`. Returns `200 { message: 'Follow-up deleted' }`.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: `GET /api/follow-ups` with NO auth → `401 Unauthorized`.
+  - [x] Test: `GET /api/follow-ups` with session lacking both permissions → `403 Forbidden`.
+  - [x] Test: `GET /api/follow-ups` with `follow-ups:create` session → `200 OK` with `{ followUps: [], total: 0 }` (empty, own agent).
+  - [x] Test: `GET /api/follow-ups` with `follow-ups:view` session and `?agentId=<uid>` → `200 OK` and the agentId filter is honoured.
+  - [x] Test: `POST /api/follow-ups` with `follow-ups:create` and valid body → `201` with created record. Assert `agentId === session.user.uid` (not whatever was in the body). Assert `customerTimezone === 'America/Los_Angeles'` when `customerState === 'California'`. Assert `notificationSentAt === null`. Assert `entryDate` is set.
+  - [x] Test: `POST /api/follow-ups` with `follow-ups:create` and missing required field `customerState` → `400 Bad Request` with descriptive error message.
+  - [x] Test: `GET /api/follow-ups/<id>` with `follow-ups:create` session for a record owned by a DIFFERENT agent → `403 Forbidden`.
+  - [x] Test: `PATCH /api/follow-ups/<id>` with `follow-ups:create` and `{ followUpDate: '2026-10-01' }` → `200 OK`. Assert `notificationSentAt` is null in the DB after update.
+  - [x] Test: `PATCH /api/follow-ups/<id>` with `follow-ups:create` and `{ priority: 'Low' }` → `200 OK`. Assert `notificationSentAt` remains null (was already null). Assert `lastContact` does NOT change.
+  - [x] Test: `PATCH /api/follow-ups/<id>` with `follow-ups:create` and `{ status: 'No Answer' }` → `200 OK`. Assert `lastContact` is updated.
+  - [x] Test: `DELETE /api/follow-ups/<id>` with `follow-ups:create` (agent, no view permission) → `403 Forbidden`.
+  - [x] Test: `DELETE /api/follow-ups/<id>` with `follow-ups:view` (admin) → `200 OK`.
+  - [x] **Run — confirm RED (routes don't exist).**
+
+- [x] **GREEN — Backend (API Routes):**
+  - [x] Create `src/app/api/follow-ups/route.ts` implementing GET + POST as described.
+  - [x] Create `src/app/api/follow-ups/[id]/route.ts` implementing GET + PATCH + DELETE as described.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 12 API integration tests pass → ✓ Done.
+
+---
+
+#### W-3107 — API Route: `GET /api/follow-ups/due` (Notification Polling Endpoint)
+
+**Goal:**
+Build the lightweight endpoint that the frontend polls every 60 seconds to check for due follow-ups. Returns only records that need a notification fired right now.
+
+**Approach:**
+Create `src/app/api/follow-ups/due/route.ts`. This route calls `followupService.getDueFollowUps(session.user)`. The service calls `followupRepository.findDueForNotification()` scoped by agent if necessary. Returns an array of due records (minimally: `id`, `customerName`, `followUpDate`, `followUpTime`, `customerTimezone`, `partRequired`). No pagination — this should always return a small number of records.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: Create a follow-up with `followUpDate = today's date` and `followUpTime = current UTC time + 2 minutes` (converted to customer timezone). `GET /api/follow-ups/due` with matching session → `200 OK` → response array contains that record's `id`.
+  - [x] Test: `GET /api/follow-ups/due` with a follow-up whose date is tomorrow → array does NOT contain it.
+  - [x] Test: `GET /api/follow-ups/due` for an agent session → only their own due records are returned, not another agent's.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Route):**
+  - [x] Create `src/app/api/follow-ups/due/route.ts` with GET handler.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Due records appear in response → ✓ Done.
+
+---
+
+#### W-3108 — Middleware: Protect `/follow-ups` Route
+
+**Goal:**
+Add `/follow-ups` to the middleware route protection so that unauthenticated users and users with neither `follow-ups:view` nor `follow-ups:create` are redirected to `/access-denied` before the page even renders. This is backend enforcement, not just UI gating.
+
+**Approach:**
+Open `src/middleware.ts`. Follow the exact same pattern used for `/orders`, `/agents`, `/vendors`, and `/gateways`. The `/follow-ups` route (and all sub-paths like `/follow-ups/[id]`, `/follow-ups/[id]/edit`) must be added to the protected matcher config.
+
+---
+
+- [x] **RED — Integration (`followups.test.ts`):**
+  - [x] Test: Simulate a `GET /follow-ups` request with no session cookies → assert redirect to `/login` (status 307 or 302).
+  - [x] Test: Simulate a `GET /follow-ups` request with a session that has neither permission → assert redirect to `/access-denied`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Middleware):**
+  - [x] [middleware.ts] Add `/follow-ups` and `/follow-ups/:path*` to the protected route array and permission check block. Use `follow-ups:view` OR `follow-ups:create` as the access gate.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Logged-out browser hits `/follow-ups` → redirected to `/login` → ✓ Done.
+
+---
+
+#### W-3109 — Frontend Types & `AddFollowUpForm` Component
+
+**Goal:**
+Build the form component for creating a new follow-up record. This is the agent-facing intake screen.
+
+**Approach:**
+Create `src/components/AddFollowUpForm.tsx` as a client component. Follows the same section-based layout pattern as `AddOrderForm.tsx`. Fields are organized into logical sections.
+
+**Form sections:**
+1. **Customer Information:** Customer Name (text), Phone Number (text).
+2. **Vehicle & Part:** Year, Make & Model (text), Part Required (text).
+3. **Location:** Country dropdown (USA / Canada) → State dropdown (cascade-filtered, from `COUNTRY_STATE_MAP`). On state selection, show a read-only "Timezone" label auto-inferred from `STATE_TIMEZONE_MAP` (e.g. "Pacific Time — America/Los_Angeles"). This is informational only; the actual IANA string is sent to the API.
+4. **Pricing:** Quoted Options (`<textarea>` with placeholder: `$450 - 60k miles / 30 day warranty` + helper text: *Press Enter to add multiple quote options*).
+5. **Follow-Up Schedule:** Follow-Up Date (date input), Follow-Up Time (time input HH:MM), Follow-Up Reason (dropdown + "Other" free-text reveal — see below).
+6. **Classification:** Status (dropdown), Priority (dropdown: High / Medium / Low).
+7. **Notes:** Notes textarea (no image upload, unlike order comments).
+
+**Follow-Up Reason dropdown options (in order):**
+- Waiting for customer decision
+- Customer asked to call tomorrow
+- Waiting for paycheck
+- Waiting for mechanic approval
+- Waiting for spouse approval
+- Waiting for VIN
+- Sent invoice
+- Payment reminder
+- Other (Please specify)
+
+When "Other (Please specify)" is selected, a text input reveals below the dropdown. The submitted value is `"Other: <agent's text>"` stored in one column.
+
+**Status dropdown options (in order):**
+- Interested
+- Call Back Later
+- No Answer
+- Busy
+- Voicemail
+- Waiting for Paycheck
+- Sale Closed
+- Not Interested
+- Price Too High
+- Purchased Elsewhere
+- Wrong Number
+- Spanish
+
+**Form submission:** `POST /api/follow-ups` with all field values. On success, redirect to `/follow-ups`. On error, show inline error message.
+
+---
+
+- [x] **RED — Unit (`AddFollowUpForm.test.tsx`):**
+  - [x] Test: Component renders with all required fields present (customer name, phone, state, country, vehicle, part, quoted options textarea, date, time, reason dropdown, status dropdown, priority dropdown, notes textarea).
+  - [x] Test: When Country = 'USA' is selected, the State dropdown shows only US states. When Country = 'Canada', shows only Canadian provinces.
+  - [x] Test: When State = 'California' is selected, the timezone label reads `America/Los_Angeles`.
+  - [x] Test: When State = 'Ontario' is selected, the timezone label reads `America/Toronto`.
+  - [x] Test: When Follow-Up Reason = 'Other (Please specify)' is selected, an additional text input appears.
+  - [x] Test: When Follow-Up Reason = 'Waiting for customer decision' (not Other), the extra text input is NOT present.
+  - [x] Test: Submitting the form with all required fields populated calls `fetch('/api/follow-ups', { method: 'POST', ... })` with the correct body including `customerTimezone` inferred from the selected state.
+  - [x] Test: Submitting without `customerName` (required) shows a validation error and does NOT call fetch.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] Create `src/components/AddFollowUpForm.tsx`.
+  - [x] Import `COUNTRY_STATE_MAP` and `STATE_TIMEZONE_MAP` from `src/lib/geography.ts`.
+  - [x] Implement state-driven timezone inference: `const inferredTimezone = STATE_TIMEZONE_MAP[selectedState] ?? ''`.
+  - [x] Implement "Other" reason conditional reveal using a `showOtherReason` boolean state.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 8 unit tests pass → ✓ Done.
+
+---
+
+#### W-3110 — Frontend: `FollowUpList` & `FollowUpListContainer` Components
+
+**Goal:**
+Build the list view components that render follow-up records in a table, with full filter/pagination/scroll-position restoration behavior — identical in behavior to `OrderList.tsx` + `OrderListContainer.tsx`.
+
+**Approach:**
+Create `src/components/FollowUpListContainer.tsx` (client component — owns filter state, URL sync, pagination, fetch, scroll restoration) and `src/components/FollowUpList.tsx` (pure render component — receives rows as props).
+
+**`FollowUpListContainer.tsx` — filter state & behavior (mirrors `OrderListContainer.tsx`):**
+- Filter state: `teamFilter` (admin only), `agentFilter` (admin only), `priorityFilter`, `statusFilter`, `followUpDateFrom`, `followUpDateTo`, `page`.
+- All filter state lazy-initialized from URL search params (same `useState(() => new URLSearchParams(...).get(...)` pattern as Session 83 fix).
+- `prevFiltersRef` pattern from Session 83: only resets `page` to 1 when a filter value actually changes (not on mount).
+- URL sync: writes all active filters into URL params on every change.
+- Scroll restoration: `sessionStorage` key = `followup-list-scroll`. `hasAnimated` lazy initializer reads `coming_from_detail` from sessionStorage. Double-rAF scroll restoration on mount (Session 82 pattern). `window.scrollY > 0` guard on scroll listener.
+- On navigation to detail page: sets `sessionStorage.setItem('coming_from_followup_detail', 'true')` and saves scroll position.
+- Back button in detail pages uses `router.back()`.
+- Fetches from `GET /api/follow-ups` with query params.
+
+**`FollowUpList.tsx` — table columns (by permission level):**
+
+Admin (`follow-ups:view`) columns:
+1. **Follow-Up Date & Time** — date + time in `h:mm a` format + timezone abbreviation (e.g. `Sep 1, 2026 · 2:00 PM PST`) + `daysLabel` badge below (Today / Tomorrow / 3 Days / Due by N days).
+2. **Customer** — full name on top, `State, Country` below in smaller muted text.
+3. **Phone** — phone number.
+4. **Part Required** — part name on top, year/make/model below.
+5. **Quoted Options** — first line only (truncated at 40 chars with ellipsis if longer).
+6. **Agent** — agent nickname (hidden for `follow-ups:create`-only users).
+7. **Priority** — pill badge: `High` = red, `Medium` = amber, `Low` = green.
+8. **Status** — plain text.
+9. **Last Contact** — formatted relative datetime.
+10. **Actions** — "Details" button → `/follow-ups/[id]`.
+
+Agent (`follow-ups:create` only) columns: Same as above minus column 6 (Agent).
+
+**Filter controls by permission:**
+- Admin: Team dropdown (from `crm_teams`), Agent dropdown (filtered by selected team), Priority dropdown, Status dropdown, Date From, Date To.
+- Agent: Priority dropdown, Status dropdown, Date From, Date To.
+
+---
+
+- [x] **RED — Unit (`FollowUpList.test.tsx`):**
+  - [x] Test: With `follow-ups:view` permissions, table renders the "Agent" column header.
+  - [x] Test: With only `follow-ups:create` permissions, table does NOT render the "Agent" column header.
+  - [x] Test: A follow-up with `daysLabel = 'Today'` renders a badge with text "Today".
+  - [x] Test: A follow-up with `daysLabel = 'Due by 3 days'` renders a badge with text "Due by 3 days".
+  - [x] Test: A follow-up with `priority = 'High'` renders a badge with the 'high-priority' CSS class (or `data-priority="High"`).
+  - [x] Test: A follow-up with `priority = 'Low'` renders a badge with the 'low-priority' CSS class (or `data-priority="Low"`).
+  - [x] Test: Clicking the "Details" button for a record navigates to `/follow-ups/<id>`.
+  - [x] Test: When `quotedOptions` has multiple lines, only the first line is rendered in the table cell.
+  - [x] Test: With admin session and `follow-ups:view`, Team and Agent filter dropdowns are rendered. With agent session, they are NOT rendered.
+  - [x] Test: Changing the Priority filter updates the URL search params.
+  - [x] Test: On mount, scroll position is restored from `sessionStorage` using the double-rAF pattern (mock sessionStorage with saved position > 0, assert `window.scrollTo` was called).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Components):**
+  - [x] Create `src/components/FollowUpList.tsx`.
+  - [x] Create `src/components/FollowUpListContainer.tsx`.
+  - [x] Apply all Session 82 + 83 patterns: lazy `hasAnimated`, double-rAF scroll, `prevFiltersRef`, lazy filter state init from URL, `isRestoringRef`.
+  - [x] Apply `fadeInStagger` (opacity-only) animation for table rows — same as `AgentList.tsx`, `OrderList.tsx`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 11 unit tests pass → ✓ Done.
+
+---
+
+#### W-3111 — Frontend: Pages — List, Add, Detail, Edit
+
+**Goal:**
+Wire up all four page files under `src/app/follow-ups/`. Each is a thin server component (or client wrapper) that handles session-checking and renders the appropriate component.
+
+**Pages to create:**
+
+1. **`src/app/follow-ups/page.tsx`** — Server component. Checks session (redirect if none). Passes `session.user.userPermissions` to `<FollowUpListContainer>`. Does NOT SSR pre-fetch the follow-up list (follow-ups are personal/filtered — SSR pre-fetch of an unscoped list makes no sense here; the container handles the fetch client-side).
+
+2. **`src/app/follow-ups/new/page.tsx`** — Server component. Checks session + `follow-ups:create` permission (redirect to `/access-denied` if absent). Renders `<AddFollowUpForm />`.
+
+3. **`src/app/follow-ups/[id]/page.tsx`** — Server component. Fetches the single record server-side via `followupService.getFollowUpById(session.user, id)`. If 403/404, redirects appropriately. Renders a structured detail view with all fields. Includes a `<BackButton />` (uses `router.back()` — the reusable component from Session 79). Admin sees all fields including Agent name; agent sees all except no Agent section if it's their own record (but they will always own their own records — it's fine to show the agent section for self, so actually all users see all fields on the detail page).
+
+4. **`src/app/follow-ups/[id]/edit/page.tsx`** — Server component. Fetches record via `followupService.getFollowUpById(session.user, id)`. If user has `follow-ups:create` and the record's `agentId !== session.user.uid` → 403. Renders `<EditFollowUpForm record={record} />`.
+
+**Detail page layout (two-column card sections):**
+- Section 1: Customer Info — Name, Phone, State, Country, Timezone (inferred, read-only display).
+- Section 2: Vehicle & Part — Year/Make/Model, Part Required.
+- Section 3: Quoted Options — renders each line of the multi-line field as a separate `<p>` or `<li>` element.
+- Section 4: Follow-Up Schedule — Date (in customer timezone), Time (in customer timezone), Reason.
+- Section 5: Classification — Status pill, Priority pill.
+- Section 6: Notes — full text.
+- Section 7: Metadata — Entry Date, Last Contact, Agent Name (visible to all — self-record detail page).
+- Action bar: "Edit" button → `/follow-ups/[id]/edit`. "Delete" button (visible only if `follow-ups:view` — admin only). `<BackButton />`.
+
+---
+
+- [x] **RED — Unit (`FollowUpDetailPage.test.tsx`):**
+  - [x] Test: Detail page renders customer name, phone, state, country.
+  - [x] Test: Detail page renders `quotedOptions` with each line on its own row.
+  - [x] Test: Detail page renders the `daysLabel` alongside the follow-up date.
+  - [x] Test: With `follow-ups:view` session (admin), the "Delete" button is rendered.
+  - [x] Test: With only `follow-ups:create` session (agent), the "Delete" button is NOT rendered.
+  - [x] Test: The `<BackButton />` is present on the detail page.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Pages):**
+  - [x] Create `src/app/follow-ups/page.tsx`.
+  - [x] Create `src/app/follow-ups/new/page.tsx`.
+  - [x] Create `src/app/follow-ups/[id]/page.tsx`.
+  - [x] Create `src/app/follow-ups/[id]/edit/page.tsx`.
+  - [x] Create `src/components/EditFollowUpForm.tsx` (pre-populated edit form, same field set as Add form, PATCH on submit).
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] All 6 unit tests pass → ✓ Done.
+
+---
+
+#### W-3112 — Frontend: Navbar Navigation Link
+
+**Goal:**
+Add a "Follow Ups" navigation link to the top navbar so the page is accessible from the main navigation. The link is only rendered if the user has `follow-ups:view` OR `follow-ups:create`.
+
+**Approach:**
+Open `src/app/layout.tsx` (or wherever the top navbar pill buttons are rendered). Add a "Follow Ups" pill button that links to `/follow-ups`. Apply the same permission check used for "Orders", "Agents", etc. using `hasPermission`.
+
+---
+
+- [x] **RED — Unit (navbar or layout test):**
+  - [x] Test: With session having `follow-ups:create`, the "Follow Ups" nav link is rendered.
+  - [x] Test: With session having neither permission, the "Follow Ups" nav link is NOT rendered.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Navbar):**
+  - [x] Add "Follow Ups" nav link with correct permission gate.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Logged-in agent sees "Follow Ups" in navbar → ✓ Done.
+
+---
+
+#### W-3113 — Frontend: Browser Notification System (Polling + OS Notification)
+
+**Goal:**
+Build the dual-channel notification system that fires when a follow-up's scheduled time arrives. In-app toast always shows. OS-level browser notification fires additionally if the user granted permission.
+
+**Approach:**
+Create a client-side hook `src/lib/useFollowUpNotifications.ts` (a custom React hook). This hook is used inside `FollowUpListContainer.tsx` so it is only active when the Follow Ups page is open.
+
+**Hook behavior:**
+1. On mount: calls `Notification.requestPermission()` if `Notification.permission === 'default'`.
+2. Sets a `setInterval` polling every 60 seconds calling `GET /api/follow-ups/due`.
+3. Also calls immediately on mount (first check on load).
+4. On tab focus (`visibilitychange` event): fires an immediate poll regardless of interval timer.
+5. When the API returns 1+ records:
+   - Shows an **in-app toast** for each record. Toast contains: customer name, follow-up time (in customer timezone), part required. Dismiss button sets `notificationSentAt` by calling `PATCH /api/follow-ups/<id>` with `{ _markNotified: true }` (a special flag handled by the PATCH handler to only update `notificationSentAt` without triggering `lastContact` update).
+   - If `Notification.permission === 'granted'`: also fires `new Notification('Follow-Up Due', { body: '${record.customerName} — ${record.partRequired}' })`.
+6. On unmount: clears the interval and removes the `visibilitychange` listener.
+
+**`_markNotified` PATCH handling:** Add a check in the PATCH route and service. If `data._markNotified === true`, the service calls `followupRepository.markNotificationSent(id)` directly and returns without touching any other fields or running the `lastContact` / `notificationSentAt` reset logic.
+
+---
+
+- [x] **RED — Unit (`useFollowUpNotifications.test.ts`):**
+  - [x] Test: On mount, calls `fetch('/api/follow-ups/due')` immediately.
+  - [x] Test: After 60 seconds (mock `setInterval`), calls `fetch('/api/follow-ups/due')` again.
+  - [x] Test: When `GET /api/follow-ups/due` returns a record, the toast is shown (mock toast display function and assert it was called with `customerName`).
+  - [x] Test: When `Notification.permission === 'granted'`, calling the hook with a due record triggers `new Notification(...)` (mock the global `Notification` constructor).
+  - [x] Test: Dismissing a toast calls `PATCH /api/follow-ups/<id>` with `{ _markNotified: true }`.
+  - [x] Test: On unmount, `clearInterval` is called (no memory leak).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Hook + Integration):**
+  - [x] Create `src/lib/useFollowUpNotifications.ts`.
+  - [x] Add `PATCH /api/follow-ups/[id]` handler support for `_markNotified`.
+  - [x] Import and call the hook inside `FollowUpListContainer.tsx`.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Agent has Follow Ups page open → follow-up time arrives → in-app toast appears → browser notification appears (if granted) → agent dismisses toast → `notificationSentAt` is set → toast does not appear again on the same record unless date/time is edited → ✓ Done.
+
+---
+
+#### Phase 31 Summary Checklist
+
+- [x] W-3101: `crm_follow_ups` schema & migration — **Integration tests GREEN**
+- [x] W-3102: Permissions seeded (IDs 58, 59) — **Integration tests GREEN**
+- [x] W-3103: `luxon` installed, `STATE_TIMEZONE_MAP` complete — **Unit tests GREEN**
+- [x] W-3104: `followup.repository.ts` all functions — **Integration tests GREEN**
+- [x] W-3105: `followup.service.ts` + `computeDaysLabel` — **Unit tests GREEN**
+- [x] W-3106: `GET/POST /api/follow-ups` + `GET/PATCH/DELETE /api/follow-ups/[id]` — **Integration tests GREEN**
+- [x] W-3107: `GET /api/follow-ups/due` — **Integration tests GREEN**
+- [x] W-3108: Middleware route protection — **Integration tests GREEN**
+- [x] W-3109: `AddFollowUpForm.tsx` — **Unit tests GREEN**
+- [x] W-3110: `FollowUpList.tsx` + `FollowUpListContainer.tsx` — **Unit tests GREEN**
+- [x] W-3111: All 4 pages + `EditFollowUpForm.tsx` — **Unit tests GREEN**
+- [x] W-3112: Navbar link — **Unit tests GREEN**
+- [x] W-3113: `useFollowUpNotifications` hook + `_markNotified` PATCH — **Unit tests GREEN**
+- [x] Full `npm run test` passes with **no regressions**
+- [x] `npm run lint` → 0 warnings
+- [x] `npm run typecheck` → 0 errors
+- [x] **Phase 31 COMPLETE** → Update progress table to `[x] COMPLETED`
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -5814,7 +6413,6 @@ Convert `gateways/page.tsx` to an `async` Server Component. Fetch gateways via `
   - **Audit Log Bug Fix**: Fixed a bug where updating unrelated order fields (e.g. vendor information) on `Sold` orders automatically triggered a spurious edit log showing the `Order Refund Amount` changed from empty to `0`. Resolved this by setting `updatedData.orderRefundAmount` to `null` instead of `'0'` in `order.service.ts` to correctly align with database defaults.
 
 ### Session 38 — July 2, 2026
-### Session 38 — July 2, 2026
   **Phase 18 — Champions League Widget: Monthly Filter & finalMargin Ranking (W-1801), Team Monthly Scores Widget: Top 3 & Bottom 3 Per Team (W-1802) & Order Pipeline: Tab Totals (Counts & Final Margin) & Backend Executive Filter (W-1803)**
   - **Pre-Existing Test Fixes**: Resolved assertions in `src/tests/orders.test.ts` and `src/tests/dashboard.test.ts`/`src/tests/Dashboard.test.tsx` that failed due to database `orderRefundAmount` default values (`null` vs `'0'`) and multi-agent array structures introduced in prior sessions.
   - **W-1801 Integration Tests**: Wrote RED integration tests in `dashboard.test.ts` verifying that `GET /api/dashboard/champions-league` correctly filters by month/year and ranks agents using the `finalMargin` (`orderMarkup - orderRefundAmount`) metric.
@@ -6041,7 +6639,7 @@ In this session, we finalized the Phase 24 features and made the following layou
 
 
 
-### Session 59 — July 9, 2026 (Phase 26.6 Completion)
+### Session 59.5 — July 9, 2026 (Phase 26.6 Completion)
 - **Database & Domain Constraint:** Successfully migrated `saleStatus` to a parent-only global field, ensuring child rows store `null` while inheriting constraint operations like order workflow queue cascades (`Returned Orders` / `Cancelled Orders`).
 - **UI Harmonization:** Form designs in `AddOrderForm.tsx` and `EditOrderForm.tsx` match the six-section layout with responsive collapsible/expandable card behaviors. Combined Deal Pricing summary fields are fully verified. All Vitest tests are green.
 
@@ -6272,14 +6870,10 @@ In this session, we finalized the Phase 24 features and made the following layou
     - Applies to both the Orders List page and the Recent Orders dashboard widget (both render OrderList).
   - **orderCurrentStatusUpdateDate stamped to sale date for Pending Booking at creation** (src/repository/order.repository.ts):
     - Extracted parentInitialStatus and childInitialStatus variables before each crmOrders.create() call in createWithCustomerAndCard().
-    - When the initial status resolves to 'Pending Booking', orderCurrentStatusUpdateDate is now set to 	oUtcNoonDate(orderDateVal) (sale date at noon UTC) instead of 
-ew Date().
-    - All other initial statuses (Pending Shipment, Returned Orders, Cancelled Orders) still use 
-ew Date().
-    - orderCreatedDate remains 
-ew Date() in all cases � the entry timestamp is preserved.
-    - Workflow history logs (crmOrderCurrentStatusHistory.changedAt) were intentionally left as 
-ew Date() to preserve audit trail accuracy.
+    - When the initial status resolves to 'Pending Booking', orderCurrentStatusUpdateDate is now set to 	oUtcNoonDate(orderDateVal) (sale date at noon UTC) instead of new Date().
+    - All other initial statuses (Pending Shipment, Returned Orders, Cancelled Orders) still use new Date().
+    - orderCreatedDate remains new Date() in all cases  the entry timestamp is preserved.
+    - Workflow history logs (crmOrderCurrentStatusHistory.changedAt) were intentionally left as new Date() to preserve audit trail accuracy.
   - **Tests Added / Updated**:
     - src/tests/OrderList.test.tsx: Updated W-1905 test to use orderDate (not orderCurrentStatusUpdateDate) as the 4-day reference for Pending Booking. Added getEstCalendarDaysDiff unit test block (5 cases: today=0, past, string input, future=0, invalid=0). Added W-2801 component test block (3 cases: Pending Booking counts from sale date, Pending Shipment uses update date, child inherits parent sale date).
     - src/tests/orders.test.ts: Added W-2801 integration test block (2 DB-verified cases): asserts orderCurrentStatusUpdateDate equals the sale date for a newly created Pending Booking order, and equals entry time for a Pending Shipment order.
@@ -6382,7 +6976,7 @@ outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (lik
     - Ensure that returning to lists via custom UI back buttons or browser back navigation restores the exact page number and scroll position.
     - Guarantee pagination and scroll restoration only trigger when returning from the respective details page.
   - **Current Unresolved Issues (What is NOT done)**:
-    - **Agent List Animation Jitter**: Table rows still flash fully visible before the opacity stagger begins, causing a visual jitter where a white line goes down the table columns.
+- **Agent List Animation Jitter**: Table rows still flash fully visible before the opacity stagger begins, causing a visual jitter where a white line goes down the table columns.
     - **Scroll Position Restoration on Back Buttons**: Navigating back via browser back or custom back buttons fails to restore the scroll position (the page jumps back to the top).
 
 
@@ -6390,21 +6984,21 @@ outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (lik
   **Animation Jitter Root Cause Fix, Scroll Restoration Race Condition Fix, and Full Filter State Persistence on Back Navigation**
   - **Root Cause Analysis**:
     - Identified three distinct root causes for the outstanding Session 81 issues through code investigation:
-      1. hasAnimated was initialized to useState(false) (not a lazy initializer) in AgentList.tsx and VendorList.tsx, meaning the sessionStorage check for skipping animations ran in a useEffect (post-paint) � always one render too late to prevent the animation from launching.
+      1. hasAnimated was initialized to useState(false) (not a lazy initializer) in AgentList.tsx and VendorList.tsx, meaning the sessionStorage check for skipping animations ran in a useEffect (post-paint) — always one render too late to prevent the animation from launching.
       2. The animation useEffect had paginatedAgents in its dependency array, causing it to re-trigger when cached data was loaded and produced a new array reference, racing with setHasAnimated(true) from the GSAP onComplete.
       3. The scroll restoration used setTimeout(50ms) which lost the race against Next.js App Router's own scroll-to-top that fires after component mount on client-side navigation.
   - **Animation Skip on Page Restoration**:
     - Converted hasAnimated from useState(false) to a **lazy initializer** in AgentList.tsx, VendorList.tsx, GatewayList.tsx, and CustomerList.tsx.
-    - The lazy initializer reads coming_from_detail from sessionStorage **synchronously at render time** (before any paint), returning 	rue unconditionally if present. Also returns 	rue if a saved scroll position > 0 exists for the current URL.
+    - The lazy initializer reads coming_from_detail from sessionStorage **synchronously at render time** (before any paint), returning true unconditionally if present. Also returns true if a saved scroll position > 0 exists for the current URL.
     - This guarantees rows render with opacity: 1 from render #1 on all restoration paths, so no animation can ever fire.
   - **GatewayList Stagger Fix**:
-    - Switched GatewayList.tsx from staggerEntrance (Y-axis translate, caused jitter) to adeInStagger (opacity-only) to match the other list components.
+    - Switched GatewayList.tsx from staggerEntrance (Y-axis translate, caused jitter) to fadeInStagger (opacity-only) to match the other list components.
   - **Scroll Restoration Race Condition Fix**:
-    - Replaced setTimeout(50ms) with a **double equestAnimationFrame** pattern in AgentList.tsx, VendorList.tsx, and OrderListContainer.tsx.
+    - Replaced setTimeout(50ms) with a **double requestAnimationFrame** pattern in AgentList.tsx, VendorList.tsx, and OrderListContainer.tsx.
     - The double-rAF ensures window.scrollTo runs after Next.js App Router's own scroll-to-top callback, reliably winning the race on back-navigation.
-    - Also added orders to the OrderListContainer scroll restore useEffect dependency array so the effect re-evaluates after cached rows render (previously loading could already be alse on mount when cache was hit, causing scrollTo to fire against an empty DOM).
+    - Also added orders to the OrderListContainer scroll restore useEffect dependency array so the effect re-evaluates after cached rows render (previously loading could already be false on mount when cache was hit, causing scrollTo to fire against an empty DOM).
   - **Full Filter State Persistence on Back Navigation**:
-    - AgentList.tsx: Filter-change useEffect now builds a fresh URLSearchParams and writes all active filter values (search, designation, 	eam, ole, status) into the URL on every change. Restoration useEffect now reads all these params back and calls the corresponding setState functions to fully restore the filter UI.
+    - AgentList.tsx: Filter-change useEffect now builds a fresh URLSearchParams and writes all active filter values (search, designation, team, role, status) into the URL on every change. Restoration useEffect now reads all these params back and calls the corresponding setState functions to fully restore the filter UI.
     - VendorList.tsx: Same pattern applied for statusFilter (the tab toggle).
     - OrderListContainer.tsx: Already had this pattern correctly implemented; no changes needed.
   - **Dev Mode Caveat (React StrictMode)**:
@@ -6425,4 +7019,58 @@ outer.back()\ instead of hardcoded paths, ensuring the URL query parameters (lik
     - Cleared test pollution by resetting `window.location.search` via `window.history.replaceState` in `beforeEach` of `AgentList.test.tsx`.
     - Explicitly set `window.location.search` to `?page=2` in the pagination mount test to match the mocked search parameters, ensuring the lazy state initializer correctly reads page 2.
     - Verified all 9 unit tests in `AgentList.test.tsx` pass successfully.
+
+
+### Session 84 - July 16, 2026
+  **Follow-Ups Routing fixes, Navigation pill word wrapping, Sticky Two-Column Sidebar, 5 Progress Segments, and Visual Polish**
+  - **Dynamic Route Promises & API parameters**:
+    - Awaited the `params` promise in `FollowUpDetailPage` and `EditFollowUpPage` server page components as required by Next.js 15+ specifications, resolving 404 page-not-found issues caused by NaN routing parameter calculations.
+    - Updated all handlers (`GET`, `PATCH`, `DELETE`) in `src/app/api/follow-ups/[id]/route.ts` to similarly await the `params` promise, fixing the runtime `PrismaClientValidationError` when editing records.
+  - **Navigation pill wrap prevention**:
+    - Added `white-space: nowrap;` to the `.nav-pill-btn` class globally in `src/app/layout.css` to prevent multi-word text like "Follow Ups" from breaking onto two lines. Slightly reduced the padding and font size for mobile screens (`padding: 4px 10px; font-size: 0.72rem;`) to fit the entire nav bar on one line on small viewports.
+  - **Sticky Two-Column Sidebar & Notes**:
+    - Redesigned `AddFollowUpForm.tsx` and `EditFollowUpForm.tsx` into a sticky two-column layout (`order-form-layout`) matching the layout of the sales orders form.
+    - Positioned the notes section as Card 2 in the right-hand sidebar for all three follow-up pages (details, edit, and add). On add/edit pages, the sidebar notes textarea and progress checklist card remain sticky during scrolling.
+    - On the details page (`src/app/follow-ups/[id]/page.tsx`), split the metadata sidebar back into individual cards (Classification, Notes, Follow-Up Schedule, and System Metadata) with Notes positioned second in line.
+  - **5-Segment Form Progress Checklist**:
+    - Upgraded the form progress bar in both `AddFollowUpForm.tsx` and `EditFollowUpForm.tsx` to support 5 segments and 5 checklist items, including a new check for completed "Pricing Options".
+  - **List Table Card & Page Styling**:
+    - Wrapped the follow-ups list table inside the standard `<div className="table-wrapper card-with-accent">` container in `FollowUpList.tsx`, giving it identical premium card shadows and top-border accents.
+    - Applied `.agents-page-container` and `.page-header` / `.page-title` / `.page-subtitle` styling wrappers to the root structure of `src/app/follow-ups/new/page.tsx` and `src/app/follow-ups/[id]/edit/page.tsx` pages.
+  - **Detail View & Button Polish**:
+    - Removed the "Delete" action button from the Follow-up listing grid.
+    - Styled the detail view delete button (`DeleteFollowUpButton.tsx`) inline with a rose-red background (`#be123c`) and custom hover states matching the order details delete button exactly.
+    - Renamed the header navigation button in `FollowUpListContainer.tsx` from "Schedule Callback" to "Add Follow-ups".
+    - Added all follow-up pages to `isSpecialMarginPage` check in `src/components/LayoutShell.tsx` to automatically center their layouts with a 15% left/right margin, matching the order layouts.
+  - **Textarea Placeholders & Test Fixes**:
+    - Replaced React compiled HTML entities with a template newline `\n` in the pricing quotedOptions textareas to display instructions on separate lines as intended.
+    - Added a visually hidden label for the notes textarea to support accessibility and Vitest query assertions.
+    - Corrected stale assertions in `FollowUpList.test.tsx` and verified all 10 tests across the follow-up Vitest suites pass cleanly.
+
+### Session 85 - July 17, 2026
+  **Follow Ups Styling Standardizations, Notes/Comments Popup, Dynamic Button Scaling, and Side Margins Override**
+  - **CRM Vanilla CSS Layout Alignment**:
+    - Refactored `FollowUpListContainer.tsx` and `FollowUpList.tsx` to align with the CRM's custom stylesheet framework instead of Tailwind utility classes.
+    - Standardized page headers, select filters, date inputs, and badges (`status-dot-badge`) for visual consistency across list directories.
+    - Corrected dynamic datetime parsing in row cells.
+  - **Quoted Options Display**:
+    - Preserved multiline layout using `white-space: pre-line` at a compact `0.74rem` font-size for clarity.
+  - **Notes / Comments Popup Modal**:
+    - Implemented a custom portal modal in `FollowUpNotesPopup.tsx` to show follow-up remarks in a blurred overlay.
+    - Added a blue comments bubble icon in the actions cell to trigger this notes popup.
+  - **Actions Sizing Standardizations**:
+    - Scaled down the actions cell elements: details link has a compact `0.72rem` font size, notes icon uses a `15px` SVG, and gaps/paddings are reduced to match order layouts.
+  - **Responsive Form Action Buttons**:
+    - Split the submit/cancel buttons in `AddFollowUpForm.tsx` and `EditFollowUpForm.tsx` into `.desktop-actions-only` (inside the main grid column) and `.mobile-actions-only` (at the bottom after the sidebar cards). This fixes desktop overlap bugs while keeping buttons at the bottom on mobile.
+  - **Fluid Header Buttons Scaling**:
+    - Applied CSS `clamp(...)` rules to details page header buttons to dynamically scale their font-sizes, heights, and paddings. Added `white-space: nowrap !important` to prevent label wrapping.
+  - **Details Page Side Margins Override**:
+    - Configured the follow-up details container to override `.main-content` margins to **20%** instead of the default 15% on viewports 768px and up using CSS `:has()` selector.
+  - **Lint, Typecheck, and Test Fixes**:
+    - Resolved a React hooks lint warning in `FollowUpNotesPopup.tsx` by setting the mount state inside a `setTimeout` block.
+    - Fixed dynamic route params type mismatch errors in `src/tests/followups.test.ts` by wrapping parameter mocks in `Promise.resolve(...)`.
+    - Solved a multiple-elements match error in `AddFollowUpForm.test.tsx` by updating the submit button selector to use `getAllByText()[0]`.
+    - Verified all linter checks, TypeScript checks, and Vitest test suites compile and pass successfully.
+
+
 

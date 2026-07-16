@@ -78,6 +78,28 @@
   border-color: #cbd5e1;
 }
 
+.btn-danger-custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #be123c;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(190, 18, 60, 0.1);
+}
+
+.btn-danger-custom:hover {
+  background-color: #9f1239;
+}
+
 .btn-icon {
   width: 16px;
   height: 16px;
@@ -270,6 +292,50 @@
 .status-inactive {
   background-color: #faf2f2;
   color: #b25353;
+}
+
+/* Priority Badges */
+.priority-high {
+  background-color: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.priority-medium {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fef3c7;
+}
+
+.priority-low {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+/* Days Label / Due Date Badges */
+.badge-today {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-tomorrow {
+  background-color: #eef2ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+}
+
+.badge-future {
+  background-color: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.badge-overdue {
+  background-color: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fda4af;
 }
 
 /* Actions Column */
@@ -946,7 +1012,8 @@
   }
   
   .btn-primary-custom,
-  .btn-secondary-custom {
+  .btn-secondary-custom,
+  .btn-danger-custom {
     padding: 8px 16px;
     font-size: 0.85rem;
   }
@@ -965,8 +1032,10 @@
   }
   .page-header .btn-primary-custom,
   .page-header .btn-secondary-custom,
+  .page-header .btn-danger-custom,
   .form-actions .btn-primary-custom,
-  .form-actions .btn-secondary-custom {
+  .form-actions .btn-secondary-custom,
+  .form-actions .btn-danger-custom {
     width: 100%;
     justify-content: center;
   }

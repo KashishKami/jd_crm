@@ -107,6 +107,18 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </li>
             )}
 
+            {(hasPermission(permissions, 'follow-ups:view') || hasPermission(permissions, 'follow-ups:create')) && (
+              <li className="nav-item">
+                <Link
+                  href="/follow-ups"
+                  prefetch={false}
+                  className={`nav-pill-btn ${isActive('/follow-ups') ? 'active' : ''}`}
+                >
+                  Follow Ups
+                </Link>
+              </li>
+            )}
+
             {hasPermission(permissions, 'vendors:view') && (
               <li className="nav-item">
                 <Link

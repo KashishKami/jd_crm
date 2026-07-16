@@ -52,6 +52,7 @@ model Users {
   profile            UsersProfile?
   academicRecord     UsersProfileAcademic[]
   professionalRecord UsersProfileProfessional[]
+  followUps          CrmFollowUps[]             @relation("FollowUpAgent")
 
   @@index([roleId], map: "users_role_id_fkey")
   @@index([teamId], map: "users_team_id_fkey")
@@ -428,3 +429,37 @@ model CrmOrderAuditLog {
   @@index([orderId])
   @@map("crm_order_audit_log")
 }
+
+model CrmFollowUps {
+  followUpId           Int       @id @default(autoincrement()) @map("follow_up_id")
+  agentId              Int       @map("agent_id")
+  agentName            String    @map("agent_name") @db.VarChar(55)
+  customerName         String    @map("customer_name") @db.VarChar(511)
+  customerPhone        String?   @map("customer_phone") @db.VarChar(25)
+  customerState        String    @map("customer_state") @db.VarChar(100)
+  customerCountry      String    @map("customer_country") @db.VarChar(50)
+  customerTimezone     String    @map("customer_timezone") @db.VarChar(100)
+  vehicleYearMakeModel String    @map("vehicle_year_make_model") @db.VarChar(255)
+  partRequired         String    @map("part_required") @db.VarChar(255)
+  quotedOptions        String?   @map("quoted_options") @db.Text
+  followUpDate         DateTime  @map("follow_up_date") @db.Date
+  followUpTime         String    @map("follow_up_time") @db.VarChar(5)
+  followUpReason       String    @map("follow_up_reason") @db.VarChar(255)
+  status               String    @map("status") @db.VarChar(50)
+  priority             String    @map("priority") @db.VarChar(10)
+  notes                String?   @map("notes") @db.Text
+  entryDate            DateTime  @default(now()) @map("entry_date") @db.DateTime(0)
+  lastContact          DateTime? @map("last_contact") @db.DateTime(0)
+  notificationSentAt   DateTime? @map("notification_sent_at") @db.DateTime(0)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.DateTime(0)
+
+  agent                Users     @relation("FollowUpAgent", fields: [agentId], references: [uid], onDelete: Restrict)
+
+  @@index([agentId])
+  @@index([followUpDate])
+  @@index([status])
+  @@index([priority])
+  @@map("crm_follow_ups")
+}
+

@@ -165,4 +165,34 @@ describe('Navbar Component Unit Tests', () => {
     const swipableContainer = container.querySelector('.swipable-nav');
     expect(swipableContainer).not.toBeNull();
   });
+
+  it('should render Follow Ups link when user has follow-ups permissions', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Regular Agent',
+          userPermissions: 'follow-ups:create',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Follow Ups')).not.toBeNull();
+  });
+
+  it('should hide Follow Ups link when user lacks follow-ups permissions', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Regular Agent',
+          userPermissions: 'orders:view',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Follow Ups')).toBeNull();
+  });
 });

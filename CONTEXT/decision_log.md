@@ -1234,3 +1234,86 @@ However, we wanted all users to have access to these advanced analytics, but wit
 - `src/tests/dashboard.test.ts` - Added route integration test verifying that unauthorized users querying specific `agentId` return `200 OK` while aggregate queries return `403 Forbidden`.
 - `src/tests/AdvancedChartWidget.test.tsx` - Added component test ensuring "All Agents" option is hidden and default agent selected. Passed full permissions props to existing tests to keep them green.
 - `src/tests/debug.test.tsx` - Updated props in render calls to keep tests passing.
+
+
+## Decision D37 - Follow-Ups Feature: Prospect Callback Tracker with Timezone-Aware Notifications
+
+**Date:** 2026-07-16
+**Status:** Approved (Phase 31)
+
+### Context
+Sales agents handle large volumes of prospect calls daily. When a prospect says "call me back on Friday at 2pm", this information was previously tracked only in personal notes or informal methods. There was no CRM-integrated mechanism to schedule, track, or receive reminders for these callbacks. The business needs a formal Follow-Ups system where agents can log prospect callback records, set a scheduled date and time in the **customer's own timezone** (critical since the business serves the entire US and Canada, spanning 6+ timezone zones), and receive a popup/notification when that scheduled moment arrives.
+
+### Decisions
+
+**D37.1 — Single dedicated table crm_follow_ups, no FK to crm_customers**
+Follow-ups are prospect records — the person may never become an actual customer. Forcing a FK to crm_customers would require creating a customer row for every prospect, polluting the customer table with non-customer data. All prospect data (name, phone, vehicle, location) is stored directly on the follow-up row itself. The only FK is gent_id ? users.uid (ON DELETE RESTRICT). This is the same architectural decision as crm_attendance, which stores gent_name as a denormalized snapshot rather than joining through to a separate entity.
+
+**D37.2 — Timezone storage: store customer's stated time as-is; derive UTC at query time**
+ollow_up_date (DATE) and ollow_up_time (VARCHAR HH:MM) are stored exactly as the customer states them, in their own timezone. The inferred IANA timezone string is stored in customer_timezone. UTC is computed at notification query time using MySQL's CONVERT_TZ() function. No UTC datetime column is stored. This avoids the need to convert back to the customer's local time for display, and the data remains human-readable in the database without any conversion.
+
+**D37.3 — Timezone inferred server-side from state selection; never trusted from client**
+The STATE_TIMEZONE_MAP (added to src/lib/geography.ts) maps every US state and Canadian province to its primary IANA timezone. When a follow-up is created or the customer's state is edited, the server derives customerTimezone from this map and writes it to the DB. The client cannot inject or override the timezone value — it is computed purely server-side. This prevents agents from accidentally or maliciously submitting incorrect timezone values.
+
+**D37.4 — Dual-permission model mirroring orders:view / orders:create exactly**
+- ollow-ups:view (ID 58): Admin-level. Sees all agents' records. Unlocks Team + Agent filter controls and the Agent column in the list. Required for delete.
+- ollow-ups:create (ID 59): Agent-level. Can access the page and create records, but the backend hard-forces gentId = session.user.uid on every query regardless of what the client sends. No Team/Agent filters are shown. Cannot delete.
+- Neither permission = 403 from API + middleware redirect to /access-denied.
+- Super Admin (role 1) and Admin (role 2) get both. Agent (role 8) gets only ollow-ups:create.
+
+**D37.5 — Combined quoted_options TEXT field with multi-line Price - Miles/Warranty format**
+Instead of separate quoted_price and quoted_miles_and_warranty columns, a single quoted_options TEXT column stores all quote variants. Each line represents one option in the format Price - Miles/Warranty (e.g. $450 - 60k miles / 30 day warranty). Agent presses Enter for each new option. The list view shows only the first line (truncated). The detail page renders all lines. This is more flexible than two fixed columns and matches how agents actually quote multiple vendor options during a call.
+
+**D37.6 — lastContact update rules**
+last_contact is set to 
+ow() on record creation (representing the initial call). It is updated by ollowup.service.ts whenever a PATCH contains any of: 
+otes, status, ollow_up_reason, ollow_up_date, or ollow_up_time. It is NOT updated for changes to priority, quoted_options, customer_name, customer_phone, or vehicle fields — those are administrative corrections, not contact events. The service layer enforces this rule; the repository layer is unaware of it.
+
+**D37.7 — 
+otificationSentAt DB column for one-shot notification tracking**
+When a follow-up notification fires (toast + optional OS notification), 
+otification_sent_at is set to 
+ow(). The indDueForNotification() repository query filters on 
+otification_sent_at IS NULL, so each follow-up fires exactly once. If the agent edits ollow_up_date or ollow_up_time, the service layer resets 
+otification_sent_at = NULL, allowing the rescheduled time to trigger a fresh notification.
+
+**D37.8 — Dual-channel notification: in-app toast always + OS browser notification if granted**
+A custom React hook useFollowUpNotifications polls GET /api/follow-ups/due every 60 seconds and on tab focus events. Due records trigger an in-app toast (always, requires no user permission). If Notification.permission === 'granted', the browser's OS-level Notification API also fires (
+ew Notification(...)). The hook requests permission on first mount using Notification.requestPermission(). Dismissing the toast triggers PATCH /api/follow-ups/<id> with { _markNotified: true }, which calls markNotificationSent() directly without touching lastContact or triggering the 
+otificationSentAt reset logic.
+
+**D37.9 — luxon chosen for timezone computations**
+Neither date-fns nor luxon was in the project. luxon is added as it handles IANA timezone zone names natively in a single self-contained package, making the computeDaysLabel() pure function and the indDueForNotification() UTC derivation clean and readable. date-fns-tz would have required adding both date-fns and date-fns-tz (two packages) for less ergonomic timezone support.
+
+**D37.10 — List page does NOT SSR pre-fetch follow-ups (unlike Orders/Agents pages in Phase 30)**
+The follow-ups list is always scoped to the individual agent or filtered by admin choices. Unlike the orders list which can fetch a sensible default set server-side, a follow-ups SSR pre-fetch would either return nothing useful (no filters applied) or require complex session-aware server-side filtering that adds complexity without measurable UX benefit. The client-side fetch on mount pattern is used instead, consistent with the pre-Phase 30 list behavior.
+
+**D37.11 — Scroll/pagination/filter state preservation follows Session 82 + 83 patterns exactly**
+FollowUpListContainer.tsx implements: lazy filter state from URL params, prevFiltersRef to prevent page reset on mount, double-rAF scroll restoration, window.scrollY > 0 guard on scroll listeners, coming_from_followup_detail sessionStorage key, isRestoringRef ordering fix. Back buttons use the shared <BackButton /> component (outer.back()). No new patterns — this is a direct application of the established Session 82+83 solution.
+
+### Files Changed (Phase 31)
+- CONTEXT/database_schema.md — Added crm_follow_ups table to summary, column spec, and Prisma model
+- CONTEXT/project_data.md — Added ollow-ups resource permissions section
+- CONTEXT/current_state.md — Added Phase 31 to progress table and TDD checklist
+- CONTEXT/decision_log.md — This entry
+- prisma/schema.prisma — New CrmFollowUps model + reverse relation on Users
+- seed.sql — New permissions IDs 58 and 59 + role assignments
+- src/lib/geography.ts — New STATE_TIMEZONE_MAP export
+- src/types/followup.ts — New type interfaces
+- src/repository/followup.repository.ts — New repository
+- src/service/followup.service.ts — New service + computeDaysLabel export
+- src/app/api/follow-ups/route.ts — New GET + POST
+- src/app/api/follow-ups/[id]/route.ts — New GET + PATCH + DELETE
+- src/app/api/follow-ups/due/route.ts — New notification poll endpoint
+- src/middleware.ts — Added /follow-ups route protection
+- src/components/AddFollowUpForm.tsx — New add form
+- src/components/EditFollowUpForm.tsx — New edit form
+- src/components/FollowUpList.tsx — New list table
+- src/components/FollowUpListContainer.tsx — New list container with filter/scroll state
+- src/app/follow-ups/page.tsx — New list page
+- src/app/follow-ups/new/page.tsx — New add page
+- src/app/follow-ups/[id]/page.tsx — New detail page
+- src/app/follow-ups/[id]/edit/page.tsx — New edit page
+- src/lib/useFollowUpNotifications.ts — New notification hook
+- src/app/layout.tsx — Navbar link added
+- src/tests/followups.test.ts, ollowup.service.test.ts, geography.test.ts, AddFollowUpForm.test.tsx, FollowUpList.test.tsx, FollowUpDetailPage.test.tsx, useFollowUpNotifications.test.ts — New test files

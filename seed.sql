@@ -143,7 +143,10 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (52, 'customers:view-vendor-details',     'View linked vendor details in order detail'),
 (53, 'customers:view-cards',              'View full unmasked payment card details'),
 -- Settings
-(54, 'settings:manage-permissions',       'Manage role permissions matrix')
+(54, 'settings:manage-permissions',       'Manage role permissions matrix'),
+-- Follow-ups
+(58, 'follow-ups:view',                   'Admin-level: view all follow-ups across all agents and centers'),
+(59, 'follow-ups:create',                 'Agent-level: create and view own follow-ups only')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- ============================================================
@@ -153,7 +156,7 @@ ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 -- Adding new permissions to a role only requires appending new
 -- (role_id, permission_id) rows here.
 
--- Super Admin (role_id = 1) — all 57 permissions
+-- Super Admin (role_id = 1) — all 59 permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),
 (1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),
@@ -164,9 +167,10 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,31),(1,32),(1,33),(1,34),(1,35),(1,36),(1,37),(1,38),(1,39),(1,40),
 (1,41),(1,42),(1,43),(1,44),(1,45),(1,46),
 (1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53),
-(1,54);
+(1,54),
+(1,58),(1,59);
 
--- Admin (role_id = 2) — all 57 permissions
+-- Admin (role_id = 2) — all 59 permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),
 (2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
@@ -177,7 +181,12 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,31),(2,32),(2,33),(2,34),(2,35),(2,36),(2,37),(2,38),(2,39),(2,40),
 (2,41),(2,42),(2,43),(2,44),(2,45),(2,46),
 (2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53),
-(2,54);
+(2,54),
+(2,58),(2,59);
+
+-- Agent (role_id = 8) — follow-ups:create permission only
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+(8,59);
 
 -- ============================================================
 -- 6. Users (Super Admin + 42 Agents)

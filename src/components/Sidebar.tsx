@@ -76,6 +76,24 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
               </Link>
             </li>
           )}
+
+          {/* Conditional Follow Ups Navigation */}
+          {(hasPermission(permissions, 'follow-ups:view') || hasPermission(permissions, 'follow-ups:create')) && (
+            <li className="nav-item">
+              <Link
+                href="/follow-ups"
+                prefetch={false}
+                className={`nav-link ${isActive('/follow-ups') ? 'active' : ''}`}
+                onClick={handleLinkClick}
+                style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Follow Ups</span>
+              </Link>
+            </li>
+          )}
  
           {/* Conditional Vendors Navigation */}
           {hasPermission(permissions, 'vendors:view') && (

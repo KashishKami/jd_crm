@@ -36,8 +36,9 @@ export default function LayoutShell({ children }: LayoutShellProps) {
   const pathParts = pathname.split('/');
   const isSpecialMarginPage = 
     pathname === '/orders/new' ||
-    (pathParts.length === 4 && pathParts[1] === 'orders' && pathParts[3] === 'edit') ||
-    (pathParts.length === 3 && pathParts[1] === 'orders' && pathParts[2] !== 'new');
+    pathname === '/follow-ups/new' ||
+    (pathParts.length === 4 && (pathParts[1] === 'orders' || pathParts[1] === 'follow-ups') && pathParts[3] === 'edit') ||
+    (pathParts.length === 3 && (pathParts[1] === 'orders' || pathParts[1] === 'follow-ups') && pathParts[2] !== 'new');
 
   const mainClassName = `main-content${isSpecialMarginPage ? ' special-margin-page' : ''}`;
 

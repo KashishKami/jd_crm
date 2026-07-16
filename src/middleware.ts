@@ -14,6 +14,7 @@ export default withAuth(
       '/customers': 'customers:view',
       '/gateways': 'gateways:view',
       '/orders': 'orders:view',
+      '/follow-ups': 'follow-ups:view',
       '/pending/booking': 'orders:view-pending-booking',
       '/pending/shipment': 'orders:view-pending-shipment',
       '/pending/delivery': 'orders:view-pending-delivery',
@@ -36,6 +37,12 @@ export default withAuth(
       if (matchedPath === '/orders') {
         const canView = hasPermission(userPermissions, 'orders:view');
         const canCreate = hasPermission(userPermissions, 'orders:create');
+        if (!canView && !canCreate) {
+          return NextResponse.redirect(new URL('/access-denied', req.url));
+        }
+      } else if (matchedPath === '/follow-ups') {
+        const canView = hasPermission(userPermissions, 'follow-ups:view');
+        const canCreate = hasPermission(userPermissions, 'follow-ups:create');
         if (!canView && !canCreate) {
           return NextResponse.redirect(new URL('/access-denied', req.url));
         }

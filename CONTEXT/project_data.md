@@ -137,6 +137,19 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 | :--- | :--- | :--- |
 | `settings:manage-permissions` | — | Access Role & Permission Settings page (new) |
 
+### Resource: `follow-ups`
+| Permission Key | Permission ID | Description |
+| :--- | :--- | :--- |
+| `follow-ups:view` | `58` | **Admin-level.** View **all** follow-ups across all agents and centers (teams). Unlocks Center (Team) and Agent filter dropdowns and the Agent column in the list. Admin-only delete is also gated behind this permission. |
+| `follow-ups:create` | `59` | **Agent-level.** Access the Follow-Ups page and create new records. Backend hard-scopes all list and detail queries to the authenticated agent's own records — no Team/Agent filters or Agent column are shown. Cannot delete. |
+
+> [!NOTE]
+> **Restricted Follow-Ups Access (Phase 31):** This mirrors the `orders:view` / `orders:create` dual-permission pattern exactly.
+> - Users with `follow-ups:view` see all follow-ups from all agents and all centers, with full Team + Agent filter controls.
+> - Users with only `follow-ups:create` can access the page, but all API endpoints (`GET /api/follow-ups`, `GET /api/follow-ups/[id]`) force `agentId = session.user.uid` server-side. The client cannot override this regardless of what it sends in query params or the request body.
+> - Users with neither permission receive a `403 Forbidden` from all `/api/follow-ups/*` endpoints and a redirect to `/access-denied` from `middleware.ts` on page load.
+> - `agentId` and `agentName` on new follow-up records are **always derived from the authenticated session** — never trusted from the client POST body.
+
 ### Super Admin
 | Permission Key | Legacy Code | Description |
 | :--- | :--- | :--- |

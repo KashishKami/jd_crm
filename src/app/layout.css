@@ -690,6 +690,7 @@ html, .app-container {
   text-decoration: none;
   border: 1px solid transparent;
   transition: var(--transition-smooth);
+  white-space: nowrap;
 }
 
 .nav-pill-btn:hover {
@@ -909,8 +910,8 @@ html, .app-container {
   }
 
   .nav-pill-btn {
-    padding: 6px 12px;
-    font-size: 0.75rem;
+    padding: 4px 10px;
+    font-size: 0.72rem;
   }
 
   .swipable-nav {
