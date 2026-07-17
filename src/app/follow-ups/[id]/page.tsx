@@ -10,6 +10,7 @@ import BackButton from '../../../components/BackButton';
 import DeleteFollowUpButton from '../../../components/DeleteFollowUpButton';
 import DetailPageMarker from '../../../components/DetailPageMarker';
 import { formatPhoneNumber } from '../../../lib/formatPhone';
+import { formatDateDDMMYYYY } from '../../../lib/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,10 +86,10 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
   };
 
   const getDaysLabelBadgeClass = (label: string): string => {
-    if (label?.startsWith('Due by')) {
+    if (label?.startsWith('Due by') || label?.startsWith('Overdue by')) {
       return 'status-dot-badge badge-overdue';
     }
-    if (label === 'Today') {
+    if (label === 'Today' || label?.endsWith('left')) {
       return 'status-dot-badge badge-today';
     }
     if (label === 'Tomorrow') {
@@ -150,14 +151,41 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
           border-radius: 50px !important;
           width: fit-content !important;
         }
+        .follow-up-timestamps {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          gap: 6px !important;
+          font-size: 0.8rem !important;
+          color: '#64748b' !important;
+        }
+        .timestamp-separator {
+          display: inline !important;
+          margin: 0 4px !important;
+        }
+        @media (max-width: 640px) {
+          .follow-up-timestamps {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
+          }
+          .timestamp-separator {
+            display: none !important;
+          }
+        }
       `}} />
       
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <div>
           <h1 className="page-title">Follow Up Details #{record.followUpId}</h1>
           <p className="page-subtitle" style={{ marginTop: '4px' }}>
-            Prospect follow-up scheduled for {record.customerName}
+            Follow up scheduled for {record.customerName}{canViewAll ? ` by ${record.agentName}` : ''}
           </p>
+          <div className="text-xs text-slate-500 follow-up-timestamps" style={{ marginTop: '6px' }}>
+            <span>Entry on: {formatDateDDMMYYYY(record.entryDate || record.createdAt)}</span>
+            <span className="timestamp-separator">•</span>
+            <span>Last Updated on: {record.lastContact ? formatDateDDMMYYYY(record.lastContact) : '—'}</span>
+          </div>
         </div>
         <div className="flex gap-3 header-actions-flex">
           <BackButton label="Back to List" />
@@ -248,7 +276,7 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
               {!record.quotedOptions ? (
                 <span className="info-value italic text-slate-400">No quoted options provided.</span>
               ) : (
-                <ul className="list-disc list-inside space-y-2 font-mono text-sm text-slate-700 bg-slate-50/50 p-4 border border-slate-100 rounded-lg">
+                <ul className="list-disc list-inside space-y-2 font-mono text-sm text-slate-700 bg-slate-50/50 border border-slate-100 rounded-lg" style={{ padding: '16px', backgroundColor: '#f8fafc', borderColor: '#f1f5f9' }}>
                   {record.quotedOptions.split('\n').map((line, idx) => (
                     <li key={idx} className="py-0.5">{line}</li>
                   ))}
@@ -266,7 +294,7 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
             <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
               Notes or Remarks
             </h3>
-            <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-lg text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]">
+            <div className="bg-slate-50/50 border border-slate-100 rounded-lg text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]" style={{ padding: '16px', backgroundColor: '#f8fafc', borderColor: '#f1f5f9' }}>
               {record.notes || <span className="text-slate-400 italic">No notes written.</span>}
             </div>
           </div>
@@ -314,32 +342,6 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
             </div>
           </div>
 
-          {/* Card 4: System Metadata */}
-          <div className="profile-main" style={{ padding: '20px' }}>
-            <h3 className="form-section-title" style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
-              System Metadata
-            </h3>
-            <div className="flex flex-col gap-4 text-xs">
-              <div className="form-group">
-                <span className="form-label">Created Agent</span>
-                <span className="info-value font-medium">{record.agentName}</span>
-              </div>
-              <div className="form-group">
-                <span className="form-label">Entry Timestamp</span>
-                <span className="info-value font-mono">
-                  {DateTime.fromJSDate(record.entryDate || record.createdAt).setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a') + ' EST'}
-                </span>
-              </div>
-              <div className="form-group">
-                <span className="form-label">Last Contact Update</span>
-                <span className="info-value font-mono">
-                  {record.lastContact 
-                    ? DateTime.fromJSDate(record.lastContact).setZone('America/New_York').toFormat('LLL d, yyyy · h:mm a') + ' EST'
-                    : '—'}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -33,10 +33,10 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
   };
 
   const getDaysLabelBadgeClass = (label: string): string => {
-    if (label?.startsWith('Due by')) {
+    if (label?.startsWith('Due by') || label?.startsWith('Overdue by')) {
       return 'status-dot-badge badge-overdue';
     }
-    if (label === 'Today') {
+    if (label === 'Today' || label?.endsWith('left')) {
       return 'status-dot-badge badge-today';
     }
     if (label === 'Tomorrow') {

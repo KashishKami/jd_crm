@@ -34,12 +34,12 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
 
       const tz = 'America/New_York';
 
-      // Same day, time in future -> Today
-      expect(computeDaysLabel('2026-09-01', '13:00', tz)).toBe('Today');
-      expect(computeDaysLabel(new Date('2026-09-01T14:00:00Z'), '13:00', tz)).toBe('Today');
+      // Same day, time in future
+      expect(computeDaysLabel('2026-09-01', '13:00', tz)).toBe('1h 0m left');
+      expect(computeDaysLabel(new Date('2026-09-01T14:00:00Z'), '13:00', tz)).toBe('1h 0m left');
 
-      // Same day, time in past -> Due by 0 days
-      expect(computeDaysLabel('2026-09-01', '11:00', tz)).toBe('Due by 0 days');
+      // Same day, time in past
+      expect(computeDaysLabel('2026-09-01', '11:00', tz)).toBe('Overdue by 1h 0m');
 
       // Next day -> Tomorrow
       expect(computeDaysLabel('2026-09-02', '12:00', tz)).toBe('Tomorrow');

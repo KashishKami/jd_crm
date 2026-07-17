@@ -66,6 +66,8 @@ describe('useFollowUpNotifications Hook Unit Tests (W-3113)', () => {
     vi.stubGlobal('Notification', mockNotificationConstructor);
     (Notification as any).permission = 'granted';
 
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
     const { result } = renderHook(() => useFollowUpNotifications());
 
     await waitFor(() => {
@@ -81,9 +83,9 @@ describe('useFollowUpNotifications Hook Unit Tests (W-3113)', () => {
     });
 
     expect(mockNotificationConstructor).toHaveBeenCalledWith(
-      'Follow-Up Due',
+      '🔔 Follow-Up Due Now!',
       expect.objectContaining({
-        body: 'Sammy Davis — Transmission',
+        body: 'Sammy Davis — Call now! (Transmission)',
       })
     );
   });

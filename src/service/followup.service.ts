@@ -27,9 +27,34 @@ export function computeDaysLabel(followUpDate: Date | string, followUpTime: stri
     const [hours, minutes] = followUpTime.split(':').map(Number);
     const scheduledTime = today.set({ hour: hours, minute: minutes });
     if (nowInTz > scheduledTime) {
-      return 'Due by 0 days';
+      const diff = nowInTz.diff(scheduledTime, ['hours', 'minutes']).toObject();
+      const h = Math.floor(diff.hours || 0);
+      const m = Math.round(diff.minutes || 0);
+      let finalH = h;
+      let finalM = m;
+      if (finalM === 60) {
+        finalH += 1;
+        finalM = 0;
+      }
+      if (finalH > 0) {
+        return `Overdue by ${finalH}h ${finalM}m`;
+      }
+      return `Overdue by ${finalM}m`;
+    } else {
+      const diff = scheduledTime.diff(nowInTz, ['hours', 'minutes']).toObject();
+      const h = Math.floor(diff.hours || 0);
+      const m = Math.round(diff.minutes || 0);
+      let finalH = h;
+      let finalM = m;
+      if (finalM === 60) {
+        finalH += 1;
+        finalM = 0;
+      }
+      if (finalH > 0) {
+        return `${finalH}h ${finalM}m left`;
+      }
+      return `${finalM}m left`;
     }
-    return 'Today';
   }
   if (delta === 1) return 'Tomorrow';
   if (delta > 1) return `${delta} Days`;
@@ -173,12 +198,12 @@ export async function getDueFollowUps(
 
   const due = await followupRepository.findDueForNotification();
 
-  // If user only has create-own, filter due follow-ups to only theirs
-  if (!isViewAll) {
-    return due.filter((f) => f.agentId === Number(sessionUser.id));
-  }
-
-  return due;
+  // Notifications are ALWAYS scoped to the logged-in user's own follow-ups,
+  // regardless of role. follow-ups:view grants access to the list page for all
+  // agents — it does NOT mean the admin should receive everyone's notifications.
+  // Without this filter, an admin could dismiss a notification and write
+  // notified=true to the DB, causing the agent to never see their own alert.
+  return due.filter((f) => f.agentId === Number(sessionUser.id));
 }
 
 export async function markNotificationSent(id: number): Promise<CrmFollowUps> {

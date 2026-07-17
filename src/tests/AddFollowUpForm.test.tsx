@@ -76,18 +76,14 @@ describe('AddFollowUpForm Component Unit Tests (W-3109)', () => {
     expect(caliOption2).toBeUndefined();
   });
 
-  it('should display inferred timezone display label when state is selected', async () => {
+  it('should not display inferred timezone display label when state is selected', async () => {
     render(<AddFollowUpForm />);
 
     const stateSelect = screen.getByLabelText(/State\/Province/) as HTMLSelectElement;
 
     // Select California
     fireEvent.change(stateSelect, { target: { value: 'California' } });
-    expect(screen.queryByText('Pacific Time — America/Los_Angeles')).not.toBeNull();
-
-    // Select Texas
-    fireEvent.change(stateSelect, { target: { value: 'Texas' } });
-    expect(screen.queryByText('Central Time — America/Chicago')).not.toBeNull();
+    expect(screen.queryByText('Pacific Time — America/Los_Angeles')).toBeNull();
   });
 
   it('should show specify reason text input only when "Other" is selected', () => {

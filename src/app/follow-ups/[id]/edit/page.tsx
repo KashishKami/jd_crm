@@ -40,7 +40,15 @@ export default async function EditFollowUpPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <div className="agents-page-container">
+    <div className="agents-page-container follow-up-form-container">
+      <style dangerouslySetInnerHTML={{__html: `
+        @media (min-width: 768px) {
+          .main-content:has(.follow-up-form-container) {
+            padding-left: 20% !important;
+            padding-right: 20% !important;
+          }
+        }
+      `}} />
       <div className="page-header">
         <div>
           <h1 className="page-title">Edit Follow-Up</h1>

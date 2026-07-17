@@ -68,7 +68,21 @@ Traefik (already running, manages ALL apps)
 2. Runs `npm install` and `npm run build` on that GitHub server.
 3. Packages the built app into a **Docker Image** and uploads it to GitHub Container Registry (GHCR).
 4. SSH's into your VPS, pulls the new image, and restarts **only the JD CRM app container**.
-5. Your database container is **never touched** — it stays up and running.
+5. Immediately after the app container is up, runs `npx prisma migrate deploy` inside it to apply any pending database migrations.
+6. Your database container is **never touched** — it stays up and running.
+
+### How Prisma Migrations Work in Production
+
+> [!IMPORTANT]
+> **Migrations are NOT baked into the Docker image.** The `Dockerfile` only packages the compiled Next.js app and the Prisma schema/client. The `CMD` is `node server.js` — it just starts the web server. It does **not** auto-run migrations on startup.
+>
+> **How they are applied:** The GitHub Actions `deploy` job runs `docker exec jd_crm_app npx prisma migrate deploy` immediately after the app container starts on every push. This command is idempotent — it checks which migrations have already been applied (tracked in the `_prisma_migrations` table in MySQL) and only runs the ones that are new. If there are no new migrations in a given push, it finishes in under a second and does nothing.
+>
+> **What this means for you:**
+> - New migrations you add locally (via `npx prisma migrate dev`) are committed to `prisma/migrations/` in git.
+> - When you push to `main`, GitHub Actions builds the image (which includes the new migration files), restarts the app, and then runs `prisma migrate deploy` to apply them to the live database.
+> - You **never** need to SSH into the VPS to run migrations manually for a normal code push — the pipeline handles it automatically.
+> - The only time you run migrations manually is when recovering from a failed deploy or when importing a legacy database (covered in Step 2.4E).
 
 ---
 
@@ -655,6 +669,12 @@ jobs:
             # Restart only the app container (database is NOT touched)
             docker compose -f docker-compose.prod.yml up -d --no-deps app
 
+            # Wait for the app container to be ready, then apply any pending Prisma migrations.
+            # This is idempotent — if there are no new migrations it finishes instantly.
+            # The _prisma_migrations table tracks which migrations have already been applied.
+            sleep 5
+            docker exec jd_crm_app npx prisma migrate deploy
+
             # Clean up old unused Docker images to save disk space
             docker image prune -f
 
@@ -1005,6 +1025,107 @@ EXIT;
 ### Q: Why not build the Docker image directly on the VPS?
 
 Building Next.js requires running `npm install` and `npm run build`, which uses a lot of RAM. VPS plans with 2–4GB RAM frequently crash with "Out Of Memory" errors during builds. Building on GitHub's free servers (which have 16GB RAM) avoids this completely. The VPS only needs to *pull* a pre-built image, which takes ~10 seconds.
+
+### Q: Are Prisma migrations baked into the Docker image?
+
+**No.** The image only contains the compiled Next.js app, the Prisma schema, and the generated Prisma client. The migration files (`prisma/migrations/`) are copied into the image but they are not executed during the image build or on container startup.
+
+Migrations are applied by the GitHub Actions pipeline immediately after the app container starts, using:
+```bash
+docker exec jd_crm_app npx prisma migrate deploy
+```
+This command reads which migrations are already recorded in the `_prisma_migrations` table and only applies new ones. It is safe to run on every deploy — if nothing is new, it exits in under a second.
+
+**If you ever need to run migrations manually on the VPS** (e.g., after a manual image pull or a failed pipeline):
+```bash
+ssh root@YOUR_VPS_IP
+docker exec jd_crm_app npx prisma migrate deploy
+```
+
+### Q: How do I add new permissions/seed data to a running container without losing data?
+
+Use `INSERT IGNORE` and `ON DUPLICATE KEY UPDATE` SQL — same pattern as `seed.sql`. These are completely safe to run on a live database because they never delete rows or overwrite existing data.
+
+**For the follow-up module permissions (Phase 31) — run this on a fresh or existing database:**
+
+#### Local Docker container:
+```powershell
+# Run from your Windows PowerShell in the project root
+docker exec -i jd_crm_db mysql -u root -proot_password jd_crm << 'EOF'
+-- Add follow-ups:view (ID 58) and follow-ups:create (ID 59) permissions
+INSERT INTO crm_permissions (permission_id, permission_name, permission_description) VALUES
+  (58, 'follow-ups:view',   'Admin-level: view all follow-ups across all agents and centers'),
+  (59, 'follow-ups:create', 'Agent-level: create and view own follow-ups only')
+ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
+
+-- Grant follow-ups:view + follow-ups:create to Super Admin (role_id = 1)
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (1, 58), (1, 59);
+
+-- Grant follow-ups:view + follow-ups:create to Admin (role_id = 2)
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (2, 58), (2, 59);
+
+-- Grant follow-ups:create ONLY to Agent (role_id = 8) — they cannot see all agents' follow-ups
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (8, 59);
+EOF
+```
+
+> **Windows PowerShell note:** The heredoc `<< 'EOF'` syntax works in PowerShell 7+. If you are on an older PowerShell, pipe it instead:
+> ```powershell
+> @"
+> INSERT INTO crm_permissions ...
+> "@ | docker exec -i jd_crm_db mysql -u root -proot_password jd_crm
+> ```
+> Or simply run the full `seed.sql` again — it is fully idempotent:
+> ```powershell
+> Get-Content "seed.sql" | docker exec -i jd_crm_db mysql -u root -proot_password jd_crm
+> ```
+
+#### Production VPS container:
+```bash
+# SSH into your VPS first
+ssh root@YOUR_VPS_IP
+
+# Then run the same SQL inside the production DB container
+docker exec -i jd_crm_db mysql -u root -p"$MYSQL_ROOT_PASSWORD" jd_crm << 'EOF'
+-- Add follow-ups:view (ID 58) and follow-ups:create (ID 59) permissions
+INSERT INTO crm_permissions (permission_id, permission_name, permission_description) VALUES
+  (58, 'follow-ups:view',   'Admin-level: view all follow-ups across all agents and centers'),
+  (59, 'follow-ups:create', 'Agent-level: create and view own follow-ups only')
+ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
+
+-- Grant follow-ups:view + follow-ups:create to Super Admin (role_id = 1)
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (1, 58), (1, 59);
+
+-- Grant follow-ups:view + follow-ups:create to Admin (role_id = 2)
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (2, 58), (2, 59);
+
+-- Grant follow-ups:create ONLY to Agent (role_id = 8)
+INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+  (8, 59);
+EOF
+```
+
+> **Why `$MYSQL_ROOT_PASSWORD`?** On the VPS, the GitHub Actions pipeline writes your secrets into `/opt/jd-crm/.env`. Source it first if `$MYSQL_ROOT_PASSWORD` is not in your current shell session:
+> ```bash
+> cd /opt/jd-crm && source .env
+> ```
+> Or simply replace `"$MYSQL_ROOT_PASSWORD"` with the actual password value directly in the command.
+
+> [!NOTE]
+> **Who gets what:**
+> | Role | `follow-ups:view` (see all agents) | `follow-ups:create` (own follow-ups only) |
+> |:---|:---:|:---:|
+> | Super Admin (role 1) | ✅ | ✅ |
+> | Admin (role 2) | ✅ | ✅ |
+> | Manager, Team Lead, HR, QA, Vendor Management (roles 3–7) | ❌ | ❌ |
+> | Agent (role 8) | ❌ | ✅ |
+>
+> Roles 3–7 do not have follow-up permissions by default. Assign them via the Settings → Roles page in the app UI if needed.
 
 ---
 

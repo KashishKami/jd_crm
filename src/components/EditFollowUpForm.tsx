@@ -192,15 +192,10 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
     }
   };
 
-  const isCustomerFilled = !!formData.customerName;
-  const isVehicleFilled = !!formData.vehicleYearMakeModel && !!formData.partRequired;
-  const isLocationFilled = !!formData.customerState;
-  const isPricingFilled = !!formData.quotedOptions;
-  const isScheduleFilled = !!formData.followUpDate && !!formData.followUpTime && !!formData.followUpReason;
-  const filledCount = [isCustomerFilled, isVehicleFilled, isLocationFilled, isPricingFilled, isScheduleFilled].filter(Boolean).length;
 
   return (
-    <form onSubmit={handleSubmit} className="order-form-layout">
+    <form onSubmit={handleSubmit}>
+      <div className="order-form-layout">
       <div className="order-form-main flex flex-col gap-6 form-compact">
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -208,381 +203,284 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
           </div>
         )}
 
-        {/* Section 1: Customer Info */}
         <div className="profile-main" style={{ padding: '24px' }}>
           <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Customer Information</h3>
           <div className="form-grid">
             <div className="form-group">
-              <label htmlFor="customerName" className="form-label">
-                Customer Name *
-              </label>
-              <input
-                type="text"
-                id="customerName"
-                name="customerName"
-                value={formData.customerName}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
+              <label htmlFor="customerName" className="form-label">Customer Name *</label>
+              <input type="text" id="customerName" name="customerName" value={formData.customerName} onChange={handleChange} className="form-input" required placeholder="e.g. John Smith" />
             </div>
-
             <div className="form-group">
-              <label htmlFor="customerPhone" className="form-label">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                id="customerPhone"
-                name="customerPhone"
-                value={formData.customerPhone}
-                onChange={handleChange}
-                className="form-input font-mono"
-              />
+              <label htmlFor="customerPhone" className="form-label">Phone Number</label>
+              <input type="text" id="customerPhone" name="customerPhone" value={formData.customerPhone} onChange={handleChange} className="form-input font-mono" placeholder="e.g. 555-123-4567" />
             </div>
-          </div>
-        </div>
-
-        {/* Section 2: Vehicle & Part */}
-        <div className="profile-main" style={{ padding: '24px' }}>
-          <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Vehicle & Part</h3>
-          <div className="form-grid">
             <div className="form-group">
-              <label htmlFor="vehicleYearMakeModel" className="form-label">
-                Year, Make & Model *
-              </label>
-              <input
-                type="text"
-                id="vehicleYearMakeModel"
-                name="vehicleYearMakeModel"
-                value={formData.vehicleYearMakeModel}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="partRequired" className="form-label">
-                Part Required *
-              </label>
-              <input
-                type="text"
-                id="partRequired"
-                name="partRequired"
-                value={formData.partRequired}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label htmlFor="partDescription" className="form-label">
-                Part Description
-              </label>
-              <textarea
-                id="partDescription"
-                name="partDescription"
-                value={formData.partDescription}
-                onChange={handleChange}
-                className="form-input min-h-[80px] py-2"
-                placeholder="e.g. Color preference, condition details, specific trim requirements, etc."
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Location */}
-        <div className="profile-main" style={{ padding: '24px' }}>
-          <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Location</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="customerCountry" className="form-label">
-                Country
-              </label>
-              <select
-                id="customerCountry"
-                name="customerCountry"
-                value={formData.customerCountry}
-                onChange={handleChange}
-                className="form-select"
-              >
+              <label htmlFor="customerCountry" className="form-label">Country</label>
+              <select id="customerCountry" name="customerCountry" value={formData.customerCountry} onChange={handleChange} className="form-select">
                 <option value="USA">USA</option>
                 <option value="Canada">Canada</option>
               </select>
             </div>
-
             <div className="form-group">
-              <label htmlFor="customerState" className="form-label">
-                State/Province *
-              </label>
-              <select
-                id="customerState"
-                name="customerState"
-                value={formData.customerState}
-                onChange={handleChange}
-                className="form-select"
-                required
-              >
+              <label htmlFor="customerState" className="form-label">State/Province *</label>
+              <select id="customerState" name="customerState" value={formData.customerState} onChange={handleChange} className="form-select" required>
                 <option value="">-- Select State/Province --</option>
                 {COUNTRY_STATE_MAP[formData.customerCountry]?.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
+                  <option key={state} value={state}>{state}</option>
                 ))}
               </select>
             </div>
-
-            {inferredTzDisplay && (
-              <div className="form-group form-grid-full">
-                <label className="form-label">Inferred Customer Timezone</label>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium">
-                  {inferredTzDisplay}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Section 4: Pricing Options */}
+        <div className="profile-main" style={{ padding: '24px' }}>
+          <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Vehicle & Part</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="vehicleYearMakeModel" className="form-label">Year, Make & Model *</label>
+              <input type="text" id="vehicleYearMakeModel" name="vehicleYearMakeModel" value={formData.vehicleYearMakeModel} onChange={handleChange} className="form-input" required placeholder="e.g. 2018 Honda Civic" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="partRequired" className="form-label">Part Required *</label>
+              <input type="text" id="partRequired" name="partRequired" value={formData.partRequired} onChange={handleChange} className="form-input" required />
+            </div>
+            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+              <label htmlFor="partDescription" className="form-label">Part Description</label>
+              <textarea id="partDescription" name="partDescription" value={formData.partDescription} onChange={handleChange} className="form-input min-h-[80px] py-2" placeholder="e.g. Color preference, condition details, etc." />
+            </div>
+          </div>
+        </div>
+
         <div className="profile-main" style={{ padding: '24px' }}>
           <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Pricing Options</h3>
           <div className="form-group form-grid-full">
-            <label htmlFor="quotedOptions" className="form-label">
-              Quoted Options
-            </label>
-            <textarea
-              id="quotedOptions"
-              name="quotedOptions"
-              value={formData.quotedOptions}
-              onChange={handleChange}
-              className="form-textarea min-h-[100px] font-mono"
-              placeholder={"Price - miles/warranty\nPrice - miles/warranty"}
-            />
-            <p className="text-xs text-slate-500 mt-1 italic">
-              * Press Enter to write multiple follow-up pricing options.
-            </p>
+            <label htmlFor="quotedOptions" className="form-label">Quoted Options</label>
+            <textarea id="quotedOptions" name="quotedOptions" value={formData.quotedOptions} onChange={handleChange} className="form-textarea min-h-[100px] font-mono" placeholder={"Price - miles/warranty\nPrice - miles/warranty"} />
+            <p className="text-xs text-slate-500 mt-1 italic">* Press Enter to write multiple follow-up pricing options.</p>
           </div>
         </div>
 
-        {/* Section 5: Follow-Up Schedule */}
-        <div className="profile-main" style={{ padding: '24px' }}>
-          <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Follow-Up Schedule</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="followUpDate" className="form-label">
-                Follow-Up Date *
-              </label>
-              <input
-                type="date"
-                id="followUpDate"
-                name="followUpDate"
-                value={formData.followUpDate}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="followUpTime" className="form-label">
-                Follow-Up Time *
-              </label>
-              <input
-                type="time"
-                id="followUpTime"
-                name="followUpTime"
-                value={formData.followUpTime}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-
-            <div className="form-group form-grid-full">
-              <label htmlFor="followUpReason" className="form-label">
-                Follow-Up Reason *
-              </label>
-              <select
-                id="followUpReason"
-                name="followUpReason"
-                value={formData.followUpReason}
-                onChange={handleReasonChange}
-                className="form-select"
-                required
-              >
-                {REASON_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {formData.followUpReason === 'Other (Please specify)' && (
-              <div className="form-group form-grid-full">
-                <label htmlFor="customReason" className="form-label">
-                  Specify Reason *
-                </label>
-                <input
-                  type="text"
-                  id="customReason"
-                  name="customReason"
-                  value={formData.customReason}
-                  onChange={handleChange}
-                  className="form-input"
-                  required
-                  placeholder="Write specific follow-up reason..."
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Section 6: Classification */}
-        <div className="profile-main" style={{ padding: '24px' }}>
-          <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Classification</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="status" className="form-label">
-                Status *
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="form-select"
-                required
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="priority" className="form-label">
-                Priority *
-              </label>
-              <select
-                id="priority"
-                name="priority"
-                value={formData.priority}
-                onChange={handleChange}
-                className="form-select"
-                required
-              >
-                {PRIORITY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-        <div className="form-actions desktop-actions-only" style={{ marginTop: '24px' }}>
-          <Link
-            href={`/follow-ups/${record.followUpId}`}
-            className="btn-secondary-custom"
-          >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-primary-custom"
-          >
-            {submitting ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
       </div>
 
       {/* Sidebar Info */}
-      <div className="order-form-sidebar flex flex-col gap-6" style={{ position: 'sticky', top: '100px', height: 'fit-content' }}>
-        {/* Card 1: Form Progress */}
-        <div className="profile-main" style={{ padding: '20px' }}>
-          <h4 style={{
-            fontSize: '0.85rem',
-            fontWeight: 'bold',
-            color: '#94a3b8',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            margin: '0 0 16px 0',
-          }}>
-            Progress ({filledCount}/5)
-          </h4>
+      <div className="order-form-sidebar flex flex-col gap-6" style={{ height: 'fit-content' }}>
 
-          {/* Progress Bar Segments */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
-            <div style={{ flex: 1, height: '6px', borderRadius: '3px', backgroundColor: isCustomerFilled ? '#10b981' : '#e2e8f0', transition: 'background-color 0.25s ease' }} />
-            <div style={{ flex: 1, height: '6px', borderRadius: '3px', backgroundColor: isVehicleFilled ? '#10b981' : '#e2e8f0', transition: 'background-color 0.25s ease' }} />
-            <div style={{ flex: 1, height: '6px', borderRadius: '3px', backgroundColor: isLocationFilled ? '#10b981' : '#e2e8f0', transition: 'background-color 0.25s ease' }} />
-            <div style={{ flex: 1, height: '6px', borderRadius: '3px', backgroundColor: isPricingFilled ? '#10b981' : '#e2e8f0', transition: 'background-color 0.25s ease' }} />
-            <div style={{ flex: 1, height: '6px', borderRadius: '3px', backgroundColor: isScheduleFilled ? '#10b981' : '#e2e8f0', transition: 'background-color 0.25s ease' }} />
+    {/* Card 2: Classification & Schedule */}
+    <div className="profile-main" style={{ padding: '20px' }}>
+      <h3 className="form-section-title" style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
+        Classification and Schedule
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Stacked Date and Time inputs */}
+          <div className="form-group">
+            <label htmlFor="followUpDate" className="form-label">
+              Follow-Up Date *
+            </label>
+            <input
+              type="date"
+              id="followUpDate"
+              name="followUpDate"
+              value={formData.followUpDate}
+              onChange={handleChange}
+              className="form-input"
+              required
+            />
           </div>
 
-          {/* Checklist */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.88rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: isCustomerFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                {isCustomerFilled ? '✓' : '○'}
-              </span>
-              <span style={{ color: isCustomerFilled ? '#1e293b' : '#64748b' }}>Customer Name & Contact</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: isVehicleFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                {isVehicleFilled ? '✓' : '○'}
-              </span>
-              <span style={{ color: isVehicleFilled ? '#1e293b' : '#64748b' }}>Vehicle & Part Specs</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: isLocationFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                {isLocationFilled ? '✓' : '○'}
-              </span>
-              <span style={{ color: isLocationFilled ? '#1e293b' : '#64748b' }}>State / Province Location</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: isPricingFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                {isPricingFilled ? '✓' : '○'}
-              </span>
-              <span style={{ color: isPricingFilled ? '#1e293b' : '#64748b' }}>Pricing Options</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: isScheduleFilled ? '#10b981' : '#cbd5e1', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                {isScheduleFilled ? '✓' : '○'}
-              </span>
-              <span style={{ color: isScheduleFilled ? '#1e293b' : '#64748b' }}>Follow-Up Time & Reason</span>
-            </div>
+          <div className="form-group">
+            <label htmlFor="followUpTime" className="form-label">
+              Follow-Up Time *
+            </label>
+            <input
+              type="time"
+              id="followUpTime"
+              name="followUpTime"
+              value={formData.followUpTime}
+              onChange={handleChange}
+              style={{ display: 'none' }}
+              required
+            />
+            {(() => {
+              const parseFollowUpTime = (timeStr: string) => {
+                if (!timeStr) return { hour12: '12', minute: '00', ampm: 'AM' };
+                const [h24, m] = timeStr.split(':');
+                const h24Num = parseInt(h24, 10);
+                const mStr = m || '00';
+                
+                let hour12 = h24Num % 12;
+                if (hour12 === 0) hour12 = 12;
+                const ampm = h24Num >= 12 ? 'PM' : 'AM';
+                
+                return {
+                  hour12: String(hour12),
+                  minute: mStr,
+                  ampm
+                };
+              };
+
+              const build24HourTime = (h12: string, m: string, ap: string): string => {
+                let h12Num = parseInt(h12, 10);
+                if (ap === 'PM') {
+                  if (h12Num !== 12) h12Num += 12;
+                } else {
+                  if (h12Num === 12) h12Num = 0;
+                }
+                return `${String(h12Num).padStart(2, '0')}:${m}`;
+              };
+
+              const timeParts = parseFollowUpTime(formData.followUpTime);
+
+              const handlePartChange = (part: 'hour12' | 'minute' | 'ampm', val: string) => {
+                const newParts = { ...timeParts, [part]: val };
+                const new24Time = build24HourTime(newParts.hour12, newParts.minute, newParts.ampm);
+                setFormData(prev => ({ ...prev, followUpTime: new24Time }));
+              };
+
+              return (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <select
+                    value={timeParts.hour12}
+                    onChange={(e) => handlePartChange('hour12', e.target.value)}
+                    className="form-select"
+                    style={{ flex: 1 }}
+                    aria-label="Follow-Up Hour"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={timeParts.minute}
+                    onChange={(e) => handlePartChange('minute', e.target.value)}
+                    className="form-select"
+                    style={{ flex: 1 }}
+                    aria-label="Follow-Up Minute"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={timeParts.ampm}
+                    onChange={(e) => handlePartChange('ampm', e.target.value)}
+                    className="form-select"
+                    style={{ width: '80px' }}
+                    aria-label="Follow-Up AM/PM"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+              );
+            })()}
           </div>
+        {/* End Stacked Date and Time */}
+
+        <div className="form-group">
+          <label htmlFor="followUpReason" className="form-label">
+            Follow-Up Reason *
+          </label>
+          <select
+            id="followUpReason"
+            name="followUpReason"
+            value={formData.followUpReason}
+            onChange={handleReasonChange}
+            className="form-select"
+            required
+          >
+            {REASON_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Card 2: Notes / Remarks */}
-        <div className="profile-main" style={{ padding: '20px' }}>
-          <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
-            Notes / Follow-Up Remarks
-          </h3>
-          <div className="form-group form-grid-full">
-            <label htmlFor="notes" className="form-label" style={{ display: 'none' }}>
-              Notes
+        {formData.followUpReason === 'Other (Please specify)' && (
+          <div className="form-group">
+            <label htmlFor="customReason" className="form-label">
+              Specify Reason *
             </label>
-            <textarea
-              id="notes"
-              name="notes"
-              value={formData.notes}
+            <input
+              type="text"
+              id="customReason"
+              name="customReason"
+              value={formData.customReason}
               onChange={handleChange}
-              className="form-textarea min-h-[150px]"
-              placeholder="Write free-form follow-up remarks..."
+              className="form-input"
+              required
+              placeholder="Write specific follow-up reason..."
             />
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-group">
+            <label htmlFor="status" className="form-label">
+              Status *
+            </label>
+            <select
+              id="status"
+              name="status"
+              value={formData.status}
+              onChange={handleChange}
+              className="form-select"
+              required
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="priority" className="form-label">
+              Priority *
+            </label>
+            <select
+              id="priority"
+              name="priority"
+              value={formData.priority}
+              onChange={handleChange}
+              className="form-select"
+              required
+            >
+              {PRIORITY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
+    </div>
 
-      <div className="form-actions mobile-actions-only" style={{ marginTop: '24px' }}>
+    {/* Card 3: Notes / Remarks */}
+    <div className="profile-main" style={{ padding: '20px' }}>
+      <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
+        Notes / Follow-Up Remarks
+      </h3>
+      <div className="form-group form-grid-full">
+        <label htmlFor="notes" className="form-label" style={{ display: 'none' }}>
+          Notes
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          value={formData.notes}
+          onChange={handleChange}
+          className="form-textarea min-h-[150px]"
+          placeholder="Write free-form follow-up remarks..."
+        />
+      </div>
+    </div>
+  </div>
+</div>
+
+      <div className="form-actions" style={{ marginTop: '24px' }}>
         <Link
           href={`/follow-ups/${record.followUpId}`}
           className="btn-secondary-custom"

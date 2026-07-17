@@ -102,7 +102,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
     expect(screen.queryByText('Delete Follow-Up')).toBeNull();
   });
 
-  it('should remove Customer Timezone, apply Georgia font style, and show entry/lastContact dates in EST for W-3155', async () => {
+  it('should remove Customer Timezone, apply Georgia font style, and show entry/lastContact dates in DD-MM-YYYY format', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
     });
@@ -120,12 +120,11 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
     expect(styles).not.toBeNull();
     expect(styles?.textContent).toContain('Georgia, serif');
 
-    // 3. Assert dates are formatted to America/New_York (EST/EDT)
-    // mockRecord.entryDate = 2026-09-01T12:00:00Z -> EST/EDT is 2026-09-01 at 08:00 AM EDT
-    expect(screen.queryAllByText(/Sep 1, 2026 · 8:00 AM/)).not.toHaveLength(0);
+    // 3. Assert dates are formatted in DD-MM-YYYY
+    expect(screen.queryAllByText(/01-09-2026/)).not.toHaveLength(0);
   });
 
-  it('should render Notes card first and merged Classification & Schedule card second for W-3156', async () => {
+  it('should render Notes card first and merged Classification & Schedule card second, and completely omit System Metadata card', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
     });
@@ -138,10 +137,9 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
     expect(sidebar).not.toBeNull();
 
     const headers = Array.from(sidebar!.querySelectorAll('h3')).map(h => h.textContent?.trim());
-    expect(headers).toHaveLength(3);
+    expect(headers).toHaveLength(2);
     expect(headers[0]).toBe('Notes or Remarks');
     expect(headers[1]).toBe('Classification and Schedule');
-    expect(headers[2]).toBe('System Metadata');
 
     // Assert that GMT/EDT/EST is NOT rendered in the Callback Time block (it should be empty/null there)
     // The date/time is split into two lines: time, then date below it, with NO timezone suffix.
