@@ -7535,3 +7535,26 @@ Overhaul the Follow-Up module layouts, schedules, clocks, and alignments to stan
 
 
 
+
+
+### Session 87: July 17, 2026
+#### Dashboard Metrics Cards Updates: Renaming, Pro-rated Comparisons & Visual Enhancements
+
+**Goal:**
+Renamed the year and month sales metrics cards to "Charged this year" and "Charged this month", included all 4 sold statuses ('1', '2', '3', '4'), implemented pro-rated comparison calculations, and displayed bracketed comparison amounts below the VS text.
+
+**Approach & Implementation:**
+1. **Statuses Inclusion & Renaming**:
+   - Added `getChargedBetweenDates` in [dashboard.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/dashboard.repository.ts) to query statuses `1`, `2`, `3`, and `4` (Sold, Refunded, Chargebacked, and Partial Refund).
+   - Renamed cards to "Charged this year" and "Charged this month" in [dashboard_client_page.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/dashboard_client_page.tsx) and updated URL filters to `saleStatus=1,2,3,4`.
+2. **Pro-rated (YTD/MTD) Comparison**:
+   - Updated [dashboard.service.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/service/dashboard.service.ts) to calculate pro-rated end dates in EST timezone.
+   - Handled leap years and variable month lengths by clamping target day using `Math.min`.
+   - Applied pro-rated percentage change comparison logic to: "Charged this year", "Charged this month", and "Net Sales This Month".
+3. **Visual Enhancements**:
+   - Updated period labels: `till today last year` for the year card, and dynamic day values (e.g. `till 17th last month`) for month cards.
+   - Modified percentage badge container in [MetricCard.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/dashboard/MetricCard.tsx) to align vertically as a column.
+   - Displayed bracketed comparison details below the VS text in the format `[$Amount (Count countLabel)]`, e.g., `[$20,000 (100 Sales)]`.
+   - Reduced sparkline SVG height and container height to `30px` to prevent text overlap.
+4. **Tests**:
+   - Updated card title expectations in [Dashboard.test.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/Dashboard.test.tsx).

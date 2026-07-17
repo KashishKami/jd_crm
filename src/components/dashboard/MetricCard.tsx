@@ -140,7 +140,7 @@ export default function MetricCard({
     const rangeVal = maxVal - minVal;
     
     const svgWidth = 160;
-    const svgHeight = 45;
+    const svgHeight = 30;
     const padding = 2;
     
     const pointsData = sparklineData.map((val, idx) => {
@@ -157,7 +157,8 @@ export default function MetricCard({
     const fillGradientId = `gradient-${title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
 
     sparklineSvg = (
-      <svg className="metric-card-sparkline" width="160" height="45" viewBox="0 0 160 45" style={{ overflow: 'visible', alignSelf: 'flex-end' }}>
+      <svg className="metric-card-sparkline" width="160" height="30" viewBox="0 0 160 30" style={{ overflow: 'visible', alignSelf: 'flex-end' }}>
+
         <defs>
           <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={strokeColor} stopOpacity="0.25" />
@@ -243,37 +244,54 @@ export default function MetricCard({
             top: '20px',
             right: '20px',
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
             zIndex: 10,
           }}
         >
-          <span
-            style={{
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              color: isIncrease ? '#1e8e69' : '#d35252',
-              backgroundColor: isIncrease ? '#eafaf1' : '#fdf0f0',
-              padding: '3px 8px',
-              borderRadius: '50px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '2px',
-            }}
-          >
-            {isIncrease ? '↗' : '↘'} {Math.abs(percentageChange || 0)}%
-          </span>
-          <span
-            style={{
-              fontSize: '0.65rem',
-              fontWeight: 500,
-              color: '#64748b',
-              marginLeft: '6px',
-            }}
-          >
-            {getVsLabel(periodLabel)}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: isIncrease ? '#1e8e69' : '#d35252',
+                backgroundColor: isIncrease ? '#eafaf1' : '#fdf0f0',
+                padding: '3px 8px',
+                borderRadius: '50px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+              }}
+            >
+              {isIncrease ? '↗' : '↘'} {Math.abs(percentageChange || 0)}%
+            </span>
+            <span
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                color: '#64748b',
+                marginLeft: '6px',
+              }}
+            >
+              {getVsLabel(periodLabel)}
+            </span>
+          </div>
+          {lastAmount !== undefined && (
+            <div
+              style={{
+                fontSize: '0.62rem',
+                color: '#94a3b8',
+                marginTop: '3px',
+                fontWeight: 500,
+              }}
+            >
+              [{prefix}{lastAmount.toLocaleString('en-US')}{lastCount !== undefined ? ` (${lastCount.toLocaleString('en-US')} ${countLabel})` : ''}]
+            </div>
+          )}
+
         </div>
       )}
+
 
       <div className="metric-card-body" style={{ display: 'flex', flexDirection: 'column', padding: '20px', height: '100%', boxSizing: 'border-box' }}>
         {/* Title at the top */}
@@ -298,10 +316,11 @@ export default function MetricCard({
 
           {/* Right: Sparkline SVG */}
           {sparklineSvg && (
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', marginLeft: '12px', height: '45px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', marginLeft: '12px', height: '30px' }}>
               {sparklineSvg}
             </div>
           )}
+
         </div>
       </div>
 

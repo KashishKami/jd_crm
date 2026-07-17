@@ -104,15 +104,19 @@ export async function getMetricsForUser(session: any) {
 
   // Year dates (UTC)
   const curYearStart = new Date(Date.UTC(now.getFullYear(), 0, 1));
-  const curYearEnd = new Date(Date.UTC(now.getFullYear() + 1, 0, 1));
+  const curYearEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const prevYearStart = new Date(Date.UTC(now.getFullYear() - 1, 0, 1));
-  const prevYearEnd = new Date(Date.UTC(now.getFullYear(), 0, 1));
+  const daysInPrevYearMonth = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0).getDate();
+  const prevYearDay = Math.min(now.getDate(), daysInPrevYearMonth);
+  const prevYearEnd = new Date(Date.UTC(now.getFullYear() - 1, now.getMonth(), prevYearDay + 1));
 
   // Month dates (UTC)
   const curMonthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-  const curMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
+  const curMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const prevMonthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
-  const prevMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  const daysInPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  const prevMonthDay = Math.min(now.getDate(), daysInPrevMonth);
+  const prevMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, prevMonthDay + 1));
 
   // Day dates (UTC)
   const curDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
@@ -142,9 +146,9 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'thisYearSales',
       Promise.all([
-        dashboardRepository.getSalesBetweenDates(curYearStart, curYearEnd),
-        dashboardRepository.getSalesBetweenDates(prevYearStart, prevYearEnd),
-        dashboardRepository.getSparklineData(sparkYearStart, sparkYearEnd, ['1', '4'], 'yearly'),
+        dashboardRepository.getChargedBetweenDates(curYearStart, curYearEnd),
+        dashboardRepository.getChargedBetweenDates(prevYearStart, prevYearEnd),
+        dashboardRepository.getSparklineData(sparkYearStart, sparkYearEnd, ['1', '2', '3', '4'], 'yearly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
@@ -160,9 +164,9 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'totalSalesThisMonth',
       Promise.all([
-        dashboardRepository.getSalesBetweenDates(curMonthStart, curMonthEnd),
-        dashboardRepository.getSalesBetweenDates(prevMonthStart, prevMonthEnd),
-        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['1', '4'], 'monthly'),
+        dashboardRepository.getChargedBetweenDates(curMonthStart, curMonthEnd),
+        dashboardRepository.getChargedBetweenDates(prevMonthStart, prevMonthEnd),
+        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['1', '2', '3', '4'], 'monthly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
@@ -173,6 +177,7 @@ export async function getMetricsForUser(session: any) {
       })),
     ]);
   }
+
 
   if (hasPermission(permissions, 'dashboard:today-sales')) {
     tasks.push([

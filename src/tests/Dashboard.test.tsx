@@ -91,7 +91,7 @@ describe('Dashboard Component Unit Tests', () => {
         userName="Admin"
       />
     );
-    expect(screen.getByText('This Year Sales')).toBeDefined();
+    expect(screen.getByText('Charged this year')).toBeDefined();
     expect(screen.getByText('30,000')).toBeDefined();
     expect(screen.getByText('(150 Sales)')).toBeDefined();
   });
@@ -111,8 +111,9 @@ describe('Dashboard Component Unit Tests', () => {
         userName="Agent"
       />
     );
-    expect(screen.queryByText('This Year Sales')).toBeNull();
+    expect(screen.queryByText('Charged this year')).toBeNull();
   });
+
 
   it('should render TopPerformersTable with ranks', () => {
     vi.mocked(useSession).mockReturnValue({

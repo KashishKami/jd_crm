@@ -22,6 +22,27 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
   };
 }
 
+export async function getChargedBetweenDates(start: Date, end: Date) {
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(
+        CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+        CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+      ) AS amount,
+      COUNT(*) AS count
+    FROM crm_orders
+    WHERE sale_status IN ('1', '2', '3', '4')
+      AND parent_order_id IS NULL
+      AND order_date >= ${start}
+      AND order_date < ${end}
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
+}
+
+
 export async function getNetSalesBetweenDates(start: Date, end: Date) {
   // Only sold/partial-refund orders count toward net sales amount and count.
   // Refunded (2) and chargebacked (3) orders contribute 0 — they are filtered out of SUM/COUNT.

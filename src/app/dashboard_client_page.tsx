@@ -80,36 +80,57 @@ export default function DashboardPage({
   const startOfYear = `${estNow.year}-01-01`;
   const endOfYear = `${estNow.year}-12-31`;
 
-  // 1. This Year Sales
+  const getOrdinal = (d: number) => {
+    if (d > 3 && d < 21) return d + 'th';
+    switch (d % 10) {
+      case 1:  return d + "st";
+      case 2:  return d + "nd";
+      case 3:  return d + "rd";
+      default: return d + "th";
+    }
+  };
+  
+  const prevYearLabel = 'till today last year';
+
+
+  // Month pro-rated day
+  const prevMonthIndex = (estNow.month - 2 + 12) % 12;
+  const prevMonthYear = estNow.month === 1 ? estNow.year - 1 : estNow.year;
+  const prevMonthMaxDays = new Date(prevMonthYear, prevMonthIndex + 1, 0).getDate();
+  const prevMonthDay = Math.min(estNow.day, prevMonthMaxDays);
+  const prevMonthLabel = `till ${getOrdinal(prevMonthDay)} last month`;
+
+
+  // 1. Charged this year
   if (hasPermission(permissions, 'dashboard:total-sales') && initialMetrics.thisYearSales !== undefined) {
     cards.push({
-      title: 'This Year Sales',
+      title: 'Charged this year',
       amount: initialMetrics.thisYearSales.amount,
       count: initialMetrics.thisYearSales.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1,4&dateFrom=${startOfYear}&dateTo=${endOfYear}`,
+      link: `/orders?saleStatus=1,2,3,4&dateFrom=${startOfYear}&dateTo=${endOfYear}`,
       lastAmount: initialMetrics.thisYearSales.lastAmount,
       lastCount: initialMetrics.thisYearSales.lastCount,
       percentageChange: initialMetrics.thisYearSales.percentageChange,
-      periodLabel: 'last year',
+      periodLabel: prevYearLabel,
       sparklineData: initialMetrics.thisYearSales.sparklineData,
     });
   }
 
-  // 2. Sales This Month
+  // 2. Charged this month
   if (hasPermission(permissions, 'dashboard:monthly-sales') && initialMetrics.totalSalesThisMonth !== undefined) {
     cards.push({
-      title: 'Sales This Month',
+      title: 'Charged this month',
       amount: initialMetrics.totalSalesThisMonth.amount,
       count: initialMetrics.totalSalesThisMonth.count,
       countLabel: 'Sales',
       prefix: '$',
-      link: `/orders?saleStatus=1,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      link: `/orders?saleStatus=1,2,3,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.totalSalesThisMonth.lastAmount,
       lastCount: initialMetrics.totalSalesThisMonth.lastCount,
       percentageChange: initialMetrics.totalSalesThisMonth.percentageChange,
-      periodLabel: 'last month',
+      periodLabel: prevMonthLabel,
       sparklineData: initialMetrics.totalSalesThisMonth.sparklineData,
     });
   }
@@ -143,7 +164,7 @@ export default function DashboardPage({
       lastAmount: initialMetrics.netSales.lastAmount,
       lastCount: initialMetrics.netSales.lastCount,
       percentageChange: initialMetrics.netSales.percentageChange,
-      periodLabel: 'last month',
+      periodLabel: prevMonthLabel,
       sparklineData: initialMetrics.netSales.sparklineData,
     });
   }
@@ -185,8 +206,8 @@ export default function DashboardPage({
   // Group cards into specified columns/combos
   const combos = [
     {
-      top: cards.find(c => c.title === 'This Year Sales'),
-      bottom: cards.find(c => c.title === 'Sales This Month'),
+      top: cards.find(c => c.title === 'Charged this year'),
+      bottom: cards.find(c => c.title === 'Charged this month'),
     },
     {
       top: cards.find(c => c.title === "Today's Sales"),
@@ -229,8 +250,9 @@ export default function DashboardPage({
             </div>
             
             <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-              <strong>Note:</strong> Sales figures (Year, Month, Today, Net Sales) include successful orders (Sold and Partially Refunded) and exclude fully refunded or chargebacked orders.
+              <strong>Note:</strong> Charged figures (Year, Month) include Sold, Partially Refunded, Fully Refunded, and Chargebacked orders. Today&apos;s Sales and Net Sales include successful orders (Sold and Partially Refunded) and exclude fully refunded or chargebacked orders.
             </div>
+
           </div>
         </>
       )}
