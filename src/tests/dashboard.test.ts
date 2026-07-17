@@ -246,7 +246,7 @@ describe('Dashboard Integration Tests', () => {
       expect(netRes.amount).toBe(370);
 
       // Verify Refund/Chargeback metrics are sums of orderRefundAmount
-      const { getRefundThisMonth, getChargebackThisMonth } = await import('../repository/dashboard.repository');
+      const { getRefundThisMonth, getChargebackThisMonth, getChargedBetweenDates } = await import('../repository/dashboard.repository');
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       
@@ -255,6 +255,16 @@ describe('Dashboard Integration Tests', () => {
 
       const chargebackRes = await getChargebackThisMonth(startOfMonth, endOfMonth);
       expect(chargebackRes.amount).toBe(150);
+
+      const chargedRes = await getChargedBetweenDates(startOfMonth, endOfMonth, { orderVendorName: 'DASH_TEST_VENDOR' });
+      expect(chargedRes.amount).toBe(670);
+      expect(chargedRes.count).toBe(6);
+
+      const { getSparklineData } = await import('../repository/dashboard.repository');
+      const sparkRes = await getSparklineData(startOfMonth, endOfMonth, ['1', '2', '3', '4'], 'monthly', { orderVendorName: 'DASH_TEST_VENDOR' });
+      const monthLabel = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const matchingLabel = sparkRes.find(r => r.label === monthLabel);
+      expect(matchingLabel?.amount).toBe(670);
 
       // Cleanup
       await prisma.crmOrders.deleteMany({ where: { orderSalesAgentId: testAgent.uid } });

@@ -22,12 +22,11 @@ export async function getSalesBetweenDates(start: Date, end: Date) {
   };
 }
 
-export async function getChargedBetweenDates(start: Date, end: Date) {
+export async function getChargedBetweenDates(start: Date, end: Date, whereClause?: any) {
   const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
     SELECT
       SUM(
-        CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
-        CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+        CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2))
       ) AS amount,
       COUNT(*) AS count
     FROM crm_orders
@@ -35,6 +34,7 @@ export async function getChargedBetweenDates(start: Date, end: Date) {
       AND parent_order_id IS NULL
       AND order_date >= ${start}
       AND order_date < ${end}
+      ${whereClause?.orderVendorName ? Prisma.raw(`AND order_vendor_name = '${whereClause.orderVendorName}'`) : Prisma.empty}
   `;
   return {
     amount: parseFloat(rows[0]?.amount ?? '0'),
@@ -767,29 +767,36 @@ export async function getSparklineData(
   start: Date,
   end: Date,
   saleStatuses: string[],
-  granularity: 'daily' | 'monthly' | 'yearly'
+  granularity: 'daily' | 'monthly' | 'yearly',
+  whereClause?: any
 ): Promise<{ label: string; amount: number }[]> {
+  const isChargedMetric = saleStatuses.includes('1') && saleStatuses.includes('2') && saleStatuses.includes('3') && saleStatuses.includes('4');
+  const sumExpression = isChargedMetric
+    ? Prisma.raw("CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2))")
+    : Prisma.raw(`
+        CASE
+          WHEN sale_status IN ('1', '4') THEN
+            CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
+            CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+          WHEN sale_status = '2' THEN
+            CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+          WHEN sale_status = '3' THEN
+            CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
+          ELSE 0
+        END
+      `);
+
   if (granularity === 'yearly') {
     const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
       SELECT
         CAST(YEAR(order_date) AS CHAR) AS label,
-        SUM(
-          CASE
-            WHEN sale_status IN ('1', '4') THEN
-              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '2' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '3' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            ELSE 0
-          END
-        ) AS amount
+        SUM(${sumExpression}) AS amount
       FROM crm_orders
       WHERE sale_status IN (${Prisma.join(saleStatuses)})
         AND parent_order_id IS NULL
         AND order_date >= ${start}
         AND order_date < ${end}
+        ${whereClause?.orderVendorName ? Prisma.raw(`AND order_vendor_name = '${whereClause.orderVendorName}'`) : Prisma.empty}
       GROUP BY label
       ORDER BY label ASC
     `;
@@ -801,23 +808,13 @@ export async function getSparklineData(
     const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
       SELECT
         DATE_FORMAT(order_date, '%Y-%m') AS label,
-        SUM(
-          CASE
-            WHEN sale_status IN ('1', '4') THEN
-              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '2' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '3' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            ELSE 0
-          END
-        ) AS amount
+        SUM(${sumExpression}) AS amount
       FROM crm_orders
       WHERE sale_status IN (${Prisma.join(saleStatuses)})
         AND parent_order_id IS NULL
         AND order_date >= ${start}
         AND order_date < ${end}
+        ${whereClause?.orderVendorName ? Prisma.raw(`AND order_vendor_name = '${whereClause.orderVendorName}'`) : Prisma.empty}
       GROUP BY label
       ORDER BY label ASC
     `;
@@ -830,23 +827,13 @@ export async function getSparklineData(
     const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
       SELECT
         DATE_FORMAT(order_date, '%Y-%m-%d') AS label,
-        SUM(
-          CASE
-            WHEN sale_status IN ('1', '4') THEN
-              CAST(COALESCE(order_amount_charged, '0') AS DECIMAL(12,2)) -
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '2' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            WHEN sale_status = '3' THEN
-              CAST(COALESCE(order_refund_amount, '0') AS DECIMAL(12,2))
-            ELSE 0
-          END
-        ) AS amount
+        SUM(${sumExpression}) AS amount
       FROM crm_orders
       WHERE sale_status IN (${Prisma.join(saleStatuses)})
         AND parent_order_id IS NULL
-        and order_date >= ${start}
+        AND order_date >= ${start}
         AND order_date < ${end}
+        ${whereClause?.orderVendorName ? Prisma.raw(`AND order_vendor_name = '${whereClause.orderVendorName}'`) : Prisma.empty}
       GROUP BY label
       ORDER BY label ASC
     `;
