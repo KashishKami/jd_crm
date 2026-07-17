@@ -1,4 +1,4 @@
--- CreateTable (if not exists — table was created outside of Prisma migrations)
+-- CreateTable
 CREATE TABLE IF NOT EXISTS `crm_follow_ups` (
     `follow_up_id` INTEGER NOT NULL AUTO_INCREMENT,
     `agent_id` INTEGER NOT NULL,
@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS `crm_follow_ups` (
     `customer_timezone` VARCHAR(100) NOT NULL,
     `vehicle_year_make_model` VARCHAR(255) NOT NULL,
     `part_required` VARCHAR(255) NOT NULL,
-    `part_description` TEXT NULL,
     `quoted_options` TEXT NULL,
     `follow_up_date` DATE NOT NULL,
     `follow_up_time` VARCHAR(5) NOT NULL,
@@ -23,13 +22,14 @@ CREATE TABLE IF NOT EXISTS `crm_follow_ups` (
     `notification_sent_at` DATETIME(0) NULL,
     `created_at` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `updated_at` DATETIME(0) NOT NULL,
+    `part_description` TEXT NULL,
 
+    PRIMARY KEY (`follow_up_id`),
     INDEX `crm_follow_ups_agent_id_idx`(`agent_id`),
     INDEX `crm_follow_ups_follow_up_date_idx`(`follow_up_date`),
     INDEX `crm_follow_ups_status_idx`(`status`),
-    INDEX `crm_follow_ups_priority_idx`(`priority`),
-    PRIMARY KEY (`follow_up_id`)
+    INDEX `crm_follow_ups_priority_idx`(`priority`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- AlterTable — add part_description column if it doesn't exist yet (safe on existing tables)
-ALTER TABLE `crm_follow_ups` ADD COLUMN IF NOT EXISTS `part_description` TEXT NULL;
+-- AddForeignKey
+ALTER TABLE `crm_follow_ups` ADD CONSTRAINT `crm_follow_ups_agent_id_fkey` FOREIGN KEY (`agent_id`) REFERENCES `users`(`uid`) ON DELETE RESTRICT ON UPDATE CASCADE;
