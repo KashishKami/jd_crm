@@ -19,15 +19,8 @@ export default function NewFollowUpPage() {
           }
         }
       `}} />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Schedule New Follow-Up</h1>
-          <p className="page-subtitle">
-            Create a follow-up record. The timezone is automatically calculated based on state.
-          </p>
-        </div>
-      </div>
       <AddFollowUpForm />
+
     </div>
   );
 }

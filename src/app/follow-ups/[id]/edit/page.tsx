@@ -49,15 +49,8 @@ export default async function EditFollowUpPage({ params }: { params: Promise<{ i
           }
         }
       `}} />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Edit Follow-Up</h1>
-          <p className="page-subtitle">
-            Modify scheduling parameters, status, priority, or notes for this prospect.
-          </p>
-        </div>
-      </div>
       <EditFollowUpForm record={record} />
+
     </div>
   );
 }

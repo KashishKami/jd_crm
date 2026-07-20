@@ -8372,4 +8372,15 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         - If `isDetailReturnRef.current` is `false` (e.g. navigating from Dashboard or top navbar links), `sessionStorage.removeItem(key)` is called to clear stale scroll positions and the effect returns immediately, guaranteeing that non-detail return navigations always start at scroll top (`scrollY = 0`).
     *   **Verification:** `npm run typecheck` passed with 0 errors.
 
+### Session 93 — July 20, 2026
+
+*   **Follow-Up Form Header Layout & Action Buttons Realignment (Add & Edit Follow-Up Pages):**
+    *   **Problem:** Action buttons (`Cancel` and `Save Changes` / `Create Follow-Up`) were rendered at the bottom of the long form on `/follow-ups/new` and `/follow-ups/[id]/edit`, requiring scrolling to submit or cancel. In addition, page headers were duplicated across the page component and form component.
+    *   **Fix:**
+        - Integrated the `page-header` directly into [AddFollowUpForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/AddFollowUpForm.tsx) and [EditFollowUpForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditFollowUpForm.tsx), aligning title/subtitle on the left and action buttons (`Cancel` & `Save Changes` / `Create Follow-Up`) on the top right.
+        - Removed duplicate `<div className="page-header">` blocks from `src/app/follow-ups/new/page.tsx` and `src/app/follow-ups/[id]/edit/page.tsx`.
+        - Removed bottom `.form-actions` blocks from both forms.
+    *   **Verification:** Verified `npm run typecheck` and `npm run lint` pass cleanly with 0 errors and 0 warnings.
+
+
 

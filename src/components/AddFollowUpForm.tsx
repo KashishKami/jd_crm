@@ -172,10 +172,20 @@ export default function AddFollowUpForm() {
 
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="order-form-layout">
-      <div className="order-form-main flex flex-col gap-6 form-compact">
-        {error && (
+    <form onSubmit={handleSubmit} className="follow-up-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gridTemplateAreas: '"title actions" "fields fields"', gap: '16px 24px', alignItems: 'start' }}>
+      <div className="follow-up-title-area" style={{ gridArea: 'title' }}>
+        <h1 className="page-title">Schedule New Follow-Up</h1>
+        <p className="page-subtitle">
+          Create a follow-up record. The timezone is automatically calculated based on state.
+        </p>
+      </div>
+
+      <div className="follow-up-fields-area" style={{ gridArea: 'fields' }}>
+        <div className="order-form-layout">
+        <div className="order-form-main flex flex-col gap-6 form-compact">
+          {error && (
+
+
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
             {error}
           </div>
@@ -547,8 +557,11 @@ export default function AddFollowUpForm() {
         </div>
       </div>
     </div>
+  </div>
 
-    <div className="form-actions" style={{ marginTop: '24px' }}>
+      <div className="follow-up-actions-area" style={{ gridArea: 'actions', display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+
         <Link href="/follow-ups" className="btn-secondary-custom">
           Cancel
         </Link>
@@ -561,5 +574,7 @@ export default function AddFollowUpForm() {
         </button>
       </div>
     </form>
+
+
   );
 }

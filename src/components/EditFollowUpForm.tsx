@@ -194,10 +194,20 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
 
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="order-form-layout">
-      <div className="order-form-main flex flex-col gap-6 form-compact">
-        {error && (
+    <form onSubmit={handleSubmit} className="follow-up-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gridTemplateAreas: '"title actions" "fields fields"', gap: '16px 24px', alignItems: 'start' }}>
+      <div className="follow-up-title-area" style={{ gridArea: 'title' }}>
+        <h1 className="page-title">Edit Follow-Up</h1>
+        <p className="page-subtitle">
+          Modify scheduling parameters, status, priority, or notes for this prospect.
+        </p>
+      </div>
+
+      <div className="follow-up-fields-area" style={{ gridArea: 'fields' }}>
+        <div className="order-form-layout">
+        <div className="order-form-main flex flex-col gap-6 form-compact">
+          {error && (
+
+
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
             {error}
           </div>
@@ -458,29 +468,36 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
       </div>
     </div>
 
-    {/* Card 3: Notes / Remarks */}
-    <div className="profile-main" style={{ padding: '20px' }}>
-      <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
-        Notes / Follow-Up Remarks
-      </h3>
-      <div className="form-group form-grid-full">
-        <label htmlFor="notes" className="form-label" style={{ display: 'none' }}>
-          Notes
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          value={formData.notes}
-          onChange={handleChange}
-          className="form-textarea min-h-[150px]"
-          placeholder="Write free-form follow-up remarks..."
-        />
+
+
+        {/* Card 3: Notes / Remarks */}
+
+        <div className="profile-main" style={{ padding: '20px' }}>
+          <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
+            Notes / Follow-Up Remarks
+          </h3>
+          <div className="form-group form-grid-full">
+            <label htmlFor="notes" className="form-label" style={{ display: 'none' }}>
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              name="notes"
+              value={formData.notes}
+              onChange={handleChange}
+              className="form-textarea min-h-[150px]"
+              placeholder="Write free-form follow-up remarks..."
+            />
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-      <div className="form-actions" style={{ marginTop: '24px' }}>
+
+
+
+      <div className="follow-up-actions-area" style={{ gridArea: 'actions', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Link
           href={`/follow-ups/${record.followUpId}`}
           className="btn-secondary-custom"
@@ -496,5 +513,7 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
         </button>
       </div>
     </form>
+
+
   );
 }
