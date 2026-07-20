@@ -29,6 +29,42 @@ export async function createOrder(
     throw new Error('Sensitive payment details (name on card, card number, expiry date) are required');
   }
 
+  // Phase 32 — Step 1: Rate validation
+  const currency = data.orderCurrency ?? 'USD';
+  const rate = parseFloat(data.orderExchangeRate ?? '1') || 0;
+  if (currency === 'CAD') {
+    if (rate <= 0 || rate >= 1) {
+      throw new Error(
+        'Exchange rate must be greater than 0 and less than 1 (exclusive on both ends) when currency is CAD.'
+      );
+    }
+  }
+
+  // Phase 32 — Step 2: CAD→USD conversion (runs BEFORE saleStatus auto-set)
+  if (currency === 'CAD') {
+    const convert = (val?: string | null): string | undefined =>
+      val && parseFloat(val) !== 0
+        ? (parseFloat(val) * rate).toFixed(2)
+        : (val ?? undefined);
+
+    data.orderTotalPitched = convert(data.orderTotalPitched);
+    data.orderAmountCharged = convert(data.orderAmountCharged);
+
+    if (data.orderRefundAmount && parseFloat(data.orderRefundAmount) !== 0) {
+      data.orderRefundAmount = convert(data.orderRefundAmount);
+    }
+
+    data.orderVendorPrice = convert(data.orderVendorPrice);
+
+    if (Array.isArray(data.parts)) {
+      data.parts = data.parts.map((p: any) => ({
+        ...p,
+        orderVendorPrice: convert(p.orderVendorPrice),
+      }));
+    }
+  }
+
+
   const GLOBAL_FIELDS = [
     'orderSalesAgentId',
     'orderVerifierId',
@@ -42,7 +78,9 @@ export async function createOrder(
     'orderAmountCharged',
     'orderRefundAmount',
     'orderBackendExecutiveId',
-    'saleStatus'
+    'saleStatus',
+    'orderCurrency',
+    'orderExchangeRate'
   ];
 
   if (data.parts && data.parts.length > 0) {
@@ -135,6 +173,53 @@ export async function updateOrder(
   } = data;
 
   const updatedData: OrderUpdateInput = { ...orderFields };
+
+  // Phase 32 — Rate validation and CAD→USD conversion on update
+  let effectiveCurrency = 'USD';
+  let effectiveRateStr = '1';
+
+  if (existingOrder.parentOrderId) {
+    const parent = await prisma.crmOrders.findUnique({
+      where: { crmOrderId: existingOrder.parentOrderId },
+      select: { orderCurrency: true, orderExchangeRate: true },
+    });
+    effectiveCurrency = data.orderCurrency ?? parent?.orderCurrency ?? 'USD';
+    effectiveRateStr = data.orderExchangeRate ?? parent?.orderExchangeRate ?? '1';
+  } else {
+    effectiveCurrency = data.orderCurrency ?? existingOrder.orderCurrency ?? 'USD';
+    effectiveRateStr = data.orderExchangeRate ?? existingOrder.orderExchangeRate ?? '1';
+  }
+
+  const effectiveRate = parseFloat(effectiveRateStr) || 0;
+
+  if (data.orderCurrency === 'CAD' || (effectiveCurrency === 'CAD' && data.orderExchangeRate !== undefined)) {
+    if (effectiveRate <= 0 || effectiveRate >= 1) {
+      throw new Error(
+        'Exchange rate must be greater than 0 and less than 1 (exclusive on both ends) when currency is CAD.'
+      );
+    }
+  }
+
+  if (effectiveCurrency === 'CAD') {
+    const convert = (val?: string | null): string | null | undefined =>
+      val && parseFloat(val) !== 0
+        ? (parseFloat(val) * effectiveRate).toFixed(2)
+        : val;
+
+    if (data.orderTotalPitched !== undefined) {
+      updatedData.orderTotalPitched = convert(data.orderTotalPitched) ?? undefined;
+    }
+    if (data.orderAmountCharged !== undefined) {
+      updatedData.orderAmountCharged = convert(data.orderAmountCharged) ?? undefined;
+    }
+    if (data.orderRefundAmount !== undefined && data.orderRefundAmount !== null && parseFloat(data.orderRefundAmount) !== 0) {
+      updatedData.orderRefundAmount = convert(data.orderRefundAmount);
+    }
+    if (data.orderVendorPrice !== undefined) {
+      updatedData.orderVendorPrice = convert(data.orderVendorPrice) ?? undefined;
+    }
+  }
+
 
   // ─── Sale Status & Refund Auto-Rules (Phase 17) ───
   if (data.saleStatus !== undefined) {
@@ -734,7 +819,24 @@ export async function addPart(
   if (!partData.orderPart) {
     throw new Error('Order vehicle part description is required');
   }
+  const { prisma } = await import('../lib/db');
+  const parent = await prisma.crmOrders.findUnique({
+    where: { crmOrderId: parentOrderId },
+    select: { orderCurrency: true, orderExchangeRate: true },
+  });
+
+  const currency = parent?.orderCurrency ?? 'USD';
+  const rate = parseFloat(parent?.orderExchangeRate ?? '1') || 1;
+
   const { saleStatus, ...cleanPartData } = partData;
+
+  if (currency === 'CAD' && rate > 0 && rate < 1 && cleanPartData.orderVendorPrice) {
+    const val = parseFloat(cleanPartData.orderVendorPrice);
+    if (!isNaN(val) && val !== 0) {
+      cleanPartData.orderVendorPrice = (val * rate).toFixed(2);
+    }
+  }
+
   const newPart = await orderRepository.addPartToExistingOrder(parentOrderId, cleanPartData);
 
   if (actingUser) {

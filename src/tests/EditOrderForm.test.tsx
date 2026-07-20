@@ -823,6 +823,46 @@ describe('EditOrderForm Unit Tests', () => {
         expect(options).not.toContain('Danny');
       });
     });
+
+    describe('W-3205: Currency & Exchange Rate Reverse CAD Pre-fill', () => {
+      it('should pre-fill inputs in CAD when orderCurrency is CAD', () => {
+        const cadOrder = {
+          ...getMockOrder('Pending Booking'),
+          orderTotalPitched: '370.00', // Stored USD
+          orderCurrency: 'CAD',
+          orderExchangeRate: '0.74',
+        };
+
+        render(<EditOrderForm order={cadOrder} vendors={[]} gateways={[]} agents={[]} />);
+
+        const pitchedInput = screen.getByLabelText(/total price pitched/i) as HTMLInputElement;
+        expect(pitchedInput.value).toBe('500.00'); // 370 / 0.74 = 500
+      });
+    });
+
+    describe('W-3208: Sales Verifier Dropdown Role Exclusion', () => {
+      it('should exclude Super Admin, Admin, HR, and QA roles from Sales Verifier dropdown', () => {
+        const mockAgents = [
+          { uid: 1, name: 'Alice Admin', status: 1, role: { roleName: 'Admin' } },
+          { uid: 2, name: 'Bob Sales', status: 1, role: { roleName: 'Agent' } },
+          { uid: 3, name: 'Carol HR', status: 1, role: { roleName: 'HR' } },
+          { uid: 4, name: 'Dan QA', status: 1, role: { roleName: 'QA' } },
+          { uid: 5, name: 'Eve Super', status: 1, role: { roleName: 'Super Admin' } },
+        ];
+        render(<EditOrderForm order={getMockOrder('Pending Booking')} vendors={[]} gateways={[]} agents={mockAgents as any} />);
+
+        const verifierSelect = document.getElementById('orderSalesVerifierId') as HTMLSelectElement;
+        expect(verifierSelect).not.toBeNull();
+        const options = Array.from(verifierSelect.options).map((o) => o.text);
+
+        expect(options).toContain('Bob Sales');
+        expect(options).not.toContain('Alice Admin');
+        expect(options).not.toContain('Carol HR');
+        expect(options).not.toContain('Dan QA');
+        expect(options).not.toContain('Eve Super');
+      });
+    });
   });
 });
+
 

@@ -7,7 +7,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import { fadeInPage } from '../lib/animations';
+import { gsap } from 'gsap';
 import OrderList from './OrderList';
+import { useLenis } from './LenisProvider';
+
+
 
 interface OrderListContainerProps {
   initialStatus?: string;
@@ -18,11 +22,20 @@ interface OrderListContainerProps {
 function OrderListContainerContent({ initialStatus, initialAgents, initialTeams }: OrderListContainerProps) {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
+  const { lenis } = useLenis();
+
   const [orders, setOrders] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>(initialAgents || []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isCachedRef = useRef(false);
+  const [isDetailReturn] = useState<boolean>(() =>
+    typeof window !== 'undefined' &&
+    (sessionStorage.getItem('coming_from_detail') === '/orders' ||
+     Boolean(sessionStorage.getItem('coming_from_detail')?.startsWith('/orders')))
+  );
+
+
 
   // Filter states — lazy-initialized from URL so that on back-navigation
   // the values are already correct before any effect runs, preventing a
@@ -66,7 +79,12 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   // the correct page number before any effect runs (same pattern as filters).
   const [page, setPage] = useState(() => {
     if (typeof window === 'undefined') return 1;
-    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
+    const isOrdersDetailReturn = comingFromDetail === '/orders' || Boolean(comingFromDetail && comingFromDetail.startsWith('/orders'));
+    if (isOrdersDetailReturn) {
+      return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+    }
+    return 1;
   });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -82,24 +100,17 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   useEffect(() => {
     if (!searchParams) return;
     const pageParam = searchParams.get('page');
-    if (pageParam !== null) {
-      const parsedPage = parseInt(pageParam, 10) || 1;
-      setPage(prev => parsedPage !== prev ? parsedPage : prev);
-    }
+    const parsedPage = pageParam ? (parseInt(pageParam, 10) || 1) : 1;
+    setPage(prev => parsedPage !== prev ? parsedPage : prev);
   }, [searchParams]);
 
   // Synchronize on mount ONLY if coming from an order details page.
-  // Filters are lazy-initialized from the URL, so only page and cache
-  // restoration are needed here. The filter-change effect is blocked by
-  // isRestoringRef until this effect completes, ensuring no spurious setPage(1).
   useEffect(() => {
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
-    sessionStorage.removeItem('coming_from_detail');
-
-    if (comingFromDetail) {
+    if (isDetailReturn) {
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+
 
       // Load cache
       const cacheKey = `cached_orders_${window.location.pathname}${window.location.search}`;
@@ -114,20 +125,17 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           isCachedRef.current = true;
         } catch (_) {}
       }
-    } else {
-      // Clear cache and scroll positions for this page since we are navigating fresh
-      for (let i = sessionStorage.length - 1; i >= 0; i--) {
-        const key = sessionStorage.key(i);
-        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_orders_'))) {
-          sessionStorage.removeItem(key);
-        }
-      }
     }
-    // Synchronous is safe: since filters are lazy-initialized from the URL,
-    // the restoration effect does NOT change any filter state — no Render #2
-    // from filter dep changes, so no race condition to protect against.
+
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('coming_from_detail');
+    }, 1000);
+
     isRestoringRef.current = false;
-  }, []);
+    return () => clearTimeout(timer);
+  }, [isDetailReturn]);
+
+
 
   const prevFiltersRef = useRef({
     statusFilter,
@@ -140,9 +148,25 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     dateTo,
   });
 
+  const isFirstFilterRunRef = useRef(true);
+
   // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
     if (isRestoringRef.current) return;
+    if (isFirstFilterRunRef.current) {
+      isFirstFilterRunRef.current = false;
+      prevFiltersRef.current = {
+        statusFilter,
+        saleStatusFilter,
+        agentFilter,
+        teamFilter,
+        backendExecutiveFilter,
+        partFoundByFilter,
+        dateFrom,
+        dateTo,
+      };
+      return;
+    }
 
     // Check if any filter actually changed
     const changed =
@@ -199,36 +223,58 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     return () => window.removeEventListener('scroll', handleScroll);
   }, [page, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
 
-  // Restore scroll position when loading completes and rows are in the DOM.
-  // Depends on both `loading` and `orders` so that when the cache is hit
-  // (loading stays false but orders updates), this effect re-evaluates.
-  // Use double-rAF so we run reliably after Next.js's own scroll-to-top.
+  // Restore scroll position when loading completes and rows are in the DOM ONLY IF returning from detail page
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+    if (!isDetailReturn) {
+      sessionStorage.removeItem(key);
+      return;
+    }
+
+
     if (!loading && orders.length > 0) {
-      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll) {
         const scrollY = parseInt(savedScroll, 10);
-        let raf1: number, raf2: number;
-        raf1 = requestAnimationFrame(() => {
-          raf2 = requestAnimationFrame(() => {
+        if (scrollY > 0) {
+          const doScroll = () => {
             window.scrollTo(0, scrollY);
+            if (lenis) {
+              lenis.scrollTo(scrollY, { immediate: true });
+            }
+          };
+
+          doScroll();
+
+          let raf1: number, raf2: number;
+          raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+              doScroll();
+            });
           });
-        });
-        return () => {
-          cancelAnimationFrame(raf1);
-          cancelAnimationFrame(raf2);
-        };
+
+          const timer = setTimeout(doScroll, 100);
+
+          return () => {
+            cancelAnimationFrame(raf1);
+            cancelAnimationFrame(raf2);
+            clearTimeout(timer);
+          };
+        }
       }
     }
-  }, [loading, orders]);
+  }, [loading, orders, lenis, isDetailReturn]);
+
+
 
 
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       const params = new URLSearchParams(window.location.search);
       params.set('page', String(newPage));
       const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -236,9 +282,12 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     }
   };
 
+
   // Synchronize URL search parameters with filter states
   useEffect(() => {
     if (!searchParams) return;
+
+
     const statusParam = searchParams.get('status');
     const saleStatusParam = searchParams.get('saleStatus');
     const backendExecutiveParam = searchParams.get('backendExecutiveId');
@@ -250,26 +299,47 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     const monthParam = searchParams.get('month');
     const yearParam = searchParams.get('year');
 
+    const nextStatus = statusParam !== null ? statusParam : statusFilter;
+    const nextSaleStatus = saleStatusParam !== null ? saleStatusParam : saleStatusFilter;
+    const nextBackend = backendExecutiveParam !== null ? backendExecutiveParam : backendExecutiveFilter;
+    const nextPartFound = partFoundByParam !== null ? partFoundByParam : partFoundByFilter;
+    const nextAgent = agentParam !== null ? agentParam : agentFilter;
+    const nextTeam = teamParam !== null ? teamParam : teamFilter;
+
+    let nextFrom = fromParam || '';
+    let nextTo = toParam || '';
+    if (monthParam && yearParam) {
+      const y = parseInt(yearParam);
+      const m = parseInt(monthParam);
+      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      nextFrom = startStr;
+      nextTo = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    // Keep prevFiltersRef in lockstep with URL parameter sync so filter effect doesn't reset page
+    prevFiltersRef.current = {
+      statusFilter: nextStatus,
+      saleStatusFilter: nextSaleStatus,
+      agentFilter: nextAgent,
+      teamFilter: nextTeam,
+      backendExecutiveFilter: nextBackend,
+      partFoundByFilter: nextPartFound,
+      dateFrom: nextFrom,
+      dateTo: nextTo,
+    };
+
     if (statusParam !== null) setStatusFilter(statusParam);
     if (saleStatusParam !== null) setSaleStatusFilter(saleStatusParam);
     if (backendExecutiveParam !== null) setBackendExecutiveFilter(backendExecutiveParam);
     if (partFoundByParam !== null) setPartFoundByFilter(partFoundByParam);
     if (agentParam !== null) setAgentFilter(agentParam);
     if (teamParam !== null) setTeamFilter(teamParam);
-
-    if (monthParam && yearParam) {
-      const y = parseInt(yearParam);
-      const m = parseInt(monthParam);
-      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
-      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      setDateFrom(startStr);
-      setDateTo(endStr);
-    } else {
-      setDateFrom(fromParam || '');
-      setDateTo(toParam || '');
-    }
+    setDateFrom(nextFrom);
+    setDateTo(nextTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
 
   // If the user lacks orders:view, they can only see their own orders.
   // Clear any agent/team filters that may have been set from URL params
@@ -281,6 +351,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       setTeamFilter('');
     }
   }, [status, permissions]);
+
+
 
 
   // Fetch agents for dropdown
@@ -435,12 +507,13 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     return `${statusName} (${stats.count} - ${formattedAmount})`;
   };
 
-  // Page entrance animation
+  // Ensure container opacity is 1 (LayoutShell handles main page fade-in)
   useEffect(() => {
     if (status === 'authenticated' && containerRef.current) {
-      fadeInPage(containerRef.current);
+      containerRef.current.style.opacity = '1';
     }
   }, [status]);
+
 
   if (status === 'loading') {
     return (
@@ -603,7 +676,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
                 className="filter-select-custom"
               >
                 <option value="">All Teams</option>
-                {teams.map((t) => (
+                {[...teams].sort((a, b) => a.teamName.localeCompare(b.teamName)).map((t) => (
                   <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
                 ))}
               </select>
@@ -621,8 +694,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
                 {(() => {
                   const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                   const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
-                  const active = filtered.filter(a => a.status === 1);
-                  const inactive = filtered.filter(a => a.status !== 1);
+                  const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                  const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                   return (
                     <>
                       {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -645,8 +718,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               {(() => {
                 const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
                 const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation));
-                const active = filtered.filter(a => a.status === 1);
-                const inactive = filtered.filter(a => a.status !== 1);
+                const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                 return (
                   <>
                     {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -668,8 +741,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               {(() => {
                 const PART_FOUND_BY_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                 const filtered = agents.filter(a => PART_FOUND_BY_DESIGNATIONS.includes(a.designation || ''));
-                const active = filtered.filter(a => a.status === 1);
-                const inactive = filtered.filter(a => a.status !== 1);
+                const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                 return (
                   <>
                     {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -920,7 +993,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               </div>
             );
           })()}
-          <OrderList orders={orders} />
+          <OrderList orders={orders} skipAnimation={isDetailReturn} />
+
+
           {totalPages > 1 && (
             <div className="pagination-bar">
               <button 

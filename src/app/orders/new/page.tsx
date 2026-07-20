@@ -22,7 +22,7 @@ export default async function NewOrderPage() {
       orderBy: { gatewayName: 'asc' },
     }),
     prisma.users.findMany({
-      select: { uid: true, name: true, nickname: true, designation: true, status: true },
+      select: { uid: true, name: true, nickname: true, designation: true, status: true, role: { select: { roleName: true } } },
       orderBy: { name: 'asc' },
     }),
   ]);

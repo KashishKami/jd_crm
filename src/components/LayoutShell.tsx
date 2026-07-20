@@ -21,16 +21,31 @@ export default function LayoutShell({ children }: LayoutShellProps) {
 
   // Animate page fade-in and reset scroll on path changes
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
+    const parts = (pathname || '').split('/').filter(Boolean);
+    const currentBaseListPath = parts.length > 0 ? `/${parts[0]}` : '/';
+    const isExactListPage = parts.length === 1;
+    const isBackFromDetail = Boolean(comingFromDetail && comingFromDetail === currentBaseListPath && isExactListPage);
+
     if (mainRef.current) {
-      fadeInPage(mainRef.current);
+      if (isBackFromDetail) {
+        mainRef.current.style.opacity = '1';
+      } else {
+        fadeInPage(mainRef.current);
+      }
     }
     if (lenis) {
-      lenis.scrollTo(0, { immediate: true });
+      if (!isBackFromDetail) {
+        lenis.scrollTo(0, { immediate: true });
+      }
       lenis.resize();
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(false); // Close sidebar on route changes
   }, [pathname, lenis]);
+
+
 
   const isPublicRoute = pathname === '/login' || pathname === '/access-denied';
 

@@ -29,6 +29,8 @@ interface OrderListProps {
     orderCurrentStatusUpdateDate?: string | Date | null;
     saleStatus?: string | null;
     orderLiftgateNeeded?: string | null;
+    orderCurrency?: string | null;
+    orderExchangeRate?: string | null;
     customer: {
       customerName: string;
       customerEmail?: string;
@@ -84,9 +86,10 @@ interface OrderListProps {
     }>;
   }>;
   hideWrapper?: boolean;
+  skipAnimation?: boolean;
 }
 
-export default function OrderList({ orders, hideWrapper }: OrderListProps) {
+export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderListProps) {
   const { data: session } = useSession();
   const permissions = session?.user?.userPermissions || '';
   const canView = hasPermission(permissions, 'orders:view');
@@ -95,7 +98,12 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
   const [activeCommentsOrderId, setActiveCommentsOrderId] = useState<number | null>(null);
   const [hasAnimated, setHasAnimated] = useState(() => {
+    if (skipAnimation) return true;
     if (typeof window !== 'undefined') {
+      const comingFromDetailPath = sessionStorage.getItem('coming_from_detail');
+      if (comingFromDetailPath === '/orders' || Boolean(comingFromDetailPath && comingFromDetailPath.startsWith('/orders'))) {
+        return true;
+      }
       const key = `scroll_position_${window.location.pathname}${window.location.search}`;
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll && parseInt(savedScroll, 10) > 0) {
@@ -104,6 +112,7 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
     }
     return false;
   });
+
 
   // Format date helper
   const formatDate = (dateVal: string | Date | null) => {
@@ -350,9 +359,27 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                   </td>
                   <td>
                     <div>
-                      <div className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
-                        {order.customer.customerName}
-                      </div>
+                      {isDisabled ? (
+                        <span className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
+                          {order.customer.customerName}
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/orders/${order.crmOrderId}`}
+                          prefetch={false}
+                          onClick={() => {
+                            const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+                            sessionStorage.setItem(scrollKey, String(window.scrollY));
+                            sessionStorage.setItem('coming_from_detail', '/orders');
+                          }}
+
+
+                          className="font-semibold text-slate-900 hover:text-blue-600 hover:underline"
+                          style={{ fontSize: 'inherit', textDecoration: 'none', cursor: 'pointer' }}
+                        >
+                          {order.customer.customerName}
+                        </Link>
+                      )}
                       <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
                         {canViewPhone ? order.customer.customerPhone || '—' : maskPhone(order.customer.customerPhone)}
                       </div>
@@ -465,6 +492,11 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                       
                       return (
                         <div className="flex flex-col font-mono" style={{ fontSize: '0.92em' }}>
+                          {order.orderCurrency === 'CAD' && (
+                            <span className="text-amber-700 font-sans font-semibold text-xs mb-1">
+                              CAD @ {order.orderExchangeRate || '0.74'}
+                            </span>
+                          )}
                           <span className="text-slate-500">Pitch: ${pitch}</span>
                           <span className="text-slate-400">Buy: ${buy}</span>
                           <span className="text-slate-500">Charged: ${charged}</span>
@@ -577,7 +609,19 @@ export default function OrderList({ orders, hideWrapper }: OrderListProps) {
                             Details
                           </span>
                         ) : (
-                          <Link href={`/orders/${order.crmOrderId}`} prefetch={false} className="action-link-btn view" style={{ fontSize: '0.92em' }}>
+                          <Link
+                            href={`/orders/${order.crmOrderId}`}
+                            prefetch={false}
+                            onClick={() => {
+                              const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+                              sessionStorage.setItem(scrollKey, String(window.scrollY));
+                              sessionStorage.setItem('coming_from_detail', '/orders');
+                            }}
+
+
+                            className="action-link-btn view"
+                            style={{ fontSize: '0.92em' }}
+                          >
                             Details
                           </Link>
                         )}

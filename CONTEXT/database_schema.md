@@ -375,6 +375,8 @@ The following standard permissions are seeded in the system:
 | `order_part_found_by_name` | `varchar(55)` | YES | `NULL` | **[Phase 25]** Denormalized snapshot of Part Found By agent's nickname/name. — **[Per-Part]** (sourcing agent tracks per part) |
 | `order_liftgate_needed` | `varchar(20)` | NO | `'No'` | **[Phase 25]** Whether a liftgate truck is required for delivery. Values: `'Yes'` / `'No'`. — **[Deal Global]** (stored on parent only, `NULL` on children) |
 | `parent_order_id` | `int(11)` | YES | `NULL` | **[Phase 26]** Self-referential FK to `crm_orders.crm_order_id`. `NULL` = this is a primary/parent order. Non-NULL = this is a child/additional part belonging to the referenced parent order. `ON DELETE RESTRICT` — the DB rejects deletion of a parent row that still has children; the service layer enforces a user-friendly check first (see D29.7). Used to group multiple parts for a single customer deal. |
+| `order_currency` | `varchar(3)` | YES | `'USD'` | **[Phase 32]** Stored currency code: `'USD'` or `'CAD'`. Default `'USD'`. — **[Deal Global]** (stored on parent row only, `NULL` on children). |
+| `order_exchange_rate` | `varchar(15)` | YES | `'1'` | **[Phase 32]** CAD-to-USD exchange rate string (e.g. `'0.74'`). Default `'1'`. — **[Deal Global]** (stored on parent row only, `NULL` on children). |
 
 ### crm_vendors
 *   **Engine:** MyISAM
@@ -870,6 +872,9 @@ model CrmOrders {
   orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
   // Phase 26 — Multi-Part Orders grouping
   parentOrderId                 Int?          @map("parent_order_id")
+  // Phase 32 — Currency & Exchange Rate (Deal Global)
+  orderCurrency                 String?       @default("USD") @map("order_currency") @db.VarChar(3)
+  orderExchangeRate             String?       @default("1") @map("order_exchange_rate") @db.VarChar(15)
   comments                      CrmComments[]
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]

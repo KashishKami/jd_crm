@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface BackButtonProps {
   label?: string;
@@ -10,14 +10,21 @@ interface BackButtonProps {
 
 export default function BackButton({ label = 'Back', className = 'btn-secondary-custom' }: BackButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
-  useEffect(() => {
-    sessionStorage.setItem('coming_from_detail', 'true');
-  }, []);
+  const handleBack = () => {
+    if (typeof window !== 'undefined') {
+      const parts = (pathname || '').split('/').filter(Boolean);
+      const listPath = parts.length > 0 ? `/${parts[0]}` : '/';
+      sessionStorage.setItem('coming_from_detail', listPath);
+    }
+    router.back();
+  };
 
   return (
-    <button onClick={() => router.back()} className={className}>
+    <button onClick={handleBack} className={className}>
       {label}
     </button>
   );
 }
+

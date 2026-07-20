@@ -426,6 +426,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   </div>
                 </div>
               </div>
+              {order.orderCurrency === 'CAD' && (
+                <div className="form-group form-span-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="form-group">
+                      <span className="form-label">Currency</span>
+                      <span className="info-value font-semibold">CAD</span>
+                    </div>
+                    <div className="form-group">
+                      <span className="form-label">Exchange Rate</span>
+                      <span className="info-value font-mono">{order.orderExchangeRate || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -538,6 +552,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             balanceDue={balanceDue}
             finalMargin={finalMargin}
             vendorBreakdown={vendorBreakdown}
+            orderCurrency={order.orderCurrency || 'USD'}
+            orderExchangeRate={order.orderExchangeRate || '1'}
           />
 
           {/* Card 3: Ledger Billing details */}

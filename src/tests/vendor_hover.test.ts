@@ -14,12 +14,15 @@ vi.mock('next-auth', () => ({
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(),
   redirect: vi.fn(),
+  usePathname: () => '/orders/1',
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
     back: vi.fn(),
   }),
 }));
+
 
 describe('Vendor Hover Details Integration Tests', () => {
   let testTeam: any;

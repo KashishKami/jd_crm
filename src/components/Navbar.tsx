@@ -89,6 +89,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               <Link
                 href="/"
                 prefetch={false}
+                onClick={() => sessionStorage.removeItem('coming_from_detail')}
                 className={`nav-pill-btn ${isActive('/') ? 'active' : ''}`}
               >
                 Dashboard
@@ -100,6 +101,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/orders"
                   prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
                   className={`nav-pill-btn ${isActive('/orders') ? 'active' : ''}`}
                 >
                   Orders
@@ -112,6 +114,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/follow-ups"
                   prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
                   className={`nav-pill-btn ${isActive('/follow-ups') ? 'active' : ''}`}
                 >
                   Follow Ups
@@ -124,6 +127,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/vendors"
                   prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
                   className={`nav-pill-btn ${isActive('/vendors') ? 'active' : ''}`}
                 >
                   Vendors
@@ -136,6 +140,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/agents"
                   prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
                   className={`nav-pill-btn ${isActive('/agents') ? 'active' : ''}`}
                 >
                   Agents
@@ -148,6 +153,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/gateways"
                   prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
                   className={`nav-pill-btn ${isActive('/gateways') ? 'active' : ''}`}
                 >
                   Gateways
@@ -155,6 +161,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </li>
             )}
           </ul>
+
         </nav>
 
         {/* Desktop-only search bar aligned on the other end of the content grid */}

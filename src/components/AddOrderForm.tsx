@@ -12,7 +12,7 @@ import DealSummarySidebar from './DealSummarySidebar';
 interface AddOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
-  agents: Array<{ uid: number; name: string; nickname?: string | null; designation?: string | null; status?: number | null }>;
+  agents: Array<{ uid: number; name: string; nickname?: string | null; designation?: string | null; status?: number | null; role?: { roleName: string } | null }>;
 }
 
 interface PartFormState {
@@ -111,9 +111,37 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
   const [orderTotalPitched, setOrderTotalPitched] = useState('');
   const [orderAmountCharged, setOrderAmountCharged] = useState('');
   const [orderRefundAmount, setOrderRefundAmount] = useState('');
+  const [orderCurrency, setOrderCurrency] = useState('USD');
+  const [orderExchangeRate, setOrderExchangeRate] = useState('1');
+  const [orderExchangeRateError, setOrderExchangeRateError] = useState<string | null>(null);
   const [orderDate, setOrderDate] = useState(() =>
     new Date().toLocaleDateString('sv-SE', { timeZone: 'America/New_York' })
   );
+
+  const handleCurrencyChange = (val: string) => {
+    setOrderCurrency(val);
+    if (val === 'USD') {
+      setOrderExchangeRate('1');
+      setOrderExchangeRateError(null);
+    } else {
+      setOrderExchangeRate('');
+      setOrderExchangeRateError(null);
+    }
+  };
+
+  const handleExchangeRateChange = (val: string) => {
+    setOrderExchangeRate(val);
+    if (orderCurrency === 'CAD') {
+      const num = parseFloat(val);
+      if (isNaN(num) || num <= 0 || num >= 1) {
+        setOrderExchangeRateError('Exchange rate must be greater than 0 and less than 1');
+      } else {
+        setOrderExchangeRateError(null);
+      }
+    } else {
+      setOrderExchangeRateError(null);
+    }
+  };
 
   const [saleStatus, setSaleStatus] = useState('1');
   const [expandedPartIndices, setExpandedPartIndices] = useState<number[]>([0]);
@@ -276,6 +304,15 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       }
     }
 
+    if (orderCurrency === 'CAD') {
+      const rate = parseFloat(orderExchangeRate);
+      if (isNaN(rate) || rate <= 0 || rate >= 1) {
+        setError('Exchange rate must be greater than 0 and less than 1');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
       // Reorder parts so that the primary part (at primaryPartIndex) is at index 0
       const orderedParts = [...parts];
@@ -317,6 +354,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         primaryPartIndex: 0, // Since we reordered it to index 0
 
         // Root level fields for primary deal order
+        orderCurrency,
+        orderExchangeRate: orderCurrency === 'CAD' ? orderExchangeRate : '1',
         orderMakeModel: resolvedParts[0].orderMakeModel || null,
         orderVin: resolvedParts[0].orderVin || null,
         orderChecklist: orderChecklist || 'No',
@@ -519,6 +558,43 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   </div>
                 </div>
               </div>
+              <div className="form-group form-span-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="form-group">
+                    <label htmlFor="orderCurrency" className="form-label">
+                      Currency
+                    </label>
+                    <select
+                      id="orderCurrency"
+                      className="form-select"
+                      value={orderCurrency}
+                      onChange={(e) => handleCurrencyChange(e.target.value)}
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="CAD">CAD - Canadian Dollar</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="orderExchangeRate" className="form-label">
+                      Exchange Rate (CAD to USD)
+                    </label>
+                    <input
+                      type="text"
+                      id="orderExchangeRate"
+                      className="form-input"
+                      value={orderExchangeRate}
+                      disabled={orderCurrency !== 'CAD'}
+                      onChange={(e) => handleExchangeRateChange(e.target.value)}
+                      placeholder="e.g. 0.74"
+                    />
+                    {orderExchangeRateError && (
+                      <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                        {orderExchangeRateError}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -611,7 +687,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                     </div>
                     {cards.length > 1 && (
                       <div className="form-group">
-                        <label htmlFor={`amountToCharge-${index}`} className="form-label">Amount to Charge</label>
+                        <label htmlFor={`amountToCharge-${index}`} className="form-label">Amount to Charge{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                         <input
                           type="text"
                           id={`amountToCharge-${index}`}
@@ -920,8 +996,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                               {(() => {
                                 const PART_FOUND_BY_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                                 const filtered = agents.filter(a => PART_FOUND_BY_DESIGNATIONS.includes(a.designation || ''));
-                                const active = filtered.filter(a => a.status === 1);
-                                const inactive = filtered.filter(a => a.status !== 1);
+                                const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                                const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                                 return (
                                   <>
                                     {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1000,7 +1076,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
 
                           <div className="form-group" style={{ minWidth: 0 }}>
                             <label htmlFor={index === 0 ? "orderVendorPrice" : `orderVendorPrice-${index}`} className="form-label">
-                              Vendor Buying Price <span className="text-red-500">*</span>
+                              Vendor Buying Price {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                             </label>
                             <input
                               type="number"
@@ -1084,7 +1160,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
             </button>
 
             <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <span className="font-bold text-slate-800 text-sm">Total Buying Price: ${combinedCost.toFixed(2)}</span>
+              <span className="font-bold text-slate-800 text-sm">Total Buying Price{orderCurrency === 'CAD' ? ' (CAD)' : ''}: ${combinedCost.toFixed(2)}</span>
             </div>
           </div>
 
@@ -1095,7 +1171,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               {/* Row 1 */}
               <div className="form-group">
                 <label htmlFor="orderTotalPitched" className="form-label">
-                  Total Price Pitched <span className="text-red-500">*</span>
+                  Total Price Pitched {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -1109,14 +1185,14 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               </div>
 
               <div className="form-group">
-                <label className="form-label">Vendor Total</label>
+                <label className="form-label">Vendor Total{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                 <div className="form-input font-mono" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center' }}>
                   ${combinedCost.toFixed(2)}
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Net Markup</label>
+                <label className="form-label">Net Markup{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                 <div data-testid="markup-display" className="form-input font-mono font-bold" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: combinedMargin >= 0 ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center' }}>
                   ${combinedMargin.toFixed(2)}
                 </div>
@@ -1125,7 +1201,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               {/* Row 2: Charged Amount, Sale Status, Sale Date */}
               <div className="form-group">
                 <label htmlFor="orderAmountCharged" className="form-label">
-                  Charged Amount
+                  Charged Amount{orderCurrency === 'CAD' ? ' (CAD)' : ''}
                 </label>
                 <input
                   type="number"
@@ -1171,7 +1247,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               {saleStatus === '4' && (
                 <div className="form-group">
                   <label htmlFor="orderRefundAmount" className="form-label">
-                    Refund Amount <span className="text-red-500">*</span>
+                    Refund Amount {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1208,8 +1284,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   {(() => {
                     const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                     const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1232,8 +1308,10 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                 >
                   <option value="">Select or Type</option>
                   {(() => {
-                    const active = agents.filter(a => a.status === 1);
-                    const inactive = agents.filter(a => a.status !== 1);
+                    const EXCLUDED_ROLES = ['Super Admin', 'Admin', 'HR', 'QA'];
+                    const eligible = agents.filter(a => !EXCLUDED_ROLES.includes(a.role?.roleName ?? ''));
+                    const active = eligible.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = eligible.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1258,8 +1336,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   {(() => {
                     const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
                     const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1284,8 +1362,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                   {(() => {
                     const QA_DESIGNATIONS = ['Quality Associate'];
                     const filtered = agents.filter(a => QA_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1423,6 +1501,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
             orderVendorPrice={String(combinedCost)}
             orderAmountCharged={String(combinedCharged)}
             orderRefundAmount={String(combinedRefund)}
+            orderCurrency={orderCurrency}
+            orderExchangeRate={orderExchangeRate}
             orderDate={orderDate}
             orderShippingType={orderShippingType}
             orderVendorId={parts[0]?.orderVendorId || ''}

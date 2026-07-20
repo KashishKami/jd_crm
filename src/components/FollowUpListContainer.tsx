@@ -94,6 +94,12 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
   const isRestoringRef = useRef(true);
   const isCachedRef = useRef(false);
+  const isDetailReturnRef = useRef<boolean>(
+    typeof window !== 'undefined' &&
+    (sessionStorage.getItem('coming_from_detail') === '/follow-ups' ||
+     Boolean(sessionStorage.getItem('coming_from_detail')?.startsWith('/follow-ups')))
+  );
+
 
   const permissions = session?.user?.userPermissions || '';
   const canViewAll = hasPermission(permissions, 'follow-ups:view');
@@ -131,17 +137,15 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
           isCachedRef.current = true;
         } catch (_) {}
       }
-    } else {
-      // Clear fresh navigation state
-      for (let i = sessionStorage.length - 1; i >= 0; i--) {
-        const key = sessionStorage.key(i);
-        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_followups_'))) {
-          sessionStorage.removeItem(key);
-        }
-      }
     }
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('coming_from_detail');
+    }, 1000);
     isRestoringRef.current = false;
+    return () => clearTimeout(timer);
   }, []);
+
+
 
   const prevFiltersRef = useRef({
     priorityFilter,
@@ -208,11 +212,16 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     return () => window.removeEventListener('scroll', handleScroll);
   }, [page, priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter]);
 
-  // Restore scroll position
+  // Restore scroll position ONLY IF coming from detail page.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+    if (!isDetailReturnRef.current) {
+      sessionStorage.removeItem(key);
+      return;
+    }
+
     if (!loading && followUps.length > 0) {
-      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll) {
         const scrollY = parseInt(savedScroll, 10);
@@ -229,6 +238,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       }
     }
   }, [loading, followUps]);
+
 
   // Sync parameters from URL on back navigation
   useEffect(() => {

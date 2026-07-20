@@ -114,6 +114,14 @@ describe('Agent Management CRUD Endpoints Integration Tests', () => {
       const hasInactive = data.some((agent: { username: string }) => agent.username === 'test_agent_status');
       expect(hasInactive).toBe(true);
     });
+
+    it('W-3209: should return agents sorted alphabetically by name: asc', async () => {
+      const { findAll } = await import('../repository/agent.repository');
+      const agents = await findAll();
+      const names = agents.map((a) => a.name);
+      const sortedNames = [...names].sort((a, b) => a.localeCompare(b));
+      expect(names).toEqual(sortedNames);
+    });
   });
 
   describe('POST /api/agents', () => {

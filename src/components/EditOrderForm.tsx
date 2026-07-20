@@ -11,7 +11,7 @@ interface EditOrderFormProps {
   order: any;
   vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
   gateways: Array<{ gatewayId: number; gatewayName: string }>;
-  agents: Array<{ uid: number; name: string; nickname?: string | null; designation?: string | null; status?: number | null }>;
+  agents: Array<{ uid: number; name: string; nickname?: string | null; designation?: string | null; status?: number | null; role?: { roleName: string } | null }>;
   canViewCards?: boolean;
 }
 
@@ -43,9 +43,49 @@ const formatExpiryDate = (value: string) => {
   return `${clean.slice(0, 2)}/${clean.slice(2)}`;
 };
 
+const toCad = (val?: string | null, rateStr?: string | null) => {
+  if (!val) return '';
+  const num = parseFloat(val);
+  const rate = parseFloat(rateStr || '1');
+  if (isNaN(num) || isNaN(rate) || rate <= 0 || rate >= 1) return val;
+  return (num / rate).toFixed(2);
+};
+
 export default function EditOrderForm({ order, vendors, gateways, agents, canViewCards = false }: EditOrderFormProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const effectiveCurrency = order.parentOrderId ? (order.parentOrder?.orderCurrency || 'USD') : (order.orderCurrency || 'USD');
+  const effectiveRate = order.parentOrderId ? (order.parentOrder?.orderExchangeRate || '1') : (order.orderExchangeRate || '1');
+
+  const [orderCurrency, setOrderCurrency] = useState(effectiveCurrency);
+  const [orderExchangeRate, setOrderExchangeRate] = useState(effectiveRate);
+  const [orderExchangeRateError, setOrderExchangeRateError] = useState<string | null>(null);
+
+  const handleCurrencyChange = (val: string) => {
+    setOrderCurrency(val);
+    if (val === 'USD') {
+      setOrderExchangeRate('1');
+      setOrderExchangeRateError(null);
+    } else {
+      setOrderExchangeRate('');
+      setOrderExchangeRateError(null);
+    }
+  };
+
+  const handleExchangeRateChange = (val: string) => {
+    setOrderExchangeRate(val);
+    if (orderCurrency === 'CAD') {
+      const num = parseFloat(val);
+      if (isNaN(num) || num <= 0 || num >= 1) {
+        setOrderExchangeRateError('Exchange rate must be greater than 0 and less than 1');
+      } else {
+        setOrderExchangeRateError(null);
+      }
+    } else {
+      setOrderExchangeRateError(null);
+    }
+  };
 
   // Customer states
   const [customerName, setCustomerName] = useState(order.customer?.customerName || '');
@@ -146,9 +186,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const [orderShippingType, setOrderShippingType] = useState(order.orderShippingType || 'Residential');
   const [orderLiftgateNeeded, setOrderLiftgateNeeded] = useState(order.orderLiftgateNeeded || 'No');
   const [orderChecklist, setOrderChecklist] = useState(order.orderChecklist || 'No');
-  const [orderTotalPitched, setOrderTotalPitched] = useState(order.orderTotalPitched || '');
-  const [orderAmountCharged, setOrderAmountCharged] = useState(order.orderAmountCharged || '');
-  const [orderRefundAmount, setOrderRefundAmount] = useState(order.orderRefundAmount || '');
+  const [orderTotalPitched, setOrderTotalPitched] = useState(toCad(order.orderTotalPitched, effectiveRate) || '');
+  const [orderAmountCharged, setOrderAmountCharged] = useState(toCad(order.orderAmountCharged, effectiveRate) || '');
+  const [orderRefundAmount, setOrderRefundAmount] = useState(toCad(order.orderRefundAmount, effectiveRate) || '');
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -164,9 +204,15 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
 
   // Sync prop changes (important for testing rerenders)
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (order) {
-      /* eslint-disable react-hooks/set-state-in-effect */
+      const cur = order.parentOrderId ? (order.parentOrder?.orderCurrency || 'USD') : (order.orderCurrency || 'USD');
+      const rate = order.parentOrderId ? (order.parentOrder?.orderExchangeRate || '1') : (order.orderExchangeRate || '1');
+      setOrderCurrency(cur);
+      setOrderExchangeRate(rate);
+
       setCustomerName(order.customer?.customerName || '');
+
       setCustomerPhone(order.customer?.customerPhone ? formatPhoneNumber(order.customer.customerPhone) : '');
       setCustomerEmail(order.customer?.customerEmail || '');
       setCustomerAlternatePhone1(order.customer?.customerAlternatePhone1 ? formatPhoneNumber(order.customer.customerAlternatePhone1) : '');
@@ -220,9 +266,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderShippingType: order.orderShippingType || 'Residential',
           orderTrackingNumber: order.orderTrackingNumber || '',
           orderDeliveryStatus: order.orderDeliveryStatus || '',
-          orderTotalPitched: order.orderTotalPitched || '',
-          orderVendorPrice: order.orderVendorPrice || '',
-          orderAmountCharged: order.orderAmountCharged || '',
+          orderTotalPitched: toCad(order.orderTotalPitched, rate) || '',
+          orderVendorPrice: toCad(order.orderVendorPrice, rate) || '',
+          orderAmountCharged: toCad(order.orderAmountCharged, rate) || '',
           orderVendorId: order.orderVendorId ? String(order.orderVendorId) : '',
           orderPaymentGatewayId: order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '',
           orderSalesAgentId: order.orderSalesAgentId ? String(order.orderSalesAgentId) : '',
@@ -232,7 +278,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderPartFoundById: order.orderPartFoundById ? String(order.orderPartFoundById) : '',
           orderLiftgateNeeded: order.orderLiftgateNeeded || 'No',
           saleStatus: order.saleStatus || '1',
-          orderRefundAmount: order.orderRefundAmount || '',
+          orderRefundAmount: toCad(order.orderRefundAmount, rate) || '',
           orderCurrentStatus: order.orderCurrentStatus || 'Pending Booking',
           originalCurrentStatus: order.orderCurrentStatus || 'Pending Booking',
           orderVendorFeedback: order.orderVendorFeedback || 'Positive',
@@ -251,9 +297,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderShippingType: c.orderShippingType || 'Residential',
           orderTrackingNumber: c.orderTrackingNumber || '',
           orderDeliveryStatus: c.orderDeliveryStatus || '',
-          orderTotalPitched: c.orderTotalPitched || '',
-          orderVendorPrice: c.orderVendorPrice || '',
-          orderAmountCharged: c.orderAmountCharged || '',
+          orderTotalPitched: toCad(c.orderTotalPitched, rate) || '',
+          orderVendorPrice: toCad(c.orderVendorPrice, rate) || '',
+          orderAmountCharged: toCad(c.orderAmountCharged, rate) || '',
           orderVendorId: c.orderVendorId ? String(c.orderVendorId) : '',
           orderPaymentGatewayId: c.orderPaymentGatewayId ? String(c.orderPaymentGatewayId) : '',
           orderSalesAgentId: c.orderSalesAgentId ? String(c.orderSalesAgentId) : '',
@@ -263,7 +309,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderPartFoundById: c.orderPartFoundById ? String(c.orderPartFoundById) : '',
           orderLiftgateNeeded: c.orderLiftgateNeeded || 'No',
           saleStatus: c.saleStatus || '1',
-          orderRefundAmount: c.orderRefundAmount || '',
+          orderRefundAmount: toCad(c.orderRefundAmount, rate) || '',
           orderCurrentStatus: c.orderCurrentStatus || 'Pending Booking',
           originalCurrentStatus: c.orderCurrentStatus || 'Pending Booking',
           orderVendorFeedback: c.orderVendorFeedback || 'Positive',
@@ -284,9 +330,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       setOrderShippingType(order.orderShippingType || 'Residential');
       setOrderLiftgateNeeded(order.orderLiftgateNeeded || 'No');
       setOrderChecklist(order.orderChecklist || 'No');
-      setOrderTotalPitched(order.orderTotalPitched || '');
-      setOrderAmountCharged(order.orderAmountCharged || '');
-      setOrderRefundAmount(order.orderRefundAmount || '');
+      setOrderTotalPitched(toCad(order.orderTotalPitched, rate) || '');
+      setOrderAmountCharged(toCad(order.orderAmountCharged, rate) || '');
+      setOrderRefundAmount(toCad(order.orderRefundAmount, rate) || '');
       setSaleStatus(order.saleStatus || '1');
       setPriorSaleStatus(order.saleStatus || '1');
       /* eslint-enable react-hooks/set-state-in-effect */
@@ -444,6 +490,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderVendorFeedback: p.orderVendorFeedback || 'Positive',
 
           // Global fields set only on parent, otherwise default/null for child parts
+          orderCurrency: p.crmOrderId === order.crmOrderId ? orderCurrency : undefined,
+          orderExchangeRate: p.crmOrderId === order.crmOrderId ? (orderCurrency === 'CAD' ? orderExchangeRate : '1') : undefined,
           orderChecklist: p.crmOrderId === order.crmOrderId ? orderChecklist : 'No',
           orderShippingType: p.crmOrderId === order.crmOrderId ? orderShippingType : 'Residential',
           orderTotalPitched: p.crmOrderId === order.crmOrderId ? (orderTotalPitched || null) : null,
@@ -631,6 +679,43 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   </div>
                 </div>
               </div>
+              <div className="form-group form-span-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="form-group">
+                    <label htmlFor="orderCurrency" className="form-label">
+                      Currency
+                    </label>
+                    <select
+                      id="orderCurrency"
+                      className="form-select"
+                      value={orderCurrency}
+                      onChange={(e) => handleCurrencyChange(e.target.value)}
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="CAD">CAD - Canadian Dollar</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="orderExchangeRate" className="form-label">
+                      Exchange Rate (CAD to USD)
+                    </label>
+                    <input
+                      type="text"
+                      id="orderExchangeRate"
+                      className="form-input"
+                      value={orderExchangeRate}
+                      disabled={orderCurrency !== 'CAD'}
+                      onChange={(e) => handleExchangeRateChange(e.target.value)}
+                      placeholder="e.g. 0.74"
+                    />
+                    {orderExchangeRateError && (
+                      <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                        {orderExchangeRateError}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -723,7 +808,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                     </div>
                     {cards.length > 1 && (
                       <div className="form-group">
-                        <label htmlFor={`amountToCharge-${index}`} className="form-label">Amount to Charge</label>
+                        <label htmlFor={`amountToCharge-${index}`} className="form-label">Amount to Charge{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                         <input
                           type="text"
                           id={`amountToCharge-${index}`}
@@ -1032,8 +1117,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                               {(() => {
                                 const PART_FOUND_BY_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                                 const filtered = agents.filter(a => PART_FOUND_BY_DESIGNATIONS.includes(a.designation || ''));
-                                const active = filtered.filter(a => a.status === 1);
-                                const inactive = filtered.filter(a => a.status !== 1);
+                                const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                                const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                                 return (
                                   <>
                                     {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1112,7 +1197,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
 
                           <div className="form-group" style={{ minWidth: 0 }}>
                             <label htmlFor={index === 0 ? "orderVendorPrice" : `orderVendorPrice-${index}`} className="form-label">
-                              Vendor Buying Price <span className="text-red-500">*</span>
+                              Vendor Buying Price {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                             </label>
                             <input
                               type="number"
@@ -1225,7 +1310,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           </button>
 
           <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <span className="font-bold text-slate-800 text-sm">Total Buying Price: ${combinedCost.toFixed(2)}</span>
+            <span className="font-bold text-slate-800 text-sm">Total Buying Price{orderCurrency === 'CAD' ? ' (CAD)' : ''}: ${combinedCost.toFixed(2)}</span>
           </div>          {/* Section 4: Pricing and Status */}
           <div className="profile-main" style={{ padding: '24px' }}>
             <h3 className="form-section-title" style={{ marginBottom: '20px' }}>Pricing and Status</h3>
@@ -1233,7 +1318,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               {/* Row 1 */}
               <div className="form-group">
                 <label htmlFor="orderTotalPitched" className="form-label">
-                  Total Price Pitched <span className="text-red-500">*</span>
+                  Total Price Pitched {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -1247,14 +1332,14 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               </div>
 
               <div className="form-group">
-                <label className="form-label">Vendor Total</label>
+                <label className="form-label">Vendor Total{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                 <div className="form-input font-mono" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center' }}>
                   ${combinedCost.toFixed(2)}
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Net Markup</label>
+                <label className="form-label">Net Markup{orderCurrency === 'CAD' ? ' (CAD)' : ''}</label>
                 <div data-testid="markup-display" className="form-input font-mono font-bold" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: combinedMargin >= 0 ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center' }}>
                   ${combinedMargin.toFixed(2)}
                 </div>
@@ -1263,7 +1348,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               {/* Row 2: Charged Amount, Sale Status, Sale Date */}
               <div className="form-group">
                 <label htmlFor="orderAmountCharged" className="form-label">
-                  Charged Amount
+                  Charged Amount{orderCurrency === 'CAD' ? ' (CAD)' : ''}
                 </label>
                 <input
                   type="number"
@@ -1309,7 +1394,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
               {saleStatus === '4' && (
                 <div className="form-group">
                   <label htmlFor="orderRefundAmount" className="form-label">
-                    Refund Amount <span className="text-red-500">*</span>
+                    Refund Amount {orderCurrency === 'CAD' && '(CAD) '}<span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1346,8 +1431,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   {(() => {
                     const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                     const filtered = agents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1370,8 +1455,10 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                 >
                   <option value="">Select or Type</option>
                   {(() => {
-                    const active = agents.filter(a => a.status === 1);
-                    const inactive = agents.filter(a => a.status !== 1);
+                    const EXCLUDED_ROLES = ['Super Admin', 'Admin', 'HR', 'QA'];
+                    const eligible = agents.filter(a => !EXCLUDED_ROLES.includes(a.role?.roleName ?? ''));
+                    const active = eligible.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = eligible.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1396,8 +1483,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   {(() => {
                     const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
                     const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1422,8 +1509,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                   {(() => {
                     const QA_DESIGNATIONS = ['Quality Associate'];
                     const filtered = agents.filter(a => QA_DESIGNATIONS.includes(a.designation || ''));
-                    const active = filtered.filter(a => a.status === 1);
-                    const inactive = filtered.filter(a => a.status !== 1);
+                    const active = filtered.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                    const inactive = filtered.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                     return (
                       <>
                         {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}
@@ -1561,6 +1648,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
             orderVendorPrice={String(combinedCost)}
             orderAmountCharged={String(combinedCharged)}
             orderRefundAmount={String(combinedRefund)}
+            orderCurrency={orderCurrency}
+            orderExchangeRate={orderExchangeRate}
             orderDate={orderDate}
             orderShippingType={orderShippingType}
             orderVendorId={parts[0]?.orderVendorId || ''}

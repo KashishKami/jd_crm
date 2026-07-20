@@ -27,7 +27,9 @@ export const GLOBAL_FIELDS = [
   'orderTotalPitched',
   'orderAmountCharged',
   'orderRefundAmount',
-  'saleStatus'
+  'saleStatus',
+  'orderCurrency',
+  'orderExchangeRate'
 ];
 
 export async function createWithCustomerAndCard(
@@ -62,6 +64,8 @@ export async function createWithCustomerAndCard(
         orderVendorFeedback: data.orderVendorFeedback,
         orderChecklist: data.orderChecklist,
         orderLiftgateNeeded: data.orderLiftgateNeeded,
+        orderCurrency: data.orderCurrency,
+        orderExchangeRate: data.orderExchangeRate,
       }];
 
   // Resolve all lookup names in parallel (Session 56 optimization scaled to batch query)
@@ -167,6 +171,8 @@ export async function createWithCustomerAndCard(
     const orderRefundAmountInput = data.orderRefundAmount ?? parentPart.orderRefundAmount ?? null;
     const orderMakeModel = data.orderMakeModel ?? parentPart.orderMakeModel ?? null;
     const orderVin = data.orderVin ?? parentPart.orderVin ?? null;
+    const orderCurrency = data.orderCurrency ?? parentPart.orderCurrency ?? 'USD';
+    const orderExchangeRate = data.orderExchangeRate ?? parentPart.orderExchangeRate ?? '1';
 
     const parentSalesAgentName = orderSalesAgentId ? userMap.get(orderSalesAgentId) || null : null;
     const parentVerifierName = orderVerifierId ? userMap.get(orderVerifierId) || null : null;
@@ -215,6 +221,8 @@ export async function createWithCustomerAndCard(
         orderLiftgateNeeded: orderLiftgateNeeded,
         saleStatus: finalSaleStatus,
         orderCurrentStatus: parentInitialStatus,
+        orderCurrency: orderCurrency,
+        orderExchangeRate: orderExchangeRate,
         orderRefundAmount: (finalSaleStatus === '2' || finalSaleStatus === '3' || finalSaleStatus === '5')
           ? (orderAmountCharged || null)
           : (orderRefundAmountInput || null),
@@ -291,11 +299,14 @@ export async function createWithCustomerAndCard(
             orderRefundAmount: null,
             orderDate: null,
             orderShippingType: null,
+            orderCurrency: null,
+            orderExchangeRate: null,
           },
         });
         childIds.push(childOrder.crmOrderId);
       }
     }
+
 
     // 5. Fetch first card for return values compatibility
     const firstCard = await tx.crmCustomerCards.findFirst({

@@ -63,7 +63,7 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
 
   describe('GET /api/customers', () => {
     it('should return 403 Forbidden if user lacks customers:view permission', async () => {
-      vi.mocked(getServerSession).mockResolvedValueOnce({
+      vi.mocked(getServerSession).mockResolvedValue({
         user: {
           id: '1',
           name: 'Restricted User',
@@ -80,13 +80,14 @@ describe('Customer & Sensitive Cards Integration Tests', () => {
     });
 
     it('should return 200 OK and list of customers if user has customers:view permission', async () => {
-      vi.mocked(getServerSession).mockResolvedValueOnce({
+      vi.mocked(getServerSession).mockResolvedValue({
         user: {
           id: '1',
           name: 'Authorized User',
           userPermissions: 'customers:view',
         },
       });
+
 
       const { GET } = await import('../app/api/customers/route');
       const res = await GET();

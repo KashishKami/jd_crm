@@ -31,16 +31,20 @@ function VendorListContent() {
   const pathname = usePathname();
   const [page, setPage] = useState(() => {
     if (typeof window === 'undefined') return 1;
-    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
+    const isVendorsDetailReturn = comingFromDetail === '/vendors' || Boolean(comingFromDetail && comingFromDetail.startsWith('/vendors'));
+    if (isVendorsDetailReturn) {
+      return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+    }
+    return 1;
   });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
   const [hasAnimated, setHasAnimated] = useState(() => {
     if (typeof window === 'undefined') return false;
-    // If returning from a detail page, skip animation unconditionally
-    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
-    // Also skip if there is already a saved scroll position for this URL
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
+    if (comingFromDetail === '/vendors' || Boolean(comingFromDetail && comingFromDetail.startsWith('/vendors'))) return true;
     const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
     const savedScroll = sessionStorage.getItem(scrollKey);
     return !!(savedScroll && parseInt(savedScroll, 10) > 0);
@@ -50,13 +54,22 @@ function VendorListContent() {
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
   const animCtxRef = useRef<gsap.Context | null>(null);
   const isRestoringRef = useRef(true);
+  const isDetailReturnRef = useRef<boolean>(
+    typeof window !== 'undefined' &&
+    (sessionStorage.getItem('coming_from_detail') === '/vendors' ||
+     Boolean(sessionStorage.getItem('coming_from_detail')?.startsWith('/vendors')))
+  );
+
+
 
   // Synchronize on mount ONLY if coming from a vendor details page.
-  // statusFilter is lazy-initialized from the URL, so only page and cache
-  // restoration are needed here.
   useEffect(() => {
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
-    sessionStorage.removeItem('coming_from_detail');
+    const comingFromDetailPath = sessionStorage.getItem('coming_from_detail');
+    const comingFromDetail = comingFromDetailPath === '/vendors' || Boolean(comingFromDetailPath && comingFromDetailPath.startsWith('/vendors'));
+
+    if (comingFromDetailPath) {
+      sessionStorage.removeItem('coming_from_detail');
+    }
 
     if (comingFromDetail) {
       const params = new URLSearchParams(window.location.search);
@@ -83,19 +96,15 @@ function VendorListContent() {
       if (savedScroll && parseInt(savedScroll, 10) > 0) {
         setHasAnimated(true);
       }
-    } else {
-      // Clear cache and scroll positions for this page since we are navigating fresh
-      for (let i = sessionStorage.length - 1; i >= 0; i--) {
-        const key = sessionStorage.key(i);
-        if (key && (key.startsWith('scroll_position_') || key.startsWith('cached_vendors_'))) {
-          sessionStorage.removeItem(key);
-        }
-      }
     }
-    // Synchronous is safe: statusFilter is lazy-initialized from URL, so no
-    // filter state changes here — no Render #2 from filter deps to race against.
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('coming_from_detail');
+    }, 1000);
     isRestoringRef.current = false;
+    return () => clearTimeout(timer);
   }, []);
+
+
 
   const permissions = session?.user?.userPermissions || '';
   const canCreate = hasPermission(permissions, 'vendors:create');
@@ -105,11 +114,10 @@ function VendorListContent() {
   useEffect(() => {
     if (!searchParams) return;
     const pageParam = searchParams.get('page');
-    if (pageParam !== null) {
-      const parsedPage = parseInt(pageParam, 10) || 1;
-      setPage(prev => parsedPage !== prev ? parsedPage : prev);
-    }
+    const parsedPage = pageParam ? (parseInt(pageParam, 10) || 1) : 1;
+    setPage(prev => parsedPage !== prev ? parsedPage : prev);
   }, [searchParams]);
+
 
   const prevFiltersRef = useRef({
     statusFilter,
@@ -152,13 +160,16 @@ function VendorListContent() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [page, statusFilter]);
 
-  // Restore scroll position when loading completes.
-  // Use double-rAF instead of setTimeout so we reliably run *after* Next.js's
-  // own scroll-to-top that fires on client-side navigation.
+  // Restore scroll position when loading completes ONLY IF coming from detail page.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const key = `scroll_position_${window.location.pathname}${window.location.search}`;
+    if (!isDetailReturnRef.current) {
+      sessionStorage.removeItem(key);
+      return;
+    }
+
     if (!loading && vendors.length > 0) {
-      const key = `scroll_position_${window.location.pathname}${window.location.search}`;
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll) {
         const scrollY = parseInt(savedScroll, 10);
@@ -176,15 +187,18 @@ function VendorListContent() {
     }
   }, [loading, vendors]);
 
+
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       const params = new URLSearchParams(window.location.search);
       params.set('page', String(newPage));
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.pushState(null, '', newUrl);
     }
   };
+
 
   useEffect(() => {
     let active = true;

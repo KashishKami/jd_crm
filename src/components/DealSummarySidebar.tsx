@@ -33,6 +33,8 @@ interface DealSummarySidebarProps {
   orderVendorPrice: string;
   orderAmountCharged: string;
   orderRefundAmount?: string;
+  orderCurrency?: string;
+  orderExchangeRate?: string;
   orderDate?: string;
   orderShippingType?: string;
   orderVendorId?: string;
@@ -65,6 +67,8 @@ export default function DealSummarySidebar({
   orderVendorPrice,
   orderAmountCharged,
   orderRefundAmount = '0',
+  orderCurrency = 'USD',
+  orderExchangeRate = '1',
   orderSalesAgentId,
   orderBackendExecutiveId,
   saleStatus,
@@ -73,11 +77,15 @@ export default function DealSummarySidebar({
 }: DealSummarySidebarProps) {
   const [breakdownOpen, setBreakdownOpen] = React.useState(false);
 
-  const sellingPrice = parseFloat(orderTotalPitched) || 0;
-  const buyingPrice = parseFloat(orderVendorPrice) || 0;
+  const isCad = orderCurrency === 'CAD';
+  const rateVal = parseFloat(orderExchangeRate) || 1;
+  const previewRate = isCad && rateVal > 0 && rateVal < 1 ? rateVal : 1;
+
+  const sellingPrice = (parseFloat(orderTotalPitched) || 0) * previewRate;
+  const buyingPrice = (parseFloat(orderVendorPrice) || 0) * previewRate;
   const netMargin = sellingPrice - buyingPrice;
-  const chargedAmount = parseFloat(orderAmountCharged) || 0;
-  const refundAmount = parseFloat(orderRefundAmount) || 0;
+  const chargedAmount = (parseFloat(orderAmountCharged) || 0) * previewRate;
+  const refundAmount = (parseFloat(orderRefundAmount) || 0) * previewRate;
 
   const balanceDue = netMargin - chargedAmount;
 
@@ -106,7 +114,7 @@ export default function DealSummarySidebar({
     const vendorObj = vendors?.find((v) => String(v.vendorId) === String(vId));
     const vName = vendorObj ? vendorObj.vendorName : 'Unassigned';
     const partDesc = p.orderPart || `Part ${idx + 1}`;
-    const price = parseFloat(p.orderVendorPrice) || 0;
+    const price = (parseFloat(p.orderVendorPrice) || 0) * previewRate;
 
     if (!vendorMap[vName]) {
       vendorMap[vName] = { parts: [], total: 0 };
@@ -182,9 +190,14 @@ export default function DealSummarySidebar({
       >
         Deal Summary
       </h3>
-      <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 24px 0' }}>
+      <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 8px 0' }}>
         Updates live as you fill the form
       </p>
+      {isCad && (
+        <p style={{ fontSize: '0.75rem', color: '#0284c7', margin: '0 0 16px 0', fontWeight: 'bold' }}>
+          Showing USD equivalent (rate: {orderExchangeRate})
+        </p>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

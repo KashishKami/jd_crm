@@ -1109,7 +1109,7 @@ kept unchanged to avoid production RBAC disruption.
 
 ---
 
-## Decision D35 — Pending Booking Workflow Status Days: Counted from Sale Date, Not Entry Date
+## Decision D35 ï¿½ Pending Booking Workflow Status Days: Counted from Sale Date, Not Entry Date
 
 **Date:** 2026-07-15
 **Session:** 75
@@ -1117,23 +1117,23 @@ kept unchanged to avoid production RBAC disruption.
 
 ### Context
 
-JD CRM supports late order entry — a sale that happens on one date can be formally entered into the CRM on a later date. Two separate timestamps are captured for every order:
+JD CRM supports late order entry ï¿½ a sale that happens on one date can be formally entered into the CRM on a later date. Two separate timestamps are captured for every order:
 
-- orderDate — the actual date the sale occurred (the "sale date")
-- orderCreatedDate — the date the order was recorded in the CRM (the "entry date")
+- orderDate ï¿½ the actual date the sale occurred (the "sale date")
+- orderCreatedDate ï¿½ the date the order was recorded in the CRM (the "entry date")
 
-The workflow status system tracks how many days an order has been in each status (e.g. Pending Booking, Pending Shipment, etc.) and displays this as a badge — "(for N days)" — in both the Orders List and the Recent Orders dashboard widget. This badge drives urgency awareness for the team.
+The workflow status system tracks how many days an order has been in each status (e.g. Pending Booking, Pending Shipment, etc.) and displays this as a badge ï¿½ "(for N days)" ï¿½ in both the Orders List and the Recent Orders dashboard widget. This badge drives urgency awareness for the team.
 
 **The Bug:** When a new order with no vendor assigned is created, its workflow status defaults to Pending Booking and orderCurrentStatusUpdateDate is stamped to 
-ew Date() — the CRM entry timestamp. If the sale happened 5 days ago but was only entered today, the badge would show "(for 0 days)" instead of "(for 5 days)". This directly misleads the team about the age of the booking.
+ew Date() ï¿½ the CRM entry timestamp. If the sale happened 5 days ago but was only entered today, the badge would show "(for 0 days)" instead of "(for 5 days)". This directly misleads the team about the age of the booking.
 
 Additionally, the raw millisecond difference used to compute the day count was anchored to UTC midnight, so the counter could tick over at 8 PM EST (end of the US business day), causing the display to jump by a day mid-afternoon on the East Coast.
 
 ### Decision
 
-**D35.1 — For Pending Booking, orderCurrentStatusUpdateDate is stamped to the sale date at creation, not the entry date**
+**D35.1 ï¿½ For Pending Booking, orderCurrentStatusUpdateDate is stamped to the sale date at creation, not the entry date**
 
-When a new order resolves to Pending Booking status (no vendor assigned, saleStatus not Returned/Cancelled/Void), the orderCurrentStatusUpdateDate field in the database is set to 	oUtcNoonDate(orderDateVal) — noon UTC on the sale date — instead of 
+When a new order resolves to Pending Booking status (no vendor assigned, saleStatus not Returned/Cancelled/Void), the orderCurrentStatusUpdateDate field in the database is set to 	oUtcNoonDate(orderDateVal) ï¿½ noon UTC on the sale date ï¿½ instead of 
 ew Date().
 
 This approach was chosen over the alternatives because:
@@ -1141,9 +1141,9 @@ This approach was chosen over the alternatives because:
 - **orderCurrentStatusUpdateDate is the single source of truth for "when did this status start"**. Making it reflect the sale date for Pending Booking is semantically correct: the booking has been pending since the sale happened, regardless of when it was logged.
 - **No new column is required.** Using the existing field keeps the query surface small and avoids schema migrations.
 - **orderCreatedDate (the entry timestamp) is preserved as-is.** The UI already distinguishes the two: the order detail page now shows "Order placed on" for orderDate and "Order entry on" for orderCreatedDate, making the separation explicit.
-- **The workflow history log (crmOrderCurrentStatusHistory.changedAt) is intentionally NOT changed.** The log records when the booking was *entered into the system* — this is the correct audit semantics. Backdating the log would destroy accurate entry tracking. The display days counter and the audit log answer different questions: "how old is this booking?" vs. "when did someone record it?".
+- **The workflow history log (crmOrderCurrentStatusHistory.changedAt) is intentionally NOT changed.** The log records when the booking was *entered into the system* ï¿½ this is the correct audit semantics. Backdating the log would destroy accurate entry tracking. The display days counter and the audit log answer different questions: "how old is this booking?" vs. "when did someone record it?".
 
-**D35.2 — The days display uses EST calendar days, not raw millisecond division**
+**D35.2 ï¿½ The days display uses EST calendar days, not raw millisecond division**
 
 A new utility function getEstCalendarDaysDiff(referenceDate) was added to src/lib/date.ts. It:
 
@@ -1152,7 +1152,7 @@ A new utility function getEstCalendarDaysDiff(referenceDate) was added to src/li
 
 This ensures the "(for N days)" counter increments at EST midnight, not UTC midnight. The raw millisecond approach (Math.floor(msElapsed / 86400000)) was incorrect because it would advance the count at ~8 PM EST on any given day, misaligning with the team's EST business day.
 
-**D35.3 — For Pending Booking specifically, the days display uses orderDate as the reference**
+**D35.3 ï¿½ For Pending Booking specifically, the days display uses orderDate as the reference**
 
 In OrderList.tsx, the inline day calculation for both parent orders and child orders was updated:
 
@@ -1162,16 +1162,16 @@ In OrderList.tsx, the inline day calculation for both parent orders and child or
 
 The sort comparator (getDaysInStatus) follows the same logic so ordering is consistent with display.
 
-**D35.4 — "Created" label renamed to "Entry on" in Order Detail page**
+**D35.4 ï¿½ "Created" label renamed to "Entry on" in Order Detail page**
 
 The subtitle on the Order Details page (src/app/orders/[id]/page.tsx) was changed from:
 
 `
-Placed on {saleDate} • Created {entryDate}
+Placed on {saleDate} ï¿½ Created {entryDate}
 `
 to:
 `
-Order placed on {saleDate} • Order entry on {entryDate}
+Order placed on {saleDate} ï¿½ Order entry on {entryDate}
 `
 
 This makes the distinction between sale date and entry date self-explanatory to any team member reading the order header without needing external documentation.
@@ -1181,16 +1181,16 @@ This makes the distinction between sale date and entry date self-explanatory to 
 | Alternative | Rejected Because |
 |---|---|
 | Add a new pendingBookingStartDate column | Unnecessary schema change; orderCurrentStatusUpdateDate already serves this role semantically |
-| Show days from orderDate for ALL statuses | Wrong for Pending Shipment etc. — those status clocks correctly start from the status transition, not the original sale |
+| Show days from orderDate for ALL statuses | Wrong for Pending Shipment etc. ï¿½ those status clocks correctly start from the status transition, not the original sale |
 | Backdate crmOrderCurrentStatusHistory.changedAt | Corrupts the audit trail; the log should record when the system event actually occurred |
 | Compute days on the server and return them from the API | Overcomplicates the data layer; the calculation is a pure UI concern that is correctly handled client-side |
 
 ### Files Changed
 
-- src/lib/date.ts — Added getEstCalendarDaysDiff(referenceDate) export
-- src/components/OrderList.tsx — Updated getDaysInStatus(), parent display block, child display block
-- src/repository/order.repository.ts — parentInitialStatus / childInitialStatus variables; conditional orderCurrentStatusUpdateDate at creation
-- src/app/orders/[id]/page.tsx — "Order placed on" / "Order entry on" label fix
+- src/lib/date.ts ï¿½ Added getEstCalendarDaysDiff(referenceDate) export
+- src/components/OrderList.tsx ï¿½ Updated getDaysInStatus(), parent display block, child display block
+- src/repository/order.repository.ts ï¿½ parentInitialStatus / childInitialStatus variables; conditional orderCurrentStatusUpdateDate at creation
+- src/app/orders/[id]/page.tsx ï¿½ "Order placed on" / "Order entry on" label fix
 
 ### Tests Added / Updated
 
@@ -1246,30 +1246,30 @@ Sales agents handle large volumes of prospect calls daily. When a prospect says 
 
 ### Decisions
 
-**D37.1 — Single dedicated table crm_follow_ups, no FK to crm_customers**
-Follow-ups are prospect records — the person may never become an actual customer. Forcing a FK to crm_customers would require creating a customer row for every prospect, polluting the customer table with non-customer data. All prospect data (name, phone, vehicle, location) is stored directly on the follow-up row itself. The only FK is gent_id ? users.uid (ON DELETE RESTRICT). This is the same architectural decision as crm_attendance, which stores gent_name as a denormalized snapshot rather than joining through to a separate entity.
+**D37.1 ï¿½ Single dedicated table crm_follow_ups, no FK to crm_customers**
+Follow-ups are prospect records ï¿½ the person may never become an actual customer. Forcing a FK to crm_customers would require creating a customer row for every prospect, polluting the customer table with non-customer data. All prospect data (name, phone, vehicle, location) is stored directly on the follow-up row itself. The only FK is gent_id ? users.uid (ON DELETE RESTRICT). This is the same architectural decision as crm_attendance, which stores gent_name as a denormalized snapshot rather than joining through to a separate entity.
 
-**D37.2 — Timezone storage: store customer's stated time as-is; derive UTC at query time**
+**D37.2 ï¿½ Timezone storage: store customer's stated time as-is; derive UTC at query time**
 ollow_up_date (DATE) and ollow_up_time (VARCHAR HH:MM) are stored exactly as the customer states them, in their own timezone. The inferred IANA timezone string is stored in customer_timezone. UTC is computed at notification query time using MySQL's CONVERT_TZ() function. No UTC datetime column is stored. This avoids the need to convert back to the customer's local time for display, and the data remains human-readable in the database without any conversion.
 
-**D37.3 — Timezone inferred server-side from state selection; never trusted from client**
-The STATE_TIMEZONE_MAP (added to src/lib/geography.ts) maps every US state and Canadian province to its primary IANA timezone. When a follow-up is created or the customer's state is edited, the server derives customerTimezone from this map and writes it to the DB. The client cannot inject or override the timezone value — it is computed purely server-side. This prevents agents from accidentally or maliciously submitting incorrect timezone values.
+**D37.3 ï¿½ Timezone inferred server-side from state selection; never trusted from client**
+The STATE_TIMEZONE_MAP (added to src/lib/geography.ts) maps every US state and Canadian province to its primary IANA timezone. When a follow-up is created or the customer's state is edited, the server derives customerTimezone from this map and writes it to the DB. The client cannot inject or override the timezone value ï¿½ it is computed purely server-side. This prevents agents from accidentally or maliciously submitting incorrect timezone values.
 
-**D37.4 — Dual-permission model mirroring orders:view / orders:create exactly**
+**D37.4 ï¿½ Dual-permission model mirroring orders:view / orders:create exactly**
 - ollow-ups:view (ID 58): Admin-level. Sees all agents' records. Unlocks Team + Agent filter controls and the Agent column in the list. Required for delete.
 - ollow-ups:create (ID 59): Agent-level. Can access the page and create records, but the backend hard-forces gentId = session.user.uid on every query regardless of what the client sends. No Team/Agent filters are shown. Cannot delete.
 - Neither permission = 403 from API + middleware redirect to /access-denied.
 - Super Admin (role 1) and Admin (role 2) get both. Agent (role 8) gets only ollow-ups:create.
 
-**D37.5 — Combined quoted_options TEXT field with multi-line Price - Miles/Warranty format**
+**D37.5 ï¿½ Combined quoted_options TEXT field with multi-line Price - Miles/Warranty format**
 Instead of separate quoted_price and quoted_miles_and_warranty columns, a single quoted_options TEXT column stores all quote variants. Each line represents one option in the format Price - Miles/Warranty (e.g. $450 - 60k miles / 30 day warranty). Agent presses Enter for each new option. The list view shows only the first line (truncated). The detail page renders all lines. This is more flexible than two fixed columns and matches how agents actually quote multiple vendor options during a call.
 
-**D37.6 — lastContact update rules**
+**D37.6 ï¿½ lastContact update rules**
 last_contact is set to 
 ow() on record creation (representing the initial call). It is updated by ollowup.service.ts whenever a PATCH contains any of: 
-otes, status, ollow_up_reason, ollow_up_date, or ollow_up_time. It is NOT updated for changes to priority, quoted_options, customer_name, customer_phone, or vehicle fields — those are administrative corrections, not contact events. The service layer enforces this rule; the repository layer is unaware of it.
+otes, status, ollow_up_reason, ollow_up_date, or ollow_up_time. It is NOT updated for changes to priority, quoted_options, customer_name, customer_phone, or vehicle fields ï¿½ those are administrative corrections, not contact events. The service layer enforces this rule; the repository layer is unaware of it.
 
-**D37.7 — 
+**D37.7 ï¿½ 
 otificationSentAt DB column for one-shot notification tracking**
 When a follow-up notification fires (toast + optional OS notification), 
 otification_sent_at is set to 
@@ -1277,50 +1277,51 @@ ow(). The indDueForNotification() repository query filters on
 otification_sent_at IS NULL, so each follow-up fires exactly once. If the agent edits ollow_up_date or ollow_up_time, the service layer resets 
 otification_sent_at = NULL, allowing the rescheduled time to trigger a fresh notification.
 
-**D37.8 — Dual-channel notification: in-app toast always + OS browser notification if granted**
+**D37.8 ï¿½ Dual-channel notification: in-app toast always + OS browser notification if granted**
 A custom React hook useFollowUpNotifications polls GET /api/follow-ups/due every 60 seconds and on tab focus events. Due records trigger an in-app toast (always, requires no user permission). If Notification.permission === 'granted', the browser's OS-level Notification API also fires (
 ew Notification(...)). The hook requests permission on first mount using Notification.requestPermission(). Dismissing the toast triggers PATCH /api/follow-ups/<id> with { _markNotified: true }, which calls markNotificationSent() directly without touching lastContact or triggering the 
 otificationSentAt reset logic.
 
-**D37.9 — luxon chosen for timezone computations**
+**D37.9 ï¿½ luxon chosen for timezone computations**
 Neither date-fns nor luxon was in the project. luxon is added as it handles IANA timezone zone names natively in a single self-contained package, making the computeDaysLabel() pure function and the indDueForNotification() UTC derivation clean and readable. date-fns-tz would have required adding both date-fns and date-fns-tz (two packages) for less ergonomic timezone support.
 
-**D37.10 — List page does NOT SSR pre-fetch follow-ups (unlike Orders/Agents pages in Phase 30)**
+**D37.10 ï¿½ List page does NOT SSR pre-fetch follow-ups (unlike Orders/Agents pages in Phase 30)**
 The follow-ups list is always scoped to the individual agent or filtered by admin choices. Unlike the orders list which can fetch a sensible default set server-side, a follow-ups SSR pre-fetch would either return nothing useful (no filters applied) or require complex session-aware server-side filtering that adds complexity without measurable UX benefit. The client-side fetch on mount pattern is used instead, consistent with the pre-Phase 30 list behavior.
 
-**D37.11 — Scroll/pagination/filter state preservation follows Session 82 + 83 patterns exactly**
-FollowUpListContainer.tsx implements: lazy filter state from URL params, prevFiltersRef to prevent page reset on mount, double-rAF scroll restoration, window.scrollY > 0 guard on scroll listeners, coming_from_followup_detail sessionStorage key, isRestoringRef ordering fix. Back buttons use the shared <BackButton /> component (outer.back()). No new patterns — this is a direct application of the established Session 82+83 solution.
+**D37.11 ï¿½ Scroll/pagination/filter state preservation follows Session 82 + 83 patterns exactly**
+FollowUpListContainer.tsx implements: lazy filter state from URL params, prevFiltersRef to prevent page reset on mount, double-rAF scroll restoration, window.scrollY > 0 guard on scroll listeners, coming_from_followup_detail sessionStorage key, isRestoringRef ordering fix. Back buttons use the shared <BackButton /> component (
+outer.back()). No new patterns ï¿½ this is a direct application of the established Session 82+83 solution.
 
 ### Files Changed (Phase 31)
-- CONTEXT/database_schema.md — Added crm_follow_ups table to summary, column spec, and Prisma model
-- CONTEXT/project_data.md — Added ollow-ups resource permissions section
-- CONTEXT/current_state.md — Added Phase 31 to progress table and TDD checklist
-- CONTEXT/decision_log.md — This entry
-- prisma/schema.prisma — New CrmFollowUps model + reverse relation on Users
-- seed.sql — New permissions IDs 58 and 59 + role assignments
-- src/lib/geography.ts — New STATE_TIMEZONE_MAP export
-- src/types/followup.ts — New type interfaces
-- src/repository/followup.repository.ts — New repository
-- src/service/followup.service.ts — New service + computeDaysLabel export
-- src/app/api/follow-ups/route.ts — New GET + POST
-- src/app/api/follow-ups/[id]/route.ts — New GET + PATCH + DELETE
-- src/app/api/follow-ups/due/route.ts — New notification poll endpoint
-- src/middleware.ts — Added /follow-ups route protection
-- src/components/AddFollowUpForm.tsx — New add form
-- src/components/EditFollowUpForm.tsx — New edit form
-- src/components/FollowUpList.tsx — New list table
-- src/components/FollowUpListContainer.tsx — New list container with filter/scroll state
-- src/app/follow-ups/page.tsx — New list page
-- src/app/follow-ups/new/page.tsx — New add page
-- src/app/follow-ups/[id]/page.tsx — New detail page
-- src/app/follow-ups/[id]/edit/page.tsx — New edit page
-- src/lib/useFollowUpNotifications.ts — New notification hook
-- src/app/layout.tsx — Navbar link added
-- src/tests/followups.test.ts, ollowup.service.test.ts, geography.test.ts, AddFollowUpForm.test.tsx, FollowUpList.test.tsx, FollowUpDetailPage.test.tsx, useFollowUpNotifications.test.ts — New test files
+- CONTEXT/database_schema.md ï¿½ Added crm_follow_ups table to summary, column spec, and Prisma model
+- CONTEXT/project_data.md ï¿½ Added ollow-ups resource permissions section
+- CONTEXT/current_state.md ï¿½ Added Phase 31 to progress table and TDD checklist
+- CONTEXT/decision_log.md ï¿½ This entry
+- prisma/schema.prisma ï¿½ New CrmFollowUps model + reverse relation on Users
+- seed.sql ï¿½ New permissions IDs 58 and 59 + role assignments
+- src/lib/geography.ts ï¿½ New STATE_TIMEZONE_MAP export
+- src/types/followup.ts ï¿½ New type interfaces
+- src/repository/followup.repository.ts ï¿½ New repository
+- src/service/followup.service.ts ï¿½ New service + computeDaysLabel export
+- src/app/api/follow-ups/route.ts ï¿½ New GET + POST
+- src/app/api/follow-ups/[id]/route.ts ï¿½ New GET + PATCH + DELETE
+- src/app/api/follow-ups/due/route.ts ï¿½ New notification poll endpoint
+- src/middleware.ts ï¿½ Added /follow-ups route protection
+- src/components/AddFollowUpForm.tsx ï¿½ New add form
+- src/components/EditFollowUpForm.tsx ï¿½ New edit form
+- src/components/FollowUpList.tsx ï¿½ New list table
+- src/components/FollowUpListContainer.tsx ï¿½ New list container with filter/scroll state
+- src/app/follow-ups/page.tsx ï¿½ New list page
+- src/app/follow-ups/new/page.tsx ï¿½ New add page
+- src/app/follow-ups/[id]/page.tsx ï¿½ New detail page
+- src/app/follow-ups/[id]/edit/page.tsx ï¿½ New edit page
+- src/lib/useFollowUpNotifications.ts ï¿½ New notification hook
+- src/app/layout.tsx ï¿½ Navbar link added
+- src/tests/followups.test.ts, ollowup.service.test.ts, geography.test.ts, AddFollowUpForm.test.tsx, FollowUpList.test.tsx, FollowUpDetailPage.test.tsx, useFollowUpNotifications.test.ts ï¿½ New test files
 
 ---
 
-### Phase 31.5 â€” Follow-Ups Module: Bug Fixes, UI Overhaul, and Part Description Field
+## Decision D38 â€” Follow-Ups Module: Bug Fixes, UI Overhaul, and Part Description Field
 
 **Date:** July 17, 2026
 
@@ -1364,3 +1365,62 @@ The `computeDaysLabel` function continues to use `DateTime.now().setZone(custome
 - src/components/FollowUpListContainer.tsx â€” Search input added to header; "Callback" labels renamed
 - src/app/follow-ups/[id]/page.tsx â€” Customer Timezone row removed; Georgia font applied; EST timestamps; sidebar card merge (Classification + Schedule); Notes moved to top; partDescription display; "Callback" labels renamed; formatFollowUpTime replaces formatCallbackTime
 
+
+---
+
+## Decision D39 - Orders: CAD/USD Currency, Sales Verifier Filter, Clickable Customer Name, Alphabetical Dropdowns
+
+**Date:** July 20, 2026
+
+### Decisions
+
+**D39.1 - CAD-to-USD conversion applied once at service-layer write time; database always stores USD equivalents**
+The business handles customers from both the USA (USD) and Canada (CAD). Rather than storing values in multiple currencies and converting at display time, all monetary values are converted to USD equivalents before being persisted in the database. The conversion is applied once in order.service.ts during createOrder and updateOrder, immediately before the repository write call. The formula is: stored_value = entered_CAD_value * exchange_rate, rounded to 2 decimal places. The conversion is triggered only when orderCurrency === 'CAD' AND parseFloat(orderExchangeRate) !== 1. This approach was chosen over display-time conversion because: (a) all existing financial calculations, margin computations, and dashboard aggregates already assume USD; (b) no changes to the repository or dashboard layer are required; (c) reports exported or viewed by anyone will always be in a single consistent currency. The original input currency and exchange rate are preserved in order_currency and order_exchange_rate columns purely for audit and display purposes ï¿½ they are never used for reverse-conversion.
+The `if (rate !== 1)` early-exit guard is intentionally absent from the service code. Rate 1.0 is invalid for CAD and is rejected by the validator before reaching the conversion block, so the guard is unnecessary and would create a silent no-op path.
+
+The CAD-to-USD conversion block is applied BEFORE the saleStatus auto-set block in both createOrder and updateOrder. This ordering is mandatory: if the auto-set (which copies orderAmountCharged into orderRefundAmount for Refunded, Chargebacked, and Void statuses) ran first and conversion ran second, the auto-set refundAmount would be multiplied by the rate a second time, producing a double-conversion error.
+
+**D39.2 - Currency and exchange rate are Deal Global fields; child (multi-part) rows always store NULL for both columns**
+Consistent with the Deal Global vs. Per-Part distinction established in Decision 32 (saleStatus, orderAmountCharged, orderTotalPitched are Deal Global), order_currency and order_exchange_rate are stored on the parent order row only and are always NULL on child rows. In a multi-part CAD order, the service layer applies the exchange-rate conversion to the vendor price on each child part row (converting the entered CAD vendor price to USD before writing), but does not set order_currency or order_exchange_rate on child rows. Any code reading these fields must source them from the parent order only.
+
+**D39.3 - Monetary fields remain stored as VARCHAR to match existing schema convention; no numeric column type change**
+The existing crm_orders monetary fields (order_total_pitched, order_vendor_price, order_amount_charged, order_refund_amount) are all VARCHAR(25). The new order_exchange_rate field follows the same convention: VARCHAR(15). This avoids: (a) a disruptive schema migration that changes existing column types; (b) potential floating-point precision issues from DECIMAL columns interacting with the string-based form layer. The order_currency column is VARCHAR(3) to accommodate ISO 4217 codes ('USD', 'CAD'). Both new columns are nullable with application-level defaults ('USD' for currency, '1' for exchange rate), so all existing rows remain intact without any data backfill.
+
+**D39.4 - Sales Verifier dropdown excludes Super Admin, Admin, HR, and QA roles by role name, not by designation**
+The Sales Verifier field is intended for staff whose job it is to review and verify a sale before it is confirmed ï¿½ typically Team Leads, Managers, and senior Sales staff. Roles that have no involvement in the sales verification workflow (Super Admin, Admin, HR, QA) should not appear in this dropdown. The filter is implemented by including 
+ole: { select: { roleName: true } } in the Prisma indMany query for users (in both orders/new/page.tsx and orders/[id]/edit/page.tsx) and then filtering client-side by !EXCLUDED_ROLES.includes(a.role?.roleName ?? ''). Role name was preferred over designation because: (a) designation identifies job title but a Manager-designated user can still have a non-verifier role in edge cases; (b) 
+oleName is the canonical RBAC identifier for access control in this system; (c) the four excluded role names are stable enum values from seed.sql that will not change. The EXCLUDED_ROLES constant is defined inline in the dropdown IIFE as ['Super Admin', 'Admin', 'HR', 'QA'].
+
+**D39.5 - Agent repository indAll default sort changed from created-desc to name-asc; client-side sort added as belt-and-suspenders**
+The gent.repository.ts indAll function previously sorted by created: 'desc' (newest agents first), which caused dropdown lists to appear in reverse-chronological order ï¿½ entirely unhelpful for selection. The sort is changed to 
+ame: 'asc' at the repository level. Additionally, a client-side .sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name)) is added inside each dropdown rendering IIFE across AddOrderForm.tsx, EditOrderForm.tsx, OrderListContainer.tsx, and AdvancedChartWidget.tsx. The dual-sort approach ensures: (a) the API always returns alphabetically ordered data even for callers that do not sort client-side; (b) dropdowns sort by display name (nickname if set, otherwise name) rather than the raw database 
+ame field, which is the label agents actually see. Existing agents page (AgentList.tsx) is unaffected because it uses its own sort controls independent of the repository default.
+
+**D39.6 - Customer name in orders list links to detail page using identical href and same isDisabled access-control gate as the Details button**
+Making the customer name clickable provides a larger hit target and a more natural UX for navigating to order details. The link uses href={/orders/} ï¿½ identical to the existing 'Details' action button. The same isDisabled boolean (which evaluates to 	rue for agents who have orders:create but not orders:view, and who are not the assigned sales agent of that order) is applied: when isDisabled is true, the name renders as a plain <span> rather than a <Link>. This ensures restricted agents cannot access detail pages for orders they do not own, consistent with the existing Details button behaviour.
+
+### Files Changed (Phase 32)
+- CONTEXT/current_state.md - Phase 32 added to progress table and full TDD checklist (W-3201 through W-3209)
+- CONTEXT/decision_log.md - This entry (D39.1 through D39.6)
+- CONTEXT/database_schema.md - orderCurrency and orderExchangeRate added to crm_orders table definition and Prisma schema block
+- CONTEXT/project_data.md - Phase 32 notes added
+- prisma/schema.prisma - orderCurrency and orderExchangeRate fields added to CrmOrders model
+- 1 Prisma migration - add_currency_exchange_rate_to_orders
+- src/types/order.ts - orderCurrency and orderExchangeRate added to OrderCreateInput, OrderUpdateInput, OrderRecord
+- src/repository/order.repository.ts - new fields in select blocks, create, and updateOrder allowed-fields array
+- src/service/order.service.ts - CAD-to-USD conversion logic in createOrder and updateOrder
+- src/app/api/orders/route.ts - verify currency fields pass through (if body is destructured)
+- src/app/api/orders/[id]/route.ts - verify currency fields pass through in PATCH handler
+- src/app/orders/new/page.tsx - role included in users select
+- src/app/orders/[id]/edit/page.tsx - role included in users select
+- src/components/AddOrderForm.tsx - currency state, UI fields, label suffixes, role filter on Sales Verifier, sort on 4 dropdowns
+- src/components/EditOrderForm.tsx - same changes as AddOrderForm
+- src/components/OrderList.tsx - customer name wrapped in conditional Link
+- src/components/OrderListContainer.tsx - sort added to 3 agent filter dropdowns
+- src/components/DealSummarySidebar.tsx - CAD warning note prop
+- src/components/FinancialBreakdownCard.tsx - CAD currency badge display
+- src/repository/agent.repository.ts - findAll orderBy changed to name asc
+- src/components/dashboard/AdvancedChartWidget.tsx - sort added to agent dropdown
+- src/tests/orders.test.ts - new integration tests for currency conversion
+- src/tests/AddOrderForm.test.tsx - new unit tests for currency UI
+- src/tests/EditOrderForm.test.tsx - new unit tests for currency pre-fill and verifier filter

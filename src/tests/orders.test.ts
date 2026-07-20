@@ -3548,6 +3548,304 @@ describe('Order Management Integration Tests', () => {
       await prisma.crmOrders.delete({ where: { crmOrderId: createdOrderId } });
     });
   });
-});
 
+  describe('W-3201 — Currency and Exchange Rate Columns Check', () => {
+    it('should successfully select order_currency and order_exchange_rate after migration', async () => {
+      const result = await prisma.$queryRaw<Array<{ order_currency: string | null; order_exchange_rate: string | null }>>`SELECT order_currency, order_exchange_rate FROM crm_orders LIMIT 1`;
+      expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  describe('W-3203 — Currency Conversion & Rate Validation', () => {
+    it('should convert CAD monetary fields to USD before storing in database', async () => {
+      const { createOrder } = await import('../service/order.service');
+      const payload = {
+        customerName: 'CAD Customer',
+        customerEmail: 'cad.buyer@example.com',
+        customerNameOncard: 'CAD Cardholder',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '12/28',
+        orderMakeModel: '2022 Honda Civic',
+        orderPart: 'Engine',
+        orderTotalPitched: '500',
+        orderAmountCharged: '450',
+        orderVendorPrice: '200',
+        orderCurrency: 'CAD',
+        orderExchangeRate: '0.74',
+      };
+
+      const result = await createOrder(payload, { uid: testUser.uid, name: testUser.name });
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: result.orderId },
+      });
+
+      expect(dbOrder!.orderCurrency).toBe('CAD');
+      expect(dbOrder!.orderExchangeRate).toBe('0.74');
+      expect(dbOrder!.orderTotalPitched).toBe('370.00');
+      expect(dbOrder!.orderAmountCharged).toBe('333.00');
+      expect(dbOrder!.orderVendorPrice).toBe('148.00');
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: result.orderId } });
+    });
+
+    it('should correctly set refund amount to USD converted charged amount for Refunded CAD order without double conversion', async () => {
+      const { createOrder } = await import('../service/order.service');
+      const payload = {
+        customerName: 'CAD Refunded Customer',
+        customerEmail: 'cad.buyer@example.com',
+        customerNameOncard: 'CAD Cardholder',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '12/28',
+        orderMakeModel: '2022 Honda Civic',
+        orderPart: 'Transmission',
+        orderTotalPitched: '500',
+        orderAmountCharged: '450',
+        saleStatus: '2', // Refunded
+        orderCurrency: 'CAD',
+        orderExchangeRate: '0.74',
+      };
+
+      const result = await createOrder(payload, { uid: testUser.uid, name: testUser.name });
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: result.orderId },
+      });
+
+      expect(dbOrder!.orderAmountCharged).toBe('333.00');
+      expect(dbOrder!.orderRefundAmount).toBe('333.00');
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: result.orderId } });
+    });
+
+    it('should not convert monetary fields when orderCurrency is USD', async () => {
+      const { createOrder } = await import('../service/order.service');
+      const payload = {
+        customerName: 'USD Customer',
+        customerEmail: 'cad.buyer@example.com',
+        customerNameOncard: 'USD Cardholder',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '12/28',
+        orderMakeModel: '2022 Honda Civic',
+        orderPart: 'Bumper',
+        orderTotalPitched: '500',
+        orderCurrency: 'USD',
+        orderExchangeRate: '1',
+      };
+
+      const result = await createOrder(payload, { uid: testUser.uid, name: testUser.name });
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: result.orderId },
+      });
+
+      expect(dbOrder!.orderTotalPitched).toBe('500');
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: result.orderId } });
+    });
+
+    it('should reject CAD order with exchange rate >= 1 or <= 0', async () => {
+      const { createOrder } = await import('../service/order.service');
+      const basePayload = {
+        customerName: 'Invalid Rate Customer',
+        customerEmail: 'cad.buyer@example.com',
+        customerNameOncard: 'Cardholder',
+        customerCardNumber: '4111222233334444',
+        customerCardExpDate: '12/28',
+        orderMakeModel: '2022 Honda Civic',
+        orderPart: 'Door',
+        orderCurrency: 'CAD',
+      };
+
+      await expect(createOrder({ ...basePayload, orderExchangeRate: '1.5' })).rejects.toThrow(
+        'Exchange rate must be greater than 0 and less than 1'
+      );
+      await expect(createOrder({ ...basePayload, orderExchangeRate: '1' })).rejects.toThrow(
+        'Exchange rate must be greater than 0 and less than 1'
+      );
+      await expect(createOrder({ ...basePayload, orderExchangeRate: '0' })).rejects.toThrow(
+        'Exchange rate must be greater than 0 and less than 1'
+      );
+    });
+  });
+
+  describe('W-3204 — API Layer Currency Pass-Through', () => {
+    it('POST /api/orders should accept orderCurrency and orderExchangeRate and pass through to service', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create,orders:edit,orders:view',
+        },
+      } as any);
+
+      const { POST } = await import('../app/api/orders/route');
+      const req = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: 'API CAD Customer',
+          customerEmail: 'api.cad@example.com',
+          customerNameOncard: 'Cardholder',
+          customerCardNumber: '4111222233334444',
+          customerCardExpDate: '12/28',
+          orderMakeModel: '2022 Ford F-150',
+          orderPart: 'Transmission',
+          orderTotalPitched: '1000',
+          orderAmountCharged: '900',
+          orderCurrency: 'CAD',
+          orderExchangeRate: '0.75',
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.orderId).toBeDefined();
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: body.orderId },
+      });
+      expect(dbOrder!.orderCurrency).toBe('CAD');
+      expect(dbOrder!.orderExchangeRate).toBe('0.75');
+      expect(dbOrder!.orderTotalPitched).toBe('750.00');
+      expect(dbOrder!.orderAmountCharged).toBe('675.00');
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: body.orderId } });
+    });
+
+    it('PATCH /api/orders/:id should allow updating orderCurrency and orderExchangeRate', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create,orders:edit,orders:view',
+        },
+      } as any);
+
+      const { POST } = await import('../app/api/orders/route');
+      const { PATCH } = await import('../app/api/orders/[id]/route');
+
+      const createReq = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: 'API USD Customer',
+          customerEmail: 'api.usd@example.com',
+          customerNameOncard: 'Cardholder',
+          customerCardNumber: '4111222233334444',
+          customerCardExpDate: '12/28',
+          orderMakeModel: '2022 Ford F-150',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderAmountCharged: '900',
+          orderCurrency: 'USD',
+          orderExchangeRate: '1',
+        }),
+      });
+
+      const createRes = await POST(createReq);
+      const created = await createRes.json();
+
+      const patchReq = new Request(`http://localhost/api/orders/${created.orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderCurrency: 'CAD',
+          orderExchangeRate: '0.70',
+          orderAmountCharged: '900',
+        }),
+      });
+
+      const params = Promise.resolve({ id: String(created.orderId) });
+      const patchRes = await PATCH(patchReq, { params });
+      expect(patchRes.status).toBe(200);
+
+      const dbOrder = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: created.orderId },
+      });
+      expect(dbOrder!.orderCurrency).toBe('CAD');
+      expect(dbOrder!.orderExchangeRate).toBe('0.70');
+      expect(dbOrder!.orderAmountCharged).toBe('630.00');
+
+      // Cleanup
+      await prisma.crmOrders.delete({ where: { crmOrderId: created.orderId } });
+    });
+
+    it('POST /api/orders/:id/parts should convert child part orderVendorPrice from CAD to USD using parent exchange rate', async () => {
+      vi.mocked(getServerSession).mockResolvedValue({
+        user: {
+          id: String(testUser.uid),
+          name: testUser.name,
+          userPermissions: 'orders:create,orders:edit,orders:view',
+        },
+      } as any);
+
+      const { POST: createOrderPost } = await import('../app/api/orders/route');
+      const { POST: addPartPost } = await import('../app/api/orders/[id]/parts/route');
+
+      const createReq = new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: 'CAD Child Part Customer',
+          customerEmail: 'cad.child@example.com',
+          customerNameOncard: 'Cardholder',
+          customerCardNumber: '4111222233334444',
+          customerCardExpDate: '12/28',
+          orderMakeModel: '2022 Ford F-150',
+          orderPart: 'Engine',
+          orderTotalPitched: '1000',
+          orderCurrency: 'CAD',
+          orderExchangeRate: '0.74',
+        }),
+      });
+
+      const createRes = await createOrderPost(createReq);
+      const created = await createRes.json();
+      const parentId = created.orderId;
+
+      const addPartReq = new Request(`http://localhost/api/orders/${parentId}/parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderPart: 'Transmission',
+          orderVendorPrice: '200.00', // 200 CAD -> 148.00 USD
+        }),
+      });
+
+      const addPartRes = await addPartPost(addPartReq, { params: Promise.resolve({ id: String(parentId) }) });
+      expect(addPartRes.status).toBe(201);
+      const childData = await addPartRes.json();
+
+      const dbChild = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: childData.partOrderId },
+      });
+      expect(dbChild!.orderVendorPrice).toBe('148.00');
+
+      // Now test updating the child part via PATCH /api/orders/:childId
+      const { PATCH: updateOrderPatch } = await import('../app/api/orders/[id]/route');
+      const updateReq = new Request(`http://localhost/api/orders/${childData.partOrderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderVendorPrice: '300.00', // 300 CAD -> 222.00 USD
+        }),
+      });
+
+      const updateRes = await updateOrderPatch(updateReq, { params: Promise.resolve({ id: String(childData.partOrderId) }) });
+      expect(updateRes.status).toBe(200);
+
+      const dbUpdatedChild = await prisma.crmOrders.findUnique({
+        where: { crmOrderId: childData.partOrderId },
+      });
+      expect(dbUpdatedChild!.orderVendorPrice).toBe('222.00');
+
+      // Cleanup
+      await prisma.crmOrders.deleteMany({ where: { parentOrderId: parentId } });
+      await prisma.crmOrders.delete({ where: { crmOrderId: parentId } });
+    });
+  });
+});
 

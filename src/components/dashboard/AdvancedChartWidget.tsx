@@ -421,7 +421,7 @@ export default function AdvancedChartWidget({
                 style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px' }}
               >
                 <option value="">All Centers</option>
-                {Array.isArray(teams) && teams.map((t) => (
+                {Array.isArray(teams) && [...teams].sort((a, b) => a.teamName.localeCompare(b.teamName)).map((t) => (
                   <option key={t.teamId} value={t.teamId}>
                     {t.teamName}
                   </option>
@@ -442,8 +442,8 @@ export default function AdvancedChartWidget({
                 {(() => {
                   const SALES_DESIGNATIONS = ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'];
                   const scoped = filteredAgents.filter(a => SALES_DESIGNATIONS.includes(a.designation || ''));
-                  const active = scoped.filter(a => a.status === 1);
-                  const inactive = scoped.filter(a => a.status !== 1);
+                  const active = scoped.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+                  const inactive = scoped.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
                   return (
                     <>
                       {active.length > 0 && <optgroup label="Active">{active.map(a => <option key={a.uid} value={a.uid}>{a.nickname || a.name}</option>)}</optgroup>}

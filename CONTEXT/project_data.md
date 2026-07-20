@@ -233,3 +233,17 @@ Mapped during daily marking (`mark-attendance.php`):
 
 > [!NOTE]
 > **Legacy data migration note:** The old `users.user_permissions` VARCHAR column stored numeric codes like `"160,162,99999"`. When seeding or migrating existing user data, use the legacy mapping table in Section 3 to translate old numeric codes to their corresponding RBAC role assignments.
+
+
+---
+
+## 6. Phase 32: Currency & Exchange Rate Policy
+
+* **Supported Currencies:** USD (US Dollar, default) and CAD (Canadian Dollar).
+* **Exchange Rate Rule:** Must be strictly greater than 0 and strictly less than 1 when currency is CAD (0 < rate < 1), representing CAD's value in USD (e.g., 0.74). A rate of exactly 1.0 is also rejected — CAD is always weaker than USD, so parity is not a valid input. Rates <= 0 or >= 1 are rejected with a 400 Bad Request error.
+* **Database Storage Standard:** All monetary amounts (order_total_pitched, order_amount_charged, order_vendor_price, order_refund_amount) are converted to **USD** before being written to MySQL (USD = CAD * rate). The database exclusively stores USD values.
+* **Deal Global Attributes:** order_currency and order_exchange_rate are stored on the parent order row only (parent_order_id IS NULL) and are NULL on child (multi-part) rows.
+* **Edit Order Form Pre-Fill:** Because the database stores USD, the Edit Order form pre-fills input fields in **CAD** by applying a reverse conversion (CAD = stored_USD / exchange_rate) when initializing state, enabling agents to view and edit in the deal's original currency.
+* **Live USD Preview:** The right-hand sidebar (DealSummarySidebar) on both Add and Edit Order forms converts CAD input values in real time to display USD-equivalent figures.
+* **Order Detail Page:** Read-only page displaying stored USD values without re-conversion. Shows original currency and rate in the Customer Information card and FinancialBreakdownCard when entered in CAD.
+

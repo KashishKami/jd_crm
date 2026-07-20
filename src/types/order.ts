@@ -24,6 +24,8 @@ export interface DealGlobalFields {
   orderRefundAmount?: string | null;
   orderBackendExecutiveId?: number | null;
   saleStatus?: string | null;
+  orderCurrency?: string | null;
+  orderExchangeRate?: string | null;
 }
 
 export interface OrderCreateInput extends DealGlobalFields {
@@ -69,6 +71,8 @@ export interface OrderCreateInput extends DealGlobalFields {
   orderPartFoundByName?: string | null;
   orderMakeModel?: string | null;
   orderVin?: string | null;
+  orderCurrency?: string | null;
+  orderExchangeRate?: string | null;
 }
 
 export interface OrderUpdateInput {
@@ -112,6 +116,8 @@ export interface OrderUpdateInput {
   saleStatusChangeDate?: string | null;
   orderRefundAmount?: string | null;
   orderVendorFeedback?: string;
+  orderCurrency?: string | null;
+  orderExchangeRate?: string | null;
 
   // --- Customer fields (written to crm_customers via separate update) ---
   customerName?: string;
@@ -241,6 +247,8 @@ export interface ChildPartDetail {
   orderResolution: string;
   orderCreatedDate: Date;
   orderUpdatedDate: Date;
+  orderCurrency?: string | null;
+  orderExchangeRate?: string | null;
   salesAgent?: {
     uid: number;
     name: string;
@@ -275,4 +283,5 @@ export interface ChildPartDetail {
     gatewayName: string;
   } | null;
 }
+
 

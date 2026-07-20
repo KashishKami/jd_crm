@@ -259,6 +259,11 @@ model CrmOrders {
   orderCreatedDate              DateTime      @default(now()) @map("order_created_date") @db.DateTime(0)
   orderUpdatedDate              DateTime      @updatedAt @map("order_updated_date") @db.DateTime(0)
   parentOrderId                 Int?          @map("parent_order_id")
+  // Phase 32 — Currency & Exchange Rate (Deal Global — parent row only, NULL on child rows)
+  orderCurrency                 String?       @default("USD") @map("order_currency") @db.VarChar(3)
+  orderExchangeRate             String?       @default("1") @map("order_exchange_rate") @db.VarChar(15)
+
+
   comments                      CrmComments[]
   saleStatusHistory             CrmSaleStatusHistory[]
   workflowHistory               CrmOrderCurrentStatusHistory[]

@@ -47,6 +47,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 30** | SSR Pre-fetch Waterfall Elimination — Orders, Agents, Customers & Gateways List Pages | **[x] COMPLETED** | `src/app/orders/page.tsx`, `src/app/agents/page.tsx`, `src/app/customers/page.tsx`, `src/app/gateways/page.tsx`, `src/components/OrderListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/CustomerList.tsx`, `src/components/GatewayList.tsx`, `src/tests/orders.test.ts`, `src/tests/agents.test.ts` |
 | **Phase 31** | Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/lib/geography.ts`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/app/api/follow-ups/due/route.ts`, `src/middleware.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/page.tsx`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/layout.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/geography.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts` |
 | **Phase 31.5** | Follow-Ups: Bug Fix (computeDaysLabel), UI Overhaul (columns, search, detail layout, Georgia font, EST timestamps, Callback→Follow Up rename), Part Description Field | **[x] COMPLETED** | `src/lib/formatPhone.ts` (new), `src/lib/useFollowUpNotifications.ts`, `src/service/followup.service.ts`, `src/repository/followup.repository.ts`, `src/types/followup.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/[id]/page.tsx`, `prisma/schema.prisma`, 1 migration, `src/tests/followup.service.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/followups.test.ts` |
+| **Phase 32** | Orders: CAD/USD Currency + Exchange Rate, Clickable Customer Name, Sales Verifier Role Filter, Alphabetical Agent Dropdowns | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/app/orders/new/page.tsx`, `src/app/orders/[id]/edit/page.tsx`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/components/OrderList.tsx`, `src/components/OrderListContainer.tsx`, `src/components/DealSummarySidebar.tsx`, `src/components/FinancialBreakdownCard.tsx`, `src/repository/agent.repository.ts`, `src/components/dashboard/AdvancedChartWidget.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
 
 ---
 
@@ -6366,7 +6367,7 @@ Two bugs identified in the follow-up notification system:
 ---
 
 - [x] **RED — Unit (`FollowUpNotification.test.tsx` — new test file):**
-  - [x] Test: Render `FollowUpListContainer` with `useFollowUpNotifications` mocked to return one active notification (with `followUpId: 42`, `customerName: 'Alice Springs'`, `partRequired: 'Bumper'`). Assert a link/button with visible text `"Show Details"` is present in the DOM. Assert that link's `href` attribute is `/follow-ups/42`.
+- [x] Test: Render `FollowUpListContainer` with `useFollowUpNotifications` mocked to return one active notification (with `followUpId: 42`, `customerName: 'Alice Springs'`, `partRequired: 'Bumper'`). Assert a link/button with visible text `"Show Details"` is present in the DOM. Assert that link's `href` attribute is `/follow-ups/42`.
   - [x] Test: Assert the toast wrapper element has Tailwind class `bottom-5` in its className. Assert it does NOT have class `top-5`.
   - [x] **Run — confirm RED.**
 
@@ -6409,7 +6410,735 @@ Two bugs identified in the follow-up notification system:
 - [x] **Phase 31.5 COMPLETE** → Update progress table status to `[x] COMPLETED`
 
 ---
+## Phase 32 — Orders: CAD/USD Currency + Exchange Rate, Clickable Customer Name, Sales Verifier Role Filter, Alphabetical Agent Dropdowns
 
+**Status:** `[x] COMPLETED`
+
+**Prerequisite:** Phase 31.5 is COMPLETE. This phase adds four targeted improvements to the Orders module: (1) a CAD/USD currency selector with exchange-rate conversion that stores all monetary values in USD in the database; (2) a clickable customer name in the orders list that navigates to the order detail page; (3) a role-based filter on the Sales Verifier dropdown that excludes Super Admin, Admin, HR, and QA roles; and (4) alphabetical sorting of all agent name dropdowns across the Add/Edit Order forms, the order list filter panel, and the dashboard chart widget.
+
+> [!IMPORTANT]
+> **A Prisma migration is required for this phase.** The migration adds two new nullable columns (`order_currency VARCHAR(3)` defaulting to `'USD'` and `order_exchange_rate VARCHAR(15)` defaulting to `'1'`) to the `crm_orders` table. Because both columns are nullable with safe defaults, the migration is purely additive — all existing rows will be unaffected (they will read as `NULL`, and all code treats `NULL` as `'USD'`/`'1'`). The migration SQL file **must be committed and deployed to production** using `npx prisma migrate deploy` (not `migrate dev`) on the production server.
+
+---
+
+### W-3201 — Database Migration: Add `order_currency` and `order_exchange_rate` to `crm_orders`
+
+**Goal:**
+Add two new columns to the `crm_orders` table via a Prisma migration so that the currency and exchange rate can be stored persistently. No application code changes yet — just the schema and migration. This work item must be done first, before any service or UI work, because all subsequent work items depend on these columns existing.
+
+**Approach:**
+Add `orderCurrency` and `orderExchangeRate` fields to the `CrmOrders` model in `prisma/schema.prisma`. Run `npx prisma migrate dev --name add_currency_exchange_rate_to_orders`. Verify the columns exist in the database and that all existing rows still pass a `findMany` query.
+
+**Exact column specification:**
+
+| Column name | Prisma field | Type | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `order_currency` | `orderCurrency` | `String?` `@db.VarChar(3)` | YES | `'USD'` | Stored values: `'USD'` or `'CAD'`. Nullable so existing rows are unaffected. |
+| `order_exchange_rate` | `orderExchangeRate` | `String?` `@db.VarChar(15)` | YES | `'1'` | CAD-to-USD exchange rate as a string (e.g. `'0.74'`). Matches existing pattern of monetary fields stored as `VARCHAR`. Nullable so existing rows are unaffected. |
+
+**Deal Global designation:** Both columns are **Deal Global** fields — stored on the parent order row only, always `NULL` on child (multi-part) rows. This is consistent with Decision 32 (`saleStatus`, `orderAmountCharged`, `orderTotalPitched` are also Deal Global).
+
+**Production deployment note:** After the migration file is generated locally, run `npx prisma migrate deploy` (not `migrate dev`) on the production server to apply the migration safely without resetting data.
+
+---
+
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: Query `crm_orders` via Prisma and attempt to `SELECT order_currency, order_exchange_rate FROM crm_orders LIMIT 1` using a raw query (`prisma.$queryRaw`). Assert the query **throws an error** or returns columns that are undefined, confirming the columns do NOT exist yet.
+  - [x] **Run — confirm RED (columns absent → error or undefined).**
+
+- [x] **GREEN — Backend (Schema + Migration):**
+  - [x] [Schema] In `prisma/schema.prisma`, inside the `CrmOrders` model block, add the following two lines **immediately after the `parentOrderId` field**:
+    ```prisma
+    // Phase 32 — Currency & Exchange Rate (Deal Global — parent row only, NULL on child rows)
+    orderCurrency      String?  @default("USD") @map("order_currency")      @db.VarChar(3)
+    orderExchangeRate  String?  @default("1")   @map("order_exchange_rate") @db.VarChar(15)
+    ```
+  - [x] [Migration] Run `npx prisma migrate dev --name add_currency_exchange_rate_to_orders`. Confirm a new migration file is created under `prisma/migrations/`. Confirm the generated SQL contains `ALTER TABLE crm_orders ADD COLUMN order_currency varchar(3) DEFAULT 'USD'` and `ALTER TABLE crm_orders ADD COLUMN order_exchange_rate varchar(15) DEFAULT '1'`.
+  - [x] [Verify] Run `SHOW COLUMNS FROM crm_orders LIKE 'order_currency';` and `SHOW COLUMNS FROM crm_orders LIKE 'order_exchange_rate';` in the Docker container. Assert both rows are returned.
+  - [x] [Verify] Run `SELECT crm_order_id, order_currency, order_exchange_rate FROM crm_orders LIMIT 5;`. Assert existing rows return `NULL` for both new columns (not an error). This confirms backward compatibility.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] `npx prisma migrate dev` completes with no errors → migration file exists in `prisma/migrations/` → `SHOW COLUMNS FROM crm_orders` lists both new columns → `prisma.crmOrders.findFirst()` returns a TypeScript object with `orderCurrency: null` and `orderExchangeRate: null` for pre-existing rows → `npm run test` passes with no regressions → ✓ Done.
+
+---
+
+### W-3202 — Types: Extend `OrderCreateInput`, `OrderUpdateInput`, and `OrderRecord` with Currency Fields
+
+**Goal:**
+Add `orderCurrency` and `orderExchangeRate` to the shared TypeScript types used by the repository, service, and API layers so the compiler enforces their presence everywhere they need to be handled.
+
+**Approach:**
+Locate `src/types/order.ts`. Add the two new optional fields to every relevant interface. This is a pure types file change — no logic.
+
+**Field definitions to add:**
+- `orderCurrency?: string | null` — `'USD'` or `'CAD'`. Defaults to `'USD'` if absent.
+- `orderExchangeRate?: string | null` — the CAD→USD rate as a string (e.g. `'0.7400'`). Defaults to `'1'` if absent.
+
+**Interfaces to update in `src/types/order.ts`:**
+1. `OrderCreateInput` — add both fields as optional.
+2. `OrderUpdateInput` — add both fields as optional.
+3. `OrderRecord` (the full returned record shape) — add both fields as `string | null`.
+
+---
+
+- [x] **RED — Unit (`orders.test.ts` or typecheck):**
+  - [x] Run `npm run typecheck`. Confirm it passes cleanly now (baseline).
+  - [x] Manually add `orderCurrency: 'USD'` to an `OrderCreateInput` object in a test. Confirm TypeScript reports a type error (unknown property) before the field is added to the type definition.
+  - [x] **Run — confirm RED (type error).**
+
+- [x] **GREEN — Backend (Types):**
+  - [x] [Types] Open `src/types/order.ts`. In `OrderCreateInput`, add:
+    ```ts
+    orderCurrency?: string | null;
+    orderExchangeRate?: string | null;
+    ```
+  - [x] In `OrderUpdateInput`, add the same two optional fields.
+  - [x] In `OrderRecord` (or however the full returned order shape is defined), add:
+    ```ts
+    orderCurrency: string | null;
+    orderExchangeRate: string | null;
+    ```
+  - [x] Run `npm run typecheck` — **confirm GREEN (no type errors).**
+
+- [x] **Verification chain:**
+  - [x] `npm run typecheck` → 0 errors → ✓ Done.
+
+---
+### W-3203 — Repository + Service Layer: Currency-Aware Conversion Logic & Rate Validation
+
+**Goal:**
+Teach the repository to include the new columns in reads/writes, and teach the service layer to
+validate the exchange rate and apply the CAD→USD conversion at save time. When
+`orderCurrency === 'CAD'`, the service validates `0 < rate < 1` (strictly exclusive on both ends —
+CAD is always weaker than USD; a parity rate of exactly 1.0 is not accepted) and multiplies every
+monetary field by `orderExchangeRate` before writing to the database, so the database always stores
+USD-equivalent values.
+
+**Approach:**
+
+#### Repository changes (`src/repository/order.repository.ts`)
+
+- In every `select` block used by `findAll`, `findById`, and any other read function that returns
+  order records, add `orderCurrency: true` and `orderExchangeRate: true` to the Prisma `select`
+  object.
+- In the `create` function, ensure `orderCurrency` and `orderExchangeRate` are passed through from
+  the input data.
+- In the `update` function (`updateOrder`), ensure `orderCurrency` and `orderExchangeRate` are
+  included in the updatable fields list (the array of allowed field names used for filtering).
+
+#### Service changes (`src/service/order.service.ts`)
+
+The conversion logic must be applied in the following **strict four-step order** in both
+`createOrder` and `updateOrder`. **The conversion block (Step 2) must always come BEFORE the
+`saleStatus` auto-set block (Step 3).** This ordering prevents double-conversion of
+`orderRefundAmount` when it is auto-set from `orderAmountCharged` for Refunded/Chargebacked/Void
+statuses.
+
+**Step 1 — Read currency and validate rate:**
+
+```ts
+// Phase 32 — Step 1: Rate validation
+const currency = data.orderCurrency ?? 'USD';
+const rate = parseFloat(data.orderExchangeRate ?? '1') || 0;
+if (currency === 'CAD') {
+  // Rate must be strictly > 0 AND strictly < 1.
+  // Rate of exactly 1.0 is rejected: CAD is always weaker than USD; parity is not accepted.
+  // Rate >= 1 would mean CAD equals or exceeds USD which is economically backwards.
+  if (rate <= 0 || rate >= 1) {
+    throw new Error(
+      'Exchange rate must be greater than 0 and less than 1 (exclusive on both ends) when currency is CAD.'
+    );
+  }
+}
+```
+
+**Step 2 — Apply CAD→USD conversion to all monetary fields (runs BEFORE auto-set):**
+
+```ts
+// Phase 32 — Step 2: CAD→USD conversion
+if (currency === 'CAD') {
+  // rate is guaranteed > 0 and < 1 by Step 1 validation above.
+  // There is NO `if (rate !== 1)` guard here — rate 1.0 is rejected by Step 1, so
+  // it never reaches this block. Always apply conversion when currency is CAD.
+  const convert = (val?: string | null): string | null | undefined =>
+    val && parseFloat(val) !== 0
+      ? (parseFloat(val) * rate).toFixed(2)
+      : val;
+
+  // Deal-Global monetary fields (stored on parent row only)
+  data.orderTotalPitched  = convert(data.orderTotalPitched);
+  data.orderAmountCharged = convert(data.orderAmountCharged);
+
+  // Refund amount: convert only if explicitly provided and non-zero in the payload.
+  // Auto-set refund amounts (from saleStatus logic) are handled in Step 3 AFTER
+  // conversion, so they are never double-converted.
+  if (data.orderRefundAmount && parseFloat(data.orderRefundAmount) !== 0) {
+    data.orderRefundAmount = convert(data.orderRefundAmount);
+  }
+
+  // Per-Part vendor price on parent part row
+  data.orderVendorPrice = convert(data.orderVendorPrice);
+
+  // Per-Part vendor price on each child part row (multi-part orders)
+  if (Array.isArray(data.parts)) {
+    data.parts = data.parts.map((p: any) => ({
+      ...p,
+      orderVendorPrice: convert(p.orderVendorPrice),
+    }));
+  }
+}
+```
+
+**Step 3 — Run the existing `saleStatus` auto-set logic (runs AFTER conversion):**
+
+For `Refunded` (`'2'`), `Chargebacked` (`'3'`), and `Void` (`'5'`): the existing service logic
+auto-sets `orderRefundAmount = orderAmountCharged`. At this point in execution,
+`orderAmountCharged` is already the USD-equivalent value (converted in Step 2). The auto-set
+therefore copies the correct USD value directly. **Do NOT multiply `orderRefundAmount` again after
+this auto-set** — conversion is complete.
+
+For `Partial Refund` (`'4'`): `orderRefundAmount` was manually entered by the agent in CAD and was
+already converted to USD in Step 2. No further action needed.
+
+For `Cancelled` (`'6'`): `orderRefundAmount` is cleared to `null`. No conversion needed.
+
+**Step 4 — Call `orderRepository.create(...)` / `orderRepository.updateOrder(...)`.**
+
+**Critical rules summary:**
+
+- **No `if (rate !== 1)` guard.** Always apply conversion when `currency === 'CAD'`. Rate `1.0`
+  is rejected in Step 1 so it never reaches Step 2.
+- **Conversion order is mandatory.** Step 2 (conversion) must always precede Step 3 (auto-set).
+  Reversing this causes double-conversion of auto-set refund amounts.
+- If `currency === 'USD'`, skip Steps 1 and 2 entirely — values are stored exactly as entered.
+- `orderCurrency` and `orderExchangeRate` are always stored as-is from the input (e.g. `'CAD'`
+  and `'0.74'`). They are never overwritten. They serve as audit fields.
+
+---
+
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: Create an order via `orderService.createOrder(...)` with `orderCurrency: 'CAD'`,
+    `orderExchangeRate: '0.74'`, `orderTotalPitched: '500'`, `orderAmountCharged: '450'`,
+    `orderVendorPrice: '200'`. Fetch the created order from DB. Assert
+    `order.orderTotalPitched === '370.00'` (= 500 × 0.74). Assert
+    `order.orderAmountCharged === '333.00'` (= 450 × 0.74). Assert
+    `order.orderVendorPrice === '148.00'` (= 200 × 0.74). Assert `order.orderCurrency === 'CAD'`.
+    Assert `order.orderExchangeRate === '0.74'`.
+  - [x] Test: Create a `Refunded` (saleStatus `'2'`) CAD order with `orderAmountCharged: '450'`,
+    `orderExchangeRate: '0.74'`. Assert stored `order.orderAmountCharged === '333.00'` AND
+    `order.orderRefundAmount === '333.00'`. This confirms the auto-set copies the already-converted
+    USD amount and does NOT re-multiply (which would incorrectly yield `333.00 × 0.74 = 246.42`).
+  - [x] Test: Create an order with `orderCurrency: 'USD'` (or `orderCurrency` absent). Assert
+    `order.orderTotalPitched` equals the entered value unchanged (no multiplication).
+  - [x] Test: Create an order with `orderCurrency: 'CAD'`, `orderExchangeRate: '1.5'`. Assert the
+    service throws an error containing `"Exchange rate must be greater than 0 and less than 1"`.
+  - [x] Test: Create an order with `orderCurrency: 'CAD'`, `orderExchangeRate: '1'`. Assert the
+    service throws an error (rate of exactly 1.0 is **invalid** for CAD).
+  - [x] Test: Create an order with `orderCurrency: 'CAD'`, `orderExchangeRate: '0'`. Assert the
+    service throws an error (rate of 0 is invalid).
+  - [x] **Run — confirm RED (service does not yet apply conversion or validation).**
+
+- [x] **GREEN — Backend (Repository + Service):**
+  - [x] [Repository] In `src/repository/order.repository.ts`:
+    - Add `orderCurrency: true` and `orderExchangeRate: true` to every Prisma `select` object in
+      `findAll`, `findById`, and any other read function.
+    - In `create`, pass `orderCurrency` and `orderExchangeRate` from input data.
+    - In `updateOrder`, add `'orderCurrency'` and `'orderExchangeRate'` to the allowed-fields array.
+  - [x] [Service] In `src/service/order.service.ts`, in both `createOrder` and `updateOrder`:
+    - Implement Step 1 (rate validation: `rate <= 0 || rate >= 1` throws error for CAD).
+    - Implement Step 2 (conversion block with no `if (rate !== 1)` guard).
+    - Verify that the existing `saleStatus` switch-case block (Step 3) comes **after** Step 2 in
+      the function body. If it currently precedes the conversion, move the conversion block above
+      it.
+    - Verify Step 4 is the `orderRepository.create/updateOrder` call at the end.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Create a CAD order at rate `0.74` → DB stores `order_total_pitched = '370.00'`,
+    `order_currency = 'CAD'`, `order_exchange_rate = '0.74'` → Create a `Refunded` CAD order →
+    `order_refund_amount` equals `order_amount_charged` (both USD, no double-conversion) →
+    Create a USD order → DB stores exact values as entered → Attempt CAD order with rate `1.0` →
+    400 error returned → `npm run test` passes with no regressions → ✓ Done.
+
+---
+
+### W-3204 — API Layer: Pass Currency Fields Through Create and Update Endpoints
+
+**Goal:**
+Ensure the `POST /api/orders` and `PATCH /api/orders/[id]` route handlers extract `orderCurrency` and `orderExchangeRate` from the request body and pass them to the service layer. Without this step, the new fields would be silently ignored.
+
+**Approach:**
+The existing API routes already use `const body = await request.json()` and pass the entire body to `orderService.createOrder(body, ...)` and `orderService.updateOrder(id, body)`. Since TypeScript types are already updated (W-3202), no changes to the route handlers themselves are needed **as long as the body is passed through unsanitized**. However, if the route handler explicitly picks individual fields from `body` (i.e., destructuring), then `orderCurrency` and `orderExchangeRate` must be added to the destructure. Verify this by inspection.
+
+**Files to inspect and potentially modify:**
+- `src/app/api/orders/route.ts` — `POST` handler
+- `src/app/api/orders/[id]/route.ts` — `PATCH` handler
+
+---
+
+- [x] **RED — Integration (`orders.test.ts`):**
+  - [x] Test: Send a `POST /api/orders` HTTP request (via the test helper that hits the API route) with body including `orderCurrency: 'CAD'` and `orderExchangeRate: '0.74'` and `orderTotalPitched: '500'`. Fetch the created order. Assert `order.orderCurrency === 'CAD'` and `order.orderTotalPitched === '370.00'`. This confirms the API route passes the fields through to the service, which converts them.
+  - [x] **Run — confirm RED (if field is currently silently dropped) or GREEN (if body is already passed through entirely, in which case mark this item immediately GREEN and move on).**
+
+- [x] **GREEN — Backend (API Route, if needed):**
+  - [x] [Route] Open `src/app/api/orders/route.ts`. In the `POST` handler, verify `orderCurrency` and `orderExchangeRate` are included in whatever is passed to `orderService.createOrder`. If the body is passed as-is (`orderService.createOrder(body, ...)`), no change is needed. If the body is destructured field-by-field, add `orderCurrency` and `orderExchangeRate`.
+  - [x] [Route] Open `src/app/api/orders/[id]/route.ts`. Apply the same check and fix to the `PATCH` handler.
+  - [x] Run integration test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Sending `POST /api/orders` with `orderCurrency: 'CAD'` and `orderExchangeRate: '0.74'` creates a DB record with the converted USD values and `order_currency = 'CAD'` → ✓ Done.
+
+
+---
+
+
+### W-3205 — UI: Add Currency Selector & Exchange Rate to Add/Edit Forms & Sidebar USD Preview
+
+**Goal:**
+Add a Currency dropdown (`USD` / `CAD`) and an Exchange Rate input field to both the Add Order
+form and the Edit Order form in the **Customer Information card** (Section 01). When `CAD` is
+selected, all monetary input field labels show the currency suffix `(CAD)`. In `EditOrderForm`,
+the form initial state pre-fills monetary inputs in **CAD** by performing a reverse conversion
+(`CAD = stored_USD / exchangeRate`). The `DealSummarySidebar` on both forms always displays
+**USD-equivalent amounts** in real time — including the total vendor price sum for multi-part deals.
+
+**Approach:**
+
+#### 1. State additions & Currency / Exchange Rate UI in Customer Information card (Section 01)
+
+Place a 2-column row at the bottom of the Customer Information card (Section 01) in both
+`AddOrderForm.tsx` and `EditOrderForm.tsx`:
+
+- **Currency Select (`id="orderCurrency"`):** Options `USD` and `CAD`. When changed to `'USD'`,
+  set `orderExchangeRate` to `'1'` and clear `exchangeRateError`. When changed to `'CAD'`, clear
+  the exchange rate field so the agent must type a valid rate.
+- **Exchange Rate Input (`id="orderExchangeRate"`):** Disabled (grayed out, value `'1'`) when
+  currency is `'USD'`. Enabled and editable when `'CAD'`. Placeholder `"e.g. 0.74"`. Helper text:
+  `"Must be greater than 0 and less than 1 (CAD is always weaker than USD)"`.
+- **Frontend validation:** On exchange rate `onChange`, validate `rate > 0 && rate < 1` (strictly
+  exclusive on both ends — rate of exactly 1.0 is invalid, matching backend enforcement). Set
+  inline `exchangeRateError` if the value is outside this range. Block form submit if
+  `exchangeRateError` is set and currency is `'CAD'`.
+
+#### 2. Pre-filling EditOrderForm.tsx — including multi-part child rows
+
+In `EditOrderForm.tsx`, when initializing form state from the fetched `order`:
+
+**Sourcing currency and rate in a multi-part deal:**
+When editing a child part row, `order.orderCurrency` and `order.orderExchangeRate` are `NULL` on
+that row (these are Deal-Global fields stored on the parent only). The edit page query in
+`src/app/orders/[id]/edit/page.tsx` must include the parent relation:
+
+```ts
+include: {
+  parentOrder: {
+    select: { orderCurrency: true, orderExchangeRate: true }
+  }
+}
+```
+
+In `EditOrderForm.tsx`, always derive the effective values as:
+
+```ts
+const effectiveCurrency = order.parentOrderId
+  ? (order.parentOrder?.orderCurrency ?? 'USD')
+  : (order.orderCurrency ?? 'USD');
+
+const effectiveRate = order.parentOrderId
+  ? (order.parentOrder?.orderExchangeRate ?? '1')
+  : (order.orderExchangeRate ?? '1');
+```
+
+Use `effectiveCurrency` and `effectiveRate` everywhere in the pre-fill logic below.
+
+**Reverse conversion logic:**
+
+- Read `isCad = effectiveCurrency === 'CAD'` and `rate = parseFloat(effectiveRate) || 1`.
+- If `isCad` and `rate > 0 && rate < 1`:
+  - `toCad = (usdVal: string | null) => usdVal ? (parseFloat(usdVal) / rate).toFixed(2) : ''`
+  - Pre-fill `orderTotalPitched` state with `toCad(order.orderTotalPitched)`
+    (e.g. `370 / 0.74 = 500.00 CAD`).
+  - Pre-fill `orderAmountCharged` state with `toCad(order.orderAmountCharged)`.
+  - Pre-fill `orderVendorPrice` state with `toCad(order.orderVendorPrice)` (and on all child part
+    rows using the same `effectiveRate`).
+  - Pre-fill `orderRefundAmount` state with `toCad(order.orderRefundAmount)`.
+- If `effectiveCurrency === 'USD'`, pre-fill values directly without any division.
+
+#### 3. Monetary Field Label Suffixes
+
+In both forms, derive `const isCad = effectiveCurrency === 'CAD'` (use plain `orderCurrency` in
+the Add form where there is no parent). Format labels as:
+
+- `{isCad ? 'Pitched Price (CAD)' : 'Pitched Price'}`
+- `{isCad ? 'Vendor Price (CAD)' : 'Vendor Price'}` — per part row, including child rows
+- `{isCad ? 'Amount Charged (CAD)' : 'Amount Charged'}`
+- `{isCad ? 'Refund Amount (CAD)' : 'Refund Amount'}`
+
+#### 4. DealSummarySidebar.tsx — Live USD Preview including vendor price sum
+
+```ts
+// Phase 32 — Preview rate: strictly < 1 for valid CAD, 1 for USD (no-op)
+const previewRate =
+  orderCurrency === 'CAD' &&
+  parseFloat(orderExchangeRate ?? '0') > 0 &&
+  parseFloat(orderExchangeRate ?? '0') < 1
+    ? parseFloat(orderExchangeRate!)
+    : 1;
+```
+
+- Apply `× previewRate` to every monetary value shown in the sidebar before display.
+- **Vendor Price Sum (multi-part deals):** Sum all vendor prices (parent + all child parts) after
+  multiplying each by `previewRate`:
+
+```ts
+const allVendorPrices = [parentVendorPrice, ...childPartVendorPrices];
+const totalVendorUSD = allVendorPrices
+  .map(v => parseFloat(v || '0') * previewRate)
+  .reduce((a, b) => a + b, 0)
+  .toFixed(2);
+```
+
+- Displays note `"Showing USD equivalent (rate: {orderExchangeRate})"` when currency is CAD.
+- When currency is `'USD'`, `previewRate` is `1` so multiplication is a no-op.
+
+---
+
+- [x] **RED — Unit (`AddOrderForm.test.tsx`, `EditOrderForm.test.tsx`):**
+  - [x] Test: `AddOrderForm` — selecting CAD enables the Exchange Rate input. Typing `1` (exactly)
+    shows error `"must be greater than 0 and less than 1"` (parity rate is now invalid).
+  - [x] Test: `AddOrderForm` — selecting CAD, typing `1.5` shows the same error.
+  - [x] Test: `AddOrderForm` — CAD input `$500` with rate `0.74` shows `$370.00 USD` in sidebar.
+    Vendor price `$200` with same rate shows `$148.00 USD` in sidebar vendor price field.
+  - [x] Test: `EditOrderForm` — with stored order `orderTotalPitched: '370.00'`,
+    `orderCurrency: 'CAD'`, `orderExchangeRate: '0.74'` — pre-fills pitched price input as
+    `'500.00'`.
+  - [x] Test: `EditOrderForm` — with a child part row (`parentOrderId` is non-null) where
+    `parentOrder.orderCurrency === 'CAD'`, `parentOrder.orderExchangeRate === '0.74'`, and
+    `orderVendorPrice === '148.00'` — pre-fills vendor price input as `'200.00'` (reverse
+    conversion sourced from parent row, not child row).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (page, AddOrderForm, EditOrderForm, DealSummarySidebar):**
+  - [x] [Page] In `src/app/orders/[id]/edit/page.tsx`, add the `parentOrder` relation include to
+    the Prisma order query:
+    `parentOrder: { select: { orderCurrency: true, orderExchangeRate: true } }`.
+  - [x] [AddOrderForm.tsx] Implement Currency/Rate inputs in Customer card. Validate
+    `rate > 0 && rate < 1` (exclusive both ends). Apply label suffixes. Block submit on invalid
+    rate.
+  - [x] [EditOrderForm.tsx] Implement same Currency/Rate inputs. Use `effectiveCurrency` and
+    `effectiveRate` derived from `parentOrder` when editing a child part. Implement `toCad`
+    reverse pre-fill logic.
+  - [x] [DealSummarySidebar.tsx] Implement `previewRate` with `< 1` exclusive check. Apply
+    `× previewRate` to all monetary preview values including total vendor price sum across all
+    parts.
+  - [x] Run unit tests — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Add Order page → Select CAD, enter rate `0.74`, enter `$500` CAD pitched price and `$200`
+    CAD vendor price → Sidebar shows `$370.00 USD` pitched and `$148.00 USD` vendor → Enter rate
+    `1.0` → Inline error shown, submit blocked → Enter rate `0.74` → Submit → DB stores `$370.00`
+    USD → Open Edit Order page → Form pre-fills pitched price `$500.00` CAD, vendor price
+    `$200.00` CAD → Sidebar shows USD equivalents → Open Edit page for a child part row → Edit
+    page query fetches parent's currency/rate → child vendor price pre-fills in CAD correctly →
+    ✓ Done.
+
+---
+
+
+### W-3206 — UI: Display Currency & Exchange Rate on Order Detail Page
+
+**Goal:**
+Display `orderCurrency` and `orderExchangeRate` (if CAD) in the Customer Information card of `src/app/orders/[id]/page.tsx`, and show an informational note in `FinancialBreakdownCard`. Detail page displays stored USD values without re-conversion.
+
+**Approach:**
+1. Customer Info Card: Read-only display rows for Currency and Exchange Rate (if CAD).
+2. `FinancialBreakdownCard`: If CAD, show `"Originally entered in CAD at rate 0.74 — All amounts below are in USD."`.
+
+---
+
+- [x] **RED — Unit (Detail page / `FinancialBreakdownCard`):**
+  - [x] Test: CAD order detail page displays `Currency: CAD`, `Exchange Rate: 0.74` in Customer card and note in Financial card.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`page.tsx`, `FinancialBreakdownCard.tsx`):**
+  - [x] Add Customer card rows and `FinancialBreakdownCard` CAD note.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+### W-3207 — UI: Clickable Customer Name in Orders List Table
+
+**Goal:**
+Make the customer name in the orders list table (`OrderList.tsx`) a clickable link that navigates to the order detail page — the same URL used by the existing "Details" action button (`/orders/{crmOrderId}`). The same `isDisabled` access-control logic used by the "Details" action button must apply here too, so that restricted agents (who have `orders:create` but not `orders:view`) see a non-clickable name for orders they don't own.
+
+**Approach:**
+In `src/components/OrderList.tsx`, find the customer name `<div>` (currently rendered as plain text on line ~354). Wrap it in a `<Link>` when `!isDisabled`, or keep it as a plain `<span>` when `isDisabled`. Use the same `href={/orders/${order.crmOrderId}}` as the "Details" link.
+
+**Current code (to replace):**
+```tsx
+<td>
+  <div>
+    <div className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
+      {order.customer.customerName}
+    </div>
+    <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
+      {canViewPhone ? order.customer.customerPhone || '—' : maskPhone(order.customer.customerPhone)}
+    </div>
+  </div>
+</td>
+```
+
+**Target code (after change):**
+```tsx
+<td>
+  <div>
+    {isDisabled ? (
+      <span className="font-semibold text-slate-900" style={{ fontSize: 'inherit' }}>
+        {order.customer.customerName}
+      </span>
+    ) : (
+      <Link
+        href={`/orders/${order.crmOrderId}`}
+        prefetch={false}
+        className="font-semibold text-slate-900 hover:text-blue-600 hover:underline"
+        style={{ fontSize: 'inherit', textDecoration: 'none', cursor: 'pointer' }}
+      >
+        {order.customer.customerName}
+      </Link>
+    )}
+    <div className="text-slate-400 font-mono" style={{ fontSize: '0.9em' }}>
+      {canViewPhone ? order.customer.customerPhone || '—' : maskPhone(order.customer.customerPhone)}
+    </div>
+  </div>
+</td>
+```
+
+**No other files change.** `Link` is already imported in `OrderList.tsx` (used by the "Details" action button).
+
+---
+
+- [x] **RED — Unit (`orders.test.ts` or `OrderList.test.tsx`):**
+  - [x] Test: Render `<OrderList orders={[mockOrder]} .../>` where `mockOrder` has a known `crmOrderId` (e.g. `42`) and `customerName` (e.g. `'Jane Smith'`). Assert the text `'Jane Smith'` is rendered inside an `<a>` element (Next.js `<Link>` renders as `<a>`) with `href="/orders/42"`.
+  - [x] Test: Render `<OrderList>` in the restricted-access scenario (user has `orders:create` but not `orders:view`, and `mockOrder.orderSalesAgentId !== session.user.id`). Assert `'Jane Smith'` is rendered as plain text (not inside an `<a>`).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (OrderList.tsx):**
+  - [x] Open `src/components/OrderList.tsx`. Find the `<td>` block that renders the customer name (approximately lines 351–360). Replace the customer name `<div>` with the conditional `Link`/`span` pattern shown in the Approach above.
+  - [x] Verify `Link` is already imported (`import Link from 'next/link'`). If not, add the import.
+  - [x] Run unit test — **confirm GREEN.**
+
+- [x] **Verification chain:**
+  - [x] Open the orders list → Customer name column shows `Jane Smith` as a blue-underline link on hover → Click it → Navigates to `/orders/42` (same as clicking "Details") → For a restricted agent viewing another agent's order, the name is plain unclickable text → ✓ Done.
+
+---
+
+### W-3208 — UI: Sales Verifier Dropdown — Exclude Super Admin, Admin, HR, and QA Roles
+
+**Goal:**
+The Sales Verifier dropdown in both the Add Order form and Edit Order form currently lists **every user** in the system, including Super Admins, Admins, HR staff, and QA personnel. The business requirement is that only staff who can actually verify a sale (i.e., those NOT in the Super Admin, Admin, HR, or QA roles) should appear. All other roles remain eligible.
+
+**Root cause:**
+The Prisma query in both `src/app/orders/new/page.tsx` and `src/app/orders/[id]/edit/page.tsx` fetches `users` with `select: { uid, name, nickname, designation, status }` — **`roleId` and `role.roleName` are NOT selected**. As a result, the form components receive no role information and cannot filter.
+
+**Approach:**
+
+**Step 1: Add role data to the Prisma query in both page files.**
+
+In `src/app/orders/new/page.tsx`, update the `prisma.users.findMany(...)` call:
+```ts
+prisma.users.findMany({
+  select: {
+    uid: true,
+    name: true,
+    nickname: true,
+    designation: true,
+    status: true,
+    role: { select: { roleName: true } }, // Phase 32 — needed for Sales Verifier filter
+  },
+  orderBy: { name: 'asc' },
+})
+```
+
+Apply the same change in `src/app/orders/[id]/edit/page.tsx`.
+
+**Step 2: Update the `agents` prop type in both form components.**
+
+In `src/components/AddOrderForm.tsx`, update the `AddOrderFormProps` interface:
+```ts
+interface AddOrderFormProps {
+  vendors: Array<...>;
+  gateways: Array<...>;
+  agents: Array<{
+    uid: number;
+    name: string;
+    nickname?: string | null;
+    designation?: string | null;
+    status?: number | null;
+    role?: { roleName: string } | null; // Phase 32
+  }>;
+}
+```
+
+Apply the same change to `EditOrderForm.tsx`'s props interface.
+
+**Step 3: Filter the Sales Verifier dropdown in both forms.**
+
+The roles to exclude are (from `seed.sql`): `'Super Admin'` (role_id 1), `'Admin'` (role_id 2), `'HR'` (role_id 5), `'QA'` (role_id 7).
+
+**EXCLUDED_FROM_SALES_VERIFIER** constant: `['Super Admin', 'Admin', 'HR', 'QA']`
+
+In the Sales Verifier `<select>` dropdown IIFE in `AddOrderForm.tsx` (currently lines ~1234–1243), replace:
+```ts
+const active = agents.filter(a => a.status === 1);
+const inactive = agents.filter(a => a.status !== 1);
+```
+with:
+```ts
+const EXCLUDED_ROLES = ['Super Admin', 'Admin', 'HR', 'QA'];
+const eligible = agents.filter(a => !EXCLUDED_ROLES.includes(a.role?.roleName ?? ''));
+const active = eligible.filter(a => a.status === 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+const inactive = eligible.filter(a => a.status !== 1).sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+```
+
+Apply the exact same change in `EditOrderForm.tsx`.
+
+**Important:** Only the **Sales Verifier** dropdown is filtered by this role exclusion. Sales Agent, Backend Executive, QA Verifier, and Part Found By dropdowns are already filtered by `designation` and are not affected by this change.
+
+---
+
+  - [ ] [Page] `src/app/orders/[id]/edit/page.tsx`: Same change.
+
+- [ ] **GREEN — Frontend (AddOrderForm.tsx + EditOrderForm.tsx):**
+  - [ ] [AddOrderForm.tsx] Update `AddOrderFormProps.agents` type to include `role?: { roleName: string } | null`.
+  - [ ] [AddOrderForm.tsx] In the Sales Verifier dropdown IIFE, replace the existing active/inactive filter with the `EXCLUDED_ROLES` filter + `.sort()` as specified in the Approach above.
+  - [ ] [EditOrderForm.tsx] Apply the identical prop type and dropdown filter changes.
+  - [ ] Run unit tests — **confirm GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Open Add Order page → Click Sales Verifier dropdown → Users with roles Super Admin, Admin, HR, QA do NOT appear → Users with roles Manager, Team Lead, Vendor Management, Agent DO appear, listed alphabetically → ✓ Done.
+
+---
+
+
+
+### W-3209 — UI: Alphabetical Sorting for All Agent Dropdowns Application-Wide
+
+**Goal:**
+All dropdowns that list agent names across the entire application must sort names alphabetically
+(A → Z) within each group (Active first, then Inactive). Currently the agent repository orders by
+`created: 'desc'`, so lists appear in reverse-chronological order. This affects at minimum:
+
+1. `OrderListContainer.tsx` — Agent, Backend Executive, Part Found By filter dropdowns
+2. `AdvancedChartWidget.tsx` (dashboard) — Agent dropdown
+3. `AddOrderForm.tsx` — Sales Agent, Backend Executive, QA Verifier, Part Found By dropdowns
+4. `EditOrderForm.tsx` — Same four dropdowns as AddOrderForm
+5. (Sales Verifier in both forms is already sorted in W-3208)
+
+> [!IMPORTANT]
+> **Audit step required before implementation.** Open `src/components/dashboard/` and check
+> every `.tsx` file for `<select>` elements or dropdown rendering that maps over an agents/users
+> array (e.g. Top Performer, Bottom Performer, Backend panels, or any Recent Orders filter with
+> its own agent dropdown). Add any discovered files to the implementation step below and apply the
+> same `.sort(...)` pattern.
+
+**Approach:**
+
+**Fix 1 — Repository (root cause):** Change the default `orderBy` in `agent.repository.ts`'s
+`findAll` from `created: 'desc'` to `name: 'asc'`. This fixes sort order for all callers of
+`GET /api/agents`.
+
+**Fix 2 — Client-side sort (belt-and-suspenders):** Add `.sort()` inside every dropdown IIFE
+that splits agents into `active`/`inactive` groups. Sort by
+`(a.nickname || a.name).localeCompare(b.nickname || b.name)` so the label the agent sees
+(nickname if set, full name otherwise) is in A-Z order.
+
+**Exact pattern to apply in every affected IIFE:**
+
+```ts
+// Before:
+const active   = filtered.filter(a => a.status === 1);
+const inactive = filtered.filter(a => a.status !== 1);
+
+// After:
+const active = filtered
+  .filter(a => a.status === 1)
+  .sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+const inactive = filtered
+  .filter(a => a.status !== 1)
+  .sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name));
+```
+
+**Files affected (minimum — expand after dashboard audit):**
+
+1. `src/repository/agent.repository.ts` — `findAll()` orderBy change
+2. `src/components/AddOrderForm.tsx` — 4 dropdown IIFEs
+3. `src/components/EditOrderForm.tsx` — 4 dropdown IIFEs
+4. `src/components/OrderListContainer.tsx` — 3 dropdown IIFEs
+5. `src/components/dashboard/AdvancedChartWidget.tsx` — 1 dropdown IIFE
+6. Any additional dashboard component files discovered in the audit below
+
+---
+
+- [ ] **RED — Integration (`agents.test.ts`):**
+  - [ ] Test: Call `agentRepository.findAll()`. If three agents exist named `'Zara'`, `'Alice'`,
+    `'Mike'`, assert the returned array order is `['Alice', 'Mike', 'Zara']`.
+  - [ ] **Run — confirm RED (currently returns creation-order result).**
+
+- [ ] **Audit — Dashboard Components:**
+  - [ ] List every `.tsx` file in `src/components/dashboard/`.
+  - [ ] For each file, search for `<select>` or any dropdown rendering that maps over an agents
+    or users array.
+  - [ ] Record any additional files not already in the list above. Add them to the GREEN step.
+
+- [ ] **GREEN — Backend (Repository):**
+  - [ ] [Repository] In `src/repository/agent.repository.ts`, `findAll()`:
+    ```ts
+    // Before:
+    orderBy: { created: 'desc' },
+    // After:
+    orderBy: { name: 'asc' },
+    ```
+  - [ ] Run integration test — **confirm GREEN.**
+
+- [ ] **GREEN — Frontend (All affected components):**
+  - [ ] [AddOrderForm.tsx] Add `.sort(...)` to `active` and `inactive` in the Sales Agent,
+    Backend Executive, QA Verifier, and Part Found By dropdown IIFEs (4 locations).
+  - [ ] [EditOrderForm.tsx] Same 4 IIFEs.
+  - [ ] [OrderListContainer.tsx] Same pattern in Agent, Backend Executive, Part Found By IIFEs
+    (3 locations).
+  - [ ] [AdvancedChartWidget.tsx] Same pattern in Agent dropdown IIFE (1 location).
+  - [ ] [Any additional files found in audit] Apply the same `.sort(...)` pattern.
+  - [ ] `npm run typecheck` → 0 errors.
+  - [ ] `npm run lint` → 0 warnings.
+  - [ ] `npm run test` — **confirm all tests GREEN.**
+
+- [ ] **Verification chain:**
+  - [ ] Add Order page → Sales Agent dropdown A-Z (Active first, Inactive second, each A-Z) →
+    Same for Backend Executive, QA Verifier, Part Found By → Orders list filter panel → Agent,
+    Backend Executive, Part Found By filters A-Z → Dashboard → chart widget Agent dropdown A-Z →
+    All other dashboard dropdowns found in audit A-Z → ✓ Done.
+
+---
+
+### Phase 32 Summary Checklist
+
+- [ ] W-3201: `crm_orders` schema + migration (`add_currency_exchange_rate_to_orders`) — **Integration tests GREEN**
+- [ ] W-3202: TypeScript types (`OrderCreateInput`, `OrderUpdateInput`, `OrderRecord`) updated — **Typecheck GREEN**
+- [ ] W-3203: Repository + Service — CAD→USD conversion logic & rate validation — **Integration tests GREEN**
+- [ ] W-3204: API routes pass `orderCurrency` + `orderExchangeRate` through — **Integration tests GREEN**
+- [ ] W-3205: Add/Edit Order form — Currency dropdown + Exchange Rate field in Customer card + label suffixes + Sidebar USD preview + Edit form reverse CAD pre-fill — **Unit tests GREEN**
+- [ ] W-3206: Order detail page + `FinancialBreakdownCard` — Currency display in Customer card & Financial card note — **Unit tests GREEN**
+- [ ] W-3207: `OrderList.tsx` — Clickable customer name linking to detail page — **Unit tests GREEN**
+- [ ] W-3208: Add/Edit Order form — Sales Verifier role exclusion (Super Admin, Admin, HR, QA) — **Unit tests GREEN**
+- [ ] W-3209: Alphabetical sorting for all agent dropdowns (repository + 5 frontend files) — **Unit + Integration tests GREEN**
+- [ ] Full `npm run test` passes with **no regressions**
+- [ ] `npm run lint` → 0 warnings
+- [ ] `npm run typecheck` → 0 errors
+- [ ] Prisma migration file committed: `prisma/migrations/.../add_currency_exchange_rate_to_orders/migration.sql`
+- [ ] **Phase 32 COMPLETE** → Update progress table status to `[x] COMPLETED`
+
+
+---
 
 ## 3. Session Notes
 
@@ -7581,3 +8310,66 @@ Fix the CD deployment pipeline crash caused by a missing dependency at runtime, 
    - Fixed a count mismatch test failure (`expected 7 to be 6` under parallel execution) by updating `getChargedBetweenDates` and `getSparklineData` in [dashboard.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/dashboard.repository.ts) to accept an optional `whereClause` filter. Passed `{ orderVendorName: 'DASH_TEST_VENDOR' }` in the integration test to isolate the queries from database pollution created by other concurrent tests.
    - Analyzed and verified that the Vitest timeout failure in `agents.test.ts` under parallel runs was due to shared-database transaction locks on concurrent table operations, and confirmed that running it in isolation passes successfully in under 2 seconds.
    - Verified that all linter checks, TypeScript compile checks, and Vitest test suites compile and run without issues.
+
+### Session 89: July 20, 2026
+#### Phase 32: Orders CAD/USD Currency Schema, Types, Service & API Implementation (W-3201 to W-3204)
+
+**Goal:**
+Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `orderCurrency` and `orderExchangeRate` schema columns, update shared TypeScript interfaces, implement exchange rate validation and CAD-to-USD monetary conversion logic in service/repository layers, and pass currency fields through API endpoints.
+
+**Approach & Implementation:**
+1. **W-3201 (DB Migration)**:
+   - Added `orderCurrency` (`String? @default("USD") @map("order_currency") @db.VarChar(3)`) and `orderExchangeRate` (`String? @default("1") @map("order_exchange_rate") @db.VarChar(15)`) to `CrmOrders` model in [schema.prisma](file:///c:/Users/Administrator/Desktop/JD%20CRM/prisma/schema.prisma).
+   - Generated Prisma migration `20260720161647_add_currency_exchange_rate_to_orders` and updated [migration.sql](file:///c:/Users/Administrator/Desktop/JD%20CRM/prisma/migrations/20260720161647_add_currency_exchange_rate_to_orders/migration.sql) with safe `ADD COLUMN` DDL.
+2. **W-3202 (Types)**:
+   - Added `orderCurrency` and `orderExchangeRate` optional fields to `DealGlobalFields`, `OrderCreateInput`, `OrderUpdateInput`, and `ChildPartDetail` in [order.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/types/order.ts).
+3. **W-3203 (Repository + Service Layer)**:
+   - Added `orderCurrency` and `orderExchangeRate` to `GLOBAL_FIELDS` array in [order.repository.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/repository/order.repository.ts) and [order.service.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/service/order.service.ts).
+   - Implemented strict exchange rate validation in `createOrder` and `updateOrder` requiring `0 < rate < 1` for CAD transactions.
+   - Applied CAD-to-USD conversion logic for monetary fields (`orderTotalPitched`, `orderAmountCharged`, `orderRefundAmount`, `orderVendorPrice`) before `saleStatus` auto-rules.
+4. **W-3204 (API Pass-Through)**:
+   - Verified and tested `POST /api/orders` and `PATCH /api/orders/[id]` endpoints in [route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/orders/route.ts) and [[id]/route.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/app/api/orders/[id]/route.ts) for currency field pass-through.
+5. **Testing & Verification**:
+   - Added integration test suites for W-3201, W-3203, and W-3204 in [orders.test.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/tests/orders.test.ts).
+   - All 7 tests passed GREEN (`npx vitest run src/tests/orders.test.ts -t "W-32"`).
+   - TypeScript check (`npm run typecheck`) passed with 0 errors.
+
+
+### Session 90 — July 20, 2026
+
+*   **Phase 32 — Orders: CAD/USD Currency + Exchange Rate, Clickable Customer Name, Sales Verifier Role Filter, Alphabetical Agent Dropdowns & Back-Navigation Fixes:**
+    *   **Schema & Migration (`add_currency_exchange_rate_to_orders`):** Added `orderCurrency` (`VARCHAR(3)`) and `orderExchangeRate` (`VARCHAR(15)`) nullable fields to `crm_orders`. Executed migration locally and verified DB schema.
+    *   **Currency Conversion & Audit Storage (`order.service.ts` & `order.repository.ts`):** Implemented CAD→USD conversion ($USD = CAD \times rate$) on order create, update, and child part creation/update. Verified invalid exchange rates ($rate \le 0$ or $rate \ge 1.0$) are rejected with 400 errors.
+    *   **UI Forms & Financial Card:** Added Currency Selector (`USD`/`CAD`) and Exchange Rate input field to `AddOrderForm` and `EditOrderForm`. Updated `DealSummarySidebar` and `FinancialBreakdownCard` to show CAD notes (`CAD @ rate`) and calculate live USD preview totals.
+    *   **Clickable Customer Name:** Updated `OrderList.tsx` to render customer names as clickable links (`/orders/[id]`) for users with view permissions. Added amber `CAD @ rate` badges in the Pricing column for CAD orders.
+    *   **Sales Verifier Role Filter:** Filtered Sales Verifier options in Add/Edit order forms to exclude Super Admin, Admin, HR, and QA roles.
+    *   **Alphabetical Agent Dropdowns:** Added alphabetical sorting to agent, backend executive, part found by, and team dropdowns across `OrderListContainer`, `AddOrderForm`, `EditOrderForm`, `agent.repository`, and `AdvancedChartWidget`.
+    *   **Back-Navigation & Scroll Position Restoration:** Resolved issue where returning from `/orders/[id]` reset pagination to page 1 and lost scroll position. Synchronized `prevFiltersRef.current` during `searchParams` hook resolution to prevent spurious `setPage(1)` calls. Saved `last_order_list_scroll` on link clicks and implemented multi-stage scroll restoration (30ms, 150ms, 300ms) while setting native DOM `opacity = 1` to skip the GSAP slide animation on back-navigation.
+    *   **Verification:** Verified all 48 vitest tests pass cleanly and `npm run typecheck` passes with 0 errors.
+
+### Session 91 — July 20, 2026
+
+*   **List Navigation, Pagination Restoration, Scroll Position Retention & Orders Animation De-duplication:**
+    *   **Root Cause Analysis:**
+        1. **Split Component Lifecycle in Orders (`OrderListContainer` $\rightarrow$ `OrderList`):** Unlike single-component views (like `AgentList`), Orders is split into a container and list. On mount, `OrderListContainer` rendered a spinner while `loading = true` and deleted `coming_from_detail` from `sessionStorage` in its mount effect. When fetching completed and `<OrderList>` mounted for the first time, `coming_from_detail` was already gone, causing `<OrderList>` to re-run GSAP row stagger animations on every detail return.
+        2. **React 18 Strict Mode Remounts Wiping Scroll Positions:** Mount `useEffect`s in list components contained destructive `else` loops that cleared all `scroll_position_` keys in `sessionStorage` when `comingFromDetail` evaluated to `false`. In React 18 Strict Mode (Dev Mode), Mount #1 deleted `coming_from_detail`, causing Mount #2 (1ms later) to execute the `else` branch and wipe all saved scroll positions.
+        3. **Cross-Module & Next-Page Scroll/Page Leakage:** Generic `'true'` boolean in `coming_from_detail` lingered across module switches via the top navbar, causing Agent list or Vendor list to attempt detail return logic when opening from orders. Clicking "Next Page" in pagination fell back to stale scroll keys (`last_order_list_scroll`), forcing new pages to open at the bottom.
+    *   **Key Fixes Implemented:**
+        *   **Path-Scoped Markers & Top Navbar Clearance:** Updated `DetailPageMarker.tsx` and `BackButton.tsx` to store path-scoped routes (`'/orders'`, `'/agents'`, `'/vendors'`, `'/follow-ups'`) in `sessionStorage.setItem('coming_from_detail', listPath)`. Added `sessionStorage.removeItem('coming_from_detail')` on all top navbar pill clicks in `Navbar.tsx`.
+        *   **LayoutShell Back-Navigation Coordination:** Updated `LayoutShell.tsx` to check `isBackFromDetail` strictly against the current base list path, preserving `opacity: 1` and skipping `lenis.scrollTo(0)` on detail returns.
+        *   **Synchronous Detail Return Ref & Animation Skipping:** Added `isDetailReturnRef` (captured synchronously during initial render of `OrderListContainer`) and passed `skipAnimation={isDetailReturnRef.current}` to `<OrderList>`, ensuring GSAP row stagger animations are cleanly skipped when returning from detail pages.
+        *   **Lenis & Window Scroll Restoration Sync:** Explicitly saved `scroll_position_${pathname}${search}` on order link clicks in `OrderList.tsx`. Synchronized scroll restoration in `OrderListContainer.tsx` using `window.scrollTo` and `lenis.scrollTo(scrollY, { immediate: true })` in double-rAF frames and deferred timers.
+        *   **Removal of Destructive Storage Wipes:** Removed destructive `else` storage-wiping loops across `OrderListContainer`, `AgentList`, `VendorList`, and `FollowUpListContainer`, and deferred clearing `coming_from_detail` by 1 second to handle React 18 Strict Mode remounts.
+        *   **Top-of-Page Scroll on Pagination Everywhere:** Enforced `window.scrollTo({ top: 0, behavior: 'smooth' })` inside `handlePageChange` across all resource list components.
+    *   **Verification:** Verified TypeScript compilation (`npm run typecheck`) passed with 0 errors.
+
+### Session 92 — July 20, 2026
+
+*   **Detail-Only Scroll Restoration Guard (Disabling Global Scroll Restoration on Navbar & Cross-Page Navigations):**
+    *   **Problem:** Scroll position restoration was executing unconditionally whenever `scroll_position_${pathname}${search}` existed in `sessionStorage`. For example, scrolling to the bottom of `/orders`, clicking "Dashboard" in the navbar, and then clicking "Orders" in the navbar restored the viewport to the bottom of `/orders`, even though `isDetailReturn` was `false`.
+    *   **Fix:**
+        - Updated the scroll restoration `useEffect` in `OrderListContainer.tsx`, `AgentList.tsx`, `VendorList.tsx`, and `FollowUpListContainer.tsx` to check `isDetailReturnRef.current`.
+        - If `isDetailReturnRef.current` is `false` (e.g. navigating from Dashboard or top navbar links), `sessionStorage.removeItem(key)` is called to clear stale scroll positions and the effect returns immediately, guaranteeing that non-detail return navigations always start at scroll top (`scrollY = 0`).
+    *   **Verification:** `npm run typecheck` passed with 0 errors.
+
+

@@ -11,6 +11,8 @@ interface FinancialBreakdownCardProps {
   balanceDue: number;
   finalMargin: number;
   vendorBreakdown: Array<{ vendorName: string; parts: string; total: number }>;
+  orderCurrency?: string;
+  orderExchangeRate?: string;
 }
 
 export default function FinancialBreakdownCard({
@@ -22,6 +24,8 @@ export default function FinancialBreakdownCard({
   balanceDue,
   finalMargin,
   vendorBreakdown,
+  orderCurrency = 'USD',
+  orderExchangeRate = '1',
 }: FinancialBreakdownCardProps) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
@@ -47,6 +51,12 @@ export default function FinancialBreakdownCard({
       }}>
         Financial Breakdown
       </h3>
+
+      {orderCurrency === 'CAD' && (
+        <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '16px' }}>
+          Originally entered in CAD at rate {orderExchangeRate} — All amounts below are in USD.
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

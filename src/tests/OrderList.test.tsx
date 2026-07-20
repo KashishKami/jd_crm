@@ -460,4 +460,42 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(row.textContent).toContain('(for 5 days)');
     });
   });
+
+  describe('W-3207: Clickable Customer Name', () => {
+    it('should render customer name as a link to /orders/:id when user has permission', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 42,
+          orderDate: '2026-07-01',
+          customer: { customerName: 'Jane Smith', customerPhone: '5551234567' },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const link = screen.getByRole('link', { name: /Jane Smith/i });
+      expect(link.getAttribute('href')).toBe('/orders/42');
+    });
+  });
+
+  describe('CAD Currency Note in Pricing Column', () => {
+    it('should render CAD @ exchangeRate note in Pricing column for CAD orders', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 99,
+          orderDate: '2026-07-20',
+          orderCurrency: 'CAD',
+          orderExchangeRate: '0.74',
+          orderTotalPitched: '1000',
+          orderVendorPrice: '500',
+          orderAmountCharged: '740',
+          customer: { customerName: 'CAD Customer' },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+      expect(screen.getByText('CAD @ 0.74')).toBeDefined();
+    });
+  });
 });
+

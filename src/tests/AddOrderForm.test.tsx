@@ -701,5 +701,64 @@ describe('AddOrderForm Unit Tests', () => {
         expect(options).not.toContain('Danny');
       });
     });
+
+    describe('W-3205: Currency & Exchange Rate Controls', () => {
+      it('should enable Exchange Rate input when CAD is selected and show error for rate 1.0 or 1.5', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const currencySelect = screen.getByLabelText(/Currency/i) as HTMLSelectElement;
+        const rateInput = screen.getByLabelText(/Exchange Rate/i) as HTMLInputElement;
+
+        expect(currencySelect.value).toBe('USD');
+        expect(rateInput.disabled).toBe(true);
+
+        fireEvent.change(currencySelect, { target: { value: 'CAD' } });
+        expect(rateInput.disabled).toBe(false);
+
+        fireEvent.change(rateInput, { target: { value: '1' } });
+        expect(screen.getByText(/Exchange rate must be greater than 0 and less than 1/i)).toBeDefined();
+
+        fireEvent.change(rateInput, { target: { value: '1.5' } });
+        expect(screen.getByText(/Exchange rate must be greater than 0 and less than 1/i)).toBeDefined();
+      });
+
+      it('should display USD equivalent values in sidebar when CAD is selected with valid rate', () => {
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={[]} />);
+        const currencySelect = screen.getByLabelText(/Currency/i);
+        const rateInput = screen.getByLabelText(/Exchange Rate/i);
+        const pitchedInput = screen.getByLabelText(/total price pitched/i);
+
+        fireEvent.change(currencySelect, { target: { value: 'CAD' } });
+        fireEvent.change(rateInput, { target: { value: '0.74' } });
+        fireEvent.change(pitchedInput, { target: { value: '500' } });
+
+        // $500 * 0.74 = $370.00 USD
+        expect(screen.getAllByText(/\$370\.00/i).length).toBeGreaterThan(0);
+        expect(screen.getByText(/Showing USD equivalent/i)).toBeDefined();
+      });
+    });
+
+    describe('W-3208: Sales Verifier Dropdown Role Exclusion', () => {
+      it('should exclude Super Admin, Admin, HR, and QA roles from Sales Verifier dropdown', () => {
+        const mockAgents = [
+          { uid: 1, name: 'Alice Admin', status: 1, role: { roleName: 'Admin' } },
+          { uid: 2, name: 'Bob Sales', status: 1, role: { roleName: 'Agent' } },
+          { uid: 3, name: 'Carol HR', status: 1, role: { roleName: 'HR' } },
+          { uid: 4, name: 'Dan QA', status: 1, role: { roleName: 'QA' } },
+          { uid: 5, name: 'Eve Super', status: 1, role: { roleName: 'Super Admin' } },
+        ];
+        render(<AddOrderForm vendors={[]} gateways={[]} agents={mockAgents as any} />);
+
+        const verifierSelect = document.getElementById('orderSalesVerifierId') as HTMLSelectElement;
+        expect(verifierSelect).not.toBeNull();
+        const options = Array.from(verifierSelect.options).map((o) => o.text);
+
+        expect(options).toContain('Bob Sales');
+        expect(options).not.toContain('Alice Admin');
+        expect(options).not.toContain('Carol HR');
+        expect(options).not.toContain('Dan QA');
+        expect(options).not.toContain('Eve Super');
+      });
+    });
   });
 });
+

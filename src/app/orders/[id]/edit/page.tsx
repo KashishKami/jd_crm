@@ -68,6 +68,12 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
           },
         },
         childOrders: true,
+        parentOrder: {
+          select: {
+            orderCurrency: true,
+            orderExchangeRate: true,
+          },
+        },
       },
     }),
     prisma.crmVendors.findMany({
@@ -80,7 +86,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       orderBy: { gatewayName: 'asc' },
     }),
     prisma.users.findMany({
-      select: { uid: true, name: true, nickname: true, designation: true, status: true },
+      select: { uid: true, name: true, nickname: true, designation: true, status: true, role: { select: { roleName: true } } },
       orderBy: { name: 'asc' },
     }),
   ]);

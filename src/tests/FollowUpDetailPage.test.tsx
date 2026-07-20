@@ -17,6 +17,8 @@ vi.mock('../service/followup.service', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/follow-ups/10',
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     push: vi.fn(),
     refresh: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('next/navigation', () => ({
     throw new Error('Not Found triggered');
   },
 }));
+
 
 afterEach(() => {
   cleanup();
