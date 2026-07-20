@@ -8382,5 +8382,16 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         - Removed bottom `.form-actions` blocks from both forms.
     *   **Verification:** Verified `npm run typecheck` and `npm run lint` pass cleanly with 0 errors and 0 warnings.
 
+### Session 94 — July 20, 2026
+
+*   **Keyboard Tab Accessibility Alignment for Action Buttons (Add & Edit Follow-Up Pages):**
+    *   **Problem:** By moving action buttons to the top header, they were rendered before form fields in HTML DOM order. This caused keyboard `Tab` navigation from the final `Notes` textarea to skip the action buttons entirely.
+    *   **Fix:**
+        - Refactored [AddFollowUpForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/AddFollowUpForm.tsx) and [EditFollowUpForm.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/EditFollowUpForm.tsx) to place action buttons (`Cancel` & `Save Changes` / `Create Follow-Up`) at the bottom of the DOM (immediately after the `Notes` textarea).
+        - Used CSS Grid (`grid-template-areas`) to visually display them in the top-right header area (`grid-area: actions`) opposite the page title (`grid-area: title`), preserving standard layout design.
+        - Verified that pressing `Tab` from the `Notes` textarea moves focus directly to `Cancel` and then to the submit button.
+    *   **Verification:** Verified `npm run typecheck` and `npm run lint` pass cleanly with 0 errors and 0 warnings.
+
+
 
 
