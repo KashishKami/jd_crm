@@ -1424,3 +1424,68 @@ Making the customer name clickable provides a larger hit target and a more natur
 - src/tests/orders.test.ts - new integration tests for currency conversion
 - src/tests/AddOrderForm.test.tsx - new unit tests for currency UI
 - src/tests/EditOrderForm.test.tsx - new unit tests for currency pre-fill and verifier filter
+
+---
+
+## Decision D40 — Call Disposition Module + Follow-Up Status Overhaul
+
+**Date:** July 22, 2026
+
+### Decisions
+
+**D40.1 - `crm_call_dispositions` table has no remarks/notes column by design**
+After review, the disposition record captures only the essential call outcome data: phone number, optional customer name, agent identity (auto-set), team snapshot, and the disposition value. A free-text remarks field was explicitly removed from scope. The rationale: the disposition type itself is the primary analytical signal; free-form remarks introduce data inconsistency and add no structured value for reporting or the Excel export. If detailed call notes are needed in the future, that warrants a separate comment or note thread (like `crm_comments`), not a flat text field on this table.
+
+**D40.2 - `customer_phone` is required; `customer_name` is nullable by design**
+Every inbound call arrives with a caller ID — the phone number is always known at the moment the call is picked up. Therefore `customer_phone VARCHAR(25) NOT NULL`. Conversely, for dispositions like Wrong Number, Spam Call, No Voice, or Automated Call, the agent never learns who the caller is, so `customer_name VARCHAR(255) NULL`. Forcing a name for every record would produce dirty data (e.g., "Unknown", "N/A"). Allowing it to be nullable produces clean, analytically meaningful NULLs that correctly signal "name not obtained." The UI labels the customer name field "Customer Name (Optional)" and omits it from the POST body if left blank; the service normalises an empty string to NULL before writing to the DB.
+
+**D40.3 - `agent_id`, `agent_name`, and `team_id` are always derived from the session; never trusted from the client**
+Mirrors the established pattern from `crm_follow_ups` (D37.1). The service layer reads `session.user.id`, `session.user.nickname || session.user.name`, and `session.user.teamId` and injects these directly into the repository create call. Any `agentId`, `agentName`, or `teamId` fields in the client's POST body are ignored. This prevents agents from logging dispositions under other agents' names. `team_id` is stored as a snapshot — not a live JOIN — so that if an agent is later transferred to another team, historical disposition records correctly reflect their team assignment at the time of the call.
+
+**D40.4 - Excel export is admin-only, gated behind `call-dispositions:view`**
+Exporting allows bulk download of all disposition data including agent performance metrics. Agent-level users (`call-dispositions:create` only) are restricted to viewing their own records in the UI; allowing export would trivially bypass this by dumping the entire dataset locally. The export route (`GET /api/call-dispositions/export`) calls `getAllDispositionsForExport()` which checks `call-dispositions:view` and throws `403 Forbidden` if the permission is absent. The "Export to Excel" button is not rendered in the UI for users without `call-dispositions:view`. Both server-side and client-side enforcement are applied.
+
+**D40.5 - Table column order: Date | Customer Phone | Customer Name | Agent Name (admin only) | Disposition | Actions**
+`customer_phone` and `customer_name` are displayed as **separate columns**, not stacked in a single cell. This is a deliberate deviation from the Follow-Up and Order list patterns (which stack phone below name). The reason: the Excel export mirrors the table column structure, so stacked cells would produce a combined string in a single export column — unusable for filtering or pivoting in Excel. Separate columns ensure the exported spreadsheet has clean, individually filterable columns: Date (EST), Customer Phone, Customer Name, Agent Name, Disposition. The "Agent Name" column is omitted for agent-level users since they only see their own records.
+
+**D40.6 - Edit disposition opens an in-page modal (portal); list scroll position is preserved automatically**
+Following the `OrderCommentsPopup` and `FollowUpNotesPopup` precedent, the Edit disposition modal uses React `createPortal` rendering directly to `document.body` with a `position: fixed` overlay. The list behind it does not move because the portal is inserted outside the DOM flow of the list component. After the modal closes and `fetchDispositions()` re-runs, only React state updates — no full page navigation, no `router.push()`, no `window.scrollTo()`. The scroll position is preserved automatically. This directly addresses the requirement: "when edit button is used, then the list view in the background stays the same, no animation or going to the top."
+
+**D40.7 - Phone number formatting applied in the service layer as a safety net (deviation from D38.4)**
+Decision D38.4 established that phone formatting for follow-ups is client-side only (frontend applies `formatPhoneNumber` on `onChange`). For call dispositions, the service layer also applies `formatPhoneNumber(data.customerPhone)` before writing to the database. This is a belt-and-suspenders approach justified by the fact that: (a) this table will be exported to Excel and shared externally — a malformed phone in the export is visible and unprofessional; (b) the data may in future be used for automated dialling or CRM matching, making format consistency critical. The frontend still applies the formatter on `onBlur` for real-time UX feedback, so the server-side call is typically a no-op for well-formed inputs.
+
+**D40.8 - Follow-Up status dropdown updated to 14 values; no migration needed**
+The `crm_follow_ups.status` column is `varchar(50)` — it stores plain strings, not a MySQL ENUM. Adding or removing options from the UI dropdown requires no schema change. Removed values (`Wrong Number`, `Spanish`) and added values (`Comparing Prices`, `Needs More Time`, `Price Quoted`, `Waiting for Payment`) only affect the frontend `STATUS_OPTIONS` array in three files. Existing records with the removed values (`Wrong Number`, `Spanish`) are not backfilled — they remain as historical string data and display normally in the list.
+
+### Files Changed (Phase 33)
+- CONTEXT/current_state.md — Phase 33 added to progress table
+- CONTEXT/project_data.md — `call-dispositions` resource section added (permissions 60 & 61); Phase 33 follow-up status note
+- CONTEXT/database_schema.md — Section 5 (`crm_call_dispositions` table schema) and Section 6 (Prisma model) added
+- CONTEXT/decision_log.md — This entry (D40.1 through D40.8)
+- prisma/schema.prisma — `CrmCallDispositions` model added; reverse relations on `Users` and `CrmTeams`
+- 1 Prisma migration — `add_call_dispositions_table`
+- seed.sql — Permissions 60 and 61 added; assigned to Super Admin, Admin, and Agent roles
+- src/types/callDisposition.ts — New file: types + `DISPOSITION_OPTIONS` constant
+- src/repository/callDisposition.repository.ts — New file: findAll, findAll_noLimit, findById, create, update, remove
+- src/service/callDisposition.service.ts — New file: all service methods with permission checks and scoping
+- src/app/api/call-dispositions/route.ts — New: GET + POST
+- src/app/api/call-dispositions/[id]/route.ts — New: GET + PATCH + DELETE
+- src/app/api/call-dispositions/export/route.ts — New: GET (Excel download, admin only)
+- src/components/AddDispositionModal.tsx — New: portal modal for creating a disposition
+- src/components/EditDispositionModal.tsx — New: portal modal for editing a disposition
+- src/components/CallDispositionList.tsx — New: table presentation component
+- src/components/CallDispositionListContainer.tsx — New: client container with filter/fetch/modal state
+- src/app/call-dispositions/page.tsx — New: server page component
+- src/middleware.ts — `/call-dispositions` route added with dual-permission handler
+- src/components/Sidebar.tsx — Call Dispositions nav link added
+- src/components/Navbar.tsx — Call Dispositions nav link added
+- src/components/FollowUpListContainer.tsx — STATUS_OPTIONS updated (14 items)
+- src/components/AddFollowUpForm.tsx — STATUS_OPTIONS updated (14 items)
+- src/components/EditFollowUpForm.tsx — Status dropdown options updated (14 items)
+- src/tests/callDispositions.test.ts — New integration tests (23 tests)
+- src/tests/CallDispositionList.test.tsx — New component unit tests
+- src/tests/AddDispositionModal.test.tsx — New modal unit tests
+- src/tests/AddFollowUpForm.test.tsx — Status assertions updated to new list
+- src/tests/FollowUpList.test.tsx — Status assertions updated
+- src/tests/followup.service.test.ts — Status assertions updated
+- src/tests/followups.test.ts — Status assertions updated

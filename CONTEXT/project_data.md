@@ -159,8 +159,25 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 > - **Detail page timestamps in EST:** `entry_date` and `last_contact` on the detail page are displayed in `America/New_York` (EST/EDT) using Luxon's `.setZone('America/New_York')`, matching the orders page convention.
 
 
+### Resource: `call-dispositions`
+| Permission Key | Permission ID | Description |
+| :--- | :--- | :--- |
+| `call-dispositions:view` | `60` | **Admin-level.** View **all** call dispositions across all agents and centers (teams). Unlocks Center (Team) and Agent filter dropdowns and the Agent Name column in the table. Admin-only delete and Excel export are also gated behind this permission. |
+| `call-dispositions:create` | `61` | **Agent-level.** Access the Call Dispositions page and create new records. Backend hard-scopes all list and detail queries to the authenticated agent's own records — no Team/Agent filters, no Agent Name column, no delete, no export. |
+
+> [!NOTE]
+> **Restricted Call Dispositions Access (Phase 33):** Mirrors the `follow-ups:view` / `follow-ups:create` dual-permission pattern exactly.
+> - Users with `call-dispositions:view` see all dispositions from all agents and all centers, with full Team + Agent filter controls and the Agent Name column.
+> - Users with only `call-dispositions:create` can access the page, but all API endpoints force `agentId = session.user.uid` server-side. The client cannot override this regardless of what it sends in query params or the request body.
+> - Users with neither permission receive a `403 Forbidden` from all `/api/call-dispositions/*` endpoints and a redirect to `/access-denied` from `middleware.ts` on page load.
+> - `agentId`, `agentName`, and `teamId` on new disposition records are **always derived from the authenticated session** — never trusted from the client POST body.
+> - `call-dispositions:view` is also the gate for the **Excel export** (`GET /api/call-dispositions/export`). Agents with only `create` permission cannot export data.
+
+> [!NOTE]
+> **Phase 33 Follow-Up Status Dropdown Update:** The `status` dropdown in Follow-Up Add/Edit forms and the list filter has been updated to 14 options. No database migration needed (`status` is `varchar(50)`). New values: `Comparing Prices`, `Needs More Time`, `Price Quoted`, `Waiting for Payment`. Removed values: `Wrong Number`, `Spanish`. Existing records with removed values are unaffected — they display as historical string values.
 
 ### Super Admin
+
 | Permission Key | Legacy Code | Description |
 | :--- | :--- | :--- |
 | `super-admin` | `99999` | Bypasses all permission checks. Grants access to everything. |

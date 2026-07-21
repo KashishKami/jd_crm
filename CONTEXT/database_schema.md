@@ -1008,7 +1008,7 @@ model CrmFollowUps {
 | `follow_up_date` | `date` | NO | *None* | The follow-up date **as stated by the customer in their own timezone**. Never converted to UTC for storage. |
 | `follow_up_time` | `varchar(5)` | NO | *None* | The follow-up time in `HH:MM` format **in the customer's timezone**. Never converted to UTC for storage. |
 | `follow_up_reason` | `varchar(255)` | NO | *None* | Dropdown selection or `'Other: <agent-typed text>'` for free-text entries. |
-| `status` | `varchar(50)` | NO | *None* | Current status. Values: `Interested`, `Call Back Later`, `No Answer`, `Busy`, `Voicemail`, `Waiting for Paycheck`, `Sale Closed`, `Not Interested`, `Price Too High`, `Purchased Elsewhere`, `Wrong Number`, `Spanish`. |
+| `status` | `varchar(50)` | NO | *None* | Current follow-up status. **[Phase 33 updated]** Values: `No Answer`, `Busy`, `Voicemail`, `Call Back Later`, `Interested`, `Not Interested`, `Waiting for Paycheck`, `Comparing Prices`, `Needs More Time`, `Price Quoted`, `Waiting for Payment`, `Sale Closed`, `Purchased Elsewhere`, `Price Too High`. |
 | `priority` | `varchar(10)` | NO | *None* | `'High'`, `'Medium'`, or `'Low'`. |
 | `notes` | `text` | YES | `NULL` | Free-form agent remarks. No image attachment (unlike `crm_comments`). |
 | `entry_date` | `datetime` | NO | `current_timestamp()` | Auto-set on record creation. **Never editable after creation.** Represents when the follow-up was first logged. |
@@ -1029,20 +1029,101 @@ model CrmFollowUps {
 - `Other: <custom text>` — stored as a single string in one column; the prefix `Other: ` is added by the form before submission.
 
 ### Follow-Up Status Values (Dropdown)
-- `Interested`
-- `Call Back Later`
+> **[Phase 33 updated]** Removed: `Wrong Number`, `Spanish`. Added: `Comparing Prices`, `Needs More Time`, `Price Quoted`, `Waiting for Payment`. No DB migration needed — column is `varchar(50)`.
+
 - `No Answer`
 - `Busy`
 - `Voicemail`
-- `Waiting for Paycheck`
-- `Sale Closed`
+- `Call Back Later`
+- `Interested`
 - `Not Interested`
-- `Price Too High`
+- `Waiting for Paycheck`
+- `Comparing Prices`
+- `Needs More Time`
+- `Price Quoted`
+- `Waiting for Payment`
+- `Sale Closed`
 - `Purchased Elsewhere`
-- `Wrong Number`
-- `Spanish`
+- `Price Too High`
 
 ### Timezone Strategy
 `follow_up_date` and `follow_up_time` are stored **exactly as the customer stated them** in their own timezone. The IANA timezone string is stored alongside in `customer_timezone`. UTC computation is performed at query time (for notification polling) using MySQL's `CONVERT_TZ()` function in the `findDueForNotification()` raw query — no UTC datetime column is stored.
 
 > **Migration:** `npx prisma migrate dev --name add_follow_ups_table`
+
+
+
+## 5. `crm_call_dispositions` Table Schema
+
+**[Phase 33]** New table for the Call Disposition feature. Tracks the outcome of every inbound call handled by an agent.
+
+*   **Engine:** InnoDB
+*   **Collation:** `utf8mb4_unicode_ci`
+
+| Column | Type | Null | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `call_id` (PK) | `int(11)` | NO | *None* | Auto-Increment primary key. |
+| `customer_phone` | `varchar(25)` | NO | *None* | Caller's phone number in `xxx-xxx-xxxx` format. Applied by `formatPhoneNumber()` from `src/lib/formatPhone.ts` before storage. Always required — the phone number is always available since it is an inbound call. |
+| `customer_name` | `varchar(255)` | YES | `NULL` | Caller's name. **Nullable** — for dispositions like Wrong Number, Spam Call, or Automated Call where no name is known. |
+| `agent_id` (FK) | `int(11)` | NO | *None* | Foreign Key → `users.uid`. `ON DELETE RESTRICT`. Auto-set from the authenticated session server-side. Never accepted from the client request body. |
+| `agent_name` | `varchar(55)` | NO | *None* | Denormalized snapshot of `users.nickname` at creation time. Same pattern as `crm_follow_ups.agent_name`. Never editable after creation. |
+| `team_id` (FK) | `int(11)` | NO | *None* | Foreign Key → `crm_teams.team_id`. `ON DELETE RESTRICT`. Snapshot of the agent's team at creation time. Auto-set from `session.user.teamId` server-side. Never accepted from the client. |
+| `disposition` | `varchar(50)` | NO | *None* | The outcome/quality of the call. Must be one of the 13 allowed values (see Disposition Values below). Stored as a plain string, not a MySQL ENUM. |
+| `created_at` | `datetime` | NO | `current_timestamp()` | Auto-set on INSERT. Represents the date and time the disposition was logged. **Displayed in EST (`America/New_York`) using Luxon.** Never editable. |
+| `updated_at` | `datetime` | NO | `current_timestamp()` (on update) | Automatically updated by Prisma `@updatedAt`. |
+
+### Disposition Values (13 options)
+- `Wrong Number`
+- `Spam Call`
+- `Local Pickup`
+- `Part Not Available`
+- `Spanish Call`
+- `Price Quoted`
+- `Sale Closed`
+- `Follow-up`
+- `Not Interested`
+- `No Voice`
+- `Low Ad Price`
+- `Automated Call`
+- `Small Parts`
+
+### Permission Model
+| Permission | ID | Role | Access |
+|---|---|---|---|
+| `call-dispositions:view` | 60 | Admin / Super Admin | View ALL agents' records. Team + Agent filters. Agent Name column. Delete. Excel export. |
+| `call-dispositions:create` | 61 | Agent | Create records. View OWN records only (enforced server-side). No delete, no export, no Team/Agent filters. |
+
+> **Migration:** `npx prisma migrate dev --name add_call_dispositions_table`
+
+---
+
+## 6. `CrmCallDispositions` Prisma Model
+
+**[Phase 33]** Add after the `CrmFollowUps` model in `schema.prisma`.
+
+```prisma
+model CrmCallDispositions {
+  callId        Int      @id @default(autoincrement()) @map("call_id")
+  customerPhone String   @map("customer_phone") @db.VarChar(25)
+  customerName  String?  @map("customer_name") @db.VarChar(255)
+  agentId       Int      @map("agent_id")
+  agentName     String   @map("agent_name") @db.VarChar(55)
+  teamId        Int      @map("team_id")
+  disposition   String   @map("disposition") @db.VarChar(50)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(0)
+
+  agent         Users    @relation("DispositionAgent", fields: [agentId], references: [uid], onDelete: Restrict)
+  team          CrmTeams @relation("TeamDispositions", fields: [teamId], references: [teamId], onDelete: Restrict)
+
+  @@index([agentId])
+  @@index([teamId])
+  @@index([disposition])
+  @@index([createdAt])
+  @@map("crm_call_dispositions")
+}
+```
+
+**Reverse relations to add:**
+- In `Users` model: `callDispositions  CrmCallDispositions[] @relation("DispositionAgent")`
+- In `CrmTeams` model: `callDispositions  CrmCallDispositions[] @relation("TeamDispositions")`
