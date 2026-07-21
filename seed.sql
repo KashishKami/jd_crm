@@ -146,7 +146,10 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (54, 'settings:manage-permissions',       'Manage role permissions matrix'),
 -- Follow-ups
 (58, 'follow-ups:view',                   'Admin-level: view all follow-ups across all agents and centers'),
-(59, 'follow-ups:create',                 'Agent-level: create and view own follow-ups only')
+(59, 'follow-ups:create',                 'Agent-level: create and view own follow-ups only'),
+-- Call-dispositions
+(60, 'call-dispositions:view',            'Admin-level: view all call dispositions across all agents, full filter controls, delete, and Excel export'),
+(61, 'call-dispositions:create',          'Agent-level: create and view own call dispositions only, no delete, no export')
 ON DUPLICATE KEY UPDATE permission_description = VALUES(permission_description);
 
 -- ============================================================
@@ -168,7 +171,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,41),(1,42),(1,43),(1,44),(1,45),(1,46),
 (1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53),
 (1,54),
-(1,58),(1,59);
+(1,58),(1,59),(1,60),(1,61);
 
 -- Admin (role_id = 2) — all 59 permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -182,11 +185,11 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,41),(2,42),(2,43),(2,44),(2,45),(2,46),
 (2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53),
 (2,54),
-(2,58),(2,59);
+(2,58),(2,59),(2,60),(2,61);
 
--- Agent (role_id = 8) — follow-ups:create permission only
+-- Agent (role_id = 8) — follow-ups:create and call-dispositions:create permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(8,59);
+(8,59),(8,61);
 
 -- ============================================================
 -- 6. Users (Super Admin + 42 Agents)

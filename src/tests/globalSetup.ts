@@ -70,6 +70,7 @@ export async function teardown() {
   await conn.query('SET FOREIGN_KEY_CHECKS = 0');
   
   const tables = [
+    'crm_call_dispositions',
     'crm_follow_ups',
     'crm_comments',
     'crm_sale_status_history',

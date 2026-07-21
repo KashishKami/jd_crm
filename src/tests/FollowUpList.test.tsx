@@ -255,4 +255,45 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
       expect(searchCallExists).toBe(true);
     });
   });
+  it('should hide the daysLabel badge in the table when status is Not Interested', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: 1, userPermissions: 'follow-ups:view,follow-ups:create' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const notInterestedFollowUps = [
+      {
+        ...mockFollowUps[0],
+        status: 'Not Interested',
+        daysLabel: 'Tomorrow',
+      },
+    ];
+
+    vi.mocked(global.fetch).mockImplementation(async (url) => {
+      if (url.toString().includes('/api/follow-ups')) {
+        return {
+          ok: true,
+          json: async () => ({ followUps: notInterestedFollowUps, total: 1 }),
+        } as any;
+      }
+      if (url.toString().includes('/api/teams') || url.toString().includes('/api/agents')) {
+        return {
+          ok: true,
+          json: async () => [],
+        } as any;
+      }
+      return { ok: false } as any;
+    });
+
+    render(<FollowUpListContainer />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Alice Springs')).not.toBeNull();
+    });
+
+    // daysLabel badge must NOT appear when status is 'Not Interested'
+    expect(screen.queryByText('Tomorrow')).toBeNull();
+  });
 });

@@ -22,8 +22,10 @@ const STATUS_OPTIONS = [
   'Not Interested',
   'Price Too High',
   'Purchased Elsewhere',
-  'Wrong Number',
-  'Spanish',
+  'Comparing Prices',
+  'Needs More Time',
+  'Price Quoted',
+  'Waiting for Payment',
 ];
 
 interface FollowUpListContainerProps {

@@ -53,6 +53,7 @@ model Users {
   academicRecord     UsersProfileAcademic[]
   professionalRecord UsersProfileProfessional[]
   followUps          CrmFollowUps[]             @relation("FollowUpAgent")
+  callDispositions   CrmCallDispositions[]      @relation("DispositionAgent")
 
   @@index([roleId], map: "users_role_id_fkey")
   @@index([teamId], map: "users_team_id_fkey")
@@ -334,11 +335,12 @@ model Usercheck {
 }
 
 model CrmTeams {
-  teamId      Int       @id @default(autoincrement()) @map("team_id")
-  teamName    String    @map("team_name") @db.VarChar(155)
-  teamCreated DateTime  @default(now()) @map("team_created") @db.DateTime(0)
-  teamUpdated DateTime? @map("team_updated") @db.DateTime(0)
-  users       Users[]
+  teamId           Int                   @id @default(autoincrement()) @map("team_id")
+  teamName         String                @map("team_name") @db.VarChar(155)
+  teamCreated      DateTime              @default(now()) @map("team_created") @db.DateTime(0)
+  teamUpdated      DateTime?             @map("team_updated") @db.DateTime(0)
+  users            Users[]
+  callDispositions CrmCallDispositions[] @relation("TeamDispositions")
 
   @@map("crm_teams")
 }
@@ -467,5 +469,26 @@ model CrmFollowUps {
   @@index([status])
   @@index([priority])
   @@map("crm_follow_ups")
+}
+
+model CrmCallDispositions {
+  callId        Int      @id @default(autoincrement()) @map("call_id")
+  customerPhone String   @map("customer_phone") @db.VarChar(25)
+  customerName  String?  @map("customer_name") @db.VarChar(255)
+  agentId       Int      @map("agent_id")
+  agentName     String   @map("agent_name") @db.VarChar(55)
+  teamId        Int      @map("team_id")
+  disposition   String   @map("disposition") @db.VarChar(50)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(0)
+
+  agent         Users    @relation("DispositionAgent", fields: [agentId], references: [uid], onDelete: Restrict)
+  team          CrmTeams @relation("TeamDispositions", fields: [teamId], references: [teamId], onDelete: Restrict)
+
+  @@index([agentId])
+  @@index([teamId])
+  @@index([disposition])
+  @@index([createdAt])
+  @@map("crm_call_dispositions")
 }
 

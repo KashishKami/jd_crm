@@ -149,4 +149,24 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
     expect(screen.queryByText(/3:30 PM/)).not.toBeNull();
     expect(screen.queryByText(/Sep 2, 2026/)).not.toBeNull();
   });
+
+  it('should hide the Relative Day field when status is Not Interested', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
+    });
+
+    const notInterestedRecord = {
+      ...mockRecord,
+      status: 'Not Interested',
+    };
+    vi.mocked(followupService.getFollowUpById).mockResolvedValue(notInterestedRecord as any);
+
+    const pageComponent = await FollowUpDetailPage({ params: Promise.resolve({ id: '10' }) });
+    render(pageComponent);
+
+    // 'Relative Day' label must NOT appear
+    expect(screen.queryByText('Relative Day')).toBeNull();
+    // The computed daysLabel value ('Tomorrow') must also NOT appear
+    expect(screen.queryByText('Tomorrow')).toBeNull();
+  });
 });

@@ -122,6 +122,19 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </li>
             )}
 
+            {(hasPermission(permissions, 'call-dispositions:view') || hasPermission(permissions, 'call-dispositions:create')) && (
+              <li className="nav-item">
+                <Link
+                  href="/call-dispositions"
+                  prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
+                  className={`nav-pill-btn ${isActive('/call-dispositions') ? 'active' : ''}`}
+                >
+                  Call Dispositions
+                </Link>
+              </li>
+            )}
+
             {hasPermission(permissions, 'vendors:view') && (
               <li className="nav-item">
                 <Link

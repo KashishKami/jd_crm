@@ -1157,5 +1157,17 @@ html, .app-container {
   }
 }
 
+/* Mid-size screens: shrink navigation pills to prevent push out */
+@media (min-width: 769px) and (max-width: 1180px) {
+  .nav-pill-btn {
+    padding: 6px 10px;
+    font-size: 0.74rem;
+  }
+  .navbar-middle {
+    margin: 0 8px;
+  }
+}
+
+
 
 

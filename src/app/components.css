@@ -284,6 +284,13 @@
   border-radius: 50px;
 }
 
+.badge-disposition {
+  background-color: var(--accent-color-light, #e0f2fe);
+  color: var(--accent-color, #0369a1);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
 .status-active {
   background-color: #f2f7f4;
   color: #5c8f76;

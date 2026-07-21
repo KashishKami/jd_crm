@@ -329,12 +329,14 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                   })()}
                 </span>
               </div>
-              <div className="form-group">
-                <span className="form-label">Relative Day</span>
-                <span className={getDaysLabelBadgeClass(daysLabel)} style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                  {daysLabel}
-                </span>
-              </div>
+              {record.status !== 'Not Interested' && (
+                <div className="form-group">
+                  <span className="form-label">Relative Day</span>
+                  <span className={getDaysLabelBadgeClass(daysLabel)} style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                    {daysLabel}
+                  </span>
+                </div>
+              )}
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <span className="form-label">Reason</span>
                 <span className="info-value">{record.followUpReason}</span>

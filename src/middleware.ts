@@ -15,6 +15,7 @@ export default withAuth(
       '/gateways': 'gateways:view',
       '/orders': 'orders:view',
       '/follow-ups': 'follow-ups:view',
+      '/call-dispositions': 'call-dispositions:view',
       '/pending/booking': 'orders:view-pending-booking',
       '/pending/shipment': 'orders:view-pending-shipment',
       '/pending/delivery': 'orders:view-pending-delivery',
@@ -43,6 +44,12 @@ export default withAuth(
       } else if (matchedPath === '/follow-ups') {
         const canView = hasPermission(userPermissions, 'follow-ups:view');
         const canCreate = hasPermission(userPermissions, 'follow-ups:create');
+        if (!canView && !canCreate) {
+          return NextResponse.redirect(new URL('/access-denied', req.url));
+        }
+      } else if (matchedPath === '/call-dispositions') {
+        const canView = hasPermission(userPermissions, 'call-dispositions:view');
+        const canCreate = hasPermission(userPermissions, 'call-dispositions:create');
         if (!canView && !canCreate) {
           return NextResponse.redirect(new URL('/access-denied', req.url));
         }

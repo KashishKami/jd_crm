@@ -94,11 +94,13 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                   <tr key={f.followUpId}>
                     <td>
                       <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textAlign: 'center' }}>
-                        <div>
-                          <span className={getDaysLabelBadgeClass(f.daysLabel)}>
-                            {f.daysLabel}
-                          </span>
-                        </div>
+                        {f.status !== 'Not Interested' && (
+                          <div>
+                            <span className={getDaysLabelBadgeClass(f.daysLabel)}>
+                              {f.daysLabel}
+                            </span>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
                           {(() => {
                             const pureDate = f.followUpDate.includes('T') ? f.followUpDate.split('T')[0] : f.followUpDate;
