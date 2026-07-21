@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE `crm_call_dispositions` (
-    `call_id` INTEGER NOT NULL AUTOINCREMENT,
+    `call_id` INTEGER NOT NULL AUTO_INCREMENT,
     `customer_phone` VARCHAR(25) NOT NULL,
     `customer_name` VARCHAR(255) NULL,
     `agent_id` INTEGER NOT NULL,
