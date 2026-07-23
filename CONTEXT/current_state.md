@@ -10114,3 +10114,30 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     *   **Backup Setup Guide Rewritten ([backup_setup_guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/DATABASE_AND_SETUP_GUIDES/backup_setup_guide.md)):** Added "How the Two Backup Paths Work" architecture table at the top (explains why the manual UI button works without `run-backup.js` — Next.js compiles API routes automatically — while the cron needs the separately compiled bundle). Documented all three approaches with rejection reasons. Corrected cron command to `0 23 * * 6 docker exec jd_crm_app node run-backup.js >> /jd_crm_backup/backup.log 2>&1`. Updated manual test command.
     *   **Verified Locally:** `docker compose up --build -d` succeeded (79.5s build). `docker exec jd_crm_app node run-backup.js` confirmed `SUCCESS — Saved: jd_crm_2026-07-23_20-34-02.sql.gz`.
 
+
+### Session 100 - July 24, 2026
+
+*   **Navigation Context-Awareness Fix (Orders & Follow-Ups) + JWT 24-Hour Hard Expiry:**
+    *   **Root Cause Analysis (Navigation Bugs):**
+        1.  **Edit page always returned to detail:** `EditOrderForm.tsx` and `EditFollowUpForm.tsx` had hardcoded `router.push('/[module]/[id]')` calls for both Save and Cancel -- they always landed on the detail page regardless of where the user came from.
+        2.  **BackButton was fragile:** `BackButton.tsx` called `router.back()`, which depended on the browser history stack. If the user had visited the edit page in between, the stack was corrupted and `router.back()` could take them anywhere.
+        3.  **`coming_from_detail` stored `'true'` not the full URL:** The Follow-Up list stored a plain `'true'` boolean sentinel, losing the page number and filter state. The Order list stored just `'/orders'`, also losing filter state.
+    *   **Fix -- New `EditDetailLink` Component ([EditDetailLink.tsx](file:///c:/Users/Administrator/Desktop/JD CRM/src/components/EditDetailLink.tsx)):**
+        *   Created a new reusable client component as a drop-in replacement for `<Link>` on detail-page "Edit" buttons.
+        *   On click, saves `sessionStorage.setItem('edit_return_to', currentDetailPageURL)` before navigating to the edit form.
+        *   Replaced the static `<Link href=".../edit">` on both [orders/[id]/page.tsx](file:///c:/Users/Administrator/Desktop/JD CRM/src/app/orders/[id]/page.tsx) and [follow-ups/[id]/page.tsx](file:///c:/Users/Administrator/Desktop/JD CRM/src/app/follow-ups/[id]/page.tsx) with `<EditDetailLink>`.
+    *   **Fix -- `EditOrderForm.tsx` & `EditFollowUpForm.tsx` -- Context-Aware Navigation:**
+        *   Added a `handleNavigateBack()` helper in both forms that reads `edit_return_to` from `sessionStorage`, navigates to that URL (clearing the key), and falls back to the detail page if the key is absent (e.g., direct URL access).
+        *   Replaced all 4 Cancel button `router.push(...)` calls in `EditOrderForm.tsx` (header, desktop footer, mobile footer) and the 1 in `EditFollowUpForm.tsx` with `handleNavigateBack()`. Also replaced the on-save navigation call in both forms.
+    *   **Fix -- `OrderList.tsx` & `FollowUpList.tsx` -- Full URL Storage:**
+        *   Updated all "Details" link `onClick` handlers to store the full URL (`pathname + search`) in `coming_from_detail` (e.g. `/orders?page=3&status=Pending+Booking`), replacing the previous root-only value.
+        *   Added `onClick` handlers to the "Edit" action buttons in both lists to save both `coming_from_detail` (for scroll/page restoration when returning to list) and `edit_return_to` (for the edit form to navigate back here after save/cancel).
+    *   **Fix -- `BackButton.tsx` -- Deterministic Navigation:**
+        *   Replaced `router.back()` with a deterministic `router.push(savedReturnUrl)` that reads the full list URL from `coming_from_detail`. Falls back to the list root path if no saved URL exists (e.g. direct URL access).
+    *   **Fix -- `FollowUpListContainer.tsx` -- Restoration Logic Update:**
+        *   Updated the mount `useEffect` restoration check from `=== 'true'` to `startsWith('/follow-ups')` to match the new full-URL format stored by `FollowUpList.tsx`.
+    *   **JWT 24-Hour Hard Expiry ([route.ts](file:///c:/Users/Administrator/Desktop/JD CRM/src/app/api/auth/[...nextauth]/route.ts)):**
+        *   Added `loginTime: nowSeconds` to the JWT token in the `jwt()` callback on first login (when `user` object is present).
+        *   Added a hard expiry gate: if `nowSeconds - token.loginTime > 86400` (24h), the callback returns `{}` (an empty object) -- the NextAuth canonical signal to invalidate the session -- forcing the user to re-login regardless of how active they were.
+        *   This resolves the rolling session issue where `maxAge` alone was being reset on every active request, allowing users to stay logged in indefinitely.
+    *   **Test Results:** TypeScript (`tsc --noEmit`) passed with 0 errors. Full Vitest suite -- **499 tests across 67 test files -- all passed GREEN** with zero regressions.

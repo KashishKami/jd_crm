@@ -29,6 +29,13 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isCachedRef = useRef(false);
+  // Guard flag: prevents in-flight scroll events from poisoning the next page's
+  // scroll key during a page transition (same race fix as OrderListContainer).
+  const pageChangingRef = useRef(false);
+  // One-shot gate: scroll restoration must only happen ONCE per mount — on the
+  // initial load when returning from a detail page. After that, page changes
+  // must never trigger restoration, even though isDetailReturn stays true.
+  const hasRestoredScrollRef = useRef(false);
   const [isDetailReturn] = useState<boolean>(() =>
     typeof window !== 'undefined' &&
     (sessionStorage.getItem('coming_from_detail') === '/orders' ||
@@ -214,6 +221,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleScroll = () => {
+      if (pageChangingRef.current) return; // ignore during page transitions
       if (window.scrollY > 0) {
         const key = `scroll_position_${window.location.pathname}${window.location.search}`;
         sessionStorage.setItem(key, String(window.scrollY));
@@ -223,18 +231,22 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     return () => window.removeEventListener('scroll', handleScroll);
   }, [page, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
 
-  // Restore scroll position when loading completes and rows are in the DOM ONLY IF returning from detail page
+  // Restore scroll position when loading completes ONLY on the FIRST render
+  // after returning from a detail page. hasRestoredScrollRef ensures this fires
+  // exactly once per mount — subsequent page changes must never trigger it.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (hasRestoredScrollRef.current) return; // already ran — skip for page changes
 
     const key = `scroll_position_${window.location.pathname}${window.location.search}`;
     if (!isDetailReturn) {
+      hasRestoredScrollRef.current = true;
       sessionStorage.removeItem(key);
       return;
     }
 
-
     if (!loading && orders.length > 0) {
+      hasRestoredScrollRef.current = true; // mark done before async scroll
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll) {
         const scrollY = parseInt(savedScroll, 10);
@@ -274,11 +286,32 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Block the scroll listener from writing during the transition.
+      // Without this, in-flight scroll events from the current page fire
+      // AFTER history.pushState changes the URL, poisoning the new page's
+      // scroll key with the old page's offset.
+      pageChangingRef.current = true;
+
+      // Clear the saved scroll position for the page we are leaving.
+      const currentScrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      sessionStorage.removeItem(currentScrollKey);
+
+      // Scroll to top instantly — 'smooth' generates its own scroll events
+      // that can outlast the guard window and corrupt the next page's scroll key.
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
       const params = new URLSearchParams(window.location.search);
       params.set('page', String(newPage));
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.pushState(null, '', newUrl);
+
+      // Also wipe the new page's key in case anything slipped through
+      // before pageChangingRef was set.
+      sessionStorage.removeItem(`scroll_position_${newUrl}`);
+
+      // Allow scroll saves again after any in-flight events have drained.
+      setTimeout(() => {
+        pageChangingRef.current = false;
+      }, 200);
     }
   };
 

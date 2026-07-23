@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+
+
 import { COUNTRY_STATE_MAP, STATE_TIMEZONE_MAP } from '../lib/geography';
 import { formatPhoneNumber } from '../lib/formatPhone';
 
@@ -61,6 +62,21 @@ interface EditFollowUpFormProps {
 
 export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
   const router = useRouter();
+
+  // Context-aware navigation: return to wherever the user came from (list or detail page).
+  // edit_return_to is set by FollowUpList (list → edit) or EditDetailLink (detail → edit).
+  const handleNavigateBack = () => {
+    if (typeof window !== 'undefined') {
+      const returnTo = sessionStorage.getItem('edit_return_to');
+      if (returnTo) {
+        sessionStorage.removeItem('edit_return_to');
+        router.push(returnTo);
+        return;
+      }
+    }
+    // Fallback: go to the follow-up detail page (original behaviour).
+    router.push(`/follow-ups/${record.followUpId}`);
+  };
 
   const isOtherReason = record.followUpReason?.startsWith('Other: ');
   const initialReason = isOtherReason ? 'Other (Please specify)' : record.followUpReason;
@@ -186,7 +202,7 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
         }
       }
 
-      router.push(`/follow-ups/${record.followUpId}`);
+      handleNavigateBack();
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -500,12 +516,13 @@ export default function EditFollowUpForm({ record }: EditFollowUpFormProps) {
 
 
       <div className="follow-up-actions-area" style={{ gridArea: 'actions', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <Link
-          href={`/follow-ups/${record.followUpId}`}
+        <button
+          type="button"
+          onClick={() => handleNavigateBack()}
           className="btn-secondary-custom"
         >
           Cancel
-        </Link>
+        </button>
         <button
           type="submit"
           disabled={submitting}

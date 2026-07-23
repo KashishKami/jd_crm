@@ -9,6 +9,7 @@ import * as followupService from '../../../service/followup.service';
 import BackButton from '../../../components/BackButton';
 import DeleteFollowUpButton from '../../../components/DeleteFollowUpButton';
 import DetailPageMarker from '../../../components/DetailPageMarker';
+import EditDetailLink from '../../../components/EditDetailLink';
 import { formatPhoneNumber } from '../../../lib/formatPhone';
 import { formatDateDDMMYYYY } from '../../../lib/date';
 
@@ -190,13 +191,13 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
         <div className="flex gap-3 header-actions-flex">
           <BackButton label="Back to List" />
           {canEdit && (
-            <Link
+            <EditDetailLink
               href={`/follow-ups/${record.followUpId}/edit`}
               className="btn-primary-custom"
               style={{ textDecoration: 'none' }}
             >
               Edit Follow-up
-            </Link>
+            </EditDetailLink>
           )}
           {canViewAll && <DeleteFollowUpButton followUpId={record.followUpId} />}
         </div>

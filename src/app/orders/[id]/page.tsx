@@ -18,6 +18,7 @@ import OrderAuditLog from '../../../components/OrderAuditLog';
 import LedgerCardItem from '../../../components/LedgerCardItem';
 import PartSpecsViewer from '../../../components/PartSpecsViewer';
 import FinancialBreakdownCard from '../../../components/FinancialBreakdownCard';
+import EditDetailLink from '../../../components/EditDetailLink';
 
 
 export const metadata = {
@@ -370,9 +371,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div className="flex gap-3">
           <BackButton label="Back to Orders" />
           {canEdit && (
-            <Link href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom" style={{ textDecoration: 'none' }}>
+            <EditDetailLink href={`/orders/${order.crmOrderId}/edit`} className="btn-primary-custom" style={{ textDecoration: 'none' }}>
               Edit Order
-            </Link>
+            </EditDetailLink>
           )}
           {canDelete && (
             <DeleteOrderButton orderId={order.crmOrderId} />

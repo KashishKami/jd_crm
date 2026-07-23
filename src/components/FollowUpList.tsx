@@ -192,8 +192,10 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                             className="action-link-btn view"
                             style={{ fontSize: '0.72rem', fontWeight: 600 }}
                             onClick={() => {
-                              // Set the sessionStorage flag to enable list cache restoration on back click
-                              sessionStorage.setItem('coming_from_detail', 'true');
+                              const fullUrl = window.location.pathname + window.location.search;
+                              sessionStorage.setItem(`scroll_position_${fullUrl}`, String(window.scrollY));
+                              // Store full URL so BackButton can return to the exact list position.
+                              sessionStorage.setItem('coming_from_detail', fullUrl);
                             }}
                           >
                             Details
@@ -202,6 +204,13 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                             href={`/follow-ups/${f.followUpId}/edit`}
                             className="action-link-btn edit"
                             style={{ fontSize: '0.72rem', fontWeight: 600 }}
+                            onClick={() => {
+                              const fullUrl = window.location.pathname + window.location.search;
+                              sessionStorage.setItem(`scroll_position_${fullUrl}`, String(window.scrollY));
+                              // Save full list URL for both scroll restoration and edit form return.
+                              sessionStorage.setItem('coming_from_detail', fullUrl);
+                              sessionStorage.setItem('edit_return_to', fullUrl);
+                            }}
                           >
                             Edit
                           </Link>

@@ -368,9 +368,10 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                           href={`/orders/${order.crmOrderId}`}
                           prefetch={false}
                           onClick={() => {
-                            const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
-                            sessionStorage.setItem(scrollKey, String(window.scrollY));
-                            sessionStorage.setItem('coming_from_detail', '/orders');
+                            const fullUrl = window.location.pathname + window.location.search;
+                            sessionStorage.setItem(`scroll_position_${fullUrl}`, String(window.scrollY));
+                            // Store the full URL (with page + filters) so BackButton can return here exactly.
+                            sessionStorage.setItem('coming_from_detail', fullUrl);
                           }}
 
 
@@ -613,9 +614,10 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                             href={`/orders/${order.crmOrderId}`}
                             prefetch={false}
                             onClick={() => {
-                              const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
-                              sessionStorage.setItem(scrollKey, String(window.scrollY));
-                              sessionStorage.setItem('coming_from_detail', '/orders');
+                              const fullUrl = window.location.pathname + window.location.search;
+                              sessionStorage.setItem(`scroll_position_${fullUrl}`, String(window.scrollY));
+                              // Store the full URL (with page + filters) so BackButton can return here exactly.
+                              sessionStorage.setItem('coming_from_detail', fullUrl);
                             }}
 
 
@@ -630,7 +632,20 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                             Edit
                           </span>
                         ) : (
-                          <Link href={`/orders/${order.crmOrderId}/edit`} prefetch={false} className="action-link-btn edit" style={{ fontSize: '0.92em' }}>
+                          <Link
+                            href={`/orders/${order.crmOrderId}/edit`}
+                            prefetch={false}
+                            className="action-link-btn edit"
+                            style={{ fontSize: '0.92em' }}
+                            onClick={() => {
+                              const fullUrl = window.location.pathname + window.location.search;
+                              sessionStorage.setItem(`scroll_position_${fullUrl}`, String(window.scrollY));
+                              // Save full list URL as coming_from_detail (for scroll/page restoration)
+                              // and as edit_return_to (so EditOrderForm returns here after save/cancel).
+                              sessionStorage.setItem('coming_from_detail', fullUrl);
+                              sessionStorage.setItem('edit_return_to', fullUrl);
+                            }}
+                          >
                             Edit
                           </Link>
                         )}

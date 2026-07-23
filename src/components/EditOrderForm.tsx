@@ -55,6 +55,21 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Context-aware navigation: return to wherever the user came from (list or detail page).
+  // edit_return_to is set by OrderList (list → edit) or EditDetailLink (detail → edit).
+  const handleNavigateBack = () => {
+    if (typeof window !== 'undefined') {
+      const returnTo = sessionStorage.getItem('edit_return_to');
+      if (returnTo) {
+        sessionStorage.removeItem('edit_return_to');
+        router.push(returnTo);
+        return;
+      }
+    }
+    // Fallback: go to the order detail page (original behaviour).
+    router.push(`/orders/${order.crmOrderId}`);
+  };
+
   const effectiveCurrency = order.parentOrderId ? (order.parentOrder?.orderCurrency || 'USD') : (order.orderCurrency || 'USD');
   const effectiveRate = order.parentOrderId ? (order.parentOrder?.orderExchangeRate || '1') : (order.orderExchangeRate || '1');
 
@@ -559,7 +574,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         }
       }
 
-      router.push(`/orders/${order.crmOrderId}`);
+      handleNavigateBack();
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
       setError(errorMsg);
@@ -582,7 +597,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         </div>
         <button
           type="button"
-          onClick={() => router.push(`/orders/${order.crmOrderId}`)}
+          onClick={() => handleNavigateBack()}
           className="btn-secondary-custom"
         >
           Cancel
@@ -1608,7 +1623,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           <div className="form-actions desktop-actions-only" style={{ marginTop: '32px' }}>
             <button
               type="button"
-              onClick={() => router.push(`/orders/${order.crmOrderId}`)}
+              onClick={() => handleNavigateBack()}
               className="btn-secondary-custom"
             >
               Cancel
@@ -1670,7 +1685,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
       <div className="form-actions mobile-actions-only" style={{ marginTop: '24px' }}>
         <button
           type="button"
-          onClick={() => router.push(`/orders/${order.crmOrderId}`)}
+          onClick={() => handleNavigateBack()}
           className="btn-secondary-custom"
         >
           Cancel

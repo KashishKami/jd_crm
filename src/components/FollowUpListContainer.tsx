@@ -96,6 +96,12 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
   const isRestoringRef = useRef(true);
   const isCachedRef = useRef(false);
+  // Guard flag: prevents in-flight scroll events from poisoning the next page's
+  // scroll key during a page transition (same race fix as OrderListContainer).
+  const pageChangingRef = useRef(false);
+  // One-shot gate: scroll restoration must only fire ONCE per mount.
+  // Page changes must never retrigger it even though isDetailReturnRef stays true.
+  const hasRestoredScrollRef = useRef(false);
   const isDetailReturnRef = useRef<boolean>(
     typeof window !== 'undefined' &&
     (sessionStorage.getItem('coming_from_detail') === '/follow-ups' ||
@@ -119,8 +125,10 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
   // Restore cache and scroll position on mount ONLY if coming from detail view
   useEffect(() => {
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail') === 'true';
-    sessionStorage.removeItem('coming_from_detail');
+    // coming_from_detail now stores the full list URL (e.g. /follow-ups?page=2&status=...)
+    // so we check with startsWith instead of the old === 'true' sentinel.
+    const savedFromDetail = sessionStorage.getItem('coming_from_detail');
+    const comingFromDetail = Boolean(savedFromDetail && savedFromDetail.startsWith('/follow-ups'));
 
     if (comingFromDetail) {
       const params = new URLSearchParams(window.location.search);
@@ -205,6 +213,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleScroll = () => {
+      if (pageChangingRef.current) return; // ignore during page transitions
       if (window.scrollY > 0) {
         const key = `scroll_position_${window.location.pathname}${window.location.search}`;
         sessionStorage.setItem(key, String(window.scrollY));
@@ -214,16 +223,21 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     return () => window.removeEventListener('scroll', handleScroll);
   }, [page, priorityFilter, statusFilter, dateFrom, dateTo, teamFilter, agentFilter]);
 
-  // Restore scroll position ONLY IF coming from detail page.
+  // Restore scroll position ONLY on the FIRST render after returning from detail.
+  // hasRestoredScrollRef ensures this never fires again on subsequent page changes.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (hasRestoredScrollRef.current) return; // one-shot: skip on page changes
+
     const key = `scroll_position_${window.location.pathname}${window.location.search}`;
     if (!isDetailReturnRef.current) {
+      hasRestoredScrollRef.current = true;
       sessionStorage.removeItem(key);
       return;
     }
 
     if (!loading && followUps.length > 0) {
+      hasRestoredScrollRef.current = true; // mark done before async scroll
       const savedScroll = sessionStorage.getItem(key);
       if (savedScroll) {
         const scrollY = parseInt(savedScroll, 10);
@@ -355,10 +369,29 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     if (typeof window !== 'undefined') {
+      // Block the scroll listener during the transition to prevent in-flight
+      // scroll events from writing the old page's scrollY under the new URL.
+      pageChangingRef.current = true;
+
+      // Clear the saved scroll position for the page we are leaving.
+      const currentScrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      sessionStorage.removeItem(currentScrollKey);
+
+      // Instant scroll — 'smooth' generates scroll events that outlast the
+      // guard window and corrupt the next page's scroll key.
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
       const params = new URLSearchParams(window.location.search);
       params.set('page', String(newPage));
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.pushState(null, '', newUrl);
+
+      // Wipe the new page key in case anything slipped through before the guard was set.
+      sessionStorage.removeItem(`scroll_position_${newUrl}`);
+
+      // Allow scroll saves again after in-flight events have drained.
+      setTimeout(() => {
+        pageChangingRef.current = false;
+      }, 200);
     }
   };
 

@@ -49,12 +49,26 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const MAX_AGE_SECONDS = 24 * 60 * 60; // 24 hours
+
       if (user) {
+        // Fresh login — record the exact login timestamp in the token.
         token.uid = user.id;
         token.nickname = user.nickname;
         token.userPermissions = user.userPermissions;
         token.teamId = user.teamId;
+        token.loginTime = nowSeconds;
       }
+
+      // Hard expiry: if 24 hours have elapsed since the original login, invalidate the token.
+      // This forces re-login even if the user has been continuously active, because
+      // NextAuth's rolling session would otherwise reset the cookie expiry on every request.
+      if (token.loginTime && nowSeconds - (token.loginTime as number) > MAX_AGE_SECONDS) {
+        // Returning an empty object signals NextAuth to treat the session as expired.
+        return {} as typeof token;
+      }
+
       return token;
     },
     async session({ session, token }) {
