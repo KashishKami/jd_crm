@@ -10097,3 +10097,11 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     *   **TypeScript & Routing:** Fixed type safety issue in `GET` route by wrapping Next.js `NextResponse` constructor argument in `new Uint8Array(buffer)`.
     *   **Reorganization of Documentation:** Created [backup_setup_guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/CONTEXT/backup_setup_guide.md) containing the host directory authorization and cron instructions. Reorganized the root directory by moving all loose markdown files (`Database setup in Godaddy.md`, `Vercel Setup Guide.md`, `jd-crm-vps-deployment-guide.md`, `performance_optimization_guide.md`, and `prompt.md`) into the `CONTEXT/` directory to keep the workspace clean.
     *   **Verification:** Verified that both `npm run typecheck` and `npm run lint` pass successfully, and all 13 unit and integration tests run and pass completely (GREEN).
+
+### Session 98 — July 23, 2026
+
+*   **Docker Container Database Backup Fixes (caching_sha2_password & SSL Errors):**
+    *   **Direct mysqldump Integration**: Refactored `runBackup` in [backup.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/lib/backup.ts) to parse the connection string from `DATABASE_URL` and execute `mysqldump` directly as a local command, bypassing the lack of the `docker` binary inside the application container.
+    *   **Container Package Updates**: Updated [Dockerfile](file:///c:/Users/Administrator/Desktop/JD%20CRM/Dockerfile) to pre-install `mysql-client` and `mariadb-connector-c` in the runner stage, resolving the missing `caching_sha2_password` authentication library error.
+    *   **SSL Bypass Flags**: Configured direct dumps to use `--skip-ssl` (for Alpine clients) and fallbacks to use `--ssl-mode=DISABLED` (for MySQL container clients) to prevent self-signed TLS/SSL certificate verification connection errors over the secure Docker internal network.
+

@@ -51,18 +51,24 @@ The automated backup is executed by the Linux OS `cron` daemon directly on the h
 
 ---
 
-## 3. Environment Variables Reference
+## 3. Optional Environment Overrides
 
-The backup logic is fully integrated with your existing Docker Compose environment variables. No new variables are required under normal operation, but the following overrides can be specified in your `/opt/jd-crm/.env` file if needed:
+Under normal operation, **no environment variables need to be set or configured**. The backup system automatically falls back to your existing settings (resolving database password to `MYSQL_ROOT_PASSWORD` and container name to `jd_crm_db`).
 
-| Variable | Description | Default / Fallback |
-| :--- | :--- | :--- |
-| `BACKUP_DIR` | Absolute path where backups are stored on host. | `/jd_crm_backup` |
-| `BACKUP_DB_NAME` | Database name to backup. | `jd_crm` |
-| `BACKUP_DB_USER` | MySQL user to run dump. | `root` |
-| `BACKUP_DB_PASSWORD` | MySQL password. | Defaults to `MYSQL_ROOT_PASSWORD` |
-| `BACKUP_CONTAINER_NAME` | Name of the MySQL container. | `jd_crm_db` |
+However, if you ever change your infrastructure in the future, you can define the following optional variables in your `.env` file to override the default behavior:
 
+- `BACKUP_DIR`: Custom host folder path to save backups (defaults to `/jd_crm_backup`).
+- `BACKUP_DB_NAME`: Custom database name to backup (defaults to `jd_crm`).
+- `BACKUP_DB_USER`: Custom MySQL user to run the dump (defaults to `root`).
+- `BACKUP_DB_PASSWORD`: Custom database password (defaults to `MYSQL_ROOT_PASSWORD`).
+- `BACKUP_CONTAINER_NAME`: Custom name of the Docker database container (defaults to `jd_crm_db`).
+
+The only time you would ever need to define those variables in the future is if you decide to:
+- Rename your MySQL container to something other than jd_crm_db.
+- Rename your database to something other than jd_crm.
+- Use a different MySQL username instead of root to run the dump.
+- Save the backups to a different folder path on the server filesystem.
+Because your current setup matches these defaults exactly, the backup logic runs automatically without you having to define any of these environment variables.
 ---
 
 ## 4. Manual Verification & Logs

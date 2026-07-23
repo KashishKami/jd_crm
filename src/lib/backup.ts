@@ -6,16 +6,46 @@
 const BACKUP_RETENTION_COUNT = 4;
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as zlib from 'zlib';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Read from environment variable so integration tests can override to a temp dir.
-// On production this must be set to: BACKUP_DIR=/jd_crm_backup
 export type BackupResult =
   | { success: true;  filename: string; filepath: string; deletedFiles: string[] }
   | { success: false; error: string };
+
+function getConnectionDetails() {
+  const url = process.env.DATABASE_URL;
+  if (url) {
+    try {
+      const cleanedUrl = url.replace('mysql://', '');
+      const [auth, rest0] = cleanedUrl.split('@');
+      const [user, password] = auth.split(':');
+      const [hostPort, dbName] = rest0.split('/');
+      const [host, portStr] = hostPort.split(':');
+      const port = portStr ? parseInt(portStr, 10) : 3306;
+      return {
+        user: decodeURIComponent(user),
+        password: decodeURIComponent(password),
+        host,
+        port,
+        database: dbName.split('?')[0]
+      };
+    } catch (err) {
+      // ignore and fallback
+    }
+  }
+
+  // Fallback to standard env parameters
+  return {
+    user: process.env.BACKUP_DB_USER ?? 'root',
+    password: process.env.BACKUP_DB_PASSWORD ?? process.env.MYSQL_ROOT_PASSWORD ?? 'root_password',
+    host: process.env.BACKUP_CONTAINER_NAME ?? 'jd_crm_db',
+    port: 3306,
+    database: process.env.BACKUP_DB_NAME ?? 'jd_crm'
+  };
+}
 
 export async function runBackup(): Promise<BackupResult> {
   const BACKUP_DIR = process.env.BACKUP_DIR ?? '/jd_crm_backup';
@@ -30,22 +60,57 @@ export async function runBackup(): Promise<BackupResult> {
   const filepath = path.join(BACKUP_DIR, filename);
 
   // 3. Run mysqldump inside the Docker container.
-  //    All credentials are read from environment variables — never hardcoded.
-  const dbName        = process.env.BACKUP_DB_NAME        ?? 'jd_crm';
-  const dbUser        = process.env.BACKUP_DB_USER        ?? 'root';
-  const dbPassword    = process.env.BACKUP_DB_PASSWORD    ?? process.env.MYSQL_ROOT_PASSWORD ?? 'root_password';
+  const creds = getConnectionDetails();
   const containerName = process.env.BACKUP_CONTAINER_NAME ?? 'jd_crm_db';
 
-  let sqlDump: Buffer;
+  let sqlDump: Buffer | null = null;
+  let errorMsg = '';
+
+  // Method 1: Try direct mysqldump (ideal inside docker container where mysql-client is installed)
   try {
-    sqlDump = execSync(
-      `docker exec ${containerName} mysqldump -u${dbUser} -p${dbPassword} ${dbName}`,
-      { maxBuffer: 500 * 1024 * 1024 } // 500 MB max — increase if DB is larger
-    );
+    const res = spawnSync('mysqldump', [
+      '-h', creds.host,
+      '-P', String(creds.port),
+      `-u${creds.user}`,
+      `-p${creds.password}`,
+      '--skip-ssl',
+      creds.database
+    ], { maxBuffer: 500 * 1024 * 1024 });
+
+    if (res.status === 0 && res.stdout && res.stdout.length > 0) {
+      sqlDump = res.stdout;
+    } else {
+      errorMsg = res.stderr?.toString() || 'mysqldump exited with non-zero status';
+    }
   } catch (err: any) {
-    // mysqldump failed. Return error WITHOUT running cleanup.
-    // All existing backup files are preserved.
-    return { success: false, error: `mysqldump failed: ${String(err.message ?? err)}` };
+    errorMsg = err.message || String(err);
+  }
+
+  // Method 2: Fallback to docker exec if direct mysqldump failed (common on Windows developer hosts)
+  if (!sqlDump) {
+    try {
+      const res = spawnSync('docker', [
+        'exec',
+        containerName,
+        'mysqldump',
+        `-u${creds.user}`,
+        `-p${creds.password}`,
+        '--ssl-mode=DISABLED',
+        creds.database
+      ], { maxBuffer: 500 * 1024 * 1024 });
+
+      if (res.status === 0 && res.stdout && res.stdout.length > 0) {
+        sqlDump = res.stdout;
+      } else {
+        errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${res.stderr?.toString() || 'Unknown docker error'}`;
+      }
+    } catch (err: any) {
+      errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${err.message || String(err)}`;
+    }
+  }
+
+  if (!sqlDump) {
+    return { success: false, error: errorMsg };
   }
 
   // 4. Compress with gzip and write to disk.

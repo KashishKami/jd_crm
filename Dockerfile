@@ -31,6 +31,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+# Install mysql-client and mariadb-connector-c to run mysqldump inside the container
+RUN apk add --no-cache mysql-client mariadb-connector-c
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
