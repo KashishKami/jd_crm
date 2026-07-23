@@ -43,6 +43,9 @@ services:
       - jdcrm_net
     volumes:
       - crm_uploads:/app/public/uploads
+      # Maps db_backup folder in project root to container for persisting manual backups.
+      # Note: If running locally without Docker (e.g. npm run dev), it defaults to C:\jd_crm_backup\
+      - ./db_backup:/jd_crm_backup
 
 networks:
   jdcrm_net:

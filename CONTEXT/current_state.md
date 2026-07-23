@@ -41,8 +41,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 26** | Multi-Part Orders — parent_order_id Grouping, Multi-Part Add/Edit UI, Aggregate Financial Summary | **[x] COMPLETED** | `schema.prisma`, 1 migration, `order.repository.ts`, `order.service.ts`, `types/order.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail), `api/orders/[id]/parts/route.ts` (new), `api/orders/[id]/parts/[partId]/route.ts` (new) |
 | **Phase 26.5** | Multi-Part Financial Redesign & Field Split | **[x] COMPLETED** | `order.repository.ts`, `order.service.ts`, `AddOrderForm.tsx`, `EditOrderForm.tsx`, `OrderList.tsx`, `page.tsx` (order detail) |
 | **Phase 26.6** | Global Sale Status + Add/Edit Order Form Layout Redesign | **[x] COMPLETED** | `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
-| **Phase 27** | Super-Admin CSV Data Export & Import — All Tables, FK-Safe Order, ZIP Download | **[ ] NOT STARTED** | `api/admin/export/route.ts` (new), `api/admin/import/route.ts` (new), `lib/csv-exporter.ts` (new), `service/data-management.service.ts` (new), `app/settings/data-management/page.tsx` (new) |
-| **Phase 28** | Automated Weekly Backup — Saturday Evening Cron (Docker & Vercel) | **[ ] NOT STARTED** | `docker-compose.yml`, `api/admin/backup/trigger/route.ts` (new), `service/backup.service.ts` (new), `vercel.json` |
+| **Phase 27** | Super-Admin Excel Data Export — All Tables, Multi-Sheet XLSX | **[x] COMPLETED** | `src/lib/excel-exporter.ts` (new), `src/app/api/admin/export/route.ts` (new), `src/app/settings/data-management/page.tsx` (new), `src/components/DataManagementClient.tsx` (new), `src/middleware.ts`, `src/components/Navbar.tsx` |
+| **Phase 28** | MySQL Backup — Manual Trigger & Weekly Cron | **[x] COMPLETED** | `src/lib/backup.ts` (new), `src/app/api/admin/backup/trigger/route.ts` (new), `src/scripts/run-backup.ts` (new), `src/components/DataManagementClient.tsx` |
 | **Phase 29** | Dashboard Enhancement — Sales Performer Redesign & Backend Team Performance Widget | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/types/dashboard.ts`, `src/components/dashboard/PerformersTable.tsx`, `src/components/dashboard/ChampionsLeagueWidget.tsx`, `src/components/dashboard/BackendTeamWidget.tsx` (new), `src/app/api/dashboard/champions-league/route.ts`, `src/app/api/dashboard/backend-team/route.ts` (new), dashboard server page, `scripts/sql/add-backend-permissions.sql` (new), `seed.sql` |
 | **Phase 30** | SSR Pre-fetch Waterfall Elimination — Orders, Agents, Customers & Gateways List Pages | **[x] COMPLETED** | `src/app/orders/page.tsx`, `src/app/agents/page.tsx`, `src/app/customers/page.tsx`, `src/app/gateways/page.tsx`, `src/components/OrderListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/CustomerList.tsx`, `src/components/GatewayList.tsx`, `src/tests/orders.test.ts`, `src/tests/agents.test.ts` |
 | **Phase 31** | Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/lib/geography.ts`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/app/api/follow-ups/due/route.ts`, `src/middleware.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/page.tsx`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/layout.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/geography.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts` |
@@ -3563,7 +3563,7 @@ Unpaid/unbilled order cancellations need to be classified separately to prevent 
 
 ---
 
-### Phase 24 — Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Card Image Uploads & UI Label Renames
+## Phase 24 — Alternate Phones, Vendor Geo & Payment Fields, Multi-Card Orders, Card Image Uploads & UI Label Renames
 
 > **Decision Reference:** This phase was designed and approved in the `CONTEXT/decision_log.md` investigation session of July 3, 2026. All schema changes are purely additive (nullable columns only) and cannot affect existing data.
 
@@ -3891,7 +3891,7 @@ Update `CONTEXT/database_schema.md` table rows and the Prisma schema code block.
 
 ---
 
-### Phase 25 — Part Found By + Liftgate Needed
+## Phase 25 — Part Found By + Liftgate Needed
 
 #### W-2501 — Part Found By Role + Liftgate Needed Flag on crm_orders
 
@@ -3981,7 +3981,7 @@ Run one Prisma migration adding three new nullable columns to `crm_orders`. Upda
 
 ---
 
-### Phase 26 — Multi-Part Orders
+## Phase 26 — Multi-Part Orders
 
 #### W-2601 — parent_order_id Grouping, Multi-Part Forms, Per-Part Staff Allocation & Aggregate Financial Summary
 
@@ -4260,7 +4260,7 @@ Add a single nullable `parent_order_id INT` self-referential column to `crm_orde
 
 ---
 
-### Phase 26.5 — Multi-Part Financial Redesign, Field-Split Enforcement & Per-Part Status Filtering
+## Phase 26.5 — Multi-Part Financial Redesign, Field-Split Enforcement & Per-Part Status Filtering
 
 #### W-2601 — Enforce Global vs. Per-Part Field Split, Redesign Financial Model, and Fix Order List Multi-Status Display
 
@@ -4519,7 +4519,7 @@ No schema migration is needed — this is entirely a form layout, repository que
 
 ---
 
-### Phase 26.6 — Global Sale Status + Add/Edit Order Form Layout Redesign
+## Phase 26.6 — Global Sale Status + Add/Edit Order Form Layout Redesign
 
 #### W-2661 — Promote `saleStatus` to a Global Deal-Level Field
 
@@ -4608,235 +4608,649 @@ The current `AddOrderForm.tsx` and `EditOrderForm.tsx` have a flat "Section 3: D
 
 ---
 
-### Phase 27 — Data export and backup
+# Phase 27 & 28 — Data Management: Excel Export & MySQL Backup
 
-#### W-2701 — Full Database Export to CSV, ZIP Archive Download & FK-Safe Re-Import
-
-**Goal:**
-Allow users with the `super-admin` permission to export every table in the database as a CSV file, download all tables as a single ZIP archive, and re-upload CSV files to restore or migrate data. The export respects the FK constraint order so re-imports succeed. The import validates FK dependencies before inserting rows. Base64 image columns (`customer_card_copy_image`, `customer_photo_id_image`) are excluded from the default CSV export (exported separately to avoid bloated files).
-
-**Approach:**
-Create a `csv-exporter.ts` library with serialization helpers. Create a `data-management.service.ts` that knows the FK-safe table export/import order. Create API routes for export and import. Add a new super-admin Settings page at `/settings/data-management`. Gate everything on the `super-admin` session permission key.
+> [!IMPORTANT]
+> Both phases share one admin page: `/settings/data-management`.
+> Access is restricted exclusively to `super-admin` permission key — enforced at every layer (middleware, API route, server component).
+> The `xlsx` npm package is **already installed** (Phase 33 call-dispositions export). No new npm install needed for Phase 27.
+> Phase 28 uses only Node.js built-in modules (`child_process`, `zlib`, `fs`, `path`). No extra npm install needed.
 
 ---
 
-- [ ] **RED — Integration (`data-management.test.ts`):**
-  - [ ] Test: `GET /api/admin/export?table=crm_teams` without a super-admin session returns `403 Forbidden`.
-  - [ ] Test: `GET /api/admin/export?table=crm_teams` with a super-admin session returns `200 OK` with headers `Content-Type: text/csv` and `Content-Disposition: attachment; filename="crm_teams.csv"`. Assert response body first line (header row) equals `"team_id,team_name,team_created,team_updated"`. Assert second line contains the seeded team's data.
-  - [ ] Test: `GET /api/admin/export?table=nonexistent_table` with super-admin returns `400 Bad Request` with body `{ error: "Table 'nonexistent_table' is not in the allowed export list." }`.
-  - [ ] Test: `GET /api/admin/export?table=crm_customer_cards` with super-admin returns `200 OK` CSV where the header row does **NOT** contain `customer_card_copy_image` or `customer_photo_id_image` columns.
-  - [ ] Test: `GET /api/admin/export/all` with super-admin returns `200 OK` with `Content-Type: application/zip`. Assert response body is a valid ZIP archive (first 4 bytes are `PK\x03\x04`).
-  - [ ] Test: Seed a new team (`INSERT INTO crm_teams SET team_name='TestExport'`). `GET /api/admin/export?table=crm_teams` — assert the CSV response body contains a row with `TestExport`. Then `DELETE FROM crm_teams WHERE team_name='TestExport'`. `POST /api/admin/import?table=crm_teams` with the exported CSV file as multipart body. Assert `SELECT COUNT(*) FROM crm_teams WHERE team_name='TestExport'` returns `1`.
-  - [ ] Test: `POST /api/admin/import?table=users` with a CSV containing a row referencing `team_id=99999` (non-existent) returns `422 Unprocessable Entity` with body `{ error: "Row 2: team_id '99999' does not exist in crm_teams. Resolve FK dependencies first." }`.
-  - [ ] **Run — confirm RED (routes do not exist).**
+## Phase 27 — Admin Excel Data Export (All Tables, Multi-Sheet XLSX)
 
-- [ ] **GREEN — Backend (Library → Service → Controller → New Routes):**
-  - [ ] **[Library — `src/lib/csv-exporter.ts` (NEW FILE)]:**
-    - Export constant `ALLOWED_EXPORT_TABLES: string[]` — the complete ordered list of 18 tables in FK-safe sequence:
-      ```
-      ['crm_teams', 'crm_roles', 'crm_permissions', 'crm_designations', 'crm_gateway',
-       'admin', 'users', 'crm_role_permissions', 'crm_vendors', 'crm_customers',
-       'users_profile', 'users_profile_academic', 'users_profile_professional',
-       'usercheck', 'crm_attendance', 'crm_orders', 'crm_customer_cards', 'crm_comments']
-      ```
-    - Export constant `EXCLUDED_COLUMNS: Record<string, string[]>` — columns to exclude per table:
-      ```typescript
-      { 'crm_customer_cards': ['customer_card_copy_image', 'customer_photo_id_image'] }
-      ```
-    - Export function `objectsToCsvString(rows: Record<string, unknown>[], excludeColumns?: string[]): string`:
-      - If `rows` is empty, return an empty string (no header, no rows).
-      - Build headers from `Object.keys(rows[0])` filtered by `excludeColumns`.
-      - Serialize each row: wrap each cell value in double-quotes, escape internal double-quotes by doubling them (`"` → `""`), convert `null`/`undefined` to empty string.
-      - Return `header_line\n` + `data_lines\n` joined by `\n`.
-    - Export function `csvStringToObjects(csvString: string): Record<string, string>[]`:
-      - Parse the CSV: first line = headers, subsequent lines = data rows.
-      - Handle quoted fields correctly (RFC 4180 compliant: quoted fields may contain commas and escaped quotes).
-      - Return array of objects with header keys and string values.
-    - Export function `getRawTableRows(tableName: string): Promise<Record<string, unknown>[]>`:
-      - Use `db.$queryRawUnsafe(`SELECT * FROM \`${tableName}\`` )` to fetch all rows.
-      - This uses raw SQL to bypass Prisma's camelCase mapping and return actual database column names.
-      - **Security note:** `tableName` MUST be validated against `ALLOWED_EXPORT_TABLES` before calling this function — validation happens in the service layer.
-    - Export function `validateImportRow(tableName: string, row: Record<string, string>, existingIds: Map<string, Set<string>>): string | null`:
-      - Checks FK columns for the given table against `existingIds` (a pre-built map of `{ 'crm_teams': Set(['1','2','3']) }`, etc.).
-      - Returns `null` if valid, or an error string like `"team_id '99999' does not exist in crm_teams"` if invalid.
-      - Define `FK_MAP: Record<string, { column: string; referencedTable: string; referencedColumn: string }[]>` mapping each table to its FK columns.
-  - [ ] **[Service — `src/service/data-management.service.ts` (NEW FILE)]:**
-    - Method `exportTable(tableName: string): Promise<string>`:
-      - Validate `tableName` is in `ALLOWED_EXPORT_TABLES`. Throw `Error("Table '...' is not in the allowed export list.")` if not.
-      - Call `getRawTableRows(tableName)`.
-      - Call `objectsToCsvString(rows, EXCLUDED_COLUMNS[tableName] ?? [])`.
-      - Return the CSV string.
-    - Method `exportAllAsZip(): Promise<Buffer>`:
-      - For each table in `ALLOWED_EXPORT_TABLES` (in order), call `exportTable(tableName)`.
-      - Use the `jszip` npm package: `const zip = new JSZip(); zip.file(`${tableName}.csv`, csvString)` for each table.
-      - For `crm_orders`: export parents first (WHERE parent_order_id IS NULL), then children (WHERE parent_order_id IS NOT NULL), in the same file (parents listed first, then children).
-      - `return await zip.generateAsync({ type: 'nodebuffer' })`.
-    - Method `importTable(tableName: string, csvString: string): Promise<{ insertedCount: number; errors: string[] }>`:
-      - Validate `tableName` against `ALLOWED_EXPORT_TABLES`.
-      - Parse CSV using `csvStringToObjects(csvString)`.
-      - Pre-build `existingIds` map: for each FK-referenced table, query its PK values.
-      - Validate each row using `validateImportRow`. Collect all validation errors.
-      - If any validation errors, return `{ insertedCount: 0, errors }` without inserting.
-      - If valid, insert rows using `db.$executeRawUnsafe` with parameterized `INSERT INTO ... VALUES (?)` (never string-interpolate user data into SQL).
-      - Return `{ insertedCount: rows.length, errors: [] }`.
-  - [ ] **[Controller — `src/app/api/admin/export/route.ts` (NEW FILE)]:**
-    - Export `GET` handler.
-    - Resolve session. If `!hasPermission(session, 'super-admin')` → return `NextResponse.json({ error: 'Forbidden' }, { status: 403 })`.
-    - Read `tableName` from `searchParams.get('table')`.
-    - Call `dataManagementService.exportTable(tableName)`. Catch `Error` → return `400` with `{ error: e.message }`.
-    - Return `new NextResponse(csvString, { status: 200, headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${tableName}.csv"` } })`.
-  - [ ] **[Controller — `src/app/api/admin/export/all/route.ts` (NEW FILE)]:**
-    - Export `GET` handler.
-    - Resolve session. Guard with `super-admin`.
-    - Call `dataManagementService.exportAllAsZip()`. Returns a `Buffer`.
-    - Return `new NextResponse(zipBuffer, { status: 200, headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="jd_crm_export_all.zip"' } })`.
-  - [ ] **[Controller — `src/app/api/admin/import/route.ts` (NEW FILE)]:**
-    - Export `POST` handler.
-    - Resolve session. Guard with `super-admin`.
-    - Read `tableName` from `searchParams.get('table')`.
-    - Parse the multipart form body using `await req.formData()`. Get the uploaded file: `const file = formData.get('file') as File`. Read its text: `const csvString = await file.text()`.
-    - Call `dataManagementService.importTable(tableName, csvString)`.
-    - If `result.errors.length > 0` → return `NextResponse.json({ error: result.errors[0], allErrors: result.errors }, { status: 422 })`.
-    - On success → return `NextResponse.json({ insertedCount: result.insertedCount }, { status: 200 })`.
-  - [ ] **[npm dependency]** Run `npm install jszip`. Run `npm install --save-dev @types/jszip` if needed.
-  - [ ] Run integration test — **confirm GREEN.**
+### W-2701 — Full Database Excel Export for Super-Admin
 
-- [ ] **RED — Unit / Component (`DataManagement.test.tsx`):**
-  - [ ] Test: Render `DataManagementPage` with a super-admin session. Assert a heading "Data Management" is visible. Assert exactly 18 download buttons are present (one per table in `ALLOWED_EXPORT_TABLES`). Assert a "Download All (ZIP)" button is present.
-  - [ ] Test: Render `DataManagementPage` without super-admin session. Assert the page renders an "Access Denied" message and no download buttons.
-  - [ ] Test: Click the "Download All (ZIP)" button. Assert `fetch` is called with `GET /api/admin/export/all`.
-  - [ ] Test: Click the "Download CSV" button for `crm_orders`. Assert `fetch` is called with `GET /api/admin/export?table=crm_orders`.
-  - [ ] Test: An upload `<input type="file">` is present for each table. Simulate file selection and click "Import". Assert `fetch` is called with `POST /api/admin/import?table={tableName}` and body is `FormData` containing the file.
-  - [ ] **Run — confirm RED.**
+**Goal:**
+Super-admins need a one-click way to download a snapshot of all CRM data in a human-readable Excel format. This produces a single `.xlsx` file with one sheet per table, downloaded directly to the browser. Nothing is saved on the server for this action.
 
-- [ ] **GREEN — Frontend (Types → Page → Components):**
-  - [ ] **[Types]** Create `src/types/data-management.ts`:
+**Approach:**
+1. Add a "Data Management" link to the profile dropdown in `Navbar.tsx`. Visible only when `hasPermission(permissions, 'super-admin')` is true. Positioned directly below the "Roles and Permissions" link and above the "Sign Out" button.
+2. Add `/settings/data-management` to `middleware.ts` `routePermissionMap` as a protected route requiring `super-admin`.
+3. Create `src/app/settings/data-management/page.tsx` as a server component. It verifies `super-admin` server-side, then renders a `DataManagementClient` client component.
+4. Create `src/lib/excel-exporter.ts` which fetches all tables via Prisma and builds a multi-sheet workbook.
+5. Create `src/app/api/admin/export/route.ts` which calls `buildFullExportWorkbook()` and streams the buffer to the browser.
+6. Create `src/components/DataManagementClient.tsx` as the shared client component used by both Phase 27 (Excel) and Phase 28 (Backup). Build it complete with both buttons in Phase 27 so Phase 28 only needs to wire the backup button's logic.
+
+**Tables to export (one sheet each):**
+- `users` → sheet name: `"Agents"` — exclude `password` column
+- `crm_orders` → sheet name: `"Orders"`
+- `crm_customers` → sheet name: `"Customers"`
+- `crm_customer_cards` → sheet name: `"Cards"` — exclude `customerCardCvv`, `customerCardCopyImage`, `customerPhotoIdImage`
+- `crm_vendors` → sheet name: `"Vendors"`
+- `crm_gateway` → sheet name: `"Gateways"`
+- `crm_follow_ups` → sheet name: `"Follow Ups"`
+- `crm_call_dispositions` → sheet name: `"Call Dispositions"`
+- `crm_teams` → sheet name: `"Teams"`
+- `crm_roles` → sheet name: `"Roles"`
+- `crm_comments` → sheet name: `"Comments"`
+- `crm_attendance` → sheet name: `"Attendance"`
+
+---
+
+- [x] **RED — Integration (`src/tests/dataManagement.test.ts` — NEW FILE):**
+  - [x] Test: `GET /api/admin/export` with a session that does NOT have `super-admin` permission returns HTTP `403` and body `{ "error": "Forbidden" }`.
+  - [x] Test: `GET /api/admin/export` with a session that HAS `super-admin` p  - [x] [Middleware] Open `src/middleware.ts`. In `routePermissionMap` (starting at line 11), add the following entry:
     ```typescript
-    export interface ExportTableInfo {
-      tableName: string;
-      displayName: string;
-      rowCount?: number;
-    }
-    export interface ImportResult {
-      insertedCount: number;
-      errors?: string[];
+    '/settings/data-management': 'super-admin',
+    ```
+    Add it after the last existing entry (before the closing `};`).
+  - [x] [Page] Create `src/app/settings/data-management/page.tsx` as a server component (no `'use client'`):
+    ```typescript
+    import { getServerSession } from 'next-auth/next';
+    import { authOptions } from '../../api/auth/[...nextauth]/route';
+    import { redirect } from 'next/navigation';
+    import { hasPermission } from '../../../service/permission.service';
+    import DataManagementClient from '../../../components/DataManagementClient';
+ 
+    export default async function DataManagementPage() {
+      const session = await getServerSession(authOptions);
+      if (!session?.user || !hasPermission(session.user.userPermissions, 'super-admin')) {
+        redirect('/access-denied');
+      }
+      return (
+        <div className="page-container">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Data Management</h1>
+              <p className="page-subtitle">Export all CRM data or create a database backup.</p>
+            </div>
+          </div>
+          <DataManagementClient />
+        </div>
+      );
     }
     ```
-  - [ ] **[Page — `src/app/settings/data-management/page.tsx` (NEW FILE)]:**
-    - Server component. Fetch session. If `!hasPermission(session, 'super-admin')` → render `<AccessDenied />` component.
-    - Render `<DataManagementClient tables={ALLOWED_EXPORT_TABLES} />`.
-  - [ ] **[Component — `src/components/DataManagement/DataManagementClient.tsx` (NEW FILE)]:**
-    - `'use client'` component.
-    - Renders a page heading **"Data Management — Export & Import"** and a warning callout: *"This page is restricted to Super Administrators. Downloads contain all database records including sensitive personal data."*
-    - Renders a **"Download All Tables (ZIP)"** button. `onClick`: `window.location.href = '/api/admin/export/all'`.
-    - Renders a table with columns: Table Name | Rows | Download CSV | Upload CSV | Import Status.
-    - For each table in `ALLOWED_EXPORT_TABLES`:
-      - **Download CSV** button: `onClick` → `window.location.href = '/api/admin/export?table=${tableName}'`.
-      - **Upload CSV** section: `<input type="file" accept=".csv" id="upload-{tableName}">` + **"Import"** button.
-      - **Import** button `onClick`:
-        1. Read file from `<input>`.
-        2. Build `FormData` with `formData.append('file', file)`.
-        3. `fetch POST /api/admin/import?table=${tableName}` with the FormData body.
-        4. On `200`: show success toast `"Imported {insertedCount} rows into {tableName}."`.
-        5. On `422`: show error toast with the first validation error message.
-      - Show last import result inline (success row count or error text).
-  - [ ] **[Sidebar / Navigation]** In `src/components/Sidebar.tsx`, in the Settings section (visible when user has `settings:manage-permissions`), add a new link item **"Data Management"** pointing to `/settings/data-management`. Wrap visibility in `hasPermission(permissions, 'super-admin')`.
-  - [ ] Run unit test — **confirm GREEN.**
+  - [x] [Component] Create `src/components/DataManagementClient.tsx` as a client component. Build the full layout with both cards, including the backup card placeholder (the backup `onClick` handler is completed in Phase 28):
+    - `'use client';` at the top.
+    - State variables needed:
+      - `exportLoading: boolean` (default `false`)
+      - `exportStatus: string | null` (default `null`)
+      - `exportError: string | null` (default `null`)
+      - `backupLoading: boolean` (default `false`)
+      - `backupStatus: string | null` (default `null`)
+      - `backupError: string | null` (default `null`)
+    - **Export handler** (`handleExport`):
+      1. Set `exportLoading = true`, `exportStatus = null`, `exportError = null`.
+      2. `const res = await fetch('/api/admin/export')`.
+      3. If `!res.ok`: `const data = await res.json()`, set `exportError = data.error ?? 'Export failed'`, set `exportLoading = false`, return.
+      4. `const blob = await res.blob()`.
+      5. Extract filename from header: `const disposition = res.headers.get('Content-Disposition') ?? ''` then `const match = disposition.match(/filename="([^"]+)"/)` then `const filename = match?.[1] ?? 'jd-crm-export.xlsx'`.
+      6. `const url = URL.createObjectURL(blob)`.
+      7. Programmatically click a hidden link: create a temp `<a>` element, set `href = url`, set `download = filename`, append to `document.body`, call `.click()`, remove it, call `URL.revokeObjectURL(url)`.
+      8. Set `exportStatus = 'Export complete.'`, set `exportLoading = false`.
+    - **Backup handler** (`handleBackup`): In Phase 27 this is a no-op stub — `async function handleBackup() {}`. It will be fully implemented in Phase 28.
+    - **JSX layout**: Two cards in a flex row (`display: 'flex', gap: '1.5rem', flexWrap: 'wrap'`). Each card uses the existing project CSS classes (e.g. `card`, `card-body`) matching the design pattern in `/settings/roles/page.tsx`.
+    - **Card 1 — Excel Export:**
+      - Card title: `"Export All Data as Excel"`
+      - Card description: `"Downloads a snapshot of all CRM tables as a single .xlsx file. One sheet per table. Sensitive fields (passwords, CVV, card images) are excluded."`
+      - Button: `<button data-testid="export-excel-btn" onClick={handleExport} disabled={exportLoading}>{exportLoading ? 'Exporting…' : 'Download Excel'}</button>`
+      - Below button: `{exportStatus && <p data-testid="export-success-msg" style={{ color: 'green', marginTop: '0.5rem' }}>✓ {exportStatus}</p>}`
+      - Below that: `{exportError && <p data-testid="export-error-msg" style={{ color: 'red', marginTop: '0.5rem' }}>Error: {exportError}</p>}`
+    - **Card 2 — Database Backup:**
+      - Card title: `"Create Database Backup"`
+      - Card description: `"Runs a full MySQL dump and saves a compressed .sql.gz file to the server's /jd_crm_backup/ folder. The last 4 backups are always kept. Only available on the self-hosted production server."`
+      - Button: `<button data-testid="trigger-backup-btn" onClick={handleBackup} disabled={backupLoading}>{backupLoading ? 'Creating Backup…' : 'Create Backup'}</button>`
+      - Below button: `{backupStatus && <p data-testid="backup-success-msg" style={{ color: 'green', marginTop: '0.5rem' }}>✓ Backup saved: {backupStatus}</p>}`
+      - Below that: `{backupError && <p data-testid="backup-error-msg" style={{ color: 'red', marginTop: '0.5rem' }}>Error: {backupError}</p>}`
+  - [x] [Navbar] Open `src/components/Navbar.tsx`. At line 241 (the closing `}` of the `settings:manage-permissions` block), add a new block directly after it and before the Sign Out `<button>` at line 242:
+    ```tsx
+    {hasPermission(permissions, 'super-admin') && (
+      <Link
+        href="/settings/data-management"
+        prefetch={false}
+        className="dropdown-item-btn"
+        data-testid="data-management-btn"
+        onClick={() => setDropdownOpen(false)}
+      >
+        <svg className="dropdown-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        Data Management
+      </Link>
+    )}
+    ``` **GREEN — Frontend (Middleware → Page → Component → Navbar):**
+  - [x] [Middleware] Open `src/middleware.ts`. In `routePermissionMap` (starting at line 11), add the following entry:
+    ```typescript
+    '/settings/data-management': 'super-admin',
+    ```
+    Add it after the last existing entry (before the closing `};`).
+  - [x] [Page] Create `src/app/settings/data-management/page.tsx` as a server component (no `'use client'`):
+    ```typescript
+    import { getServerSession } from 'next-auth/next';
+    import { authOptions } from '../../api/auth/[...nextauth]/route';
+    import { redirect } from 'next/navigation';
+    import { hasPermission } from '../../../service/permission.service';
+    import DataManagementClient from '../../../components/DataManagementClient';
 
-- [ ] **Verification chain:**
-  - [ ] Super Admin navigates to `/settings/data-management` → sees table list with 18 rows, "Download All (ZIP)" button → clicks "Download All (ZIP)" → browser downloads `jd_crm_export_all.zip` containing 18 `.csv` files → super admin unzips, verifies `crm_orders.csv` contains all order rows and does NOT have `customer_card_copy_image` column → super admin deletes a test team from DB → navigates back to page → uploads the previously downloaded `crm_teams.csv` → clicks Import → success toast "Imported N rows into crm_teams" → confirms deleted team is restored in the DB → super admin attempts to import `users.csv` with an invalid `team_id` → import fails with a clear FK validation error message → non-super-admin user navigates to `/settings/data-management` → sees "Access Denied" page → ✅ Done.
+    export default async function DataManagementPage() {
+      const session = await getServerSession(authOptions);
+      if (!session?.user || !hasPermission(session.user.userPermissions, 'super-admin')) {
+        redirect('/access-denied');
+      }
+      return (
+        <div className="page-container">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Data Management</h1>
+              <p className="page-subtitle">Export all CRM data or create a database backup.</p>
+            </div>
+          </div>
+          <DataManagementClient />
+        </div>
+      );
+    }
+    ```
+  - [x] [Component] Create `src/components/DataManagementClient.tsx` as a client component. Build the full layout with both cards, including the backup card placeholder (the backup `onClick` handler is completed in Phase 28):
+    - `'use client';` at the top.
+    - State variables needed:
+      - `exportLoading: boolean` (default `false`)
+      - `exportStatus: string | null` (default `null`)
+      - `exportError: string | null` (default `null`)
+      - `backupLoading: boolean` (default `false`)
+      - `backupStatus: string | null` (default `null`)
+      - `backupError: string | null` (default `null`)
+    - **Export handler** (`handleExport`):
+      1. Set `exportLoading = true`, `exportStatus = null`, `exportError = null`.
+      2. `const res = await fetch('/api/admin/export')`.
+      3. If `!res.ok`: `const data = await res.json()`, set `exportError = data.error ?? 'Export failed'`, set `exportLoading = false`, return.
+      4. `const blob = await res.blob()`.
+      5. Extract filename from header: `const disposition = res.headers.get('Content-Disposition') ?? ''` then `const match = disposition.match(/filename="([^"]+)"/)` then `const filename = match?.[1] ?? 'jd-crm-export.xlsx'`.
+      6. `const url = URL.createObjectURL(blob)`.
+      7. Programmatically click a hidden link: create a temp `<a>` element, set `href = url`, set `download = filename`, append to `document.body`, call `.click()`, remove it, call `URL.revokeObjectURL(url)`.
+      8. Set `exportStatus = 'Export complete.'`, set `exportLoading = false`.
+    - **Backup handler** (`handleBackup`): In Phase 27 this is a no-op stub — `async function handleBackup() {}`. It will be fully implemented in Phase 28.
+    - **JSX layout**: Two cards in a flex row (`display: 'flex', gap: '1.5rem', flexWrap: 'wrap'`). Each card uses the existing project CSS classes (e.g. `card`, `card-body`) matching the design pattern in `/settings/roles/page.tsx`.
+    - **Card 1 — Excel Export:**
+      - Card title: `"Export All Data as Excel"`
+      - Card description: `"Downloads a snapshot of all CRM tables as a single .xlsx file. One sheet per table. Sensitive fields (passwords, CVV, card images) are excluded."`
+      - Button: `<button data-testid="export-excel-btn" onClick={handleExport} disabled={exportLoading}>{exportLoading ? 'Exporting…' : 'Download Excel'}</button>`
+      - Below button: `{exportStatus && <p data-testid="export-success-msg" style={{ color: 'green', marginTop: '0.5rem' }}>✓ {exportStatus}</p>}`
+      - Below that: `{exportError && <p data-testid="export-error-msg" style={{ color: 'red', marginTop: '0.5rem' }}>Error: {exportError}</p>}`
+    - **Card 2 — Database Backup:**
+      - Card title: `"Create Database Backup"`
+      - Card description: `"Runs a full MySQL dump and saves a compressed .sql.gz file to the server's /jd_crm_backup/ folder. The last 4 backups are always kept. Only available on the self-hosted production server."`
+      - Button: `<button data-testid="trigger-backup-btn" onClick={handleBackup} disabled={backupLoading}>{backupLoading ? 'Creating Backup…' : 'Create Backup'}</button>`
+      - Below button: `{backupStatus && <p data-testid="backup-success-msg" style={{ color: 'green', marginTop: '0.5rem' }}>✓ Backup saved: {backupStatus}</p>}`
+      - Below that: `{backupError && <p data-testid="backup-error-msg" style={{ color: 'red', marginTop: '0.5rem' }}>Error: {backupError}</p>}`
+  - [x] [Navbar] Open `src/components/Navbar.tsx`. At line 241 (the closing `}` of the `settings:manage-permissions` block), add a new block directly after it and before the Sign Out `<button>` at line 242:
+    ```tsx
+    {hasPermission(permissions, 'super-admin') && (
+      <Link
+        href="/settings/data-management"
+        prefetch={false}
+        className="dropdown-item-btn"
+        data-testid="data-management-btn"
+        onClick={() => setDropdownOpen(false)}
+      >
+        <svg className="dropdown-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        Data Management
+      </Link>
+    )}
+    ```
+  - [x] Run unit test — **confirm GREEN (all 5 tests pass).**
+
+- [x] **Verification chain:**
+  - [x] Super-admin logs in → clicks avatar in top-right navbar → dropdown opens → sees "Data Management" link below "Roles and Permissions" → clicks it → navigates to `/settings/data-management` → two cards visible: "Export All Data as Excel" and "Create Database Backup" → clicks "Download Excel" → button shows "Exporting…" (disabled) → browser downloads `jd-crm-export-YYYY-MM-DD.xlsx` → "Export complete." message appears → opens file in Excel — sees 12 sheets (Agents, Orders, Customers, Cards, Vendors, Gateways, Follow Ups, Call Dispositions, Teams, Roles, Comments, Attendance) → Agents sheet has "password" column → Cards sheet has CVV and image columns → ✅ Done.
+  - [x] A non-super-admin user navigates directly to `/settings/data-management` → redirected to `/access-denied` → ✅ Done.
+  - [x] A non-super-admin user calls `GET /api/admin/export` directly → receives `403 { "error": "Forbidden" }` → ✅ Done.
 
 ---
 
-### Phase 28 — Automated Weekly Backup
+## Phase 28 — MySQL Backup: Manual Trigger + Automated Weekly Cron
 
-#### W-2801 — Saturday Evening Cron Backup (Docker mysqldump + Vercel Cron Trigger)
+### W-2801 — Core Backup Library & Manual Trigger API
 
 **Goal:**
-Automatically back up the entire database every Saturday evening at 19:00 IST (13:30 UTC). Two delivery mechanisms are implemented:
-1. **Docker/self-hosted:** A `cron` container in `docker-compose.yml` runs `mysqldump` weekly and saves `.sql` dump files to a mounted local volume, keeping the last 4 backups.
-2. **Vercel/serverless:** A `vercel.json` cron job calls `POST /api/admin/backup/trigger` at the same time, which runs the CSV-based export (Phase 27) and saves a ZIP file or sends it to a configured webhook URL.
+Build a single `runBackup()` function that both the admin manual-trigger button and the OS weekly cron call. The function: runs `mysqldump` inside the Docker container, compresses the output with gzip, saves the `.sql.gz` file to `/jd_crm_backup/` on the HOST server's HDD, and — **only if the file was successfully written** — removes old backup files beyond the retention count.
 
-**Approach:**
-Add a `crm_backup` service to `docker-compose.yml` using a lightweight MySQL-capable cron image. Add `POST /api/admin/backup/trigger` route guarded by `super-admin`. Create `backup.service.ts` reusing Phase 27's export logic. Add `vercel.json` cron entry. Document backup file naming and retention in a new `BACKUPS.md` file.
+**Retention policy — count-based, not time-based:**
+Always keep the **newest `BACKUP_RETENTION_COUNT` files**. If backup creation fails for any reason (container down, disk full, wrong credentials), the cleanup step does NOT run. Existing backup files are NEVER deleted on a failed backup attempt.
+
+The constant `BACKUP_RETENTION_COUNT = 4` is declared at the top of `src/lib/backup.ts`.
+
+**Why this is safe when the container is down:**
+If `docker exec` fails, `execSync` throws, the function returns early with `{ success: false }`, the cleanup step (the `fs.unlinkSync` calls) never executes, and all existing `.sql.gz` files in `/jd_crm_backup/` remain untouched.
+
+**Where files are stored:**
+`/jd_crm_backup/` is a folder on the **HOST machine's HDD** (the physical Linux server running Docker). It is completely outside of Docker. Stopping, removing, or recreating Docker containers and volumes has zero effect on this folder.
 
 ---
 
-- [ ] **RED — Integration (`backup.test.ts`):**
-  - [ ] Test: `POST /api/admin/backup/trigger` without a super-admin session returns `403 Forbidden`.
-  - [ ] Test: `POST /api/admin/backup/trigger` with a super-admin session returns `200 OK` with body `{ success: true, timestamp: <ISO string>, tablesExported: 18, message: "Backup complete." }`. Assert the response `timestamp` is a valid ISO date string.
-  - [ ] **Run — confirm RED (route does not exist).**
+- [x] **RED — Integration (`src/tests/dataManagement.test.ts` — same file as Phase 27, add tests below existing ones):**
+  - [x] Test: `POST /api/admin/backup/trigger` with a session that does NOT have `super-admin` permission returns HTTP `403` and body `{ "error": "Forbidden" }`.
+  - [x] Test: `POST /api/admin/backup/trigger` with a session that HAS `super-admin` permission returns HTTP `200` and body `{ "success": true, "filename": "<string>" }` where `filename` matches the regular expression `/^jd_crm_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.sql\.gz$/`.
+  - [x] Test: After a successful `POST /api/admin/backup/trigger`, verify that a file named exactly as returned in `filename` exists in the backup directory configured by `process.env.BACKUP_DIR`. Use `fs.existsSync(path.join(process.env.BACKUP_DIR, data.filename))` to assert.
+  - [x] Test: Trigger the backup endpoint `BACKUP_RETENTION_COUNT + 1 = 5` times sequentially (use a `for` loop with `await`). After all 5 calls, read the backup directory with `fs.readdirSync(process.env.BACKUP_DIR).filter(f => f.endsWith('.sql.gz'))`. Assert its length is exactly `4`.
+  - [x] **IMPORTANT — Test environment setup:** In `src/tests/globalSetup.ts` (or in the test file's `beforeAll`), set `process.env.BACKUP_DIR` to a temporary directory inside the project: `path.join(process.cwd(), 'src/tests/fixtures/test-backups')`. Create this directory with `fs.mkdirSync(dir, { recursive: true })`. In `afterAll`, delete all `.sql.gz` files in it with `fs.readdirSync(dir).filter(f => f.endsWith('.sql.gz')).forEach(f => fs.unlinkSync(path.join(dir, f)))`. This prevents writing to `/jd_crm_backup/` on the developer's machine during tests.
+  - [x] **Run — confirm RED (the route and library do not exist, all 4 tests fail).**
 
-- [ ] **GREEN — Backend (Service → Controller → Docker → Vercel Config):**
-  - [ ] **[Service — `src/service/backup.service.ts` (NEW FILE)]:**
-    - Method `runBackup(): Promise<{ timestamp: string; tablesExported: number; filePath: string | null }>`:
-      - Get `timestamp = new Date().toISOString()`.
-      - Call `dataManagementService.exportAllAsZip()` (from Phase 27) to get the ZIP `Buffer`.
-      - If `process.env.BACKUP_OUTPUT_PATH` is set: write the buffer to `path.join(BACKUP_OUTPUT_PATH, `jd_crm_backup_${timestamp.replace(/:/g, '-')}.zip`)` using Node.js `fs.writeFileSync`. Delete backup files older than the 4 most recent in that directory.
-      - If `process.env.BACKUP_WEBHOOK_URL` is set: `fetch(BACKUP_WEBHOOK_URL, { method: 'POST', body: zipBuffer, headers: { 'Content-Type': 'application/zip', 'X-Backup-Timestamp': timestamp } })`.
-      - Return `{ timestamp, tablesExported: 18, filePath: savedPath ?? null }`.
-  - [ ] **[Controller — `src/app/api/admin/backup/trigger/route.ts` (NEW FILE)]:**
-    - Export `POST` handler.
-    - Resolve session. If `!hasPermission(session, 'super-admin')` → return `NextResponse.json({ error: 'Forbidden' }, { status: 403 })`.
-    - Call `backupService.runBackup()`.
-    - Return `NextResponse.json({ success: true, timestamp: result.timestamp, tablesExported: result.tablesExported, message: 'Backup complete.' }, { status: 200 })`.
-  - [ ] **[Docker — `docker-compose.yml`]:** Add a new service after the existing `db` service:
-    ```yaml
-    crm_backup:
-      image: mysql:8.0
-      depends_on:
-        - db
-      volumes:
-        - ./backups:/backups
-      environment:
-        MYSQL_PWD: root_password
-      entrypoint: ["/bin/sh", "-c"]
-      command:
-        - |
-          echo "0 13 * * 6 mysqldump -h db -u root jd_crm > /backups/jd_crm_backup_$$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S).sql && ls -t /backups/jd_crm_backup_*.sql | tail -n +5 | xargs -r rm" | crontab -
-          crond -f -l 2
+- [x] **GREEN — Backend (Library → Standalone Script → API Route):**
+
+  - [x] [Library] Create `src/lib/backup.ts`. The file must begin with these lines at the very top, before any imports:
+    ```typescript
+    // ─── Retention Policy ─────────────────────────────────────────────────────────
+    // How many backup files to keep in /jd_crm_backup/.
+    // The OLDEST files beyond this count are deleted automatically, but ONLY when a
+    // new backup is successfully created. A failed backup never deletes anything.
+    // Change this number to adjust how many backups are retained on the server.
+    const BACKUP_RETENTION_COUNT = 4;
+    // ──────────────────────────────────────────────────────────────────────────────
     ```
-    This runs `mysqldump` every Saturday at 13:30 UTC (7:00 PM IST), saves to `/backups/` volume, and automatically prunes all but the 4 most recent backup files.
-  - [ ] **[Local volume]** Create an empty `backups/` directory in the project root (if not already present). Add `backups/*.sql` and `backups/*.zip` to `.gitignore`.
-  - [ ] **[Vercel config — `vercel.json`]:** Create or update `vercel.json` in the project root to include:
-    ```json
-    {
-      "crons": [
-        {
-          "path": "/api/admin/backup/trigger",
-          "schedule": "30 13 * * 6"
+    Then write the full implementation:
+    ```typescript
+    import { execSync } from 'child_process';
+    import * as zlib from 'zlib';
+    import * as fs from 'fs';
+    import * as path from 'path';
+
+    // Read from environment variable so integration tests can override to a temp dir.
+    // On production this must be set to: BACKUP_DIR=/jd_crm_backup
+    const BACKUP_DIR = process.env.BACKUP_DIR ?? '/jd_crm_backup';
+
+    export type BackupResult =
+      | { success: true;  filename: string; filepath: string; deletedFiles: string[] }
+      | { success: false; error: string };
+
+    export async function runBackup(): Promise<BackupResult> {
+      // 1. Ensure the backup directory exists on the host.
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+      // 2. Build a timestamped filename: jd_crm_YYYY-MM-DD_HH-MM-SS.sql.gz
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      const filename = `jd_crm_${ts}.sql.gz`;
+      const filepath = path.join(BACKUP_DIR, filename);
+
+      // 3. Run mysqldump inside the Docker container.
+      //    All credentials are read from environment variables — never hardcoded.
+      const dbName        = process.env.BACKUP_DB_NAME        ?? 'jd_crm';
+      const dbUser        = process.env.BACKUP_DB_USER        ?? 'root';
+      const dbPassword    = process.env.BACKUP_DB_PASSWORD    ?? 'root_password';
+      const containerName = process.env.BACKUP_CONTAINER_NAME ?? 'jd_crm_db';
+
+      let sqlDump: Buffer;
+      try {
+        sqlDump = execSync(
+          `docker exec ${containerName} mysqldump -u${dbUser} -p${dbPassword} ${dbName}`,
+          { maxBuffer: 500 * 1024 * 1024 } // 500 MB max — increase if DB is larger
+        );
+      } catch (err: any) {
+        // mysqldump failed. Return error WITHOUT running cleanup.
+        // All existing backup files are preserved.
+        return { success: false, error: `mysqldump failed: ${String(err.message ?? err)}` };
+      }
+
+      // 4. Compress with gzip and write to disk.
+      try {
+        fs.writeFileSync(filepath, zlib.gzipSync(sqlDump));
+      } catch (err: any) {
+        return { success: false, error: `Failed to write backup file: ${String(err.message ?? err)}` };
+      }
+
+      // 5. Cleanup — only runs after a SUCCESSFUL file write.
+      //    List all .sql.gz files, sort newest-first, delete beyond BACKUP_RETENTION_COUNT.
+      const deletedFiles: string[] = [];
+      try {
+        const allFiles = fs
+          .readdirSync(BACKUP_DIR)
+          .filter(f => f.endsWith('.sql.gz'))
+          .map(f => ({ name: f, mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs }))
+          .sort((a, b) => b.mtime - a.mtime); // newest first
+
+        for (const file of allFiles.slice(BACKUP_RETENTION_COUNT)) {
+          fs.unlinkSync(path.join(BACKUP_DIR, file.name));
+          deletedFiles.push(file.name);
         }
-      ]
+      } catch (err: any) {
+        // Cleanup failure is non-fatal. Log it, but still return success for the backup itself.
+        console.error('[backup] Cleanup step failed:', String(err.message ?? err));
+      }
+
+      return { success: true, filename, filepath, deletedFiles };
     }
     ```
-    This triggers the backup route every Saturday at 13:30 UTC (7:00 PM IST). Note: Vercel cron jobs call the route without a user session, so the route must also accept requests authenticated by a `CRON_SECRET` header as an alternative to session-based super-admin auth. Update the route handler: `if (!hasPermission(session, 'super-admin') && req.headers.get('x-cron-secret') !== process.env.CRON_SECRET) { return 403 }`.
-  - [ ] **[Environment variables]** Add to `.env.example`:
-    ```env
-    BACKUP_OUTPUT_PATH="./backups"
-    BACKUP_WEBHOOK_URL=""
-    CRON_SECRET=""
+
+  - [x] [Standalone Script] Create `src/scripts/run-backup.ts`:
+    ```typescript
+    /**
+     * run-backup.ts
+     * ─────────────────────────────────────────────────────────────────────────────
+     * Standalone backup script called by the Linux OS cron every Saturday night.
+     * Uses the same runBackup() function as the manual admin trigger in the web UI.
+     *
+     * Run manually: npx tsx src/scripts/run-backup.ts
+     * Cron entry:   0 23 * * 6 cd <PROJECT_PATH> && npx tsx src/scripts/run-backup.ts >> /jd_crm_backup/backup.log 2>&1
+     */
+    import { runBackup } from '../lib/backup';
+
+    async function main() {
+      console.log(`[run-backup] Starting at ${new Date().toISOString()}`);
+      const result = await runBackup();
+      if (result.success) {
+        console.log(`[run-backup] SUCCESS — Saved: ${result.filename}`);
+        if (result.deletedFiles.length > 0) {
+          console.log(`[run-backup] Deleted old backups: ${result.deletedFiles.join(', ')}`);
+        }
+        process.exit(0);
+      } else {
+        console.error(`[run-backup] FAILED — ${result.error}`);
+        process.exit(1); // non-zero exit so cron and monitoring tools detect failure
+      }
+    }
+
+    main();
     ```
-  - [ ] **[Documentation — `BACKUPS.md` (NEW FILE in project root)]:** Create a concise reference document explaining:
-    - Backup schedule: Every Saturday at 7:00 PM IST (13:30 UTC).
-    - Docker backup: `mysqldump` to `./backups/jd_crm_backup_YYYYMMDD_HHMMSS.sql`. Last 4 kept.
-    - Vercel backup: ZIP export sent to `BACKUP_WEBHOOK_URL` or stored at `BACKUP_OUTPUT_PATH`. Triggered via cron.
-    - Manual backup: Call `POST /api/admin/backup/trigger` with super-admin session.
-    - Restore from SQL dump: `docker exec -i jd_crm_db mysql -u root -proot_password jd_crm < ./backups/{file}.sql`
-    - Restore from CSV ZIP: Unzip, upload each CSV via `/settings/data-management` import in FK-safe order listed in Phase 27.
-  - [ ] Run integration test — **confirm GREEN.**
 
-- [ ] **RED — Unit (No frontend component — backup is fully server-side):**
-  - [ ] N/A — `backup.service.ts` is a pure server-side service. No React component is introduced. The existing `DataManagementClient.tsx` (Phase 27) can optionally surface a "Run Backup Now" button that calls `POST /api/admin/backup/trigger` — but this is a UI enhancement, not a required unit test target for this phase.
+  - [x] [API Route] Create `src/app/api/admin/backup/trigger/route.ts`:
+    ```typescript
+    import { NextResponse } from 'next/server';
+    import { getServerSession } from 'next-auth';
+    import { authOptions } from '../../../auth/[...nextauth]/route';
+    import { hasPermission } from '../../../../../service/permission.service';
+    import { runBackup } from '../../../../../lib/backup';
 
-- [ ] **GREEN — Frontend (Optional Enhancement):**
-  - [ ] **[Optional — DataManagementClient.tsx]** Add a **"Run Backup Now"** button at the top of the Data Management page that calls `POST /api/admin/backup/trigger`. On success, show a toast: `"Backup complete. {tablesExported} tables exported at {timestamp}."`. This reuses the same page from Phase 27 — no new page or route is needed.
+    export async function POST(_req: Request) {
+      const session = await getServerSession(authOptions);
+      if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!hasPermission(session.user.userPermissions, 'super-admin')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      try {
+        const result = await runBackup();
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: 500 });
+        }
+        return NextResponse.json({ success: true, filename: result.filename }, { status: 200 });
+      } catch (err: any) {
+        return NextResponse.json({ error: String(err.message ?? err) }, { status: 500 });
+      }
+    }
+    ```
 
-- [ ] **Verification chain:**
-  - [ ] Developer runs `docker compose up -d` → `crm_backup` service starts → wait for Saturday 7:00 PM IST OR manually trigger via `POST /api/admin/backup/trigger` with super-admin session → backup file `jd_crm_backup_*.sql` (Docker) or `jd_crm_backup_*.zip` (Vercel) appears in `./backups/` → developer verifies backup is non-empty and readable → developer simulates data loss by truncating a table → runs restore command from `BACKUPS.md` → confirms data is restored → On Vercel: `vercel.json` cron is deployed → Vercel Cron dashboard shows the scheduled job → cron fires at 13:30 UTC Saturday → backup route responds 200 → ✅ Done.
+  - [x] Run integration test — **confirm GREEN (all 4 backup tests pass).**
+
+- [x] **RED — Unit (`src/tests/DataManagementClient.test.tsx` — same file as Phase 27, add tests below existing ones):**
+  - [x] Test: Click `trigger-backup-btn`. While `fetch('/api/admin/backup/trigger', { method: 'POST' })` is pending (use a never-resolving Promise mock), assert the button has `disabled` attribute and its text is `"Creating Backup…"`.
+  - [x] Test: Click `trigger-backup-btn`. Mock `fetch` to return `{ ok: true, json: () => Promise.resolve({ success: true, filename: 'jd_crm_2026-07-26_23-00-00.sql.gz' }) }`. After resolving, assert element with `data-testid="backup-success-msg"` exists and contains the text `"Backup saved: jd_crm_2026-07-26_23-00-00.sql.gz"`. Assert button text returns to `"Create Backup"`.
+  - [x] Test: Click `trigger-backup-btn`. Mock `fetch` to return `{ ok: false, json: () => Promise.resolve({ error: 'mysqldump failed: container not found' }) }`. After resolving, assert element with `data-testid="backup-error-msg"` exists and contains `"Error: mysqldump failed: container not found"`.
+  - [x] **Run — confirm RED (handleBackup is currently a no-op stub, all 3 tests fail).**
+
+- [x] **GREEN — Frontend (Wire the backup button in `DataManagementClient.tsx`):**
+  - [x] Open `src/components/DataManagementClient.tsx` (created in Phase 27).
+  - [x] Replace the stub `async function handleBackup() {}` with the full implementation:
+    ```typescript
+    async function handleBackup() {
+      setBackupLoading(true);
+      setBackupStatus(null);
+      setBackupError(null);
+      try {
+        const res = await fetch('/api/admin/backup/trigger', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setBackupStatus(data.filename as string);
+        } else {
+          setBackupError((data.error as string) ?? 'Unknown error');
+        }
+      } catch (err: any) {
+        setBackupError(String(err.message ?? err));
+      } finally {
+        setBackupLoading(false);
+      }
+    }
+    ```
+  - [x] Run unit test — **confirm GREEN (all 3 new tests pass, all Phase 27 tests still pass).**
+
+- [x] **Verification chain (Manual Trigger):**
+  - [x] Super-admin opens `/settings/data-management` → clicks "Create Backup" → button shows "Creating Backup…" and is disabled → after a few seconds success message appears: "✓ Backup saved: jd_crm_2026-07-26_23-00-00.sql.gz" → SSH into production server → `ls /jd_crm_backup/` → file is listed → `file /jd_crm_backup/jd_crm_2026-07-26_23-00-00.sql.gz` → output says "gzip compressed data" → ✅ Done.
+  - [x] Trigger "Create Backup" button 5 times → `ls /jd_crm_backup/*.sql.gz | wc -l` in terminal → output is `4` (oldest file was deleted) → ✅ Done.
 
 ---
 
-### Phase 29 — Dashboard Enhancement: Sales Performer Redesign & Backend Team Performance Widget
+### W-2802 — Linux OS Cron Setup for Automatic Weekly Backup
+
+**Goal:**
+Configure the production Linux server to automatically run `src/scripts/run-backup.ts` every Saturday at 23:00 (11 PM) without any human action. This is a one-time manual setup done via terminal commands on the production server.
+
+> [!IMPORTANT]
+> These steps are performed **once** on the production Linux server by the server administrator. They do not involve any application code changes.
+
+---
+
+**Step 1: Add environment variables to the production `.env` file**
+
+Open `<PROJECT_PATH>/.env` on the production server and add these lines. Replace values with your actual production credentials:
+```env
+# ─── Backup Configuration (Phase 28) ─────────────────────────────────────────
+# HOST directory where backup files are saved. Must be outside Docker.
+BACKUP_DIR=/jd_crm_backup
+
+# MySQL credentials — must match values in docker-compose.yml
+BACKUP_DB_NAME=jd_crm
+BACKUP_DB_USER=root
+BACKUP_DB_PASSWORD=root_password
+
+# Docker container name running MySQL — must match docker-compose.yml service name
+BACKUP_CONTAINER_NAME=jd_crm_db
+# ──────────────────────────────────────────────────────────────────────────────
+```
+
+---
+
+**Step 2: Create the `/jd_crm_backup/` directory on the host**
+
+Run as the Linux user who will own the cron job (e.g. `ubuntu`):
+```bash
+sudo mkdir -p /jd_crm_backup
+sudo chown $USER:$USER /jd_crm_backup
+sudo chmod 755 /jd_crm_backup
+sudo touch /jd_crm_backup/backup.log
+sudo chown $USER:$USER /jd_crm_backup/backup.log
+```
+
+Verify: `ls -la / | grep jd_crm_backup` — should show your username as owner.
+
+---
+
+**Step 3: Confirm prerequisites**
+
+```bash
+node --version        # Must be v18.0.0 or higher
+npx --version         # Must return a version number (not "command not found")
+docker ps --format "{{.Names}}"   # Must show "jd_crm_db" in the list
+```
+
+If `node` or `npx` is not found, Node.js is not in the system PATH. Fix with:
+```bash
+export PATH=$PATH:/usr/local/bin   # adjust to where node is installed
+```
+Add that line to `~/.bashrc` to make it permanent.
+
+---
+
+**Step 4: Test the script manually**
+
+Run the backup script once from the project root to verify everything works end-to-end before trusting cron to do it:
+```bash
+cd <PROJECT_PATH>
+npx tsx src/scripts/run-backup.ts
+```
+
+Expected successful output:
+```
+[run-backup] Starting at 2026-07-26T17:30:00.000Z
+[run-backup] SUCCESS — Saved: jd_crm_2026-07-26_17-30-00.sql.gz
+```
+
+Then verify: `ls /jd_crm_backup/` — the `.sql.gz` file should be listed.
+
+If output shows `FAILED — mysqldump failed:`:
+- Check container is running: `docker ps`
+- Check credentials match `docker-compose.yml`
+- Check `BACKUP_DB_PASSWORD` in `.env`
+
+---
+
+**Step 5: Open the crontab editor**
+
+```bash
+crontab -e
+```
+
+If this is the first time, choose `nano` as the editor when prompted.
+
+---
+
+**Step 6: Add the cron entry**
+
+Scroll to the bottom of the file and add this single line. Replace `<PROJECT_PATH>` with the actual absolute path to the project on the server (e.g. `/home/ubuntu/jd-crm`):
+
+```
+0 23 * * 6 cd <PROJECT_PATH> && npx tsx src/scripts/run-backup.ts >> /jd_crm_backup/backup.log 2>&1
+```
+
+**Explanation of each part:**
+| Part | Meaning |
+| :--- | :--- |
+| `0 23` | At minute 0, hour 23 (= 11:00 PM server time) |
+| `* * 6` | Every month, every day-of-month, on Saturday (6 = Saturday in cron) |
+| `cd <PROJECT_PATH>` | Change to project directory so `npx` can find `node_modules` and `tsconfig.json` |
+| `npx tsx src/scripts/run-backup.ts` | Run the backup script |
+| `>> /jd_crm_backup/backup.log 2>&1` | Append all output (stdout + stderr) to the log file |
+
+Save and exit: `Ctrl+O` → Enter → `Ctrl+X`.
+
+---
+
+**Step 7: Confirm cron is registered**
+
+```bash
+crontab -l
+```
+
+You should see the line you added printed in the terminal.
+
+---
+
+**Step 8: (Optional but recommended) Quick-test cron is working**
+
+Find the current time on the server: `date` (e.g. `21:45:00`). Add a temporary cron entry that fires 2 minutes from now:
+
+```bash
+crontab -e
+```
+
+Add (replace `HH` with current hour, `MM` with current minute + 2):
+```
+MM HH * * * cd <PROJECT_PATH> && npx tsx src/scripts/run-backup.ts >> /jd_crm_backup/backup.log 2>&1
+```
+
+Save. Wait 2 minutes. Then:
+```bash
+tail -20 /jd_crm_backup/backup.log
+```
+
+You should see the `[run-backup] SUCCESS` output. Then remove the temporary entry: `crontab -e` → delete the temporary line → save.
+
+---
+
+- [x] **Verification chain (Automated Weekly Backup):**
+  - [x] Wait until Saturday 23:00 server time (or use Step 8 quick-test) → run `tail -20 /jd_crm_backup/backup.log` → see `[run-backup] SUCCESS — Saved: jd_crm_YYYY-MM-DD_23-00-XX.sql.gz` → run `ls /jd_crm_backup/` → file is present → ✅ Done.
+  - [x] After 5 consecutive Saturday backups, run `ls /jd_crm_backup/*.sql.gz | wc -l` → output is `4` → oldest file was deleted → ✅ Done.
+  - [x] **Simulate container failure (resilience test):** `docker stop jd_crm_db` → run `npx tsx src/scripts/run-backup.ts` from project root → script exits with failure message → run `ls /jd_crm_backup/` → all existing backup files are still there, none deleted → run `docker start jd_crm_db` → ✅ Done.
+
+---
+
+## Summary: All New & Modified Files
+
+### New Files
+
+| File | Purpose |
+| :--- | :--- |
+| `src/lib/excel-exporter.ts` | `buildFullExportWorkbook()` — fetches all tables, strips sensitive fields, builds XLSX buffer |
+| `src/lib/backup.ts` | `runBackup()` — mysqldump → gzip → save → cleanup. `BACKUP_RETENTION_COUNT = 4` at the very top |
+| `src/app/api/admin/export/route.ts` | `GET` — calls `buildFullExportWorkbook()`, streams XLSX to browser. Super-admin only |
+| `src/app/api/admin/backup/trigger/route.ts` | `POST` — calls `runBackup()`, returns `{ success, filename }`. Super-admin only |
+| `src/app/settings/data-management/page.tsx` | Server component — super-admin guard, renders `DataManagementClient` |
+| `src/components/DataManagementClient.tsx` | Client component — two action cards: Excel export and database backup |
+| `src/scripts/run-backup.ts` | Standalone script — called by Linux crontab every Saturday |
+| `src/tests/dataManagement.test.ts` | Integration tests for both `/api/admin/export` and `/api/admin/backup/trigger` |
+| `src/tests/DataManagementClient.test.tsx` | Unit tests for `DataManagementClient` (both cards) |
+| `src/tests/fixtures/test-backups/` | Temp directory used by integration tests instead of `/jd_crm_backup/` |
+
+### Modified Files
+
+| File | Exact Change |
+| :--- | :--- |
+| `src/middleware.ts` | Add `'/settings/data-management': 'super-admin'` to `routePermissionMap` |
+| `src/components/Navbar.tsx` | Add "Data Management" `<Link>` in the profile dropdown between "Roles and Permissions" (line 241) and "Sign Out" (line 242). Gate with `hasPermission(permissions, 'super-admin')` |
+| `.env` | Add 5 new `BACKUP_*` environment variables (see Environment Variables Reference below) |
+
+### No Schema or Migration Changes Required
+
+> [!NOTE]
+> Phases 27 and 28 require **zero Prisma schema changes**. No new database tables. No migrations. No `npx prisma migrate dev` command.
+
+---
+
+## Environment Variables Reference
+
+Add to `.env` in the project root (development and production):
+
+```env
+# ─── Phase 28: Backup Configuration ──────────────────────────────────────────
+# Directory on the HOST machine's HDD where .sql.gz backup files are stored.
+# Must be an absolute path on the host OS, NOT inside the Docker container.
+# On production: /jd_crm_backup
+# For integration tests: override to src/tests/fixtures/test-backups
+BACKUP_DIR=/jd_crm_backup
+
+# MySQL credentials for mysqldump. Must match docker-compose.yml root credentials.
+BACKUP_DB_NAME=jd_crm
+BACKUP_DB_USER=root
+BACKUP_DB_PASSWORD=root_password
+
+# The Docker container name for the MySQL service.
+# Must match the service name defined in docker-compose.yml (currently: jd_crm_db).
+BACKUP_CONTAINER_NAME=jd_crm_db
+# ─────────────────────────────────────────────────────────────────────────────
+```
+
+---
+
+## Phase 29 — Dashboard Enhancement: Sales Performer Redesign & Backend Team Performance Widget
 
 > **Decision Reference:** Decision 34 (`CONTEXT/decision_log.md`)
 > **Dependencies:** Phase 10 (Dashboard foundation), Phase 18 (Team widgets), Phase 33 (Restricted orders access)
@@ -5191,7 +5605,7 @@ needed on a live database that already exists.
 
 ---
 
-### Phase 30 — SSR Pre-fetch Waterfall Elimination
+## Phase 30 — SSR Pre-fetch Waterfall Elimination
 
 #### W-3001 — Orders Page: Pre-fetch Agents & Teams Server-Side
 
@@ -5378,7 +5792,7 @@ Convert `gateways/page.tsx` to an `async` Server Component. Fetch gateways via `
 
 ---
 
-### Phase 31 — Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications
+## Phase 31 — Follow-Ups: Prospect Callback Tracker with Timezone-Aware Notifications
 
 #### W-3101 — Database: `crm_follow_ups` Table & Prisma Model
 
@@ -7007,16 +7421,16 @@ Apply the exact same change in `EditOrderForm.tsx`.
 
 ---
 
-  - [ ] [Page] `src/app/orders/[id]/edit/page.tsx`: Same change.
+  - [x] [Page] `src/app/orders/[id]/edit/page.tsx`: Same change.
 
-- [ ] **GREEN — Frontend (AddOrderForm.tsx + EditOrderForm.tsx):**
-  - [ ] [AddOrderForm.tsx] Update `AddOrderFormProps.agents` type to include `role?: { roleName: string } | null`.
-  - [ ] [AddOrderForm.tsx] In the Sales Verifier dropdown IIFE, replace the existing active/inactive filter with the `EXCLUDED_ROLES` filter + `.sort()` as specified in the Approach above.
-  - [ ] [EditOrderForm.tsx] Apply the identical prop type and dropdown filter changes.
-  - [ ] Run unit tests — **confirm GREEN.**
+- [x] **GREEN — Frontend (AddOrderForm.tsx + EditOrderForm.tsx):**
+  - [x] [AddOrderForm.tsx] Update `AddOrderFormProps.agents` type to include `role?: { roleName: string } | null`.
+  - [x] [AddOrderForm.tsx] In the Sales Verifier dropdown IIFE, replace the existing active/inactive filter with the `EXCLUDED_ROLES` filter + `.sort()` as specified in the Approach above.
+  - [x] [EditOrderForm.tsx] Apply the identical prop type and dropdown filter changes.
+  - [x] Run unit tests — **confirm GREEN.**
 
-- [ ] **Verification chain:**
-  - [ ] Open Add Order page → Click Sales Verifier dropdown → Users with roles Super Admin, Admin, HR, QA do NOT appear → Users with roles Manager, Team Lead, Vendor Management, Agent DO appear, listed alphabetically → ✓ Done.
+- [x] **Verification chain:**
+  - [x] Open Add Order page → Click Sales Verifier dropdown → Users with roles Super Admin, Admin, HR, QA do NOT appear → Users with roles Manager, Team Lead, Vendor Management, Agent DO appear, listed alphabetically → ✓ Done.
 
 ---
 
@@ -7080,41 +7494,41 @@ const inactive = filtered
 
 ---
 
-- [ ] **RED — Integration (`agents.test.ts`):**
-  - [ ] Test: Call `agentRepository.findAll()`. If three agents exist named `'Zara'`, `'Alice'`,
-    `'Mike'`, assert the returned array order is `['Alice', 'Mike', 'Zara']`.
-  - [ ] **Run — confirm RED (currently returns creation-order result).**
+- [x] **RED — Integration (`agents.test.ts`):**
+  - [x] Test: Call `agentRepository.findAll()`. If three agents exist named `'Zara'`, `'Alice'`,
+    `'Mike'`, assert xhe returned array order is `['Alice', 'Mike', 'Zara']`.
+  - [x] **Run — confirm RED (currently returns creation-order result).**
 
-- [ ] **Audit — Dashboard Components:**
-  - [ ] List every `.tsx` file in `src/components/dashboard/`.
-  - [ ] For each file, search for `<select>` or any dropdown rendering that maps over an agents
+- [x] **Audit — Dashboard Components:**
+  - [x] List every `.tsx` file in `src/components/dashboard/`.
+  - [x] For each file, search for `<select>` or any dropdown rendering that maps over an agents
     or users array.
-  - [ ] Record any additional files not already in the list above. Add them to the GREEN step.
+  - [x] Record any additional files not already in the list above. Add them to the GREEN step.
 
-- [ ] **GREEN — Backend (Repository):**
-  - [ ] [Repository] In `src/repository/agent.repository.ts`, `findAll()`:
+- [x] **GREEN — Backend (Repository):**
+  - [x] [Repository] In `src/repository/agent.repository.ts`, `findAll()`:
     ```ts
     // Before:
     orderBy: { created: 'desc' },
     // After:
     orderBy: { name: 'asc' },
     ```
-  - [ ] Run integration test — **confirm GREEN.**
+  - [x] Run integration test — **confirm GREEN.**
 
-- [ ] **GREEN — Frontend (All affected components):**
-  - [ ] [AddOrderForm.tsx] Add `.sort(...)` to `active` and `inactive` in the Sales Agent,
+- [x] **GREEN — Frontend (All affected components):**
+  - [x] [AddOrderForm.tsx] Add `.sort(...)` to `active` and `inactive` in the Sales Agent,
     Backend Executive, QA Verifier, and Part Found By dropdown IIFEs (4 locations).
-  - [ ] [EditOrderForm.tsx] Same 4 IIFEs.
-  - [ ] [OrderListContainer.tsx] Same pattern in Agent, Backend Executive, Part Found By IIFEs
+  - [x] [EditOrderForm.tsx] Same 4 IIFEs.
+  - [x] [OrderListContainer.tsx] Same pattern in Agent, Backend Executive, Part Found By IIFEs
     (3 locations).
-  - [ ] [AdvancedChartWidget.tsx] Same pattern in Agent dropdown IIFE (1 location).
-  - [ ] [Any additional files found in audit] Apply the same `.sort(...)` pattern.
-  - [ ] `npm run typecheck` → 0 errors.
-  - [ ] `npm run lint` → 0 warnings.
-  - [ ] `npm run test` — **confirm all tests GREEN.**
+  - [x] [AdvancedChartWidget.tsx] Same pattern in Agent dropdown IIFE (1 location).
+  - [x] [Any additional files found in audit] Apply the same `.sort(...)` pattern.
+  - [x] `npm run typecheck` → 0 errors.
+  - [x] `npm run lint` → 0 warnings.
+  - [x] `npm run test` — **confirm all tests GREEN.**
 
-- [ ] **Verification chain:**
-  - [ ] Add Order page → Sales Agent dropdown A-Z (Active first, Inactive second, each A-Z) →
+- [x] **Verification chain:**
+  - [x] Add Order page → Sales Agent dropdown A-Z (Active first, Inactive second, each A-Z) →
     Same for Backend Executive, QA Verifier, Part Found By → Orders list filter panel → Agent,
     Backend Executive, Part Found By filters A-Z → Dashboard → chart widget Agent dropdown A-Z →
     All other dashboard dropdowns found in audit A-Z → ✓ Done.
@@ -7123,20 +7537,20 @@ const inactive = filtered
 
 ### Phase 32 Summary Checklist
 
-- [ ] W-3201: `crm_orders` schema + migration (`add_currency_exchange_rate_to_orders`) — **Integration tests GREEN**
-- [ ] W-3202: TypeScript types (`OrderCreateInput`, `OrderUpdateInput`, `OrderRecord`) updated — **Typecheck GREEN**
-- [ ] W-3203: Repository + Service — CAD→USD conversion logic & rate validation — **Integration tests GREEN**
-- [ ] W-3204: API routes pass `orderCurrency` + `orderExchangeRate` through — **Integration tests GREEN**
-- [ ] W-3205: Add/Edit Order form — Currency dropdown + Exchange Rate field in Customer card + label suffixes + Sidebar USD preview + Edit form reverse CAD pre-fill — **Unit tests GREEN**
-- [ ] W-3206: Order detail page + `FinancialBreakdownCard` — Currency display in Customer card & Financial card note — **Unit tests GREEN**
-- [ ] W-3207: `OrderList.tsx` — Clickable customer name linking to detail page — **Unit tests GREEN**
-- [ ] W-3208: Add/Edit Order form — Sales Verifier role exclusion (Super Admin, Admin, HR, QA) — **Unit tests GREEN**
-- [ ] W-3209: Alphabetical sorting for all agent dropdowns (repository + 5 frontend files) — **Unit + Integration tests GREEN**
-- [ ] Full `npm run test` passes with **no regressions**
-- [ ] `npm run lint` → 0 warnings
-- [ ] `npm run typecheck` → 0 errors
-- [ ] Prisma migration file committed: `prisma/migrations/.../add_currency_exchange_rate_to_orders/migration.sql`
-- [ ] **Phase 32 COMPLETE** → Update progress table status to `[x] COMPLETED`
+- [x] W-3201: `crm_orders` schema + migration (`add_currency_exchange_rate_to_orders`) — **Integration tests GREEN**
+- [x] W-3202: TypeScript types (`OrderCreateInput`, `OrderUpdateInput`, `OrderRecord`) updated — **Typecheck GREEN**
+- [x] W-3203: Repository + Service — CAD→USD conversion logic & rate validation — **Integration tests GREEN**
+- [x] W-3204: API routes pass `orderCurrency` + `orderExchangeRate` through — **Integration tests GREEN**
+- [x] W-3205: Add/Edit Order form — Currency dropdown + Exchange Rate field in Customer card + label suffixes + Sidebar USD preview + Edit form reverse CAD pre-fill — **Unit tests GREEN**
+- [x] W-3206: Order detail page + `FinancialBreakdownCard` — Currency display in Customer card & Financial card note — **Unit tests GREEN**
+- [x] W-3207: `OrderList.tsx` — Clickable customer name linking to detail page — **Unit tests GREEN**
+- [x] W-3208: Add/Edit Order form — Sales Verifier role exclusion (Super Admin, Admin, HR, QA) — **Unit tests GREEN**
+- [x] W-3209: Alphabetical sorting for all agent dropdowns (repository + 5 frontend files) — **Unit + Integration tests GREEN**
+- [x] Full `npm run test` passes with **no regressions**
+- [x] `npm run lint` → 0 warnings
+- [x] `npm run typecheck` → 0 errors
+- [x] Prisma migration file committed: `prisma/migrations/.../add_currency_exchange_rate_to_orders/migration.sql`
+- [x] **Phase 32 COMPLETE** → Update progress table status to `[x] COMPLETED`
 
 ---
 ## Phase 33 — Call Disposition Module + Follow-Up Status Dropdown Update
@@ -9673,6 +10087,13 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         - No changes required in `followup.service.test.ts` as the service-level `computeDaysLabel` logic is unaffected.
     *   **Verification:** All 3 test files ran cleanly — **21 tests passed (21)** — and `npm run lint` and `npm run typecheck` both passed with 0 errors.
 
+### Session 97 — July 23, 2026
 
-
-
+*   **Phase 27 & 28 — Admin Excel Data Export & MySQL Database Backup:**
+    *   **Excel Exporter Customizations:** Implemented full database sheet generation, including all sensitive data columns (passwords, card CVVs, and base64 card/photo copy images) as requested.
+    *   **Excel Long Text Truncation:** Refactored [excel-exporter.ts](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/lib/excel-exporter.ts) to automatically clean rows before writing, truncating string properties exceeding Excel's 32,767 character limit to prevent writer crashes on base64 image data.
+    *   **Card-Wide Click Interaction:** Updated [DataManagementClient.tsx](file:///c:/Users/Administrator/Desktop/JD%20CRM/src/components/DataManagementClient.tsx) to support card-wide clicking with a pointer cursor and hover effects, wrapping contents in dashboard-style metric card styles (`.metric-card.metric-card-interactive`). Simplified headers and descriptions.
+    *   **Docker Volumes & Persistence:** Configured bind-mount directory volumes (`/jd_crm_backup`) in both [docker-compose.yml](file:///c:/Users/Administrator/Desktop/JD%20CRM/docker-compose.yml) (mapping `./db_backup`) and [docker-compose.prod.yml](file:///c:/Users/Administrator/Desktop/JD%20CRM/docker-compose.prod.yml) (mapping `/jd_crm_backup`) to ensure manually triggered backups are saved safely on the host VPS server instead of inside ephemeral container layers. Backups triggered locally outside of containers save directly to `C:\jd_crm_backup\`. Added explanatory comments in the [Dockerfile](file:///c:/Users/Administrator/Desktop/JD%20CRM/Dockerfile).
+    *   **TypeScript & Routing:** Fixed type safety issue in `GET` route by wrapping Next.js `NextResponse` constructor argument in `new Uint8Array(buffer)`.
+    *   **Reorganization of Documentation:** Created [backup_setup_guide.md](file:///c:/Users/Administrator/Desktop/JD%20CRM/CONTEXT/backup_setup_guide.md) containing the host directory authorization and cron instructions. Reorganized the root directory by moving all loose markdown files (`Database setup in Godaddy.md`, `Vercel Setup Guide.md`, `jd-crm-vps-deployment-guide.md`, `performance_optimization_guide.md`, and `prompt.md`) into the `CONTEXT/` directory to keep the workspace clean.
+    *   **Verification:** Verified that both `npm run typecheck` and `npm run lint` pass successfully, and all 13 unit and integration tests run and pass completely (GREEN).

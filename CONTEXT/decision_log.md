@@ -792,46 +792,61 @@ All database changes are **purely additive** — new nullable columns only. No e
 - UI delete flow gains a `toast.error(message)` handler for `409` responses.
 
 ---
+## Decision 30 — Super-Admin Excel Export & Automated MySQL Backup (Phases 27 & 28)
 
-## Decision 30 — Super-Admin CSV Export/Import & Automated Weekly Backup (Phases 27 & 28)
-
-**Context:** Before any schema migrations that touch existing data, the super-admin needs the ability to download the entire database as clean CSV files. Additionally, an automated weekly backup provides a safety net for data loss scenarios.
+**Context:** Super-admins need (1) a one-click download of all CRM data for auditing/analysis, and (2) a reliable automated backup that persists on the production server HDD across Docker restarts, volume deletions, and application downtime. The original draft of this decision specified CSV export with import capability, a Docker backup service, and Vercel cron integration. After review in Session 97, all three choices were replaced with simpler, more resilient alternatives.
 
 **Decisions:**
 
-**D30.1 — CSV export is gated on the existing `super-admin` permission key**
-- No new permission code is introduced. The existing `99999` (`super-admin`) bypass already covers this restricted operation.
-- The new `/api/admin/export`, `/api/admin/export/all`, and `/api/admin/import` routes all check `hasPermission(session, 'super-admin')`.
+**D30.1 — Export format is XLSX, not CSV. No import feature.**
+- The export produces a **single `.xlsx` file with all 12 operational tables as separate sheets** — one file, one download, 12 tabs. Sheet names: Agents, Orders, Customers, Cards, Vendors, Gateways, Follow Ups, Call Dispositions, Teams, Roles, Comments, Attendance.
+- CSV rejected: requires 12 separate downloads, does not open cleanly in Excel, no structural advantage for human-readable analysis.
+- The `xlsx` npm package is already installed (Phase 33). No new dependency.
+- The CSV import feature from the original plan is dropped — not in Phase 27 requirements.
+- All fields, including sensitive database columns (agent passwords, customer card CVVs, and copy images), are fully included in the export sheet to ensure administrators have comprehensive data visibility.
 
-**D30.2 — Base64 image columns are excluded from the default CSV export**
-- `customer_card_copy_image` and `customer_photo_id_image` on `crm_customer_cards` are excluded from the standard CSV output via the `EXCLUDED_COLUMNS` constant in `csv-exporter.ts`.
-- These columns can be very large (LONGTEXT Base64 data). Including them in routine CSV exports would produce multi-GB files that are impractical for data management purposes.
-- A separate endpoint can be added in the future if binary image export is required.
+**D30.2 — Backup format is a gzip-compressed MySQL dump (`.sql.gz`), not CSV ZIP**
+- `mysqldump` produces a full SQL script (DDL + all INSERTs) that can restore the exact database state on a fresh MySQL instance. CSV cannot — no schema, no FK constraint order, no NULL/type fidelity.
+- Compression via Node.js built-in `zlib.gzipSync`. `jszip` from the original plan is not used.
+- Runs `docker exec jd_crm_db mysqldump ...` via `child_process.execSync`. All credentials from environment variables.
+- Files named: `jd_crm_YYYY-MM-DD_HH-MM-SS.sql.gz`.
 
-**D30.3 — FK-safe import order is a hardcoded constant (`ALLOWED_EXPORT_TABLES`)**
-- The 18-table ordered list in `csv-exporter.ts` is the single source of truth for both export order and import validation. Any addition of new tables must also update this list.
-- For `crm_orders`, parents (`parent_order_id IS NULL`) are exported before children to satisfy the self-referential FK on import.
+**D30.3 — Retention is count-based: keep the last 4 files, never time-based**
+- `BACKUP_RETENTION_COUNT = 4` declared at the very top of `src/lib/backup.ts` for easy adjustment.
+- Cleanup runs ONLY after a new backup file is successfully written to disk. If mysqldump fails for any reason, the function returns early with `{ success: false }` and zero existing files are deleted. The last 4 backups survive any failure scenario, including extended container downtime.
+- Time-based deletion rejected: it would silently wipe all backup files if the container stays down longer than N weeks with no new backups being created.
 
-**D30.4 — Import validates FK dependencies before inserting any rows**
-- The import service pre-fetches all existing PKs for referenced tables and validates every row before performing any INSERT. If any row fails validation, zero rows are inserted (all-or-nothing per CSV upload).
-- Raw SQL is used via `db.$executeRawUnsafe` with parameterized values — user-supplied CSV data is never string-interpolated into SQL.
+**D30.4 — Backup files live on the HOST server HDD, completely outside Docker**
+- `/jd_crm_backup/` is on the physical Linux server filesystem. Stopping, removing, or recreating Docker containers and volumes has zero effect on this folder.
+- Path is configurable via `BACKUP_DIR` environment variable so integration tests can override it to a temp directory.
 
-**D30.5 — Automated backup has two delivery mechanisms**
-- **Docker/self-hosted:** A `crm_backup` cron service in `docker-compose.yml` runs `mysqldump` every Saturday at 13:30 UTC (7:00 PM IST), saving to a volume-mounted `./backups/` directory. Last 4 SQL dumps are kept; older files are automatically pruned.
-- **Vercel/serverless:** A cron entry in `vercel.json` calls `POST /api/admin/backup/trigger` at the same schedule. The route is also callable manually by a super-admin. It uses the same CSV ZIP export (Phase 27) internally.
-- The two mechanisms are complementary — the Docker `mysqldump` provides full SQL fidelity for disaster recovery, while the CSV ZIP provides clean data for re-import via the Data Management UI.
+**D30.5 — Both trigger mechanisms share one `runBackup()` function in `src/lib/backup.ts`**
+- No code duplication. One function, two callers.
+- **Manual trigger:** `POST /api/admin/backup/trigger` (super-admin only). Admin clicks "Create Backup" in Data Management UI. Response includes saved filename shown as success message.
+- **Automated trigger:** `src/scripts/run-backup.ts` standalone script called by Linux OS crontab every Saturday at 23:00. Does not depend on the Next.js app being running.
+- Docker `crm_backup` service and `vercel.json` cron entry from the original plan are both dropped.
 
-**D30.6 — Vercel cron authentication uses CRON_SECRET header**
-- Vercel's cron runner calls the backup route without a user session. The route accepts either a valid super-admin session OR a matching `X-Cron-Secret: {CRON_SECRET}` header. The `CRON_SECRET` environment variable is set in the Vercel project settings and is never exposed to the client.
+**D30.6 — One-time Linux crontab setup for the automatic weekly backup**
+- Entry: `0 23 * * 6 cd <PROJECT_PATH> && npx tsx src/scripts/run-backup.ts >> /jd_crm_backup/backup.log 2>&1`
+- Full step-by-step setup instructions in `CONTEXT/phase_27_28_plan.md` section W-2802.
+- `CRON_SECRET` and Vercel cron authentication from the original plan are not required.
+
+**D30.7 — Data Management page is in the profile dropdown, not the Sidebar**
+- Link added to profile dropdown in `Navbar.tsx`, positioned between "Roles and Permissions" and "Sign Out". Gated with `hasPermission(permissions, 'super-admin')`.
+- Original plan placed it in `Sidebar.tsx`. Profile dropdown matches the existing "Roles and Permissions" placement pattern.
+
+**D30.8 — Access enforced at every layer, super-admin only**
+- No new permission code. Existing `super-admin` key (code `99999`) covers all data management operations.
+- Three layers: middleware (`routePermissionMap`), server component (`redirect('/access-denied')`), API route (`hasPermission` returning `403`).
 
 #### Consequences (D30)
-- New files: `src/lib/csv-exporter.ts`, `src/service/data-management.service.ts`, `src/service/backup.service.ts`, `src/app/api/admin/export/route.ts`, `src/app/api/admin/export/all/route.ts`, `src/app/api/admin/import/route.ts`, `src/app/api/admin/backup/trigger/route.ts`, `src/app/settings/data-management/page.tsx`, `BACKUPS.md`.
-- New npm dependency: `jszip`.
-- New environment variables: `BACKUP_OUTPUT_PATH`, `BACKUP_WEBHOOK_URL`, `CRON_SECRET`.
-- `docker-compose.yml` gains a `crm_backup` service.
-- `vercel.json` gains a `crons` entry.
-- `Sidebar.tsx` gains a "Data Management" link visible only to `super-admin` users.
-
+- New files: `src/lib/excel-exporter.ts`, `src/lib/backup.ts`, `src/app/api/admin/export/route.ts`, `src/app/api/admin/backup/trigger/route.ts`, `src/app/settings/data-management/page.tsx`, `src/components/DataManagementClient.tsx`, `src/scripts/run-backup.ts`, `src/tests/dataManagement.test.ts`, `src/tests/DataManagementClient.test.tsx`.
+- No new npm dependencies. `xlsx` already installed. `child_process`, `zlib`, `fs`, `path` are Node.js built-ins.
+- New environment variables: `BACKUP_DIR`, `BACKUP_DB_NAME`, `BACKUP_DB_USER`, `BACKUP_DB_PASSWORD`, `BACKUP_CONTAINER_NAME`.
+- `src/middleware.ts` gains: `'/settings/data-management': 'super-admin'` in `routePermissionMap`.
+- `src/components/Navbar.tsx` gains one new dropdown link: "Data Management" (super-admin only, below "Roles and Permissions").
+- No Prisma migrations. No schema changes. No new database tables.
+- One-time Linux crontab setup required on production server (see `CONTEXT/phase_27_28_plan.md` section W-2802).
 ---
 
 ## Decision 31 — Multi-Part Financial Redesign, Field-Split Enforcement & Per-Part Status Display (Phase 26.5)

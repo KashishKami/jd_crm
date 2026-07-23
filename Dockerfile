@@ -47,6 +47,10 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
 
+# Note: Manually triggered MySQL backups are saved to /jd_crm_backup/ in the container.
+# This directory MUST be bind-mounted in docker-compose configs (as done in compose.yml
+# and compose.prod.yml) to persist backups on the host disk across container restarts/rebuilds.
+
 USER nextjs
 
 EXPOSE 3080

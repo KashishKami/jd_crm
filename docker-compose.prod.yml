@@ -50,6 +50,8 @@ services:
       - root_default     # Traefik's network — so it can route traffic to us
     volumes:
       - crm_uploads:/app/public/uploads
+      # Maps physical host directory to container to persist manually triggered backups
+      - /jd_crm_backup:/jd_crm_backup
     labels:
       # ── Tell Traefik this container exists ──
       - "traefik.enable=true"

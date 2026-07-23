@@ -23,6 +23,7 @@ export default withAuth(
       '/pending/resolutions': 'orders:view-pending-resolutions',
       '/pending/returned': 'orders:view-returned',
       '/pending/cancelled': 'orders:view-cancelled',
+      '/settings/data-management': 'super-admin',
     };
 
     // Check if the current route matches any protected path prefix
