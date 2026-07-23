@@ -25,6 +25,29 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="mysql://dummy:dummy@localhost:3306/dummy"
 RUN npm run build
 
+# ── Compile the weekly backup script into a self-contained JS bundle ──────────
+# src/scripts/run-backup.ts imports src/lib/backup.ts (which contains all the
+# real backup logic: mysqldump, gzip compression, and retention cleanup).
+# esbuild --bundle inlines both files into one single run-backup.js output so
+# the runner image needs zero source files and zero TypeScript tooling at runtime.
+#
+# Why esbuild and not tsc?
+#   esbuild produces a single bundled file. tsc would emit two separate .js files
+#   (run-backup.js + backup.js) and require managing import paths between them.
+#
+# Why not npx tsx at cron time?
+#   tsx is not in the image. npx would download it from the internet every
+#   Saturday night — fragile if the VPS loses connectivity.
+#
+# --bundle        : Follows all local imports and merges them into one file.
+# --platform=node : Keeps Node built-ins (fs, zlib, child_process, path) as
+#                   external references instead of trying to bundle them.
+# --outfile       : Destination of the compiled bundle in the builder stage.
+RUN npx esbuild src/scripts/run-backup.ts \
+    --bundle \
+    --platform=node \
+    --outfile=run-backup.js
+
 # ────────────────────────────────────────────────
 # Stage 3: Production runtime (smallest possible image)
 # ────────────────────────────────────────────────
@@ -49,6 +72,16 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
+
+# Copy the pre-compiled backup script bundle (produced by esbuild above).
+# This is the ONLY file needed for the automated weekly cron job.
+# The cron entry on the VPS host calls:
+#   docker exec jd_crm_app node run-backup.js
+# It runs the same backup logic as the manual "Create Backup" button in the UI,
+# including automatic retention cleanup (keeps the 4 most recent .sql.gz files).
+# To change the retention count, update BACKUP_RETENTION_COUNT in src/lib/backup.ts
+# and redeploy — the next Docker build will recompile this file automatically.
+COPY --from=builder /app/run-backup.js ./run-backup.js
 
 # Note: Manually triggered MySQL backups are saved to /jd_crm_backup/ in the container.
 # This directory MUST be bind-mounted in docker-compose configs (as done in compose.yml
