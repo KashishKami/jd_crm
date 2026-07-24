@@ -11,17 +11,6 @@ export interface ToastNotification {
   partRequired: string;
 }
 
-/**
- * Tracks the notification state for a single follow-up key within a browser session.
- *
- * toastShown  — in-app toast has been added to state (only ever shown once per session).
- * bucket1Fired — OS notification fired for the ~5-minute warning.
- * bucket2Fired — OS notification fired for the ~3-minute warning.
- * bucket3Fired — OS notification fired for the due-now alert.
- *
- * Buckets are only fired when the app is in the background (document.visibilityState === 'hidden').
- * Each bucket fires exactly once regardless of how many 60-second polls occur.
- */
 interface NotifState {
   toastShown: boolean;
   bucket1Fired: boolean;
@@ -32,9 +21,6 @@ interface NotifState {
 export function useFollowUpNotifications() {
   const [activeNotifications, setActiveNotifications] = useState<ToastNotification[]>([]);
 
-  // Map<key, NotifState> — persists for the lifetime of the browser session (tab open).
-  // Resets on page reload / new tab, which is intentional: the user should be re-alerted
-  // in a new session if they never acknowledged the notification.
   const shownStateRef = useRef<Map<string, NotifState>>(new Map());
 
   const pollDueFollowUps = useCallback(async () => {
@@ -50,7 +36,6 @@ export function useFollowUpNotifications() {
           const id = record.followUpId;
           const key = `${id}-${record.followUpDate}-${record.followUpTime}`;
 
-          // Get or initialise the state for this follow-up key
           const state: NotifState = shownStateRef.current.get(key) ?? {
             toastShown: false,
             bucket1Fired: false,
@@ -58,9 +43,6 @@ export function useFollowUpNotifications() {
             bucket3Fired: false,
           };
 
-          // ── Calculate minutes remaining until due ─────────────────────────
-          // Normalise the date field regardless of whether Prisma returns a Date
-          // object or an ISO string.
           const dateStr =
             typeof record.followUpDate === 'string'
               ? record.followUpDate.split('T')[0]
@@ -74,16 +56,10 @@ export function useFollowUpNotifications() {
           const minutesUntilDue = followUpDt.diff(DateTime.now(), 'minutes').minutes;
           const roundedMinutes = Math.round(minutesUntilDue);
 
-          // ── Bucket thresholds ─────────────────────────────────────────────
-          // Bucket 1: 4–5 minutes away (rounded to 4 or 5)
-          // Bucket 2: 2–3 minutes away (rounded to 2 or 3)
-          // Bucket 3: ≤ 1 minute away (rounded to 0 or less, or due now)
           const inBucket1 = roundedMinutes <= 5 && roundedMinutes > 3;
           const inBucket2 = roundedMinutes <= 3 && roundedMinutes > 0;
           const inBucket3 = roundedMinutes <= 0;
 
-          // ── In-app toast ──────────────────────────────────────────────────
-          // Added once on first encounter; stays in UI until user dismisses it.
           if (!state.toastShown) {
             newToasts.push({
               followUpId: id,
@@ -95,9 +71,6 @@ export function useFollowUpNotifications() {
             state.toastShown = true;
           }
 
-          // ── OS browser notifications (background only) ────────────────────
-          // Each bucket fires at most once per session. No OS notification is
-          // sent when the app is in the foreground — the in-app toast covers it.
           const canFireOS =
             typeof window !== 'undefined' &&
             'Notification' in window &&
@@ -131,7 +104,6 @@ export function useFollowUpNotifications() {
             }
           }
 
-          // Write updated state back to the map
           shownStateRef.current.set(key, state);
         });
 
@@ -145,11 +117,9 @@ export function useFollowUpNotifications() {
   }, []);
 
   const dismissNotification = useCallback(async (id: number) => {
-    // Remove from UI immediately
     setActiveNotifications((prev) => prev.filter((n) => n.followUpId !== id));
 
     try {
-      // Mark as notified in DB — prevents this follow-up from ever appearing again
       await fetch(`/api/follow-ups/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -163,18 +133,14 @@ export function useFollowUpNotifications() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Request OS notification permission on first mount if not yet decided
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
-    // Initial poll on mount
     pollDueFollowUps();
 
-    // Poll every 60 seconds — matches the bucket granularity (each poll advances ~1 min)
     const intervalId = setInterval(pollDueFollowUps, 60000);
 
-    // Also poll immediately when the user returns to the tab (visibility change)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         pollDueFollowUps();

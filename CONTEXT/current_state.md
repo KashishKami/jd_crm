@@ -52,6 +52,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 34** | Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration | **[x] COMPLETED** | `src/lib/urlStateHelper.ts` (new), `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/urlStateHelper.test.ts` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/FollowUpListContainer.test.tsx` (new), `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx`, `src/tests/GatewayList.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
 | **Phase 35** | Universal Spread-Out Pagination Component (`<Pagination />`) | **[x] COMPLETED** | `src/lib/paginationHelper.ts` (new), `src/components/Pagination.tsx` (new), `src/app/components.css`, `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/paginationHelper.test.ts` (new), `src/tests/Pagination.test.tsx` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx` |
 | **Phase 36** | Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter | **[x] COMPLETED** | `src/components/FollowUpList.tsx`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/components/FollowUpListContainer.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followups.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
+| **Phase 37** | Follow-Up Persistent Overdue Notification Tab in Navbar | **[x] COMPLETED** | `src/components/Navbar.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/api/follow-ups/due/route.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/components.css`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/Navbar.test.tsx`, `src/tests/followups.test.ts` |
 ---
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
@@ -8974,7 +8975,68 @@ This phase addresses two long-standing, recurring frontend state bugs across all
     - [x] Replaced single select with multi-select checkbox dropdown in `FollowUpListContainer.tsx` with mouse wheel scrolling fix (`onWheel` stop propagation & `overscroll-behavior: contain`).
 
 ---
+## Phase 37 — Follow-Up Persistent Overdue Notification Tab in Navbar
 
+#### W-3701 — Backend Overdue Notification Query & Service Filtering
+
+**Root cause / Goal:**
+Currently, `/api/follow-ups/due` queries records where `notification_sent_at IS NULL`. Once an in-app toast is closed, `notificationSentAt` is stamped, permanently hiding the notification from future polls. If an agent becomes busy or misses the toast, there is no persistent indicator in the app that they have pending overdue follow-ups. To support a persistent Notification Tab in the navbar, the backend query must return all overdue follow-ups assigned to the logged-in agent (`agentId = session.user.id`) where status is NOT `Sale Closed` and NOT `Not Interested`, and scheduled time (`followUpDate` + `followUpTime` in `customerTimezone`) is `<=` current time.
+
+**Fix / Approach:**
+Update `findDueForNotification` in `src/repository/followup.repository.ts` to accept `agentId` and query `crm_follow_ups` for all active overdue records (`agent_id = agentId AND status NOT IN ('Sale Closed', 'Not Interested') AND CONVERT_TZ(...) <= UTC_TIMESTAMP()`). Update `getDueFollowUps` in `src/service/followup.service.ts` to calculate human-readable relative overdue labels (using `computeDaysLabel`) and ensure hard self-only agent scoping.
+
+---
+
+- [x] **RED — Integration (`src/tests/followups.test.ts`):**
+  - [x] Test: `GET /api/follow-ups/due` returns active overdue records belonging to the authenticated agent.
+  - [x] Test: `GET /api/follow-ups/due` excludes follow-ups with status `'Sale Closed'` or `'Not Interested'`.
+  - [x] Test: `GET /api/follow-ups/due` excludes follow-ups scheduled for future date/times (`followUpDate` + `followUpTime` > now).
+  - [x] Test: `GET /api/follow-ups/due` returns active overdue follow-ups regardless of whether `notificationSentAt` is null or populated (persisting across toast dismissals).
+  - [x] **Run — confirm RED (current endpoint filters on `notificationSentAt IS NULL` and 5-minute window).**
+
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] Update `findDueForNotification(agentId: number)` in `src/repository/followup.repository.ts` to query `crm_follow_ups` for `agent_id = agentId AND status NOT IN ('Sale Closed', 'Not Interested') AND CONVERT_TZ(...) <= UTC_TIMESTAMP()`.
+  - [x] [Service] Update `getDueFollowUps(sessionUser)` in `src/service/followup.service.ts` to pass `sessionUser.id` and map `daysLabel` computed via `computeDaysLabel(f.followUpDate, f.followUpTime, f.customerTimezone)`.
+  - [x] [Controller] Ensure `GET /api/follow-ups/due` returns HTTP 200 OK with the array of active overdue records.
+  - [x] Run integration test — **confirm GREEN**.
+
+---
+
+#### W-3702 — Persistent Notification Bell Icon, Badge & Scrollable Card in Navbar
+
+**Root cause / Goal:**
+Agents need a persistent, attention-grabbing visual indicator in the top navbar when they have overdue follow-ups. The Notification Tab (bell icon) must sit just left of the Profile Avatar button in `Navbar.tsx`, display an unread count badge with a jumping/pulsing animation when count > 0, and open a scrollable dropdown card allowing the agent to view and click through to any overdue follow-up.
+
+**Fix / Approach:**
+Refactor `useFollowUpNotifications.ts` to expose `overdueList`, `dueCount`, and `refetch()`. Update `Navbar.tsx` to render the notification bell button (`.notification-bell-btn`) to the left of `.user-profile-btn`. Add an animated badge (`.notification-badge.jumping`) when `dueCount > 0`. Render a scrollable dropdown card (`.notification-dropdown-menu`) displaying customer name, part required, relative overdue label, and priority indicator. Clicking an item navigates to `/follow-ups/${id}`. Add styling and `@keyframes notification-jump` in `src/app/components.css`.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/useFollowUpNotifications.test.ts` & `src/tests/Navbar.test.tsx`):**
+  - [x] Test (`useFollowUpNotifications.test.ts`): Hook polls `/api/follow-ups/due` and returns `overdueList` and `dueCount`.
+  - [x] Test (`Navbar.test.tsx`): Renders notification bell icon button immediately to the left of the user profile button.
+  - [x] Test (`Navbar.test.tsx`): When `dueCount > 0`, renders red badge with count and animated jumping class.
+  - [x] Test (`Navbar.test.tsx`): Clicking notification bell toggles the notification card dropdown displaying overdue items with customer names and relative overdue labels.
+  - [x] Test (`Navbar.test.tsx`): Clicking a notification item closes dropdown and navigates to `/follow-ups/${id}`.
+  - [x] **Run — confirm RED (notification bell icon and dropdown card do not exist in Navbar).**
+
+- [x] **GREEN — Frontend (Types → Hook → Component → CSS):**
+  - [x] [Hook] Refactor `src/lib/useFollowUpNotifications.ts` to return `overdueList`, `dueCount`, `pollDueFollowUps`, and maintain polling interval (30s) + window focus listener.
+  - [x] [Component] In `src/components/Navbar.tsx`, call `useFollowUpNotifications()`. Add `<button className="notification-bell-btn">` inside `.navbar-right` before the user profile button. Render badge `<span className="notification-badge jumping">` when `dueCount > 0`. Render dropdown `<div className="notification-dropdown-menu">` with click handlers.
+  - [x] [Styling] Add `.notification-bell-btn`, `.notification-badge`, `.notification-badge.jumping`, `.notification-dropdown-menu`, `.notification-item`, and `@keyframes notification-jump` in `src/app/components.css`.
+  - [x] Run unit test — **confirm GREEN**.
+
+---
+
+- [x] **Verification chain:**
+  - [x] Agent logs in → Top Navbar renders Notification Bell Icon to the left of Profile Avatar.
+  - [x] Follow-up scheduled for 10 minutes ago becomes due → Bell badge shows `1` with a jumping animation.
+  - [x] Agent clicks Bell Icon → Scrollable Notification dropdown card opens displaying Customer Name, Part Required, and "Overdue by 10m".
+  - [x] Agent clicks item → Navigates to `/follow-ups/[id]` detail page.
+  - [x] Agent changes status to `Sale Closed` or `Not Interested`, OR reschedules date/time to tomorrow.
+  - [x] Bell badge count drops to `0`, badge disappears, and card updates to "All caught up! No overdue follow-ups." → ✅ Done.
+
+---
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -10390,3 +10452,22 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     * **Automated Tests:** 25/25 passed GREEN across follow-up test suites, 53/53 passed GREEN overall across all list and pagination suites.
     * **`npm run typecheck` (`tsc --noEmit`):** **0 errors**.
     * **`npm run lint` (`eslint`):** **0 errors, 0 warnings**.
+
+### Session 104 - July 25, 2026
+
+* **Phase 37 — Follow-Up Persistent Overdue Notification Tab in Navbar:**
+    * **Preserved In-App Floating Toast Notification System (`src/lib/useFollowUpNotifications.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`):**
+        * Restored original in-app floating toast card popup system (`GET /api/follow-ups/due`) 100% intact.
+        * Floating toast popups check `notification_sent_at IS NULL` and 5-minute upcoming/due window (`CONVERT_TZ(...) BETWEEN UTC_TIMESTAMP() AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)`).
+        * Dismissing a floating toast popup stamps `notification_sent_at` in the DB via `PATCH /api/follow-ups/[id]`, permanently removing it from the floating screen overlay.
+    * **Dedicated Navbar Bell Icon, Jumping Badge & Mouse-Wheel Scrollable Dropdown (`src/lib/useNavbarNotifications.ts`, `src/app/api/follow-ups/overdue/route.ts`, `src/components/Navbar.tsx`, `src/app/components.css`):**
+        * Built dedicated endpoint `GET /api/follow-ups/overdue` calling `findOverdueForNavbar(agentId)` in repository and `getOverdueFollowUps(sessionUser)` in service.
+        * Created dedicated `useNavbarNotifications.ts` hook returning `overdueList` and `dueCount` with 30-second polling and instant visibility refresh.
+        * Integrated Notification Bell Icon button (`.notification-bell-btn`) inside `.navbar-right` positioned immediately left of the User Profile button in `Navbar.tsx`.
+        * Added red badge counter with a pulsing jumping keyframe animation (`.notification-badge.jumping`) when `dueCount > 0`.
+        * Added scrollable notification card dropdown (`.notification-dropdown-menu`) displaying customer name, relative overdue duration (`daysLabel`), vehicle part, and scheduled time.
+        * Added mouse wheel scroll containment (`onWheel` stop propagation & `overscroll-behavior: contain`) so agents can smoothly scroll through overdue items inside the dropdown card.
+    * **Verification & Testing:**
+        * **Automated Tests:** All 5 test suites (34/34 tests passed GREEN) covering `Navbar.test.tsx`, `useFollowUpNotifications.test.tsx`, `useNavbarNotifications.test.ts`, `FollowUpNotification.test.tsx`, and `followups.test.ts`.
+        * **Typecheck (`tsc --noEmit`):** Clean build with **0 type errors**.
+

@@ -31,6 +31,10 @@ afterEach(() => {
 describe('Navbar Component Unit Tests', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as any);
   });
 
   it('should render logo "JD" and "CRM" structure', () => {
@@ -196,3 +200,48 @@ describe('Navbar Component Unit Tests', () => {
     expect(screen.queryByText('Follow Ups')).toBeNull();
   });
 });
+
+describe('Navbar W-3702 Notification Bell & Tab Tests', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('should render notification bell button right left of user profile button', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 101,
+          name: 'Agent Sarah',
+          userPermissions: 'follow-ups:create',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    const bellBtn = screen.queryByTestId('notification-bell-btn');
+    expect(bellBtn).not.toBeNull();
+  });
+
+  it('should toggle notification card dropdown when bell button is clicked', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 101,
+          name: 'Agent Sarah',
+          userPermissions: 'follow-ups:create',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByTestId('notification-dropdown-menu')).toBeNull();
+
+    const bellBtn = screen.getByTestId('notification-bell-btn');
+    fireEvent.click(bellBtn);
+
+    expect(screen.queryByTestId('notification-dropdown-menu')).not.toBeNull();
+  });
+});
+

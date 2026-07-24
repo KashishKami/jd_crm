@@ -198,12 +198,29 @@ export async function getDueFollowUps(
 
   const due = await followupRepository.findDueForNotification();
 
-  // Notifications are ALWAYS scoped to the logged-in user's own follow-ups,
-  // regardless of role. follow-ups:view grants access to the list page for all
-  // agents — it does NOT mean the admin should receive everyone's notifications.
-  // Without this filter, an admin could dismiss a notification and write
-  // notified=true to the DB, causing the agent to never see their own alert.
+  // Notifications are ALWAYS scoped to the logged-in user's own follow-ups
   return due.filter((f) => f.agentId === Number(sessionUser.id));
+}
+
+export async function getOverdueFollowUps(
+  sessionUser: { id: string | number; userPermissions: string | null | undefined }
+): Promise<Array<CrmFollowUps & { daysLabel?: string }>> {
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
+
+  if (!isViewAll && !isCreateOwn) {
+    throw new Error('Forbidden: Insufficient Permissions');
+  }
+
+  const agentId = Number(sessionUser.id);
+  const overdue = await followupRepository.findOverdueForNavbar(agentId);
+
+  return overdue
+    .filter((f) => f.agentId === agentId)
+    .map((f) => ({
+      ...f,
+      daysLabel: computeDaysLabel(f.followUpDate, f.followUpTime, f.customerTimezone),
+    }));
 }
 
 export async function markNotificationSent(id: number): Promise<CrmFollowUps> {

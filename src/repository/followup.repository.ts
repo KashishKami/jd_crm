@@ -162,9 +162,8 @@ export async function deleteFollowUp(id: number): Promise<CrmFollowUps> {
 export { deleteFollowUp as delete };
 
 export async function findDueForNotification(): Promise<CrmFollowUps[]> {
-  // Query for records where notification_sent_at is null and CONVERT_TZ(CONCAT(date, ' ', time, ':00'), customer_timezone, 'UTC')
-  // is between UTC_TIMESTAMP() and DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
-  // Let's use prisma.$queryRaw to fetch
+  // Original query for floating toast notifications: where notification_sent_at is null
+  // and scheduled time is between UTC_TIMESTAMP() and +5 minutes (or due now)
   const rows = await prisma.$queryRaw<any[]>`
     SELECT * 
     FROM crm_follow_ups 
@@ -179,6 +178,53 @@ export async function findDueForNotification(): Promise<CrmFollowUps[]> {
         customer_timezone, 
         'UTC'
       ) BETWEEN UTC_TIMESTAMP() AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
+  `;
+
+  return rows.map((r) => ({
+    followUpId:           r.follow_up_id,
+    agentId:              r.agent_id,
+    agentName:            r.agent_name,
+    customerName:         r.customer_name,
+    customerPhone:        r.customer_phone,
+    customerState:        r.customer_state,
+    customerCountry:      r.customer_country,
+    customerTimezone:     r.customer_timezone,
+    vehicleYearMakeModel: r.vehicle_year_make_model,
+    partRequired:         r.part_required,
+    partDescription:      r.part_description,
+    quotedOptions:        r.quoted_options,
+    followUpDate:         r.follow_up_date,
+    followUpTime:         r.follow_up_time,
+    followUpReason:       r.follow_up_reason,
+    status:               r.status,
+    priority:             r.priority,
+    notes:                r.notes,
+    entryDate:            r.entry_date,
+    lastContact:          r.last_contact,
+    notificationSentAt:   r.notification_sent_at,
+    createdAt:            r.created_at,
+    updatedAt:            r.updated_at,
+  })) as CrmFollowUps[];
+}
+
+export async function findOverdueForNavbar(agentId: number): Promise<CrmFollowUps[]> {
+  // Independent query for Navbar Bell Tab: active overdue records for logged in agent
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT * 
+    FROM crm_follow_ups 
+    WHERE agent_id = ${agentId}
+      AND status NOT IN ('Sale Closed', 'Not Interested')
+      AND CONVERT_TZ(
+        CONCAT(
+          DATE_FORMAT(follow_up_date, '%Y-%m-%d'), 
+          ' ', 
+          follow_up_time, 
+          ':00'
+        ), 
+        customer_timezone, 
+        'UTC'
+      ) <= UTC_TIMESTAMP()
+    ORDER BY follow_up_date ASC, follow_up_time ASC
   `;
 
   return rows.map((r) => ({

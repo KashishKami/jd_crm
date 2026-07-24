@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { getServerSession } from 'next-auth';
 import { prisma } from '../lib/db';
 
@@ -365,6 +365,147 @@ describe('Follow-Ups Search (W-3154)', () => {
     expect(statuses.every((s: string) => ['Interested', 'Call Back Later'].includes(s))).toBe(true);
   });
 });
+
+describe('W-3701 Persistent Overdue Notification API', () => {
+  let testAgentId: number;
+  let otherAgentId: number;
+
+  beforeAll(async () => {
+    const agents = await prisma.users.findMany({
+      where: { roleId: 8 },
+      take: 2
+    });
+    testAgentId = agents[0].uid;
+    otherAgentId = agents[1] ? agents[1].uid : testAgentId + 999;
+
+    // Clean up test follow ups created during test
+    await prisma.crmFollowUps.deleteMany({
+      where: { customerName: { startsWith: 'PersistentOverdueTest' } }
+    });
+
+    // Past date (overdue)
+    const pastDate = new Date('2020-01-01');
+    // Future date (not overdue)
+    const futureDate = new Date('2099-01-01');
+
+    await prisma.crmFollowUps.createMany({
+      data: [
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'PersistentOverdueTest_Overdue1',
+          customerPhone: '111-000-0001',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Honda Civic',
+          partRequired: 'Transmission',
+          followUpDate: pastDate,
+          followUpTime: '09:00',
+          followUpReason: 'Test Overdue 1',
+          status: 'Interested',
+          priority: 'High',
+          notificationSentAt: new Date(), // Already notified toast, but STILL active overdue!
+        },
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'PersistentOverdueTest_SaleClosed',
+          customerPhone: '111-000-0002',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Honda Civic',
+          partRequired: 'Engine',
+          followUpDate: pastDate,
+          followUpTime: '09:00',
+          followUpReason: 'Closed deal',
+          status: 'Sale Closed',
+          priority: 'High',
+        },
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'PersistentOverdueTest_NotInterested',
+          customerPhone: '111-000-0003',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Honda Civic',
+          partRequired: 'Door',
+          followUpDate: pastDate,
+          followUpTime: '09:00',
+          followUpReason: 'Not interested',
+          status: 'Not Interested',
+          priority: 'Low',
+        },
+        {
+          agentId: testAgentId,
+          agentName: 'Sarah',
+          customerName: 'PersistentOverdueTest_Future',
+          customerPhone: '111-000-0004',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Honda Civic',
+          partRequired: 'Mirror',
+          followUpDate: futureDate,
+          followUpTime: '09:00',
+          followUpReason: 'Future follow up',
+          status: 'Interested',
+          priority: 'Medium',
+        },
+        {
+          agentId: otherAgentId,
+          agentName: 'OtherAgent',
+          customerName: 'PersistentOverdueTest_OtherAgent',
+          customerPhone: '111-000-0005',
+          customerState: 'California',
+          customerCountry: 'USA',
+          customerTimezone: 'America/Los_Angeles',
+          vehicleYearMakeModel: '2020 Honda Civic',
+          partRequired: 'Bumper',
+          followUpDate: pastDate,
+          followUpTime: '09:00',
+          followUpReason: 'Other agent overdue',
+          status: 'Interested',
+          priority: 'High',
+        },
+      ]
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.crmFollowUps.deleteMany({
+      where: { customerName: { startsWith: 'PersistentOverdueTest' } }
+    });
+  });
+
+  it('should return active overdue follow-ups for logged in agent via GET /api/follow-ups/overdue, excluding Sale Closed, Not Interested, and Future items', async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce({
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:create' }
+    });
+
+    // @ts-ignore
+    const { GET } = await import('../app/api/follow-ups/overdue/route');
+    const req = new Request('http://localhost/api/follow-ups/overdue');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const dueList = await res.json();
+    expect(Array.isArray(dueList)).toBe(true);
+
+    const testNames = dueList.map((f: any) => f.customerName);
+    // Should include PersistentOverdueTest_Overdue1
+    expect(testNames).toContain('PersistentOverdueTest_Overdue1');
+    // Should NOT include Sale Closed, Not Interested, Future, or Other Agent items
+    expect(testNames).not.toContain('PersistentOverdueTest_SaleClosed');
+    expect(testNames).not.toContain('PersistentOverdueTest_NotInterested');
+    expect(testNames).not.toContain('PersistentOverdueTest_Future');
+    expect(testNames).not.toContain('PersistentOverdueTest_OtherAgent');
+  });
+});
+
 
 
 

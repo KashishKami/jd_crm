@@ -1504,3 +1504,52 @@ The `crm_follow_ups.status` column is `varchar(50)` — it stores plain strings,
 - src/tests/FollowUpList.test.tsx — Status assertions updated
 - src/tests/followup.service.test.ts — Status assertions updated
 - src/tests/followups.test.ts — Status assertions updated
+
+---
+
+### Decision 41: Separate Floating Toast Notifications vs Persistent Navbar Overdue Bell Tab (Phase 37)
+
+**Date:** 2026-07-25
+**Status:** Approved
+
+#### Context
+Originally, `/api/follow-ups/due` handled floating toast popups on the bottom-right of the screen by checking `notification_sent_at IS NULL` and a 5-minute upcoming window. When the Navbar Notification Bell was initially introduced, mutating `/api/follow-ups/due` to return all persistent overdue follow-ups caused floating toast cards to re-spawn continuously on every poll/refresh, stacking up on screen even after users dismissed them with the "X" button.
+
+#### Decision
+
+**D41.1 - Preserve Floating Toast Popup System (`findDueForNotification`, `useFollowUpNotifications.ts`)**
+- Preserved `findDueForNotification()` in `followup.repository.ts` and `getDueFollowUps()` in `followup.service.ts` to check `notification_sent_at IS NULL` and 5-minute upcoming/due window (`CONVERT_TZ(...) BETWEEN UTC_TIMESTAMP() AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)`).
+- When a user dismisses a floating toast card, `dismissNotification(id)` calls `PATCH /api/follow-ups/[id]` with `{ _markNotified: true }`, setting `notification_sent_at = UTC_TIMESTAMP()`. That floating toast popup permanently disappears from the screen overlay.
+
+**D41.2 - Dedicated Independent Navbar Notification System (`findOverdueForNavbar`, `useNavbarNotifications.ts`)**
+- Added dedicated repository function `findOverdueForNavbar(agentId: number)` and service method `getOverdueFollowUps(sessionUser)`.
+- Created dedicated endpoint `GET /api/follow-ups/overdue` and custom hook `useNavbarNotifications.ts` with 30-second background polling and instant tab visibility refresh (`visibilitychange`).
+- Returns all active overdue follow-ups assigned to the logged-in agent (`agent_id = agentId AND status NOT IN ('Sale Closed', 'Not Interested') AND CONVERT_TZ(...) <= UTC_TIMESTAMP()`).
+
+**D41.3 - Navbar Bell UI & Mouse Wheel Scroll Support (`Navbar.tsx`, `components.css`)**
+- Positioned Notification Bell button (`.notification-bell-btn`) inside `.navbar-right` immediately left of the User Profile button in `Navbar.tsx`.
+- Rendered red badge counter with keyframe animation (`.notification-badge.jumping`) when `dueCount > 0`.
+- Rendered scrollable dropdown card (`.notification-dropdown-menu`) displaying customer name, relative overdue tag (e.g. `Overdue by 15m`), vehicle part, and scheduled time.
+- Added `onWheel={(e) => e.stopPropagation()}` and `overscroll-behavior: contain` to `.notification-dropdown-menu` so mouse wheel scrolling works smoothly inside the dropdown card without freezing or scrolling the outer page.
+
+**D41.4 - Notification Retention & Exit Rules**
+- Navbar Bell notifications remain stored in the Bell Icon dropdown across page reloads and toast dismissals until one of three exact exit scenarios occurs:
+  1. Follow-up date/time is updated to a future datetime (no longer overdue).
+  2. Follow-up status is set to `Sale Closed`.
+  3. Follow-up status is set to `Not Interested`.
+
+#### Files Changed (Phase 37)
+- `src/repository/followup.repository.ts` — Restored `findDueForNotification` and added `findOverdueForNavbar`.
+- `src/service/followup.service.ts` — Restored `getDueFollowUps` and added `getOverdueFollowUps`.
+- `src/app/api/follow-ups/due/route.ts` — Restored for floating toast popups.
+- `src/app/api/follow-ups/overdue/route.ts` — New dedicated endpoint for Navbar Bell tab.
+- `src/lib/useFollowUpNotifications.ts` — Restored for floating toast popups.
+- `src/lib/useNavbarNotifications.ts` — New dedicated hook for Navbar Bell tab.
+- `src/components/Navbar.tsx` — Integrated bell button, jumping badge counter, mouse wheel scroll support, and card dropdown.
+- `src/app/components.css` — Added `@keyframes notification-jump` and `.notification-dropdown-menu` scroll styling.
+- `CONTEXT/current_state.md` — Phase 37 marked completed `[x]`, checklist crossed out, and Session 104 log updated.
+- `CONTEXT/phase_37_plan.md` — Checklist marked completed `[x]`.
+- `CONTEXT/decision_log.md` — Decision 41 entry updated.
+- `src/tests/Navbar.test.tsx`, `src/tests/useFollowUpNotifications.test.tsx`, `src/tests/useNavbarNotifications.test.ts`, `src/tests/FollowUpNotification.test.tsx`, `src/tests/followups.test.ts` — 5 test suites (34 tests passed GREEN).
+
+

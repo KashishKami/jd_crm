@@ -2013,3 +2013,41 @@
   }
 }
 
+/* W-3702 Notification Tab & Jumping Badge Animation */
+.notification-bell-btn:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.notification-dropdown-menu {
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.notification-item:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.notification-badge.jumping {
+  animation: notification-jump 1.8s infinite cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes notification-jump {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  15% {
+    transform: translateY(-4px) scale(1.1);
+  }
+  30% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-2px) scale(1.05);
+  }
+  60% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+

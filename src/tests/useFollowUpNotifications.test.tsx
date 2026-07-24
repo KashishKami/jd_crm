@@ -37,7 +37,7 @@ describe('useFollowUpNotifications Hook Unit Tests (W-3113)', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
-    // Fast-forward 60s
+    // Fast-forward 60s (polling interval)
     await act(async () => {
       vi.advanceTimersByTime(60000);
     });
