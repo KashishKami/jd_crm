@@ -9,6 +9,7 @@ import { hasPermission } from '../service/permission.service';
 import { fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import OrderList from './OrderList';
+import Pagination from './Pagination';
 import { useLenis } from './LenisProvider';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
 
@@ -1015,27 +1016,13 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           <OrderList orders={orders} skipAnimation={isDetailReturn} />
 
 
-          {totalPages > 1 && (
-            <div className="pagination-bar">
-              <button 
-                onClick={() => handlePageChange(Math.max(page - 1, 1))} 
-                disabled={page === 1}
-                className="pagination-btn"
-              >
-                Previous
-              </button>
-              <span className="pagination-info">
-                Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
-              </span>
-              <button 
-                onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
-                disabled={page === totalPages}
-                className="pagination-btn"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemLabel="orders"
+            onPageChange={handlePageChange}
+          />
         </>
       )}
     </div>

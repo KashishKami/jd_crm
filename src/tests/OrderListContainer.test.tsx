@@ -333,5 +333,21 @@ describe('OrderListContainer Unit Tests', () => {
 
       window.location = originalLocation as any;
     });
+
+    it('should render spread-out clickable page numbers and navigate when a page pill is clicked', async () => {
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Next →')).toBeDefined();
+      });
+
+      const page2Button = screen.getByRole('button', { name: 'Page 2' });
+      expect(page2Button).toBeDefined();
+      fireEvent.click(page2Button);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('page=2'));
+      });
+    });
   });
 

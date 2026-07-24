@@ -350,9 +350,10 @@ describe('AgentList Component Unit Tests', () => {
 
     render(<AgentList initialAgents={twentyFiveAgents as any} />);
 
-    // Since page is 2, the pagination info should display page 2
+    // Since page is 2, the active page pill should be Page 2
     await waitFor(() => {
-      expect(screen.getByText(/Page/i).textContent).toContain('Page 2 of');
+      const page2Btn = screen.getByRole('button', { name: 'Page 2' });
+      expect(page2Btn.getAttribute('aria-current')).toBe('page');
     });
   });
 

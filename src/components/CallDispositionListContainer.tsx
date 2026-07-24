@@ -8,6 +8,7 @@ import CallDispositionList from './CallDispositionList';
 import AddDispositionModal from './AddDispositionModal';
 import EditDispositionModal from './EditDispositionModal';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
+import Pagination from './Pagination';
 
 function CallDispositionListContainerContent() {
   const { data: session, status } = useSession();
@@ -333,28 +334,13 @@ function CallDispositionListContainerContent() {
           />
         </div>
 
-        {/* Pagination controls */}
-        {totalPages > 1 && (
-          <div className="pagination-bar">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(p - 1, 1))}
-              className="pagination-btn"
-            >
-              Previous
-            </button>
-            <div className="pagination-info" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {total} records)
-            </div>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-              className="pagination-btn"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={total}
+          itemLabel="records"
+          onPageChange={(newPage) => setPage(newPage)}
+        />
       </div>
 
       {/* Modals */}

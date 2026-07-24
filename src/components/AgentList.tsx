@@ -10,6 +10,7 @@ import { Agent } from '../types/agent';
 import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
+import Pagination from './Pagination';
 
 interface AgentListProps {
   designations?: { designationId: number; designationName: string }[];
@@ -588,27 +589,13 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <div className="pagination-bar">
-            <button 
-              onClick={() => handlePageChange(Math.max(page - 1, 1))} 
-              disabled={page === 1}
-              className="pagination-btn"
-            >
-              Previous
-            </button>
-            <span className="pagination-info">
-              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
-            </span>
-            <button 
-              onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
-              disabled={page === totalPages}
-              className="pagination-btn"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemLabel="agents"
+          onPageChange={handlePageChange}
+        />
       </>
     )}
   </div>

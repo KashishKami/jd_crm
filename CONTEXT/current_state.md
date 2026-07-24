@@ -50,6 +50,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 32** | Orders: CAD/USD Currency + Exchange Rate, Clickable Customer Name, Sales Verifier Role Filter, Alphabetical Agent Dropdowns | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/app/orders/new/page.tsx`, `src/app/orders/[id]/edit/page.tsx`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/components/OrderList.tsx`, `src/components/OrderListContainer.tsx`, `src/components/DealSummarySidebar.tsx`, `src/components/FinancialBreakdownCard.tsx`, `src/repository/agent.repository.ts`, `src/components/dashboard/AdvancedChartWidget.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
 | **Phase 33** | Call Disposition Module + Follow-Up Status Dropdown Update | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/types/callDisposition.ts` (new), `src/repository/callDisposition.repository.ts` (new), `src/service/callDisposition.service.ts` (new), `src/app/api/call-dispositions/route.ts` (new), `src/app/api/call-dispositions/[id]/route.ts` (new), `src/app/api/call-dispositions/export/route.ts` (new), `src/components/AddDispositionModal.tsx` (new), `src/components/EditDispositionModal.tsx` (new), `src/components/CallDispositionList.tsx` (new), `src/components/CallDispositionListContainer.tsx` (new), `src/app/call-dispositions/page.tsx` (new), `src/middleware.ts`, `src/components/Sidebar.tsx`, `src/components/Navbar.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/callDispositions.test.ts` (new), `src/tests/CallDispositionList.test.tsx` (new), `src/tests/AddDispositionModal.test.tsx` (new), `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followup.service.test.ts`, `src/tests/followups.test.ts` |
 | **Phase 34** | Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration | **[x] COMPLETED** | `src/lib/urlStateHelper.ts` (new), `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/urlStateHelper.test.ts` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/FollowUpListContainer.test.tsx` (new), `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx`, `src/tests/GatewayList.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
+| **Phase 35** | Universal Spread-Out Pagination Component (`<Pagination />`) | **[x] COMPLETED** | `src/lib/paginationHelper.ts` (new), `src/components/Pagination.tsx` (new), `src/app/components.css`, `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/paginationHelper.test.ts` (new), `src/tests/Pagination.test.tsx` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx` |
 
 ---
 
@@ -4609,7 +4610,7 @@ The current `AddOrderForm.tsx` and `EditOrderForm.tsx` have a flat "Section 3: D
 
 ---
 
-# Phase 27 & 28 — Data Management: Excel Export & MySQL Backup
+## Phase 27 & 28 — Data Management: Excel Export & MySQL Backup
 
 > [!IMPORTANT]
 > Both phases share one admin page: `/settings/data-management`.
@@ -8920,6 +8921,33 @@ This phase addresses two long-standing, recurring frontend state bugs across all
 - [x] **Verification chain:**
   - [ ] User navigates between Orders, Follow-Ups, Agents, Vendors, Gateways, and Call Dispositions -> No filter ever leaks between any two pages.
   - [ ] User applies filters and navigates to page 2, 3, or 4 on ANY list view -> User opens detail/edit -> User clicks Back or Save -> Exact page number, filter state, and scroll position are 100% restored across ALL 6 list modules -> Done.
+
+---
+## Phase 35 — Universal Spread-Out Pagination Component (`<Pagination />`)
+
+**Goal:** Implement a modern, responsive, spread-out pagination control with clickable page numbers, dynamic ellipsis (`...`), active blue page pills, and responsive sibling/boundary counts across all 6 CRM list views.
+
+- [x] **W-3501: Pagination Range Builder Helper & `<Pagination />` Component**
+  - **Root Cause:** All list modules used ad-hoc plain text `Page X of Y` rendering without interactive page number buttons or responsive range algorithms.
+  - **Tiers Touched:** Core Helper (`src/lib/paginationHelper.ts`), UI Component (`src/components/Pagination.tsx`), Global CSS (`src/app/components.css`).
+  - [x] **RED — Unit Tests (`src/tests/paginationHelper.test.ts` & `src/tests/Pagination.test.tsx`):**
+    - [x] `paginationHelper.test.ts`: Standard and ultra-wide range builder tests (5 passed GREEN).
+    - [x] `Pagination.test.tsx`: Render, page pill click, and disabled state tests (4 passed GREEN).
+  - [x] **GREEN — Implementation (`src/lib/paginationHelper.ts`, `src/components/Pagination.tsx`, `src/app/components.css`):**
+    - [x] Created `src/lib/paginationHelper.ts` with `boundaryCount` and `siblingCount` support.
+    - [x] Created `src/components/Pagination.tsx` with responsive window resize listener (`boundaryCount = 5` for screens `>= 1600px`).
+    - [x] Added `.pagination-numbers`, `.pagination-number-btn.active` blue pill styling to `src/app/components.css`.
+
+- [x] **W-3502: Universal Integration Across All 6 CRM List Views**
+  - **Root Cause:** List components rendered legacy text pagination bars.
+  - **Tiers Touched:** Frontend List Components & Test Suites.
+  - [x] **GREEN — Component Integration:**
+    - [x] `src/components/OrderListContainer.tsx`: Replaced legacy bar with `<Pagination />`.
+    - [x] `src/components/FollowUpListContainer.tsx`: Replaced legacy bar with `<Pagination />`.
+    - [x] `src/components/AgentList.tsx`: Replaced legacy bar with `<Pagination />`.
+    - [x] `src/components/VendorList.tsx`: Replaced legacy bar with `<Pagination />`.
+    - [x] `src/components/GatewayList.tsx`: Replaced legacy bar with `<Pagination />`.
+    - [x] `src/components/CallDispositionListContainer.tsx`: Replaced legacy bar with `<Pagination />`.
 
 ---
 

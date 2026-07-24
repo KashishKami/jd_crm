@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import FollowUpList from './FollowUpList';
+import Pagination from './Pagination';
 import GlobalFollowUpNotifications from './GlobalFollowUpNotifications';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
 
@@ -578,28 +579,13 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
             onDelete={handleDeleteFollowUp}
           />
 
-          {/* Pagination controls */}
-          {totalPages > 1 && (
-            <div className="pagination-bar">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page === 1}
-                className="pagination-btn"
-              >
-                Previous
-              </button>
-              <div className="pagination-info" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems} follow-ups)
-              </div>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page === totalPages}
-                className="pagination-btn"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemLabel="follow-ups"
+            onPageChange={handlePageChange}
+          />
         </>
       )}
       <GlobalFollowUpNotifications />

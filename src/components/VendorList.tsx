@@ -11,6 +11,7 @@ import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import VendorStatusBadge from './VendorStatusBadge';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
+import Pagination from './Pagination';
 
 function VendorListContent() {
   const { data: session } = useSession();
@@ -434,27 +435,13 @@ function VendorListContent() {
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <div className="pagination-bar">
-            <button 
-              onClick={() => handlePageChange(Math.max(page - 1, 1))} 
-              disabled={page === 1}
-              className="pagination-btn"
-            >
-              Previous
-            </button>
-            <span className="pagination-info">
-              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {totalItems})
-            </span>
-            <button 
-              onClick={() => handlePageChange(Math.min(page + 1, totalPages))} 
-              disabled={page === totalPages}
-              className="pagination-btn"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemLabel="vendors"
+          onPageChange={handlePageChange}
+        />
       </>
     )}
   </div>
