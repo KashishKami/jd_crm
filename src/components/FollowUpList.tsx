@@ -94,7 +94,7 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                   <tr key={f.followUpId}>
                     <td>
                       <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textAlign: 'center' }}>
-                        {f.status !== 'Not Interested' && (
+                        {!['Not Interested', 'Sale Closed'].includes(f.status) && (
                           <div>
                             <span className={getDaysLabelBadgeClass(f.daysLabel)}>
                               {f.daysLabel}

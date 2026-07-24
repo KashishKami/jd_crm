@@ -89,6 +89,41 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
 
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedStatuses = statusFilter
+    ? statusFilter.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  const handleToggleStatus = (opt: string) => {
+    let updated: string[];
+    if (selectedStatuses.includes(opt)) {
+      updated = selectedStatuses.filter((s) => s !== opt);
+    } else {
+      updated = [...selectedStatuses, opt];
+    }
+    setStatusFilter(updated.join(','));
+  };
+
+  const handleSelectAllStatuses = () => {
+    setStatusFilter(STATUS_OPTIONS.join(','));
+  };
+
+  const handleClearAllStatuses = () => {
+    setStatusFilter('');
+  };
+
   const isRestoringRef = useRef(true);
   const isCachedRef = useRef(false);
   // Guard flag: prevents in-flight scroll events from poisoning the next page's
@@ -513,15 +548,40 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
             </select>
           </div>
 
-          <div className="filter-select-wrapper">
-            <label htmlFor="statusFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
+          <div className="filter-select-wrapper" style={{ position: 'relative' }} ref={statusDropdownRef}>
+            <label htmlFor="statusFilterBtn" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
               Status
             </label>
+            <button
+              type="button"
+              id="statusFilterBtn"
+              onClick={() => setStatusDropdownOpen((open) => !open)}
+              className="filter-select-custom"
+              style={{
+                textAlign: 'left',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                minWidth: '180px',
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedStatuses.length === 0
+                  ? 'All Statuses'
+                  : selectedStatuses.length === 1
+                  ? selectedStatuses[0]
+                  : `${selectedStatuses.length} Statuses Selected`}
+              </span>
+              <span style={{ fontSize: '0.7rem', marginLeft: '8px' }}>▼</span>
+            </button>
+
+            {/* Hidden native select for accessibility/testing */}
             <select
               id="statusFilter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="filter-select-custom"
+              style={{ display: 'none' }}
             >
               <option value="">All Statuses</option>
               {STATUS_OPTIONS.map((opt) => (
@@ -530,6 +590,79 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
                 </option>
               ))}
             </select>
+
+            {statusDropdownOpen && (
+              <div
+                className="multi-select-dropdown-menu"
+                onWheel={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  zIndex: 50,
+                  marginTop: '4px',
+                  width: '260px',
+                  maxHeight: '280px',
+                  overflowY: 'auto',
+                  overscrollBehavior: 'contain',
+                  backgroundColor: 'var(--bg-card, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  padding: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                    paddingBottom: '6px',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handleSelectAllStatuses}
+                    style={{ fontSize: '0.75rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearAllStatuses}
+                    style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {STATUS_OPTIONS.map((opt) => {
+                  const isChecked = selectedStatuses.includes(opt);
+                  return (
+                    <label
+                      key={opt}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '4px 6px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        backgroundColor: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleStatus(opt)}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="filter-select-wrapper">

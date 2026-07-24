@@ -51,7 +51,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 33** | Call Disposition Module + Follow-Up Status Dropdown Update | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/types/callDisposition.ts` (new), `src/repository/callDisposition.repository.ts` (new), `src/service/callDisposition.service.ts` (new), `src/app/api/call-dispositions/route.ts` (new), `src/app/api/call-dispositions/[id]/route.ts` (new), `src/app/api/call-dispositions/export/route.ts` (new), `src/components/AddDispositionModal.tsx` (new), `src/components/EditDispositionModal.tsx` (new), `src/components/CallDispositionList.tsx` (new), `src/components/CallDispositionListContainer.tsx` (new), `src/app/call-dispositions/page.tsx` (new), `src/middleware.ts`, `src/components/Sidebar.tsx`, `src/components/Navbar.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/callDispositions.test.ts` (new), `src/tests/CallDispositionList.test.tsx` (new), `src/tests/AddDispositionModal.test.tsx` (new), `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followup.service.test.ts`, `src/tests/followups.test.ts` |
 | **Phase 34** | Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration | **[x] COMPLETED** | `src/lib/urlStateHelper.ts` (new), `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/urlStateHelper.test.ts` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/FollowUpListContainer.test.tsx` (new), `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx`, `src/tests/GatewayList.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
 | **Phase 35** | Universal Spread-Out Pagination Component (`<Pagination />`) | **[x] COMPLETED** | `src/lib/paginationHelper.ts` (new), `src/components/Pagination.tsx` (new), `src/app/components.css`, `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/paginationHelper.test.ts` (new), `src/tests/Pagination.test.tsx` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx` |
-
+| **Phase 36** | Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter | **[x] COMPLETED** | `src/components/FollowUpList.tsx`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/components/FollowUpListContainer.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followups.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
 ---
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
@@ -8951,6 +8951,30 @@ This phase addresses two long-standing, recurring frontend state bugs across all
 
 ---
 
+## Phase 36 — Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter
+
+**Goal:** Hide relative days label badges for all closed outcomes (`Not Interested` & `Sale Closed`) and implement a modern multi-select status filter dropdown for the Follow-Ups page.
+
+- [x] **W-3601: Days Label Suppression for Closed Outcomes ("Not Interested" & "Sale Closed")**
+  - **Root Cause:** `FollowUpList.tsx` currently only checked `f.status !== 'Not Interested'`. `Sale Closed` is also a completed outcome but rendered relative time badges.
+  - **Tiers Touched:** Frontend Component (`src/components/FollowUpList.tsx`), Component Test Suite (`src/tests/FollowUpList.test.tsx`).
+  - [x] **RED — Unit Test (`src/tests/FollowUpList.test.tsx`):**
+    - [x] Added test assertion verifying `Sale Closed` status suppresses `daysLabel` badge.
+  - [x] **GREEN — Implementation (`src/components/FollowUpList.tsx`):**
+    - [x] Updated status check to `{!['Not Interested', 'Sale Closed'].includes(f.status) && (...)}`.
+
+- [x] **W-3602: Multi-Select Status Filter & Prisma `{ in: [...] }` Query Engine**
+  - **Root Cause:** `FollowUpFilters.status` was a single string, and `followup.repository.ts` performed single-string equality. Agents could not filter by multiple statuses simultaneously.
+  - **Tiers Touched:** Types (`src/types/followup.ts`), Repository (`src/repository/followup.repository.ts`), Service (`src/service/followup.service.ts`), UI Component (`src/components/FollowUpListContainer.tsx`), Test Suites (`src/tests/followups.test.ts`, `src/tests/FollowUpListContainer.test.tsx`).
+  - [x] **RED — Integration & Component Tests:**
+    - [x] `followups.test.ts`: Added integration test for comma-separated statuses `status=Interested,Call+Back+Later` (PASSED GREEN).
+  - [x] **GREEN — Implementation:**
+    - [x] Updated `FollowUpFilters` type to accept `status?: string | string[]`.
+    - [x] Updated `followup.repository.ts` to use `where.status = { in: statuses }`.
+    - [x] Replaced single select with multi-select checkbox dropdown in `FollowUpListContainer.tsx` with mouse wheel scrolling fix (`onWheel` stop propagation & `overscroll-behavior: contain`).
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -10342,3 +10366,27 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     *   **Verification:**
         *   `npm run typecheck` (`tsc --noEmit`) — **0 errors**.
         *   `npm run lint` (`eslint`) — **0 errors, 0 warnings**.
+
+
+### Session 103 - July 24, 2026
+
+* **Phase 35 — Universal Spread-Out Pagination Component (`<Pagination />`):**
+    * **Range Builder & Component (`src/lib/paginationHelper.ts`, `src/components/Pagination.tsx`, `src/app/components.css`):**
+        * Built `getPaginationRange({ currentPage, totalPages, siblingCount, boundaryCount })` logic for dynamic page number arrays with ellipses (`...`).
+        * Created `<Pagination />` component with responsive window resize listener (`boundaryCount = 5` for ultra-wide screens `>= 1600px`).
+        * Added `.pagination-numbers`, `.pagination-number-btn.active` blue pill styling to global CSS.
+    * **Universal Integration Across All 6 List Modules:**
+        * Integrated `<Pagination />` across Orders, Follow-Ups, Agents, Vendors, Gateways, and Call Dispositions.
+
+* **Phase 36 — Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter:**
+    * **Days Label Suppression for Closed Outcomes (`src/components/FollowUpList.tsx`):**
+        * Updated condition to `{!['Not Interested', 'Sale Closed'].includes(f.status) && (...)}` to suppress relative urgency countdown badges for both completed outcomes (`Not Interested` and `Sale Closed`).
+    * **Multi-Select Status Filter & Prisma `{ in: [...] }` Query Engine (`src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/components/FollowUpListContainer.tsx`):**
+        * Updated `FollowUpFilters` interface to support `status?: string | string[]`.
+        * Updated `followup.repository.ts` to support arrays or comma-separated status strings in `where.status = { in: statuses }`.
+        * Replaced single-select dropdown with multi-select checkbox dropdown component in `FollowUpListContainer.tsx` with mouse wheel scroll support (`onWheel` stop propagation & `overscroll-behavior: contain`), *Select All* / *Clear All* action buttons, and URL query parameter sync.
+
+* **Verification:**
+    * **Automated Tests:** 25/25 passed GREEN across follow-up test suites, 53/53 passed GREEN overall across all list and pagination suites.
+    * **`npm run typecheck` (`tsc --noEmit`):** **0 errors**.
+    * **`npm run lint` (`eslint`):** **0 errors, 0 warnings**.

@@ -296,4 +296,46 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
     // daysLabel badge must NOT appear when status is 'Not Interested'
     expect(screen.queryByText('Tomorrow')).toBeNull();
   });
+
+  it('should hide the daysLabel badge in the table when status is Sale Closed', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: 1, userPermissions: 'follow-ups:view,follow-ups:create' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const saleClosedFollowUps = [
+      {
+        ...mockFollowUps[0],
+        status: 'Sale Closed',
+        daysLabel: 'Tomorrow',
+      },
+    ];
+
+    vi.mocked(global.fetch).mockImplementation(async (url) => {
+      if (url.toString().includes('/api/follow-ups')) {
+        return {
+          ok: true,
+          json: async () => ({ followUps: saleClosedFollowUps, total: 1 }),
+        } as any;
+      }
+      if (url.toString().includes('/api/teams') || url.toString().includes('/api/agents')) {
+        return {
+          ok: true,
+          json: async () => [],
+        } as any;
+      }
+      return { ok: false } as any;
+    });
+
+    render(<FollowUpListContainer />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Alice Springs')).not.toBeNull();
+    });
+
+    // daysLabel badge must NOT appear when status is 'Sale Closed'
+    expect(screen.queryByText('Tomorrow')).toBeNull();
+  });
 });

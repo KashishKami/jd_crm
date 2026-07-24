@@ -53,7 +53,7 @@ export interface FollowUpFilters {
   agentId?: number;
   teamId?: number;
   priority?: string;
-  status?: string;
+  status?: string | string[];
   followUpDateFrom?: string;
   followUpDateTo?: string;
   search?: string;

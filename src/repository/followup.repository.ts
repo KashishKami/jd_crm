@@ -79,7 +79,13 @@ export async function findAll(filters: FollowUpFilters): Promise<FollowUpListRes
   }
 
   if (filters.status) {
-    where.status = filters.status;
+    if (Array.isArray(filters.status)) {
+      where.status = { in: filters.status };
+    } else if (typeof filters.status === 'string' && filters.status.includes(',')) {
+      where.status = { in: filters.status.split(',').map((s) => s.trim()) };
+    } else {
+      where.status = filters.status;
+    }
   }
 
   if (filters.followUpDateFrom || filters.followUpDateTo) {

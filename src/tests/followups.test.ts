@@ -348,6 +348,22 @@ describe('Follow-Ups Search (W-3154)', () => {
     expect(data.followUps.length).toBe(1);
     expect(data.followUps[0].customerName).toBe('UniqueSearchNameBanana');
   });
+
+  it('should filter by multiple comma-separated statuses (W-3602)', async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce({
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+    });
+
+    // @ts-ignore
+    const { GET } = await import('../app/api/follow-ups/route');
+    const req = new Request('http://localhost/api/follow-ups?status=Interested,Call+Back+Later');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const statuses = data.followUps.map((f: any) => f.status);
+    expect(statuses.length).toBeGreaterThan(0);
+    expect(statuses.every((s: string) => ['Interested', 'Call Back Later'].includes(s))).toBe(true);
+  });
 });
 
 
