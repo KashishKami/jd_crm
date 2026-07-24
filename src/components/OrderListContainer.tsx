@@ -10,8 +10,7 @@ import { fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import OrderList from './OrderList';
 import { useLenis } from './LenisProvider';
-
-
+import { getSafeUrlParam } from '../lib/urlStateHelper';
 
 interface OrderListContainerProps {
   initialStatus?: string;
@@ -42,56 +41,38 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
      Boolean(sessionStorage.getItem('coming_from_detail')?.startsWith('/orders')))
   );
 
-
-
-  // Filter states — lazy-initialized from URL so that on back-navigation
-  // the values are already correct before any effect runs, preventing a
-  // spurious Render #2 that would call setPage(1).
-  const [statusFilter, setStatusFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return initialStatus || '';
-    return new URLSearchParams(window.location.search).get('status') || initialStatus || '';
-  });
-  const [saleStatusFilter, setSaleStatusFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('saleStatus') || '';
-  });
-  const [agentFilter, setAgentFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('agentId') || '';
-  });
+  // Filter states — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'status', expectedBasePath: '/orders', defaultValue: initialStatus || '' })
+  );
+  const [saleStatusFilter, setSaleStatusFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'saleStatus', expectedBasePath: '/orders', defaultValue: '' })
+  );
+  const [agentFilter, setAgentFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'agentId', expectedBasePath: '/orders', defaultValue: '' })
+  );
   const [teams, setTeams] = useState<any[]>(initialTeams || []);
-  const [teamFilter, setTeamFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('teamId') || '';
-  });
-  const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('backendExecutiveId') || '';
-  });
-  const [partFoundByFilter, setPartFoundByFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('partFoundById') || '';
-  });
+  const [teamFilter, setTeamFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'teamId', expectedBasePath: '/orders', defaultValue: '' })
+  );
+  const [backendExecutiveFilter, setBackendExecutiveFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'backendExecutiveId', expectedBasePath: '/orders', defaultValue: '' })
+  );
+  const [partFoundByFilter, setPartFoundByFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'partFoundById', expectedBasePath: '/orders', defaultValue: '' })
+  );
   const [pendingCounts, setPendingCounts] = useState<Record<string, { amount: number; count: number }>>({});
-  const [dateFrom, setDateFrom] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('dateFrom') || '';
-  });
-  const [dateTo, setDateTo] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('dateTo') || '';
-  });
+  const [dateFrom, setDateFrom] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'dateFrom', expectedBasePath: '/orders', defaultValue: '' })
+  );
+  const [dateTo, setDateTo] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'dateTo', expectedBasePath: '/orders', defaultValue: '' })
+  );
 
-  // Pagination states — lazy-initialized from URL so back-navigation restores
-  // the correct page number before any effect runs (same pattern as filters).
+  // Pagination states — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
   const [page, setPage] = useState(() => {
-    if (typeof window === 'undefined') return 1;
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
-    const isOrdersDetailReturn = comingFromDetail === '/orders' || Boolean(comingFromDetail && comingFromDetail.startsWith('/orders'));
-    if (isOrdersDetailReturn) {
-      return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
-    }
-    return 1;
+    const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/orders', defaultValue: '1' });
+    return parseInt(rawPage, 10) || 1;
   });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -298,7 +279,12 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
 
       // Scroll to top instantly — 'smooth' generates its own scroll events
       // that can outlast the guard window and corrupt the next page's scroll key.
+      // Both calls are needed: window.scrollTo resets the native position,
+      // lenis.scrollTo resets Lenis's own internal position — without the
+      // Lenis call, Lenis overrides window.scrollTo back to the old position
+      // on its next RAF tick.
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      lenis?.scrollTo(0, { immediate: true });
       const params = new URLSearchParams(window.location.search);
       params.set('page', String(newPage));
       const newUrl = `${window.location.pathname}?${params.toString()}`;

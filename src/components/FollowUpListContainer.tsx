@@ -8,6 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { hasPermission } from '../service/permission.service';
 import FollowUpList from './FollowUpList';
 import GlobalFollowUpNotifications from './GlobalFollowUpNotifications';
+import { getSafeUrlParam } from '../lib/urlStateHelper';
 
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
 
@@ -45,37 +46,30 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   const [teams, setTeams] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
 
-  // Filters state (lazy-initialized from URL params to prevent spurious resets)
-  const [priorityFilter, setPriorityFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('priority') || '';
-  });
-  const [statusFilter, setStatusFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('status') || '';
-  });
-  const [dateFrom, setDateFrom] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('followUpDateFrom') || '';
-  });
-  const [dateTo, setDateTo] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('followUpDateTo') || '';
-  });
-  const [teamFilter, setTeamFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('teamId') || '';
-  });
-  const [agentFilter, setAgentFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('agentId') || '';
-  });
+  // Filters state (lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation)
+  const [priorityFilter, setPriorityFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'priority', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'status', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
+  const [dateFrom, setDateFrom] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'followUpDateFrom', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
+  const [dateTo, setDateTo] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'followUpDateTo', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
+  const [teamFilter, setTeamFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'teamId', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
+  const [agentFilter, setAgentFilter] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'agentId', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
 
   // Search states
-  const [searchVal, setSearchVal] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('search') || '';
-  });
+  const [searchVal, setSearchVal] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'search', expectedBasePath: '/follow-ups', defaultValue: '' })
+  );
   const [debouncedSearch, setDebouncedSearch] = useState(searchVal);
 
   useEffect(() => {
@@ -87,8 +81,8 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
   // Pagination
   const [page, setPage] = useState(() => {
-    if (typeof window === 'undefined') return 1;
-    return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
+    const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/follow-ups', defaultValue: '1' });
+    return parseInt(rawPage, 10) || 1;
   });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -256,9 +250,14 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   }, [loading, followUps]);
 
 
-  // Sync parameters from URL on back navigation
+  // Sync filter states from URL when Next.js router triggers a real navigation
+  // (e.g. browser Back button). Do NOT run during page transitions triggered by
+  // handlePageChange (which uses history.pushState, not the router) — that would
+  // cause useSearchParams to see stale params and wipe the active filter states.
   useEffect(() => {
     if (!searchParams) return;
+    if (pageChangingRef.current) return; // skip during handlePageChange transitions
+
     const priorityParam = searchParams.get('priority');
     const statusParam = searchParams.get('status');
     const fromParam = searchParams.get('followUpDateFrom');
@@ -351,8 +350,9 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       setTotalPages(Math.ceil((data.total || 0) / limit) || 1);
       setTotalItems(data.total || 0);
 
-      // Write results to cache
-      const cacheKey = `cached_followups_${window.location.pathname}?${queryParams.toString()}`;
+      // Cache key must match what the mount effect reads — both use window.location.search
+      // so param order is always consistent (never use queryParams.toString() for the key).
+      const cacheKey = `cached_followups_${window.location.pathname}${window.location.search}`;
       sessionStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (err: any) {
       setError(err.message);

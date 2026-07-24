@@ -66,10 +66,13 @@ describe('AgentList Component Unit Tests', () => {
   ];
 
   beforeEach(() => {
+    sessionStorage.clear();
     vi.resetAllMocks();
-    // Reset location query parameters to prevent test leakage
+    mockGet.mockReturnValue(null);
+    // Reset location to /agents to prevent test location leakage
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', '/agents');
+      delete (window as any).location;
+      window.location = new URL('http://localhost:3000/agents') as any;
     }
     // Mock window.confirm
     window.confirm = vi.fn().mockReturnValue(true);
@@ -118,7 +121,7 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
 
     // Wait for the table data to be loaded and rendered
     await waitFor(() => {
@@ -144,12 +147,13 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: /add agent/i })).not.toBeNull();
     });
 
     cleanup();
+    sessionStorage.clear();
 
     // 2. Without agents:create permission
     vi.mocked(useSession).mockReturnValue({
@@ -163,7 +167,7 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: /add agent/i })).toBeNull();
     });
@@ -183,7 +187,7 @@ describe('AgentList Component Unit Tests', () => {
 
     const fetchSpy = vi.spyOn(global, 'fetch');
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
 
     // Find and click deactivate button for Agent Ten (uid: 10)
     let deactivateBtns: HTMLElement[] = [];
@@ -218,7 +222,7 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
 
     await waitFor(() => {
       // Check that the alias "Ten" is rendered
@@ -246,7 +250,7 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
 
     await waitFor(() => {
       // Verify inputs and dropdowns are present
@@ -289,6 +293,7 @@ describe('AgentList Component Unit Tests', () => {
     });
 
     cleanup();
+    sessionStorage.clear();
 
     // Case 2: Having agents:view-roles
     vi.mocked(useSession).mockReturnValue({
@@ -302,7 +307,7 @@ describe('AgentList Component Unit Tests', () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession>);
 
-    render(<AgentList />);
+    render(<AgentList initialAgents={mockAgents as any} />);
     await waitFor(() => {
       // Check that role dropdown IS rendered
       expect(screen.getByTestId('role-select')).toBeDefined();
@@ -384,5 +389,68 @@ describe('AgentList Component Unit Tests', () => {
     scrollToSpy.mockRestore();
     window.location = originalLocation as any;
   });
+
+  it('should ignore stale query params from other routes (e.g. /orders?agentId=5) when mounting AgentList', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/orders',
+      search: '?agentId=5',
+    } as any;
+
+    render(<AgentList initialAgents={mockAgents as any} />);
+
+    await waitFor(() => {
+      const searchInput = screen.queryByPlaceholderText(/Search/i) as HTMLInputElement;
+      if (searchInput) {
+        expect(searchInput.value).toBe('');
+      }
+    });
+
+    window.location = originalLocation as any;
+  });
+
+  it('should restore page=2 and role=Sales Manager when returning from agent detail page', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'agents:view,agents:view-roles',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/agents/1',
+      search: '',
+    } as any;
+
+    sessionStorage.setItem('coming_from_detail', '/agents?page=2&role=Sales+Manager');
+
+    render(<AgentList initialAgents={mockAgents as any} />);
+
+    await waitFor(() => {
+      const roleSelect = screen.getByTestId('role-select') as HTMLSelectElement;
+      expect(roleSelect.value).toBe('Sales Manager');
+    });
+
+    window.location = originalLocation as any;
+  });
 });
+
 

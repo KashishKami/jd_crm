@@ -20,7 +20,8 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
   const [hasAnimated, setHasAnimated] = useState(() => {
     if (typeof window === 'undefined') return false;
     // If returning from a detail page, skip animation unconditionally
-    if (sessionStorage.getItem('coming_from_detail') === 'true') return true;
+    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
+    if (comingFromDetail === '/gateways' || Boolean(comingFromDetail && comingFromDetail.startsWith('/gateways'))) return true;
     // Also skip if there is already a saved scroll position for this URL
     const key = `scroll_position_${window.location.pathname}${window.location.search}`;
     const savedScroll = sessionStorage.getItem(key);

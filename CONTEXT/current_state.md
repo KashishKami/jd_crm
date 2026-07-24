@@ -49,6 +49,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 31.5** | Follow-Ups: Bug Fix (computeDaysLabel), UI Overhaul (columns, search, detail layout, Georgia font, EST timestamps, Callback→Follow Up rename), Part Description Field | **[x] COMPLETED** | `src/lib/formatPhone.ts` (new), `src/lib/useFollowUpNotifications.ts`, `src/service/followup.service.ts`, `src/repository/followup.repository.ts`, `src/types/followup.ts`, `src/app/api/follow-ups/route.ts`, `src/app/api/follow-ups/[id]/route.ts`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/components/FollowUpList.tsx`, `src/components/FollowUpListContainer.tsx`, `src/app/follow-ups/[id]/page.tsx`, `prisma/schema.prisma`, 1 migration, `src/tests/followup.service.test.ts`, `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/FollowUpDetailPage.test.tsx`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/followups.test.ts` |
 | **Phase 32** | Orders: CAD/USD Currency + Exchange Rate, Clickable Customer Name, Sales Verifier Role Filter, Alphabetical Agent Dropdowns | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `src/types/order.ts`, `src/repository/order.repository.ts`, `src/service/order.service.ts`, `src/app/api/orders/[id]/route.ts`, `src/app/orders/new/page.tsx`, `src/app/orders/[id]/edit/page.tsx`, `src/components/AddOrderForm.tsx`, `src/components/EditOrderForm.tsx`, `src/components/OrderList.tsx`, `src/components/OrderListContainer.tsx`, `src/components/DealSummarySidebar.tsx`, `src/components/FinancialBreakdownCard.tsx`, `src/repository/agent.repository.ts`, `src/components/dashboard/AdvancedChartWidget.tsx`, `src/tests/orders.test.ts`, `src/tests/AddOrderForm.test.tsx`, `src/tests/EditOrderForm.test.tsx` |
 | **Phase 33** | Call Disposition Module + Follow-Up Status Dropdown Update | **[x] COMPLETED** | `prisma/schema.prisma`, 1 migration, `seed.sql`, `src/types/callDisposition.ts` (new), `src/repository/callDisposition.repository.ts` (new), `src/service/callDisposition.service.ts` (new), `src/app/api/call-dispositions/route.ts` (new), `src/app/api/call-dispositions/[id]/route.ts` (new), `src/app/api/call-dispositions/export/route.ts` (new), `src/components/AddDispositionModal.tsx` (new), `src/components/EditDispositionModal.tsx` (new), `src/components/CallDispositionList.tsx` (new), `src/components/CallDispositionListContainer.tsx` (new), `src/app/call-dispositions/page.tsx` (new), `src/middleware.ts`, `src/components/Sidebar.tsx`, `src/components/Navbar.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/callDispositions.test.ts` (new), `src/tests/CallDispositionList.test.tsx` (new), `src/tests/AddDispositionModal.test.tsx` (new), `src/tests/AddFollowUpForm.test.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followup.service.test.ts`, `src/tests/followups.test.ts` |
+| **Phase 34** | Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration | **[x] COMPLETED** | `src/lib/urlStateHelper.ts` (new), `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/urlStateHelper.test.ts` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/FollowUpListContainer.test.tsx` (new), `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx`, `src/tests/GatewayList.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
 
 ---
 
@@ -8811,6 +8812,117 @@ Update the `STATUS_OPTIONS` array in three UI files. Update test assertions that
 
 ---
 
+## Phase 34 — Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration
+
+### Summary
+
+This phase addresses two long-standing, recurring frontend state bugs across all 6 list modules (**Orders**, **Follow-Ups**, **Agents**, **Vendors**, **Gateways**, **Call Dispositions**):
+1. **Cross-Page Filter Leakage:** Stale query parameters from one list view (e.g. `?agentId=5` on `/orders`) leaking into another list view (e.g. `/follow-ups`) during client-side Next.js navigation because `window.location.search` is evaluated during mount before history state updates.
+2. **Scroll & Filter Position Loss on Back Navigation:** Returning from detail/edit pages (e.g. `/follow-ups/123` -> `/follow-ups?page=2&status=Interested`) evaluates `window.location.search` as `""`, wiping state to defaults (`statusFilter = ''`, `page = 1`), causing URL synchronizers to overwrite the URL parameters and corrupting `sessionStorage` scroll keys (`scroll_position_...`) for page 2+ or filtered views.
+
+---
+
+### Work Item W-3401 — Path-Scoped URL State Parser Helper (`urlStateHelper.ts`)
+
+**Goal:** Create a pure, safe helper function `getSafeUrlParam({ searchParams, paramName, expectedBasePath, defaultValue })` that reads route-scoped parameters safely.
+
+- [x] **RED — Unit (`urlStateHelper.test.ts`):**
+  - [x] Test: `getSafeUrlParam` returns `defaultValue` when `window.location.pathname` is `/orders` but `expectedBasePath` is `/follow-ups`.
+  - [x] Test: `getSafeUrlParam` returns parameter value from `coming_from_detail` when `coming_from_detail` starts with `/follow-ups?page=2&status=Interested`.
+  - [x] Test: `getSafeUrlParam` returns parameter value from `useSearchParams` when available.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`src/lib/urlStateHelper.ts`):**
+  - [x] Create `urlStateHelper.ts` implementing `getSafeUrlParam`.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+
+### Work Item W-3402 — Follow-Ups Page Filter Isolation & Scroll Restoration
+
+**Goal:** Integrate `getSafeUrlParam` into `FollowUpListContainer.tsx` and guard the URL synchronizer during state restoration.
+
+- [x] **RED — Unit / Component (`FollowUpListContainer.test.tsx`):**
+  - [x] Test: Mounting `FollowUpListContainer` while window location search contains `?agentId=5` from `/orders` initializes `agentFilter` to `""`.
+  - [x] Test: Returning from detail page with `coming_from_detail = '/follow-ups?page=2&status=Interested'` initializes `statusFilter` to `'Interested'` and `page` to `2`.
+  - [x] Test: Saved scroll position key `scroll_position_/follow-ups?page=2&status=Interested` is correctly queried and restored when returning to page 2.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`FollowUpListContainer.tsx`):**
+  - [x] Refactor `FollowUpListContainer.tsx` state initializers using `getSafeUrlParam`.
+  - [x] Add restoration gate to URL synchronizer `useEffect`.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+
+### Work Item W-3403 — Orders Page Filter Isolation & Scroll Restoration
+
+**Goal:** Integrate `getSafeUrlParam` into `OrderListContainer.tsx` to prevent cross-page parameter leakage and protect page 2+ detail return.
+
+- [x] **RED — Unit / Component (`OrderListContainer.test.tsx`):**
+  - [x] Test: Mounting `OrderListContainer` while window location search contains `?priority=High` from `/follow-ups` initializes `priorityFilter` to `""`.
+  - [x] Test: Returning from order detail page with `coming_from_detail = '/orders?page=3&status=Pending+Shipment'` initializes `statusFilter` to `'Pending Shipment'` and `page` to `3`.
+  - [x] Test: Saved scroll position key `scroll_position_/orders?page=3&status=Pending+Shipment` is queried and `window.scrollTo` is called.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`OrderListContainer.tsx`):**
+  - [x] Refactor `OrderListContainer.tsx` state initializers using `getSafeUrlParam`.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+
+### Work Item W-3404 — Agents Page Filter Isolation & Scroll Restoration
+
+**Goal:** Integrate `getSafeUrlParam` into `AgentList.tsx`.
+
+- [x] **RED — Unit / Component (`AgentList.test.tsx`):**
+  - [x] Test: Mounting `AgentList` while window location contains `?agentId=5` from `/orders` initializes `searchTerm` to `""`.
+  - [x] Test: Returning from agent detail page with `coming_from_detail = '/agents?page=2&role=Admin'` initializes `roleFilter` to `'Admin'` and `page` to `2`.
+  - [x] Test: Scroll position key `scroll_position_/agents?page=2&role=Admin` is correctly restored.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`AgentList.tsx`):**
+  - [x] Refactor `AgentList.tsx` initializers using `getSafeUrlParam`.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+
+### Work Item W-3405 — Vendors & Gateways Page Filter Isolation & Scroll Restoration
+
+**Goal:** Integrate `getSafeUrlParam` into `VendorList.tsx` and `GatewayList.tsx`. Fix legacy `coming_from_detail === 'true'` check in `GatewayList.tsx`.
+
+- [x] **RED — Unit / Component (`VendorList.test.tsx` & `GatewayList.test.tsx`):**
+  - [x] Test (`VendorList.test.tsx`): Mounting `VendorList` while window location contains `?status=Interested` from `/follow-ups` initializes `statusFilter` to `1` (Active default).
+  - [x] Test (`VendorList.test.tsx`): Returning from vendor detail page with `coming_from_detail = '/vendors?page=2&status=0'` initializes `statusFilter` to `0` (Blacklisted) and `page` to `2`.
+  - [x] Test (`GatewayList.test.tsx`): Returning from gateway detail page with `coming_from_detail = '/gateways?page=1'` skips entrance animations and restores scroll position.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`VendorList.tsx` & `GatewayList.tsx`):**
+  - [x] Refactor `VendorList.tsx` and `GatewayList.tsx` using `getSafeUrlParam` and update `coming_from_detail` check to `startsWith('/gateways')`.
+  - [x] Run unit tests — **confirm GREEN.**
+
+---
+
+### Work Item W-3406 — Call Dispositions Page Filter Isolation & Scroll Restoration
+
+**Goal:** Integrate `getSafeUrlParam` into `CallDispositionListContainer.tsx`.
+
+- [x] **RED — Unit / Component (`CallDispositionList.test.tsx`):**
+  - [x] Test: Mounting `CallDispositionListContainer` while window location contains params from `/orders` initializes empty filters.
+  - [ ] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (`CallDispositionListContainer.tsx`):**
+  - [x] Refactor `CallDispositionListContainer.tsx` state initializers using `getSafeUrlParam`.
+  - [x] Run unit test — **confirm GREEN.**
+
+---
+
+- [x] **Verification chain:**
+  - [ ] User navigates between Orders, Follow-Ups, Agents, Vendors, Gateways, and Call Dispositions -> No filter ever leaks between any two pages.
+  - [ ] User applies filters and navigates to page 2, 3, or 4 on ANY list view -> User opens detail/edit -> User clicks Back or Save -> Exact page number, filter state, and scroll position are 100% restored across ALL 6 list modules -> Done.
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -10141,3 +10253,64 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         *   Added a hard expiry gate: if `nowSeconds - token.loginTime > 86400` (24h), the callback returns `{}` (an empty object) -- the NextAuth canonical signal to invalidate the session -- forcing the user to re-login regardless of how active they were.
         *   This resolves the rolling session issue where `maxAge` alone was being reset on every active request, allowing users to stay logged in indefinitely.
     *   **Test Results:** TypeScript (`tsc --noEmit`) passed with 0 errors. Full Vitest suite -- **499 tests across 67 test files -- all passed GREEN** with zero regressions.
+
+
+### Session 101 - July 24, 2026
+
+*   **Scroll Position & Pagination Navigation Bug Fixes (Orders & Follow-Ups):**
+    *   **Fix -- DetailPageMarker.tsx -- Don't overwrite full URL:**
+        *   DetailPageMarker was unconditionally writing coming_from_detail = '/orders' (bare root) on every detail page mount, overwriting the full URL with page + filters that OrderList.tsx / FollowUpList.tsx had just saved on click. Back navigation was therefore always losing filter and page state.
+        *   Fixed: DetailPageMarker now checks the existing sessionStorage value first. It only writes if nothing is stored, or if the stored value is already just the bare root path. If a full URL (containing query params) is already saved, it leaves it untouched.
+    *   **Fix -- OrderListContainer.tsx & FollowUpListContainer.tsx -- Stale scroll key on page change:**
+        *   handlePageChange now calls sessionStorage.removeItem for the current page's scroll key before navigating to the new page, preventing the old page's scroll offset from being misapplied later if the user revisits that URL.
+    *   **Fix -- pageChangingRef race condition guard (both containers):**
+        *   Added a pageChangingRef = useRef(false) flag. The scroll save listener now bails out immediately if pageChangingRef.current is true.
+        *   handlePageChange sets the flag to 	rue before calling history.pushState, clears both the old and new page scroll keys, then resets the flag after 200ms. This prevents in-flight scroll events (which fire asynchronously after pushState has already changed the URL) from writing the old page's scrollY under the new page's URL key.
+    *   **Fix -- hasRestoredScrollRef one-shot gate (both containers):**
+        *   Added hasRestoredScrollRef = useRef(false). The scroll restoration useEffect now returns immediately if this ref is already 	rue. The ref is set to 	rue the first time restoration is attempted (whether or not a saved scroll was found). This ensures scroll restoration only fires once per component mount (on initial detail-return load) and never fires again on subsequent page changes within the same session on the list.
+    *   **Fix -- ehavior: 'instant' on page change scrollTo (both containers):**
+        *   Replaced ehavior: 'smooth' with 'instant' in handlePageChange's window.scrollTo call. The smooth animation was generating its own scroll events for 400-600ms, which outlasted the 200ms pageChangingRef guard and could corrupt the new page's scroll key.
+    *   **Fix -- lenis.scrollTo(0, { immediate: true }) in OrderListContainer.handlePageChange:**
+        *   Added an explicit Lenis scroll-to-top call alongside window.scrollTo. Without this, Lenis's internal scroll position was not reset, causing it to override window.scrollTo back to the old position on its next RAF tick � producing the intermittent "scroll to bottom on next/prev page" bug.
+    *   **Fix -- FollowUpListContainer.tsx -- Cache key mismatch:**
+        *   The fetch effect was saving the cache under a key built from queryParams.toString() (React state params in insertion order) but the mount effect was reading it back using window.location.search (URL string). These two strings almost always have different parameter ordering, causing a perpetual cache miss. Both save and load now use window.location.search as the key source so param order is always consistent.
+    *   **Fix -- FollowUpListContainer.tsx -- searchParams sync wiping filters on pagination:**
+        *   The searchParams sync useEffect was firing during handlePageChange transitions. Because useSearchParams() lags behind history.pushState, it saw stale (pre-page-change) params and called setStatusFilter(''), wiping the active filter. Added a pageChangingRef.current guard to skip the effect during page transitions.
+    *   **Verification:** 	sc --noEmit passed with 0 errors after all changes.
+
+
+### Session 102 - July 24, 2026
+
+*   **Phase 34 — Universal Cross-Page Filter Isolation & Deterministic Scroll/Filter Restoration:**
+    *   **New Utility — `src/lib/urlStateHelper.ts` (`getSafeUrlParam`):**
+        *   Built a route-isolated query parameter extraction helper.
+        *   Prioritizes Next.js `useSearchParams` hook when available for the current route context.
+        *   Checks `sessionStorage.getItem('coming_from_detail')` if returning from detail/edit view and extracts saved parameters safely.
+        *   Checks `window.location.search` ONLY IF `window.location.pathname` matches expected base path (`/orders`, `/follow-ups`, `/agents`, `/vendors`, `/gateways`, `/call-dispositions`).
+        *   Guarantees cross-page filter parameter isolation across all list pages.
+    *   **List Components Refactored:**
+        *   Refactored `OrderListContainer.tsx`, `FollowUpListContainer.tsx`, `AgentList.tsx`, `VendorList.tsx`, `GatewayList.tsx`, and `CallDispositionListContainer.tsx` lazy `useState` initializers to use `getSafeUrlParam`.
+        *   Updated `GatewayList.tsx` `coming_from_detail` detection check to `startsWith('/gateways')`.
+        *   Wrapped `CallDispositionListContainer` export in `<Suspense>` boundary matching Next.js App Router Standards.
+        *   Fixed detail return `queryStr` parsing in `AgentList.tsx` and `VendorList.tsx` so cached session state never overwrites passed `initialAgents`.
+        *   Guarded `statusFilter` parsing in `VendorList.tsx` with `isNaN` check so non-numeric parameter values (like `status=Interested`) safely default to active vendors.
+    *   **Call Disposition Pagination Styling Fix:**
+        *   Replaced custom inline pagination markup in `CallDispositionListContainer.tsx` with unified `pagination-bar`, `pagination-btn`, and `pagination-info` CSS classes matching Orders, Follow-Ups, Agents, Vendors, and Gateways.
+    *   **24-Hour Hard JWT Session Expiration Test:**
+        *   Created `src/tests/session_expiry.test.ts` (4 unit tests) covering NextAuth `jwt` and `session` callbacks:
+            1. Fresh login timestamping (`loginTime`).
+            2. Active session preservation under 24 hours (12 hours elapsed).
+            3. Hard token invalidation after 24 hours + 1 second (`token = {}`).
+            4. Unauthenticated session callback response handling (`user.id = undefined`).
+    *   **Comprehensive Test Suite Coverage:**
+        *   `src/tests/urlStateHelper.test.ts` — 4 passed GREEN.
+        *   `src/tests/FollowUpListContainer.test.tsx` — 2 passed GREEN.
+        *   `src/tests/OrderListContainer.test.tsx` — 13 passed GREEN.
+        *   `src/tests/AgentList.test.tsx` — 11 passed GREEN.
+        *   `src/tests/VendorList.test.tsx` — 8 passed GREEN.
+        *   `src/tests/GatewayList.test.tsx` — 3 passed GREEN.
+        *   `src/tests/CallDispositionList.test.tsx` — 3 passed GREEN.
+        *   `src/tests/session_expiry.test.ts` — 4 passed GREEN.
+    *   **Verification:**
+        *   `npm run typecheck` (`tsc --noEmit`) — **0 errors**.
+        *   `npm run lint` (`eslint`) — **0 errors, 0 warnings**.

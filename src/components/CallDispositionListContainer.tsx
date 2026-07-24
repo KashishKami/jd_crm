@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { CallDispositionRecord, DISPOSITION_OPTIONS } from '../types/callDisposition';
 import CallDispositionList from './CallDispositionList';
 import AddDispositionModal from './AddDispositionModal';
 import EditDispositionModal from './EditDispositionModal';
+import { getSafeUrlParam } from '../lib/urlStateHelper';
 
-export default function CallDispositionListContainer() {
+function CallDispositionListContainerContent() {
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
 
   // Modal states
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -20,15 +23,28 @@ export default function CallDispositionListContainer() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/call-dispositions', defaultValue: '1' });
+    return parseInt(rawPage, 10) || 1;
+  });
   const limit = 20;
 
-  // Filter states
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [dispositionFilter, setDispositionFilter] = useState('');
-  const [teamFilter, setTeamFilter] = useState('');
-  const [agentFilter, setAgentFilter] = useState('');
+  // Filter states (lazy-initialized using getSafeUrlParam for route isolation)
+  const [dateFrom, setDateFrom] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'dateFrom', expectedBasePath: '/call-dispositions', defaultValue: '' })
+  );
+  const [dateTo, setDateTo] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'dateTo', expectedBasePath: '/call-dispositions', defaultValue: '' })
+  );
+  const [dispositionFilter, setDispositionFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'disposition', expectedBasePath: '/call-dispositions', defaultValue: '' })
+  );
+  const [teamFilter, setTeamFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'teamId', expectedBasePath: '/call-dispositions', defaultValue: '' })
+  );
+  const [agentFilter, setAgentFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'agentId', expectedBasePath: '/call-dispositions', defaultValue: '' })
+  );
 
   // Dropdown list states (Admin only)
   const [teams, setTeams] = useState<any[]>([]);
@@ -317,42 +333,26 @@ export default function CallDispositionListContainer() {
           />
         </div>
 
-        {/* Pagination Panel */}
+        {/* Pagination controls */}
         {totalPages > 1 && (
-          <div 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'between', 
-              alignItems: 'center', 
-              padding: '16px 24px', 
-              borderTop: '1px solid var(--border-color, #e2e8f0)',
-              backgroundColor: 'rgba(248, 250, 252, 0.5)'
-            }}
-          >
-            <span className="text-slate-400 text-sm">
-              Showing {dispositions.length} of {total} records
-            </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="btn-secondary-custom"
-                style={{ padding: '4px 12px', fontSize: '0.85rem' }}
-              >
-                Previous
-              </button>
-              <span className="text-slate-600 text-sm flex items-center px-2">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="btn-secondary-custom"
-                style={{ padding: '4px 12px', fontSize: '0.85rem' }}
-              >
-                Next
-              </button>
+          <div className="pagination-bar">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              className="pagination-btn"
+            >
+              Previous
+            </button>
+            <div className="pagination-info" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+              Page <strong>{page}</strong> of <strong>{totalPages}</strong> (Total: {total} records)
             </div>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              className="pagination-btn"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
@@ -376,3 +376,16 @@ export default function CallDispositionListContainer() {
     </div>
   );
 }
+
+export default function CallDispositionListContainer() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <CallDispositionListContainerContent />
+    </Suspense>
+  );
+}
+

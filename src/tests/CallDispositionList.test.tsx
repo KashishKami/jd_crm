@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useSession } from 'next-auth/react';
 // @ts-ignore
@@ -110,4 +110,35 @@ describe('CallDispositionListContainer Unit Tests', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Export Excel' })).toBeNull();
   });
+
+  it('ignores stale query params from other routes (e.g. /orders?agentId=5) when mounting CallDispositionListContainer', async () => {
+    vi.mocked(useSession).mockReturnValue({ data: mockSessionAdmin, status: 'authenticated' } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/orders',
+      search: '?agentId=5',
+    } as any;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/call-dispositions')) {
+        return Promise.resolve({ ok: true, json: async () => ({ dispositions: mockDispositions, total: 1 }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => [] });
+    });
+
+    render(<CallDispositionListContainer />);
+
+    await waitFor(() => {
+      const calls = (global.fetch as any).mock.calls;
+      const callDispFetch = calls.find((c: any[]) => String(c[0]).includes('/api/call-dispositions'));
+      expect(callDispFetch).toBeDefined();
+      expect(String(callDispFetch[0])).not.toContain('agentId=5');
+    });
+
+    window.location = originalLocation as any;
+  });
 });
+

@@ -58,4 +58,25 @@ describe('GatewayList Component Unit Tests', () => {
       expect(screen.queryByText('PayPal Test')).not.toBeNull();
     });
   });
+
+  it('should skip animation and recognize detail return when coming_from_detail starts with /gateways', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'gateways:view',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    sessionStorage.setItem('coming_from_detail', '/gateways?page=1');
+
+    render(<GatewayList initialGateways={mockGateways as any} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Stripe Test')).not.toBeNull();
+    });
+  });
 });
+

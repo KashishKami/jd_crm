@@ -55,6 +55,7 @@ describe('VendorList Component Unit Tests', () => {
   ];
 
   beforeEach(() => {
+    sessionStorage.clear();
     vi.resetAllMocks();
     window.confirm = vi.fn().mockReturnValue(true);
     global.fetch = vi.fn().mockImplementation(() =>
@@ -237,4 +238,66 @@ describe('VendorList Component Unit Tests', () => {
     scrollToSpy.mockRestore();
     window.location = originalLocation as any;
   });
+
+  it('should ignore stale query params from other routes (e.g. /follow-ups?status=Interested) when mounting VendorList', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'vendors:view,vendors:edit',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/follow-ups',
+      search: '?status=Interested',
+    } as any;
+
+    render(<VendorList />);
+
+    await waitFor(() => {
+      // Default status filter should be 1 (Active Vendors tab is active)
+      const activeTab = screen.getByRole('button', { name: /Active Vendors/i });
+      expect(activeTab.className).toContain('active');
+    });
+
+    window.location = originalLocation as any;
+  });
+
+  it('should restore page=2 and status=0 (Blacklisted) when returning from vendor detail page', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'vendors:view,vendors:edit',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      pathname: '/vendors/1',
+      search: '',
+    } as any;
+
+    sessionStorage.setItem('coming_from_detail', '/vendors?page=2&status=0');
+
+    render(<VendorList />);
+
+    await waitFor(() => {
+      const blacklistedTab = screen.getByRole('button', { name: /Blacklisted Suppliers/i });
+      expect(blacklistedTab.className).toContain('active');
+    });
+
+    window.location = originalLocation as any;
+  });
 });
+

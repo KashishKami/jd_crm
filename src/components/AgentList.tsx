@@ -9,6 +9,7 @@ import { hasPermission } from '../service/permission.service';
 import { Agent } from '../types/agent';
 import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
+import { getSafeUrlParam } from '../lib/urlStateHelper';
 
 interface AgentListProps {
   designations?: { designationId: number; designationName: string }[];
@@ -17,49 +18,36 @@ interface AgentListProps {
 
 function AgentListContent({ designations = [], initialAgents }: AgentListProps) {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [agents, setAgents] = useState<Agent[]>(initialAgents || []);
   const [loading, setLoading] = useState(!initialAgents);
   const [error, setError] = useState<string | null>(null);
   const isCachedRef = useRef(false);
   
-  // Filter States
-  // Filter states — lazy-initialized from URL so that on back-navigation
-  // the values are already correct before any effect runs, preventing a
-  // spurious Render #2 that would call setPage(1).
-  const [searchTerm, setSearchTerm] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('search') || '';
-  });
-  const [designationFilter, setDesignationFilter] = useState(() => {
-    if (typeof window === 'undefined') return 'all';
-    return new URLSearchParams(window.location.search).get('designation') || 'all';
-  });
-  const [teamFilter, setTeamFilter] = useState(() => {
-    if (typeof window === 'undefined') return 'all';
-    return new URLSearchParams(window.location.search).get('team') || 'all';
-  });
-  const [roleFilter, setRoleFilter] = useState(() => {
-    if (typeof window === 'undefined') return 'all';
-    return new URLSearchParams(window.location.search).get('role') || 'all';
-  });
-  const [statusFilter, setStatusFilter] = useState(() => {
-    if (typeof window === 'undefined') return '1';
-    return new URLSearchParams(window.location.search).get('status') || '1';
-  });
+  // Filter States — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
+  const [searchTerm, setSearchTerm] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'search', expectedBasePath: '/agents', defaultValue: '' })
+  );
+  const [designationFilter, setDesignationFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'designation', expectedBasePath: '/agents', defaultValue: 'all' })
+  );
+  const [teamFilter, setTeamFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'team', expectedBasePath: '/agents', defaultValue: 'all' })
+  );
+  const [roleFilter, setRoleFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'role', expectedBasePath: '/agents', defaultValue: 'all' })
+  );
+  const [statusFilter, setStatusFilter] = useState(() =>
+    getSafeUrlParam({ searchParams, paramName: 'status', expectedBasePath: '/agents', defaultValue: 'all' })
+  );
 
-  // Pagination States — lazy-initialized from URL so back-navigation restores
-  // the correct page number before any effect runs (same pattern as filters).
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  // Pagination States — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
   const [page, setPage] = useState(() => {
-    if (typeof window === 'undefined') return 1;
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
-    const isAgentsDetailReturn = comingFromDetail === '/agents' || Boolean(comingFromDetail && comingFromDetail.startsWith('/agents'));
-    if (isAgentsDetailReturn) {
-      return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
-    }
-    return 1;
+    const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/agents', defaultValue: '1' });
+    return parseInt(rawPage, 10) || 1;
   });
   const limit = 20;
   const [hasAnimated, setHasAnimated] = useState(() => {
@@ -90,40 +78,55 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
     const comingFromDetailPath = sessionStorage.getItem('coming_from_detail');
     const comingFromDetail = comingFromDetailPath === '/agents' || Boolean(comingFromDetailPath && comingFromDetailPath.startsWith('/agents'));
 
-    if (comingFromDetailPath) {
-      sessionStorage.removeItem('coming_from_detail');
-    }
-
     if (comingFromDetail) {
-      const params = new URLSearchParams(window.location.search);
+      let queryStr = window.location.search;
+      if (comingFromDetailPath && comingFromDetailPath.includes('?')) {
+        queryStr = comingFromDetailPath.substring(comingFromDetailPath.indexOf('?'));
+      }
+      const params = new URLSearchParams(queryStr);
       const pageParam = params.get('page');
       if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+      const roleParam = params.get('role');
+      if (roleParam) setRoleFilter(roleParam);
+      const designationParam = params.get('designation');
+      if (designationParam) setDesignationFilter(designationParam);
+      const teamParam = params.get('team');
+      if (teamParam) setTeamFilter(teamParam);
+      const statusParam = params.get('status');
+      if (statusParam) setStatusFilter(statusParam);
+      const searchParam = params.get('search');
+      if (searchParam) setSearchTerm(searchParam);
 
-      // Load cache
-      const cacheKey = `cached_agents_${window.location.pathname}${window.location.search}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const parsedCache = JSON.parse(cached);
-          setAgents(parsedCache);
-          setLoading(false);
-          isCachedRef.current = true;
-        } catch (_) {}
+      // Load cache ONLY IF initialAgents was not provided
+      if (!initialAgents || initialAgents.length === 0) {
+        const cacheKey = `cached_agents_${window.location.pathname}${queryStr}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsedCache = JSON.parse(cached);
+            setAgents(parsedCache);
+            setLoading(false);
+            isCachedRef.current = true;
+          } catch (_) {}
+        }
       }
 
       // Check if a saved scroll position exists to skip stagger animations
-      const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const scrollKey = `scroll_position_${window.location.pathname}${queryStr}`;
       const savedScroll = sessionStorage.getItem(scrollKey);
       if (savedScroll && parseInt(savedScroll, 10) > 0) {
         setHasAnimated(true);
       }
+    }
+    if (comingFromDetailPath) {
+      sessionStorage.removeItem('coming_from_detail');
     }
     const timer = setTimeout(() => {
       sessionStorage.removeItem('coming_from_detail');
     }, 1000);
     isRestoringRef.current = false;
     return () => clearTimeout(timer);
-  }, []);
+  }, [initialAgents]);
 
 
 

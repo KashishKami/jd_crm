@@ -288,4 +288,50 @@ describe('OrderListContainer Unit Tests', () => {
       scrollToSpy.mockRestore();
       window.location = originalLocation as any;
     });
+
+    it('should ignore stale query params from other routes (e.g. /follow-ups?priority=High)', async () => {
+      const originalLocation = window.location;
+      delete (window as any).location;
+      window.location = {
+        ...originalLocation,
+        pathname: '/follow-ups',
+        search: '?priority=High',
+      } as any;
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        const calls = (global.fetch as any).mock.calls;
+        const ordersCall = calls.find((c: any[]) => String(c[0]).includes('/api/orders?'));
+        expect(ordersCall).toBeDefined();
+        expect(String(ordersCall[0])).not.toContain('priority=High');
+      });
+
+      window.location = originalLocation as any;
+    });
+
+    it('should restore page=3 and status=Pending Shipment when returning from order detail', async () => {
+      const originalLocation = window.location;
+      delete (window as any).location;
+      window.location = {
+        ...originalLocation,
+        pathname: '/orders/999',
+        search: '',
+      } as any;
+
+      sessionStorage.setItem('coming_from_detail', '/orders?page=3&status=Pending+Shipment');
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        const calls = (global.fetch as any).mock.calls;
+        const ordersCall = calls.find((c: any[]) => String(c[0]).includes('/api/orders?'));
+        expect(ordersCall).toBeDefined();
+        expect(String(ordersCall[0])).toContain('status=Pending+Shipment');
+        expect(String(ordersCall[0])).toContain('page=3');
+      });
+
+      window.location = originalLocation as any;
+    });
   });
+

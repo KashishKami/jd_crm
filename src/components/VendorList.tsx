@@ -10,33 +10,30 @@ import { VendorWithMetrics } from '../types/vendor';
 import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import VendorStatusBadge from './VendorStatusBadge';
+import { getSafeUrlParam } from '../lib/urlStateHelper';
 
 function VendorListContent() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [vendors, setVendors] = useState<VendorWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<number>(() => {
-    if (typeof window === 'undefined') return 1;
-    const param = new URLSearchParams(window.location.search).get('status');
-    return param !== null ? parseInt(param, 10) : 1; // 1 = Active, 0 = Blacklisted
+    const param = getSafeUrlParam({ searchParams, paramName: 'status', expectedBasePath: '/vendors', defaultValue: '1' });
+    const parsed = parseInt(param, 10);
+    return isNaN(parsed) ? 1 : parsed;
   });
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const isCachedRef = useRef(false);
 
-  // Pagination states — lazy-initialized from URL so back-navigation restores
-  // the correct page number before any effect runs (same pattern as filters).
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  // Pagination states — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
   const [page, setPage] = useState(() => {
-    if (typeof window === 'undefined') return 1;
-    const comingFromDetail = sessionStorage.getItem('coming_from_detail');
-    const isVendorsDetailReturn = comingFromDetail === '/vendors' || Boolean(comingFromDetail && comingFromDetail.startsWith('/vendors'));
-    if (isVendorsDetailReturn) {
-      return parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1;
-    }
-    return 1;
+    const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/vendors', defaultValue: '1' });
+    const parsed = parseInt(rawPage, 10);
+    return isNaN(parsed) || parsed < 1 ? 1 : parsed;
   });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -49,6 +46,8 @@ function VendorListContent() {
     const savedScroll = sessionStorage.getItem(scrollKey);
     return !!(savedScroll && parseInt(savedScroll, 10) > 0);
   });
+
+  const [refetchTriggerState, setRefetchTriggerState] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
@@ -67,17 +66,25 @@ function VendorListContent() {
     const comingFromDetailPath = sessionStorage.getItem('coming_from_detail');
     const comingFromDetail = comingFromDetailPath === '/vendors' || Boolean(comingFromDetailPath && comingFromDetailPath.startsWith('/vendors'));
 
-    if (comingFromDetailPath) {
-      sessionStorage.removeItem('coming_from_detail');
-    }
-
     if (comingFromDetail) {
-      const params = new URLSearchParams(window.location.search);
+      let queryStr = window.location.search;
+      if (comingFromDetailPath && comingFromDetailPath.includes('?')) {
+        queryStr = comingFromDetailPath.substring(comingFromDetailPath.indexOf('?'));
+      }
+      const params = new URLSearchParams(queryStr);
+      const statusParam = params.get('status');
+      if (statusParam !== null) {
+        const parsed = parseInt(statusParam, 10);
+        if (!isNaN(parsed)) setStatusFilter(parsed);
+      }
       const pageParam = params.get('page');
-      if (pageParam) setPage(parseInt(pageParam, 10) || 1);
+      if (pageParam) {
+        const parsedPage = parseInt(pageParam, 10);
+        if (!isNaN(parsedPage) && parsedPage > 0) setPage(parsedPage);
+      }
 
       // Load cache
-      const cacheKey = `cached_vendors_${window.location.pathname}${window.location.search}`;
+      const cacheKey = `cached_vendors_${window.location.pathname}${queryStr}`;
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         try {
@@ -91,11 +98,14 @@ function VendorListContent() {
       }
 
       // Check if a saved scroll position exists to skip stagger animations
-      const scrollKey = `scroll_position_${window.location.pathname}${window.location.search}`;
+      const scrollKey = `scroll_position_${window.location.pathname}${queryStr}`;
       const savedScroll = sessionStorage.getItem(scrollKey);
       if (savedScroll && parseInt(savedScroll, 10) > 0) {
         setHasAnimated(true);
       }
+    }
+    if (comingFromDetailPath) {
+      sessionStorage.removeItem('coming_from_detail');
     }
     const timer = setTimeout(() => {
       sessionStorage.removeItem('coming_from_detail');
