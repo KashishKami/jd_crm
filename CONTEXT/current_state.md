@@ -53,6 +53,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 35** | Universal Spread-Out Pagination Component (`<Pagination />`) | **[x] COMPLETED** | `src/lib/paginationHelper.ts` (new), `src/components/Pagination.tsx` (new), `src/app/components.css`, `src/components/OrderListContainer.tsx`, `src/components/FollowUpListContainer.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx`, `src/components/GatewayList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/paginationHelper.test.ts` (new), `src/tests/Pagination.test.tsx` (new), `src/tests/OrderListContainer.test.tsx`, `src/tests/AgentList.test.tsx`, `src/tests/VendorList.test.tsx` |
 | **Phase 36** | Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter | **[x] COMPLETED** | `src/components/FollowUpList.tsx`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/components/FollowUpListContainer.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followups.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
 | **Phase 37** | Follow-Up Persistent Overdue Notification Tab in Navbar | **[x] COMPLETED** | `src/components/Navbar.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/api/follow-ups/due/route.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/components.css`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/Navbar.test.tsx`, `src/tests/followups.test.ts` |
+| **Phase 38** | 24-Hour Session Expiration & Middleware Guard Fix | **[x] COMPLETED** | `src/middleware.ts`, `src/app/api/auth/[...nextauth]/route.ts`, `src/app/page.tsx`, `src/tests/auth_expiration.test.ts` |
 ---
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
@@ -9035,6 +9036,65 @@ Refactor `useFollowUpNotifications.ts` to expose `overdueList`, `dueCount`, and 
   - [x] Agent clicks item → Navigates to `/follow-ups/[id]` detail page.
   - [x] Agent changes status to `Sale Closed` or `Not Interested`, OR reschedules date/time to tomorrow.
   - [x] Bell badge count drops to `0`, badge disappears, and card updates to "All caught up! No overdue follow-ups." → ✅ Done.
+
+---
+## Phase 38 Checklist (TDD Style)
+
+#### W-3801 — 24-Hour Session Expiration & Middleware Auth Guard Fix
+
+**Root Cause:**
+1. In `src/middleware.ts`, `callbacks.authorized` evaluates `({ token }) => !!token`. When NextAuth invalidates a 24-hour expired token by returning an empty object `{}` from the `jwt` callback, `{}` is truthy in JavaScript (`!!{} === true`). The middleware falsely considers the user authorized and lets the request pass through to protected pages instead of redirecting to `/login`.
+2. In `src/app/api/auth/[...nextauth]/route.ts`, when `token` is expired, returning `{}` in `jwt` callback leaves `session.user` non-null (with `id` and `userPermissions` set to `undefined`).
+3. On server pages like `src/app/page.tsx`, `if (!session || !session.user)` succeeds because `session.user` is defined. The app then evaluates `userPermissions` as `""`, causing all RBAC checks to fail and rendering a broken, stripped-down dashboard ("No activity found matching these filters") instead of redirecting to the login page.
+
+**Fix / Approach:**
+1. Update `src/middleware.ts` authorization callback to check `!!(token && token.uid)`. If `token.uid` is missing (due to expiration or invalid token), `authorized` returns `false`, triggering an immediate NextAuth redirect to `/login`.
+2. Update `src/app/api/auth/[...nextauth]/route.ts` `session` callback so that if `!token?.uid`, `session.user` is removed or invalidated (`return {} as Session`), ensuring `getServerSession()` evaluates to unauthenticated.
+3. Update server page guards (e.g., `src/app/page.tsx`) to check `if (!session || !session.user || !session.user.id)` before rendering.
+
+---
+
+- [x] **RED — Integration (`src/tests/auth_expiration.test.ts`):**
+  - [x] Test: Simulate NextAuth middleware execution with an expired token (`token = {}`). Assert `authorized({ token: {} })` returns `false`.
+  - [x] Test: Call NextAuth `session` callback with an expired token (`token = {}`). Assert returned session does not contain a valid `session.user.id`.
+  - [x] Test: Execute `GET /` with an expired 24-hour token. Assert the user receives a redirect to `/login`.
+  - [x] **Run — confirm RED (currently `authorized({ token: {} })` returns `true` and `session.user` exists with `id: undefined`).**
+
+- [x] **GREEN — Backend (Middleware Guard & Session Callback):**
+  - [x] [Middleware] In `src/middleware.ts`, update `authorized: ({ token }) => !!(token && token.uid)`.
+  - [x] [NextAuth Route] In `src/app/api/auth/[...nextauth]/route.ts`, update `session` callback:
+    ```typescript
+    async session({ session, token }) {
+      if (!token || !token.uid) {
+        delete (session as any).user;
+        return session;
+      }
+      if (session.user) {
+        session.user.id = token.uid as string;
+        session.user.nickname = token.nickname as string;
+        session.user.userPermissions = token.userPermissions as string;
+        session.user.teamId = token.teamId as number;
+      }
+      return session;
+    }
+    ```
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/auth_expiration.test.ts`):**
+  - [x] Test: `Home()` server component in `src/app/page.tsx` called with a session lacking `user.id`. Assert `redirect('/login')` is invoked.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend / Server Pages:**
+  - [x] [Server Page] In `src/app/page.tsx`, update the auth check:
+    ```typescript
+    if (!session || !session.user || !session.user.id) {
+      redirect('/login');
+    }
+    ```
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User logs in → 24 hours pass → User navigates to any URL (e.g. `http://crmjdfusion.in/`) → `middleware.ts` checks token (`token.uid` missing) → `authorized` returns `false` → browser is automatically redirected to `/login` → User logs back in → Dashboard loads with full permissions and widgets → ✅ Done.
 
 ---
 ## 3. Session Notes

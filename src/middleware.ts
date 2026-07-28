@@ -2,6 +2,10 @@ import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 import { hasPermission } from './service/permission.service';
 
+export function isAuthorized({ token }: { token: any }) {
+  return !!(token && token.uid);
+}
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
@@ -66,7 +70,7 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token, // Access requires a valid token
+      authorized: ({ token }) => isAuthorized({ token }), // Access requires a valid token with user id
     },
   }
 );

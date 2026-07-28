@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
+  if (!session || !session.user || !session.user.id) {
     redirect('/login');
   }
 

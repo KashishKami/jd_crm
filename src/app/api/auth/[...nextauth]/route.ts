@@ -72,6 +72,10 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      if (!token || !token.uid) {
+        delete (session as any).user;
+        return session;
+      }
       if (session.user) {
         session.user.id = token.uid;
         session.user.nickname = token.nickname;
