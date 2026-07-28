@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { authOptions } from '../app/api/auth/[...nextauth]/route';
-import { isAuthorized } from '../middleware';
+import { isAuthorized, middlewareHandler } from '../middleware';
 
 describe('Phase 38: 24-Hour Auth Expiration & Middleware Guard Tests', () => {
   describe('Middleware Authorized Callback', () => {
@@ -74,6 +74,21 @@ describe('Phase 38: 24-Hour Auth Expiration & Middleware Guard Tests', () => {
       expect(user.nickname).toBe('AdminNick');
       expect(user.userPermissions).toBe('orders:view');
       expect(user.teamId).toBe(1);
+    });
+  });
+
+  describe('W-3902 — Clean /login Redirect Handler', () => {
+    it('should return a redirect response to clean /login without query parameters when unauthorized', async () => {
+      const mockReq = {
+        url: 'https://crm.jdfusion.in/',
+        nextUrl: new URL('https://crm.jdfusion.in/'),
+        headers: new Headers(),
+        cookies: { get: () => undefined },
+      };
+      const response = await (middlewareHandler as any)(mockReq);
+      expect(response).toBeDefined();
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('https://crm.jdfusion.in/login');
     });
   });
 });

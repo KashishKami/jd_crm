@@ -54,6 +54,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 36** | Follow-Up Closed Outcome Days Label Hiding & Multi-Select Status Filter | **[x] COMPLETED** | `src/components/FollowUpList.tsx`, `src/types/followup.ts`, `src/repository/followup.repository.ts`, `src/components/FollowUpListContainer.tsx`, `src/tests/FollowUpList.test.tsx`, `src/tests/followups.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
 | **Phase 37** | Follow-Up Persistent Overdue Notification Tab in Navbar | **[x] COMPLETED** | `src/components/Navbar.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/api/follow-ups/due/route.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/components.css`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/Navbar.test.tsx`, `src/tests/followups.test.ts` |
 | **Phase 38** | 24-Hour Session Expiration & Middleware Guard Fix | **[x] COMPLETED** | `src/middleware.ts`, `src/app/api/auth/[...nextauth]/route.ts`, `src/app/page.tsx`, `src/tests/auth_expiration.test.ts` |
+| **Phase 39** | Team Monthly Scores Mobile Stacking (<1000px) & Clean `/login` Redirect URL | **[x] COMPLETED** | `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, `src/middleware.ts`, `src/tests/TeamMonthlyScoresWidget.test.tsx`, `src/tests/auth_expiration.test.ts` |
 ---
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
@@ -9097,6 +9098,56 @@ Refactor `useFollowUpNotifications.ts` to expose `overdueList`, `dueCount`, and 
   - [x] User logs in → 24 hours pass → User navigates to any URL (e.g. `http://crmjdfusion.in/`) → `middleware.ts` checks token (`token.uid` missing) → `authorized` returns `false` → browser is automatically redirected to `/login` → User logs back in → Dashboard loads with full permissions and widgets → ✅ Done.
 
 ---
+## Phase 39 Checklist (TDD Style)
+
+#### W-3901 — Team Monthly Scores Mobile Vertical Stacking (<1000px)
+
+**Root Cause:**
+`TeamMonthlyScoresWidget.tsx` hardcodes `flex-wrap: nowrap !important;` on `.team-monthly-container`. Below 1000px (mobile and tablet viewports), all 3 team cards (`IT Park`, `Alex`, `DB Park`) are squeezed into narrow 100px horizontal columns, causing text ("Sales Volume", "Disputes", "Final Margin", "TOP PERFORMERS", "BOTTOM PERFORMERS") to break into vertical letter stacks and overlap.
+
+**Fix / Approach:**
+In `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, add a CSS media query `@media (max-width: 1000px)`:
+1. Change `.team-monthly-container` to `flex-direction: column`, `align-items: center`, `gap: 16px`, `padding: 0`.
+2. Set `.team-monthly-card` to `width: 100%`, `max-width: 100%`, `flex: 1 1 100%`.
+3. Set `.team-monthly-vs` to `display: none;`.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/TeamMonthlyScoresWidget.test.tsx`):**
+  - [x] Test: Render `TeamMonthlyScoresWidget` with mock team data. Assert component style output includes `@media (max-width: 1000px)` rules applying `flex-direction: column` to `.team-monthly-container`.
+  - [x] **Run — confirm RED (currently CSS rules only scale font sizes down to 900px without stacking vertically).**
+
+- [x] **GREEN — Frontend Component:**
+  - [x] In `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, update inner CSS style block to include `@media (max-width: 1000px)` rules for vertical stacking.
+  - [x] Run unit test — **confirm GREEN**.
+
+---
+
+#### W-3902 — Clean `/login` Redirect URL without Query Parameters
+
+**Root Cause:**
+NextAuth's default `withAuth` middleware appends `?callbackUrl=...` when `authorized` returns `false`. When an unauthenticated user opens `crm.jdfusion.in/`, NextAuth redirects to `/login?callbackUrl=https%3A%2F%2Fcrm.jdfusion.in%2F` instead of clean `/login`.
+
+**Fix / Approach:**
+In `src/middleware.ts`, handle unauthenticated requests directly inside the middleware handler: if `!isAuthorized({ token })`, return `NextResponse.redirect(new URL('/login', req.url))`. This sends unauthenticated visitors to clean `http://crm.jdfusion.in/login` without query strings.
+
+---
+
+- [x] **RED — Integration (`src/tests/auth_expiration.test.ts`):**
+  - [x] Test: Request protected route with missing token. Assert middleware returns redirect response to `/login` without `callbackUrl` query parameter.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Middleware):**
+  - [x] In `src/middleware.ts`, check `if (!isAuthorized({ token })) return NextResponse.redirect(new URL('/login', req.url));` inside the main middleware function.
+  - [x] Run integration test — **confirm GREEN**.
+
+---
+
+- [x] **Verification chain:**
+  - [x] 1. Mobile viewport (<1000px) -> Team Monthly Scores cards stack vertically, 100% width each, readable without text overflow.
+  - [x] 2. Logged out user opens `crm.jdfusion.in/` -> Middleware redirects browser cleanly to `crm.jdfusion.in/login` without `?callbackUrl=...` parameter -> ✅ Done.
+
+---
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -10530,4 +10581,29 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     * **Verification & Testing:**
         * **Automated Tests:** All 5 test suites (34/34 tests passed GREEN) covering `Navbar.test.tsx`, `useFollowUpNotifications.test.tsx`, `useNavbarNotifications.test.ts`, `FollowUpNotification.test.tsx`, and `followups.test.ts`.
         * **Typecheck (`tsc --noEmit`):** Clean build with **0 type errors**.
+
+
+### Session 105 - July 28, 2026
+
+* **Phase 38 — 24-Hour Session Expiration & Middleware Auth Guard Fix:**
+    * **Root Cause Resolution:** Fixed an issue where NextAuth invalidated 24-hour expired JWT tokens into empty `{}` objects, causing `callbacks.authorized` in `middleware.ts` (`!!token`) to evaluate to `true` (because `{}` is truthy in JavaScript). Unauthenticated users with expired tokens were incorrectly allowed onto the dashboard, rendering an empty layout with "No activity found matching these filters" instead of being redirected to `/login`.
+    * **Middleware Authorization Guard (`src/middleware.ts`):** Exported `isAuthorized({ token })` helper function enforcing `!!(token && token.uid)`. When `token.uid` is missing due to token expiration, `authorized` returns `false`, immediately redirecting the browser to `/login`.
+    * **Session Callback Invalidation (`src/app/api/auth/[...nextauth]/route.ts`):** Updated `session` callback to delete `(session as any).user` if `!token || !token.uid`, preventing invalid session objects with `id: undefined` from floating through server components.
+    * **Server Page Session Guard (`src/app/page.tsx`):** Strengthened home page server session check to `if (!session || !session.user || !session.user.id) redirect('/login')`.
+    * **TDD Verification (`src/tests/auth_expiration.test.ts`):** Created 5 integration tests covering middleware `isAuthorized` token validation and NextAuth `session` callback invalidation. All 9 auth tests passed GREEN.
+
+
+### Session 106 - July 28, 2026
+
+* **Phase 39 — Team Monthly Scores Mobile Stacking (<1000px) & Clean `/login` Redirect URL:**
+    * **W-3901: Team Monthly Scores Mobile Vertical Stacking (`src/components/dashboard/TeamMonthlyScoresWidget.tsx`):**
+        * Fixed horizontal card squeezing below 1000px width caused by hardcoded `flex-wrap: nowrap !important;` on `.team-monthly-container`.
+        * Added CSS media query `@media (max-width: 1000px)` setting `.team-monthly-container` to `flex-direction: column !important`, `.team-monthly-card` to `width: 100% !important`, and hiding `.team-monthly-vs` dividers (`display: none !important`). Team cards now stack cleanly vertically on mobile devices without character wrapping or text overlapping.
+    * **W-3902: Clean `/login` Redirect URL (`src/middleware.ts`):**
+        * **Why it didn't work before:** NextAuth's `withAuth` wrapper intercepted unauthenticated requests before the inner middleware function was called. When `callbacks.authorized` returned `false`, `withAuth` internally issued a 302 redirect to `/api/auth/signin?callbackUrl=%2F`, which then forwarded to `/login?callbackUrl=http%3A%2F%2F127.0.0.1%3A3080%2F`.
+        * **How it was corrected:** Removed NextAuth's `withAuth` wrapper entirely and converted `src/middleware.ts` into a standard Next.js App Router middleware function using NextAuth's official `getToken({ req, secret })` utility. Unauthenticated requests now immediately execute `NextResponse.redirect(new URL('/login', req.url))`, sending unauthenticated visitors directly to `crm.jdfusion.in/login` cleanly with zero query parameters (`?callbackUrl=...`).
+    * **Verification & Testing:**
+        * **Automated Tests:** All unit & integration tests (`src/tests/TeamMonthlyScoresWidget.test.tsx` and `src/tests/auth_expiration.test.ts`) passed 100% GREEN (7/7 passed).
+        * **Typecheck (`tsc --noEmit`):** Clean build with **0 type errors**.
+
 

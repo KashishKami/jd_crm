@@ -207,7 +207,23 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
               flex-shrink: 0;
             }
             
-            /* Responsive Font Sizes to Prevent Overflows */
+            /* Responsive Font Sizes & Vertical Stacking to Prevent Overflows */
+            @media (max-width: 1000px) {
+              .team-monthly-container {
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 16px !important;
+                padding: 0 !important;
+              }
+              .team-monthly-card {
+                width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 100% !important;
+              }
+              .team-monthly-vs {
+                display: none !important;
+              }
+            }
             @media (max-width: 1200px) {
               .team-monthly-card { max-width: 360px !important; flex: 1 1 340px !important; }
               .team-monthly-card h4 { font-size: 0.82rem !important; }
@@ -221,7 +237,6 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
               .team-monthly-vs { font-size: 0.72rem !important; padding: 0 6px !important; }
             }
             @media (max-width: 900px) {
-              .team-monthly-card { max-width: 360px !important; flex: 1 1 340px !important; }
               .team-monthly-card h4 { font-size: 0.75rem !important; }
               .team-monthly-card .team-metric-label { font-size: 0.64rem !important; }
               .team-monthly-card .team-metric-val { font-size: 0.64rem !important; }
@@ -230,7 +245,6 @@ export default function TeamMonthlyScoresWidget({ permissions }: TeamMonthlyScor
               .team-monthly-card .performer-title { font-size: 0.58rem !important; }
               .team-monthly-card .performer-name { font-size: 0.6rem !important; }
               .team-monthly-card .performer-amount { font-size: 0.6rem !important; }
-              .team-monthly-vs { font-size: 0.65rem !important; padding: 0 4px !important; }
             }
           `}} />
           {(() => {
