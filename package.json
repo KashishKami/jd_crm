@@ -10,6 +10,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --pool=forks",
+    "ci:quality": "npm run lint && npm run typecheck && npm run test && npm run build",
     "import:csv": "npx tsx src/scripts/import-csv-data.ts"
   },
   "dependencies": {
