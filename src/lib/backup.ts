@@ -73,7 +73,7 @@ export async function runBackup(): Promise<BackupResult> {
       '-P', String(creds.port),
       `-u${creds.user}`,
       `-p${creds.password}`,
-      '--skip-ssl',
+      '--ssl-mode=DISABLED',
       creds.database
     ], { maxBuffer: 500 * 1024 * 1024 });
 
