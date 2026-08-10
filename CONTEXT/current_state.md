@@ -10684,7 +10684,7 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         * Enables developers to run a single command locally before pushing, guaranteeing 1:1 parity with CI checks.
     * **GitHub Actions Quality Gate Job (`.github/workflows/deploy.yml`):**
         * Added `quality-check` job to `.github/workflows/deploy.yml` with a MySQL 8.0 service container.
-        * Configured `quality-check` to run `npm run ci:quality` (lint, typecheck, test, and build) on every `main` push.
+        * Configured distinct, individual steps for each check: `Run ESLint`, `Run TypeScript Check`, `Run Vitest Integration Tests`, and `Build Next.js Application`.
         * Updated `build` job to depend on `needs: quality-check` and `deploy` job to depend on `needs: [quality-check, build]`.
         * Prevents any broken build or failing test from reaching production deployment.
 
