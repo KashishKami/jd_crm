@@ -280,6 +280,10 @@ describe('Follow-Ups Search (W-3154)', () => {
     });
     testAgentId = agent!.uid;
 
+    await prisma.crmFollowUps.deleteMany({
+      where: { agentId: testAgentId }
+    });
+
     // Seed some distinct search targets
     await prisma.crmFollowUps.createMany({
       data: [
@@ -316,6 +320,12 @@ describe('Follow-Ups Search (W-3154)', () => {
           priority: 'High',
         }
       ]
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.crmFollowUps.deleteMany({
+      where: { agentId: testAgentId }
     });
   });
 

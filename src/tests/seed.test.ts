@@ -51,13 +51,14 @@ describe('CSV Importer Integration Test (W-1808)', () => {
       // Index 27 "QA Verifier" was "NA" (mapped to null)
       expect(sampleOrder?.orderVerifierName).toBeNull();
     } finally {
-      // Clean up test data and restore baseline
-      await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0;');
-      await prisma.crmComments.deleteMany();
-      await prisma.crmOrders.deleteMany();
-      await prisma.crmCustomers.deleteMany();
-      await prisma.users.deleteMany({ where: { uid: { not: 1 } } });
-      await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;');
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0;'),
+        prisma.$executeRawUnsafe('DELETE FROM crm_comments;'),
+        prisma.$executeRawUnsafe('DELETE FROM crm_orders;'),
+        prisma.$executeRawUnsafe('DELETE FROM crm_customers;'),
+        prisma.$executeRawUnsafe('DELETE FROM users WHERE uid != 1;'),
+        prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;'),
+      ]);
       execSync('npx tsx src/scripts/run-seed.ts');
       execSync('npx tsx src/scripts/restore-admin.ts');
     }
