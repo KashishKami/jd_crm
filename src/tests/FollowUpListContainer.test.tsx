@@ -157,4 +157,26 @@ describe('W-3402: FollowUpListContainer Filter Isolation & Back Restoration', ()
 
     window.location = originalLocation as any;
   });
+
+  it('W-4202 should fetch /api/agents?salesOnly=true when loading dropdowns for view-all user', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 1,
+          name: 'Super Admin',
+          userPermissions: 'follow-ups:view-all',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<FollowUpListContainer />);
+
+    await waitFor(() => {
+      const calls = vi.mocked(global.fetch).mock.calls;
+      const agentsCall = calls.find((c: any[]) => String(c[0]).includes('/api/agents'));
+      expect(agentsCall).toBeDefined();
+      expect(String(agentsCall![0])).toContain('salesOnly=true');
+    });
+  });
 });

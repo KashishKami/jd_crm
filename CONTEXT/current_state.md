@@ -57,7 +57,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 39** | Team Monthly Scores Mobile Stacking (<1000px) & Clean `/login` Redirect URL | **[x] COMPLETED** | `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, `src/middleware.ts`, `src/tests/TeamMonthlyScoresWidget.test.tsx`, `src/tests/auth_expiration.test.ts` |
 | **Phase 40** | Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/backend-team.test.ts` |
 | **Phase 41** | Follow-Ups: 3-Tier Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding | **[x] COMPLETED** | `scripts/sql/update-followup-team-permissions.sql` (new), `seed.sql`, `src/service/followup.service.ts`, `src/middleware.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
-| **Phase 42** | Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`) | **[ ] PLANNED** | `src/app/agents/page.tsx`, `src/repository/agent.repository.ts`, `src/service/agent.service.ts`, `src/app/api/agents/route.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/agents.test.ts`, `src/tests/agent.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
+| **Phase 42** | Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`) | **[x] COMPLETED** | `src/app/agents/page.tsx`, `src/repository/agent.repository.ts`, `src/service/agent.service.ts`, `src/app/api/agents/route.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/agents.test.ts`, `src/tests/agent.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
 ---
 
 
@@ -9309,17 +9309,17 @@ Add `email: true` to the Prisma `select` projection in `src/app/agents/page.tsx`
 
 ---
 
-- [ ] **RED — Integration & Unit (`agents.test.ts` & `AgentList.test.tsx`):**
-  - [ ] Test: `AgentsPage` server component pre-fetches `initialAgents` containing `email` field (e.g. `'agent@jdfusion.in'`).
-  - [ ] Test: `AgentList` renders table row with `email` value when provided in agent object rather than falling back to `—`.
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Integration & Unit (`agents.test.ts` & `AgentList.test.tsx`):**
+  - [x] Test: `AgentsPage` server component pre-fetches `initialAgents` containing `email` field (e.g. `'agent@jdfusion.in'`).
+  - [x] Test: `AgentList` renders table row with `email` value when provided in agent object rather than falling back to `—`.
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend & Page Fix:**
-  - [ ] [Page] In `src/app/agents/page.tsx`, add `email: true` to `prisma.users.findMany` `select` block.
-  - [ ] Run test — **confirm GREEN**.
+- [x] **GREEN — Frontend & Page Fix:**
+  - [x] [Page] In `src/app/agents/page.tsx`, add `email: true` to `prisma.users.findMany` `select` block.
+  - [x] Run test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] User navigates to `/agents` → Agent Directory table loads → Email column displays valid email addresses (e.g., `steven@jdfusion.in`) instead of dashes → ✅ Done.
+- [x] **Verification chain:**
+  - [x] User navigates to `/agents` → Agent Directory table loads → Email column displays valid email addresses (e.g., `steven@jdfusion.in`) instead of dashes → ✅ Done.
 
 ---
 
@@ -9335,35 +9335,35 @@ Agent filter dropdowns on the Follow-Ups (`/follow-ups`) and Call Dispositions (
 
 ---
 
-- [ ] **RED — Integration (`agents.test.ts` & `agent.service.test.ts`):**
-  - [ ] Test: `GET /api/agents?salesOnly=true` returns ONLY users with one of the 7 sales designations (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`, `Backend Specialist`, `Backend Associate`). Users with designations like `HR`, `QA`, `Director` are excluded by the database query.
-  - [ ] Test: `GET /api/agents?salesOnly=true&teamId=1` returns ONLY sales agents belonging to `teamId = 1`.
-  - [ ] **Run — confirm RED (current `/api/agents` ignores `salesOnly` and `teamId` parameters).**
+- [x] **RED — Integration (`agents.test.ts` & `agent.service.test.ts`):**
+  - [x] Test: `GET /api/agents?salesOnly=true` returns ONLY users with one of the 7 sales designations (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`, `Backend Specialist`, `Backend Associate`). Users with designations like `HR`, `QA`, `Director` are excluded by the database query.
+  - [x] Test: `GET /api/agents?salesOnly=true&teamId=1` returns ONLY sales agents belonging to `teamId = 1`.
+  - [x] **Run — confirm RED (current `/api/agents` ignores `salesOnly` and `teamId` parameters).**
 
-- [ ] **GREEN — Backend (Repository → Service → Route Handler):**
-  - [ ] [Repository] In `src/repository/agent.repository.ts`, update `findAll(status?: number, salesOnly?: boolean, teamId?: number)`:
+- [x] **GREEN — Backend (Repository → Service → Route Handler):**
+  - [x] [Repository] In `src/repository/agent.repository.ts`, update `findAll(status?: number, salesOnly?: boolean, teamId?: number)`:
     - Build Prisma `where` clause:
       - If `status !== undefined`, set `status`.
       - If `salesOnly === true`, set `designation: { in: ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'] }`.
       - If `teamId !== undefined`, set `teamId: Number(teamId)`.
-  - [ ] [Service] In `src/service/agent.service.ts`, update `getAllAgents` to pass `salesOnly` and `teamId` parameters to `agentRepository.findAll` and `prisma.users.findMany`.
-  - [ ] [Route] In `src/app/api/agents/route.ts`, parse `salesOnly` (`searchParams.get('salesOnly') === 'true'`) and `teamId` (`searchParams.get('teamId')`), and pass them to `agentService.getAllAgents`.
-  - [ ] Run integration test — **confirm GREEN**.
+  - [x] [Service] In `src/service/agent.service.ts`, update `getAllAgents` to pass `salesOnly` and `teamId` parameters to `agentRepository.findAll` and `prisma.users.findMany`.
+  - [x] [Route] In `src/app/api/agents/route.ts`, parse `salesOnly` (`searchParams.get('salesOnly') === 'true'`) and `teamId` (`searchParams.get('teamId')`), and pass them to `agentService.getAllAgents`.
+  - [x] Run integration test — **confirm GREEN**.
 
-- [ ] **RED — Unit / Component (`FollowUpListContainer.test.tsx` & `CallDispositionListContainer.test.tsx`):**
-  - [ ] Test: `FollowUpListContainer` fetches `/api/agents?salesOnly=true` (or `/api/agents?salesOnly=true&teamId=1` for `view-team` user).
-  - [ ] Test: `CallDispositionListContainer` fetches `/api/agents?salesOnly=true` (or with `teamId`).
-  - [ ] **Run — confirm RED.**
+- [x] **RED — Unit / Component (`FollowUpListContainer.test.tsx` & `CallDispositionListContainer.test.tsx`):**
+  - [x] Test: `FollowUpListContainer` fetches `/api/agents?salesOnly=true` (or `/api/agents?salesOnly=true&teamId=1` for `view-team` user).
+  - [x] Test: `CallDispositionListContainer` fetches `/api/agents?salesOnly=true` (or with `teamId`).
+  - [x] **Run — confirm RED.**
 
-- [ ] **GREEN — Frontend (Containers):**
-  - [ ] [Component] In `src/components/FollowUpListContainer.tsx`, update `fetch('/api/agents')` call:
+- [x] **GREEN — Frontend (Containers):**
+  - [x] [Component] In `src/components/FollowUpListContainer.tsx`, update `fetch('/api/agents')` call:
     - If `canViewAll`, fetch `/api/agents?salesOnly=true`.
     - If `canViewTeam`, fetch `/api/agents?salesOnly=true&teamId=${session.user.teamId}`.
-  - [ ] [Component] In `src/components/CallDispositionListContainer.tsx`, update `fetch('/api/agents')` call to pass `salesOnly=true` (and `teamId` if `view-team`).
-  - [ ] Run unit test — **confirm GREEN**.
+  - [x] [Component] In `src/components/CallDispositionListContainer.tsx`, update `fetch('/api/agents')` call to pass `salesOnly=true` (and `teamId` if `view-team`).
+  - [x] Run unit test — **confirm GREEN**.
 
-- [ ] **Verification chain:**
-  - [ ] User opens `/follow-ups` or `/call-dispositions` → Agent filter dropdown opens → Only active agents belonging to the 7 sales designations (and user's team for `view-team`) appear → Agents with HR/QA/Director designations are omitted at API level → ✅ Done.
+- [x] **Verification chain:**
+  - [x] User opens `/follow-ups` or `/call-dispositions` → Agent filter dropdown opens → Only active agents belonging to the 7 sales designations (and user's team for `view-team`) appear → Agents with HR/QA/Director designations are omitted at API level → ✅ Done.
 
 ---
 
@@ -10881,6 +10881,22 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     * **Verification & Testing:**
         * **Automated Tests:** All unit & integration test suites passed **100% GREEN** across 75 test suites (545/545 passed).
         * **TypeScript Check:** `npm run typecheck` (`tsc --noEmit`) returned **0 errors**.
+
+### Session 110 - August 10, 2026
+
+* **Phase 42 — Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`):**
+    * **Agent Directory Email Projection Fix (`src/app/agents/page.tsx`):**
+        * Updated `AgentsPage` server component pre-fetch `prisma.users.findMany` select query projection to include `email: true`.
+        * Resolved bug where `agent.email` arrived as `undefined` in `AgentList.tsx`, rendering dashes (`—`) for all agents in the table.
+    * **Backend Database Scoping for Sales Agent Filters (`/api/agents?salesOnly=true&teamId=X`):**
+        * Exported `SALES_DESIGNATIONS` array (`'Sales Supervisor'`, `'Sales Team Lead'`, `'Sales Specialist'`, `'Sales Expert'`, `'Sales Associate'`, `'Backend Specialist'`, `'Backend Associate'`) in `src/repository/agent.repository.ts`.
+        * Updated `agentRepository.findAll` and `agentService.getAllAgents` to accept `salesOnly?: boolean` and `teamId?: number` parameters, applying database-level `WHERE designation IN (...)` and `WHERE teamId = X` Prisma filters.
+        * Updated `GET /api/agents` route handler in `src/app/api/agents/route.ts` to parse `salesOnly` and `teamId` query parameters.
+        * Updated `src/components/FollowUpListContainer.tsx` and `src/components/CallDispositionListContainer.tsx` to pass `?salesOnly=true` (and `teamId` when user has `view-team` permission) when fetching agent dropdown options.
+    * **Verification & Testing:**
+        * **Automated Tests:** All unit & integration test suites passed **100% GREEN** across 75 test suites (549/549 passed).
+        * **TypeScript Check:** `npm run typecheck` (`tsc --noEmit`) returned **0 errors**.
+
 
 
 

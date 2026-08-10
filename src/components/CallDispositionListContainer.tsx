@@ -53,21 +53,26 @@ function CallDispositionListContainerContent() {
 
   // Permissions helpers
   const permissions = session?.user?.userPermissions || '';
-  const hasViewAll = permissions.includes('call-dispositions:view');
+  const hasViewAll = permissions.includes('call-dispositions:view') || permissions.includes('super-admin');
+  const hasViewTeam = permissions.includes('call-dispositions:view-team');
   const hasCreate = permissions.includes('call-dispositions:create');
 
   const fetchDropdowns = useCallback(async () => {
     try {
+      const agentQuery = new URLSearchParams({ salesOnly: 'true' });
+      if (hasViewTeam && !hasViewAll && session?.user?.teamId) {
+        agentQuery.set('teamId', String(session.user.teamId));
+      }
       const [teamsRes, agentsRes] = await Promise.all([
         fetch('/api/teams'),
-        fetch('/api/agents'),
+        fetch(`/api/agents?${agentQuery.toString()}`),
       ]);
       if (teamsRes.ok) setTeams(await teamsRes.json());
       if (agentsRes.ok) setAgents(await agentsRes.json());
     } catch (err) {
       console.error('Failed to fetch filter dropdowns:', err);
     }
-  }, []);
+  }, [hasViewAll, hasViewTeam, session]);
 
   const fetchDispositions = useCallback(async () => {
     setIsLoading(true);

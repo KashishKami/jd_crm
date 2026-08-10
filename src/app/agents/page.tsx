@@ -25,6 +25,7 @@ export default async function AgentsPage() {
         uid: true,
         name: true,
         nickname: true,
+        email: true,
         designation: true,
         status: true,
         teamId: true,

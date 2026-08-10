@@ -26,9 +26,13 @@ export async function GET(request: Request) {
   const limitStr = searchParams.get('limit');
   const page = pageStr !== null ? Number(pageStr) : undefined;
   const limit = limitStr !== null ? Number(limitStr) : undefined;
+  const salesOnlyStr = searchParams.get('salesOnly');
+  const salesOnly = salesOnlyStr === 'true' || salesOnlyStr === '1';
+  const teamIdStr = searchParams.get('teamId');
+  const teamId = teamIdStr !== null ? Number(teamIdStr) : undefined;
 
   try {
-    const result = await agentService.getAllAgents(status, page, limit);
+    const result = await agentService.getAllAgents(status, page, limit, salesOnly, teamId);
     return NextResponse.json(result);
   } catch (error: unknown) {
     const err = error as Error;

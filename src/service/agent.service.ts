@@ -10,12 +10,29 @@ function sanitizeUser<T extends { password?: string | null }>(user: T | null): O
   return sanitized;
 }
 
-export async function getAllAgents(status?: number, page?: number, limit?: number): Promise<any> {
+export async function getAllAgents(
+  status?: number,
+  page?: number,
+  limit?: number,
+  salesOnly?: boolean,
+  teamId?: number
+): Promise<any> {
+  const whereClause: any = {};
+  if (status !== undefined) {
+    whereClause.status = status;
+  }
+  if (salesOnly) {
+    whereClause.designation = { in: agentRepository.SALES_DESIGNATIONS };
+  }
+  if (teamId !== undefined) {
+    whereClause.teamId = Number(teamId);
+  }
+
   if (page !== undefined && limit !== undefined) {
     const skip = (page - 1) * limit;
     const [agents, total] = await Promise.all([
       prisma.users.findMany({
-        where: status !== undefined ? { status } : undefined,
+        where: whereClause,
         include: {
           team: true,
           role: true,
@@ -27,7 +44,7 @@ export async function getAllAgents(status?: number, page?: number, limit?: numbe
         take: limit,
       }),
       prisma.users.count({
-        where: status !== undefined ? { status } : undefined,
+        where: whereClause,
       })
     ]);
     return {
@@ -39,7 +56,7 @@ export async function getAllAgents(status?: number, page?: number, limit?: numbe
     };
   }
 
-  const agents = await agentRepository.findAll(status);
+  const agents = await agentRepository.findAll(status, salesOnly, teamId);
   return agents.map(sanitizeUser);
 }
 

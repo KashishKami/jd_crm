@@ -45,9 +45,30 @@ export interface UpdateAgentInput {
   professionalRecord?: FormProfessionalRecord[] | null;
 }
 
-export async function findAll(status?: number) {
+export const SALES_DESIGNATIONS = [
+  'Sales Supervisor',
+  'Sales Team Lead',
+  'Sales Specialist',
+  'Sales Expert',
+  'Sales Associate',
+  'Backend Specialist',
+  'Backend Associate',
+];
+
+export async function findAll(status?: number, salesOnly?: boolean, teamId?: number) {
+  const where: Prisma.UsersWhereInput = {};
+  if (status !== undefined) {
+    where.status = status;
+  }
+  if (salesOnly) {
+    where.designation = { in: SALES_DESIGNATIONS };
+  }
+  if (teamId !== undefined) {
+    where.teamId = Number(teamId);
+  }
+
   return prisma.users.findMany({
-    where: status !== undefined ? { status } : undefined,
+    where,
     include: {
       team: true,
       role: true,

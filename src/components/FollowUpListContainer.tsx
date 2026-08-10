@@ -326,9 +326,13 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
     const fetchDropdowns = async () => {
       try {
+        const agentQuery = new URLSearchParams({ salesOnly: 'true' });
+        if (canViewTeam && !canViewAll && session?.user?.teamId) {
+          agentQuery.set('teamId', String(session.user.teamId));
+        }
         const [teamsRes, agentsRes] = await Promise.all([
           fetch('/api/teams'),
-          fetch('/api/agents'),
+          fetch(`/api/agents?${agentQuery.toString()}`),
         ]);
         if (teamsRes.ok) {
           const teamsData = await teamsRes.json();
@@ -344,7 +348,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     };
 
     fetchDropdowns();
-  }, [status, canViewAll, canViewTeam]);
+  }, [status, canViewAll, canViewTeam, session?.user?.teamId]);
 
   // Clear agent filter if team selection changes and existing agent doesn't belong to new team
   const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

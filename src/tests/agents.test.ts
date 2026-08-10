@@ -351,4 +351,118 @@ describe('Agent Management CRUD Endpoints Integration Tests', () => {
       await prisma.users.delete({ where: { uid: user.uid } });
     });
   });
+
+  describe('AgentsPage Server Component & salesOnly/teamId API Filtering (W-4201 & W-4202)', () => {
+    it('W-4201 [RED] should pre-fetch initialAgents with email property in AgentsPage server component', async () => {
+      const { default: AgentsPage } = await import('../app/agents/page');
+      const pageJsx = await AgentsPage();
+      const initialAgents = pageJsx.props.initialAgents;
+      expect(initialAgents.length).toBeGreaterThan(0);
+      const agentWithEmail = initialAgents.find((a: any) => a.email !== undefined);
+      expect(agentWithEmail).toBeDefined();
+      expect(agentWithEmail.email).toBeDefined();
+    });
+
+    it('W-4202 [RED] should filter agents by salesOnly=true in GET /api/agents backend query', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const team = await prisma.crmTeams.findFirst();
+
+      const salesAgent = await prisma.users.create({
+        data: {
+          name: 'Test Sales Specialist Agent',
+          username: 'test_sales_specialist_agent',
+          designation: 'Sales Specialist',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: team!.teamId,
+        },
+      });
+
+      const hrAgent = await prisma.users.create({
+        data: {
+          name: 'Test HR Manager Agent',
+          username: 'test_hr_manager_agent',
+          designation: 'HR',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: team!.teamId,
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'agents:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/agents/route');
+      const req = new Request('http://localhost/api/agents?salesOnly=true');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const names = data.map((a: any) => a.name);
+      expect(names).toContain('Test Sales Specialist Agent');
+      expect(names).not.toContain('Test HR Manager Agent');
+
+      // Cleanup
+      await prisma.users.deleteMany({
+        where: { uid: { in: [salesAgent.uid, hrAgent.uid] } },
+      });
+    });
+
+    it('W-4202 [RED] should filter agents by teamId in GET /api/agents backend query', async () => {
+      const role = await prisma.crmRoles.findFirst();
+      const teams = await prisma.crmTeams.findMany({ take: 2 });
+      if (teams.length < 2) return;
+
+      const team1Agent = await prisma.users.create({
+        data: {
+          name: 'Test Team 1 Agent',
+          username: 'test_team1_agent',
+          designation: 'Sales Associate',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: teams[0].teamId,
+        },
+      });
+
+      const team2Agent = await prisma.users.create({
+        data: {
+          name: 'Test Team 2 Agent',
+          username: 'test_team2_agent',
+          designation: 'Sales Associate',
+          status: 1,
+          roleId: role!.roleId,
+          teamId: teams[1].teamId,
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: {
+          id: '1',
+          name: 'Authorized User',
+          userPermissions: 'agents:view',
+        },
+      });
+
+      const { GET } = await import('../app/api/agents/route');
+      const req = new Request(`http://localhost/api/agents?salesOnly=true&teamId=${teams[0].teamId}`);
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const uids = data.map((a: any) => a.uid);
+      expect(uids).toContain(team1Agent.uid);
+      expect(uids).not.toContain(team2Agent.uid);
+
+      // Cleanup
+      await prisma.users.deleteMany({
+        where: { uid: { in: [team1Agent.uid, team2Agent.uid] } },
+      });
+    });
+  });
 });
+
