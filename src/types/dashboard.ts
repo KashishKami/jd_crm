@@ -1,9 +1,9 @@
 export interface PerformerRow {
-  agentId: number;
+  agentId?: number;
   agentName: string;
-  salesCount: number;
-  totalSales: number;
-  leakage: number;
+  salesCount?: number;
+  totalSales?: number;
+  leakage?: number;
   amount?: number;
 }
 
