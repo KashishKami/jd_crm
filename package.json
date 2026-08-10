@@ -8,7 +8,7 @@
     "build:local": "prisma generate && next build && xcopy /E /I /Y .next\\static .next\\standalone\\.next\\static && xcopy /E /I /Y public .next\\standalone\\public",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "prisma generate && tsc --noEmit",
     "test": "vitest run --pool=forks",
     "ci:quality": "npm run lint && npm run typecheck && npm run test && npm run build",
     "import:csv": "npx tsx src/scripts/import-csv-data.ts"
