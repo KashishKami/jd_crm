@@ -137,9 +137,10 @@ describe('OrderListContainer Unit Tests', () => {
   it('[RED] should render Backend Executive filter dropdown and refresh list when selection changes', async () => {
     render(<OrderListContainer />);
 
-    // Wait for the dropdown to be rendered
+    // Wait for the dropdown and options to be rendered
     await waitFor(() => {
       expect(screen.getByLabelText(/Backend Executive/i)).toBeDefined();
+      expect(screen.getAllByText('Bob').length).toBeGreaterThan(0);
     });
 
     // Select Backend Executive Bob (uid 2)
