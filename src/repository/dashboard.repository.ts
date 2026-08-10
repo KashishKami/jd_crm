@@ -724,7 +724,7 @@ export async function getAdvancedChartData(teamId?: number, agentId?: number, da
   });
 }
 
-export async function getBackendTeamPerformance(month: number, year: number) {
+export async function getBackendMonthlyPerformance(month: number, year: number) {
   const rows = await prisma.$queryRaw<any[]>`
     SELECT
       u.uid AS agentId,
@@ -761,6 +761,50 @@ export async function getBackendTeamPerformance(month: number, year: number) {
     totalPending: Number(r.totalPending || 0),
     completedCount: Number(r.completedCount || 0),
   }));
+}
+
+export async function getBackendPendingCasesAllTime() {
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT
+      u.uid AS agentId,
+      MAX(COALESCE(u.nickname, u.name)) AS agentName,
+      SUM(CASE WHEN o.order_current_status = 'Pending Booking' THEN 1 ELSE 0 END) AS pendingBooking,
+      SUM(CASE WHEN o.order_current_status = 'Pending Shipment' THEN 1 ELSE 0 END) AS pendingShipment,
+      SUM(CASE WHEN o.order_current_status = 'Pending Delivery' THEN 1 ELSE 0 END) AS pendingDelivery,
+      SUM(CASE WHEN o.order_current_status = 'Pending Feedback' THEN 1 ELSE 0 END) AS pendingFeedback,
+      SUM(CASE WHEN o.order_current_status = 'Pending Resolutions' THEN 1 ELSE 0 END) AS pendingResolutions,
+      SUM(CASE WHEN o.order_current_status IN (
+        'Pending Booking','Pending Shipment','Pending Delivery',
+        'Pending Feedback','Pending Resolutions'
+      ) THEN 1 ELSE 0 END) AS totalPending,
+      SUM(CASE WHEN o.order_current_status = 'Completed Orders' THEN 1 ELSE 0 END) AS completedCount
+    FROM users u
+    LEFT JOIN crm_orders o
+      ON o.order_backend_executive_id = u.uid
+      AND o.parent_order_id IS NULL
+    WHERE u.designation IN ('Backend Specialist', 'Backend Associate')
+      AND u.status = 1
+    GROUP BY u.uid
+  `;
+
+  return rows.map(r => ({
+    agentId: Number(r.agentId),
+    agentName: String(r.agentName || 'Unknown Agent'),
+    pendingBooking: Number(r.pendingBooking || 0),
+    pendingShipment: Number(r.pendingShipment || 0),
+    pendingDelivery: Number(r.pendingDelivery || 0),
+    pendingFeedback: Number(r.pendingFeedback || 0),
+    pendingResolutions: Number(r.pendingResolutions || 0),
+    totalPending: Number(r.totalPending || 0),
+    completedCount: Number(r.completedCount || 0),
+  }));
+}
+
+export async function getBackendTeamPerformance(month?: number, year?: number) {
+  if (month && year) {
+    return getBackendMonthlyPerformance(month, year);
+  }
+  return getBackendPendingCasesAllTime();
 }
 
 export async function getSparklineData(

@@ -1553,3 +1553,37 @@ Originally, `/api/follow-ups/due` handled floating toast popups on the bottom-ri
 - `src/tests/Navbar.test.tsx`, `src/tests/useFollowUpNotifications.test.tsx`, `src/tests/useNavbarNotifications.test.ts`, `src/tests/FollowUpNotification.test.tsx`, `src/tests/followups.test.ts` — 5 test suites (34 tests passed GREEN).
 
 
+---
+
+### Decision 42: All-Time Pending Cases by Category Table & Removal of Monthly Filter for Pending Breakdown (Phase 40)
+
+**Date:** 2026-08-10
+**Status:** Approved
+
+#### Context
+The *Pending Cases by Category* table on the Executive Dashboard (`BackendTeamWidget.tsx`) previously filtered orders by the selected month/year (`MONTH(o.order_created_date) = month AND YEAR(o.order_created_date) = year`). This caused pending cases to reset at the start of each month. However, pending pipeline cases represent unresolved operational backlog that backend agents must work to resolve and close regardless of when the order was originally intake-booked. Additionally, when clicking on cell values in the table, the anchor links carried `month` and `year` query parameters (e.g. `/orders?backendExecutiveId=12&status=Pending+Booking&month=8&year=2026`), filtering the destination Orders page to the selected month instead of showing all pending cases requiring attention.
+
+#### Decision
+
+**D42.1 — All-Time Pending Cases Breakdown Query**
+Remove `MONTH(o.order_created_date)` and `YEAR(o.order_created_date)` filtering from the `crm_orders` join in `getBackendTeamPerformance` (`dashboard.repository.ts`). The *Pending Cases by Category* table aggregates all-time open cases (`Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`, `Completed Orders`, `Total Pending`) for all active backend executives.
+
+**D42.2 — Removal of Month Navigator UI for Pending Cases Section**
+Remove the month navigator UI control (`← Month Year →`) and its associated state (`pendingMonth`, `pendingYear`) from the *Pending Cases by Category* header in `BackendTeamWidget.tsx`. 
+
+**D42.3 — Filter Cleanup for Destination Orders Page Links**
+Update table cell anchor links in `BackendTeamWidget.tsx` (`nameLink` and `buildQueueLink`) to strip `month` and `year` query parameters. Clicking a count cell now navigates to `/orders?backendExecutiveId=${agentId}&status=${status}`, displaying all matching open orders for that backend executive across all time.
+
+**D42.4 — Scope Isolation (Backend Performers Tables Unchanged)**
+The *Backend Team Performers* (Top Performers by completed cases and Bottom Performers by backlog) tables measure monthly performance rankings and retain their independent month navigator (`perfMonth`, `perfYear`) and monthly query filters unchanged.
+
+#### Files Changed (Phase 40)
+- `CONTEXT/current_state.md` — Phase 40 progress entry and TDD checklist added
+- `CONTEXT/decision_log.md` — Decision 42 entry added
+- `src/repository/dashboard.repository.ts` — `getBackendTeamPerformance` SQL query updated to aggregate all-time pending cases
+- `src/components/dashboard/BackendTeamWidget.tsx` — Month navigator removed from Pending Cases section; cell links cleaned of `month`/`year` parameters
+- `src/tests/backend-team.test.ts` — Integration tests updated for all-time pending counts
+- `src/tests/BackendTeamWidget.test.tsx` — Component unit tests updated to verify link URL parameters and month navigator removal
+
+
+

@@ -88,7 +88,7 @@ describe('BackendTeamWidget Unit Tests', () => {
     expect(links.length).toBe(0);
   });
 
-  it('should render cells as clickable anchor links when user has orders:view permission', () => {
+  it('should render cells as clickable anchor links without month/year filters for pending cases table when user has orders:view permission', () => {
     render(
       <BackendTeamWidget
         initialData={mockData}
@@ -101,24 +101,39 @@ describe('BackendTeamWidget Unit Tests', () => {
     const links = screen.getAllByRole('link');
     expect(links.length).toBeGreaterThan(0);
 
-    // Alice name link in pending cases table or performers table
-    const aliceLink = links.find(
-      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&month=6&year=2026'
+    // Pending cases agent name link should omit month and year filters
+    const alicePendingLink = links.find(
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12'
     );
-    expect(aliceLink).toBeDefined();
+    expect(alicePendingLink).toBeDefined();
 
-    // Completed cell link in pending cases table
+    // Completed cell link in pending cases table should omit month and year filters
     const completedLink = links.find(
-      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&status=Completed+Orders&month=6&year=2026'
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&status=Completed+Orders'
     );
     expect(completedLink).toBeDefined();
     expect(completedLink?.textContent).toBe('5');
 
-    // Pending Booking cell link in pending cases table for Bob
+    // Pending Booking cell link in pending cases table for Bob should omit month and year filters
     const bookingLink = links.find(
-      l => l.getAttribute('href') === '/orders?backendExecutiveId=13&status=Pending+Booking&month=6&year=2026'
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=13&status=Pending+Booking'
     );
     expect(bookingLink).toBeDefined();
     expect(bookingLink?.textContent).toBe('3');
+  });
+
+  it('should not render month navigator controls for Pending Cases by Category section', () => {
+    render(
+      <BackendTeamWidget
+        initialData={mockData}
+        permissions="dashboard:backend-pending-cases"
+        initialMonth={6}
+        initialYear={2026}
+      />
+    );
+
+    expect(screen.getByText('Pending Cases by Category')).toBeDefined();
+    // Month navigator text like "June 2026" should not be rendered when only pending cases table is shown
+    expect(screen.queryByText('June 2026')).toBeNull();
   });
 });

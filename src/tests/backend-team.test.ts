@@ -154,14 +154,14 @@ describe('Backend Team Performance Integration Tests', () => {
     expect(emptyRow.completedCount).toBe(0);
     expect(emptyRow.totalPending).toBe(0);
 
-    // 3. Correct counts for backendAgentWithOrders
+    // 3. Correct counts for backendAgentWithOrders (all-time pending cases across months)
     const orderRow = data.pendingByCategory.find((x: any) => x.agentId === backendAgentWithOrders.uid);
     expect(orderRow).toBeDefined();
     expect(orderRow.agentName).toBe('BackendOrdersNick'); // must use nickname if present
     expect(orderRow.completedCount).toBe(1);
     expect(orderRow.pendingShipment).toBe(1);
-    expect(orderRow.pendingBooking).toBe(0);
-    expect(orderRow.totalPending).toBe(1);
+    expect(orderRow.pendingBooking).toBe(1); // includes Pending Booking from May
+    expect(orderRow.totalPending).toBe(2); // 1 Pending Shipment (June) + 1 Pending Booking (May)
 
     // Cleanup
     await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'TEAM_TEST' } });

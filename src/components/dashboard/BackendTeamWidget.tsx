@@ -20,11 +20,9 @@ export default function BackendTeamWidget({
   initialMonth,
   initialYear,
 }: BackendTeamWidgetProps) {
-  // Independent month/year states for Performers and Pending Cases sections
+  // Independent month/year states for Performers section
   const [perfMonth, setPerfMonth] = useState(initialMonth);
   const [perfYear, setPerfYear] = useState(initialYear);
-  const [pendingMonth, setPendingMonth] = useState(initialMonth);
-  const [pendingYear, setPendingYear] = useState(initialYear);
 
   // Separate data states
   const [topPerformers, setTopPerformers] = useState<any[]>(initialData?.topPerformers || []);
@@ -39,7 +37,6 @@ export default function BackendTeamWidget({
 
   // Refs to track first mount to safely skip initial data fetching when props are present
   const isInitialPerfMount = useRef(true);
-  const isInitialPendingMount = useRef(true);
 
   const canShowTop = hasPermission(permissions, 'dashboard:backend-top-performer');
   const canShowBottom = hasPermission(permissions, 'dashboard:backend-bottom-performer');
@@ -65,12 +62,12 @@ export default function BackendTeamWidget({
     }
   }, []);
 
-  // Fetch pending cases data
-  const fetchPendingData = useCallback(async (month: number, year: number) => {
+  // Fetch pending cases data (all time)
+  const fetchPendingData = useCallback(async () => {
     setPendingLoading(true);
     setPendingError(null);
     try {
-      const res = await fetch(`/api/dashboard/backend-team?month=${month}&year=${year}`);
+      const res = await fetch(`/api/dashboard/backend-team`);
       if (!res.ok) {
         throw new Error('Failed to fetch backend pending cases');
       }
@@ -94,16 +91,38 @@ export default function BackendTeamWidget({
     fetchPerfData(perfMonth, perfYear);
   }, [perfMonth, perfYear, initialData, initialMonth, initialYear, fetchPerfData]);
 
-  // Trigger pending fetch when month/year changes
+  // Fetch all-time pending cases if initialData not provided
   useEffect(() => {
-    if (isInitialPendingMount.current) {
-      isInitialPendingMount.current = false;
-      if (initialData && pendingMonth === initialMonth && pendingYear === initialYear) {
-        return;
-      }
+    if (!initialData?.pendingByCategory) {
+      let isMounted = true;
+      const loadPending = async () => {
+        setPendingLoading(true);
+        setPendingError(null);
+        try {
+          const res = await fetch('/api/dashboard/backend-team');
+          if (!res.ok) {
+            throw new Error('Failed to fetch backend pending cases');
+          }
+          const json = await res.json();
+          if (isMounted) {
+            setPendingByCategory(json.pendingByCategory || []);
+          }
+        } catch (err: any) {
+          if (isMounted) {
+            setPendingError(err.message || 'An error occurred');
+          }
+        } finally {
+          if (isMounted) {
+            setPendingLoading(false);
+          }
+        }
+      };
+      loadPending();
+      return () => {
+        isMounted = false;
+      };
     }
-    fetchPendingData(pendingMonth, pendingYear);
-  }, [pendingMonth, pendingYear, initialData, initialMonth, initialYear, fetchPendingData]);
+  }, [initialData]);
 
   const handlePrevPerfMonth = () => {
     if (perfMonth === 1) {
@@ -123,24 +142,6 @@ export default function BackendTeamWidget({
     }
   };
 
-  const handlePrevPendingMonth = () => {
-    if (pendingMonth === 1) {
-      setPendingMonth(12);
-      setPendingYear((y) => y - 1);
-    } else {
-      setPendingMonth((m) => m - 1);
-    }
-  };
-
-  const handleNextPendingMonth = () => {
-    if (pendingMonth === 12) {
-      setPendingMonth(1);
-      setPendingYear((y) => y + 1);
-    } else {
-      setPendingMonth((m) => m + 1);
-    }
-  };
-
   const getMonthName = (m: number) => {
     const date = new Date(2000, m - 1, 1);
     return date.toLocaleString('default', { month: 'long' });
@@ -157,9 +158,14 @@ export default function BackendTeamWidget({
         {(canShowTop || canShowBottom) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-                Backend Team Performers
-              </h3>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                  Backend Team Performers
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0', fontWeight: 400 }}>
+                  Monthly ranking based on cases completed in the selected month.
+                </p>
+              </div>
 
               {/* Month Navigator for Performers */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px' }}>
@@ -355,45 +361,13 @@ export default function BackendTeamWidget({
         {canShowPending && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-                Pending Cases by Category
-              </h3>
-
-              {/* Month Navigator for Pending Cases */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px' }}>
-                <button
-                  onClick={handlePrevPendingMonth}
-                  aria-label="Previous Month"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    color: 'var(--text-main)',
-                    fontSize: '1rem',
-                    padding: '0 6px',
-                  }}
-                >
-                  &larr;
-                </button>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)', minWidth: '120px', textAlign: 'center' }}>
-                  {getMonthName(pendingMonth)} {pendingYear}
-                </span>
-                <button
-                  onClick={handleNextPendingMonth}
-                  aria-label="Next Month"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    color: 'var(--text-main)',
-                    fontSize: '1rem',
-                    padding: '0 6px',
-                  }}
-                >
-                  &rarr;
-                </button>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                  Pending Cases by Category
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0', fontWeight: 400 }}>
+                  Overall unresolved cases across all time per backend executive.
+                </p>
               </div>
             </div>
 
@@ -428,8 +402,8 @@ export default function BackendTeamWidget({
                       </thead>
                       <tbody>
                         {pendingByCategory.map((row) => {
-                          const nameLink = `/orders?backendExecutiveId=${row.agentId}&month=${pendingMonth}&year=${pendingYear}`;
-                          const buildQueueLink = (status: string) => `/orders?backendExecutiveId=${row.agentId}&status=${encodeURIComponent(status).replace(/%20/g, '+')}&month=${pendingMonth}&year=${pendingYear}`;
+                          const nameLink = `/orders?backendExecutiveId=${row.agentId}`;
+                          const buildQueueLink = (status: string) => `/orders?backendExecutiveId=${row.agentId}&status=${encodeURIComponent(status).replace(/%20/g, '+')}`;
 
                           return (
                             <tr key={row.agentId}>

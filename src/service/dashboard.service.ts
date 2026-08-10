@@ -341,28 +341,32 @@ export async function getBackendTeamDashboard(session: any, month: number, year:
     throw new Error('Forbidden');
   }
 
-  const allData = await dashboardRepository.getBackendTeamPerformance(month, year);
-
   const result: {
     topPerformers?: any[];
     bottomPerformers?: any[];
     pendingByCategory?: any[];
   } = {};
 
-  if (hasPermission(permissions, 'dashboard:backend-top-performer')) {
-    result.topPerformers = [...allData]
-      .sort((a, b) => b.completedCount - a.completedCount)
-      .slice(0, 3);
-  }
-
-  if (hasPermission(permissions, 'dashboard:backend-bottom-performer')) {
-    result.bottomPerformers = [...allData]
-      .sort((a, b) => b.totalPending - a.totalPending)
-      .slice(0, 3);
+  if (
+    hasPermission(permissions, 'dashboard:backend-top-performer') ||
+    hasPermission(permissions, 'dashboard:backend-bottom-performer')
+  ) {
+    const monthlyData = await dashboardRepository.getBackendMonthlyPerformance(month, year);
+    if (hasPermission(permissions, 'dashboard:backend-top-performer')) {
+      result.topPerformers = [...monthlyData]
+        .sort((a, b) => b.completedCount - a.completedCount)
+        .slice(0, 3);
+    }
+    if (hasPermission(permissions, 'dashboard:backend-bottom-performer')) {
+      result.bottomPerformers = [...monthlyData]
+        .sort((a, b) => b.totalPending - a.totalPending)
+        .slice(0, 3);
+    }
   }
 
   if (hasPermission(permissions, 'dashboard:backend-pending-cases')) {
-    result.pendingByCategory = [...allData]
+    const pendingData = await dashboardRepository.getBackendPendingCasesAllTime();
+    result.pendingByCategory = [...pendingData]
       .sort((a, b) => b.totalPending - a.totalPending);
   }
 

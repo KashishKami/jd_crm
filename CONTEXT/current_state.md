@@ -55,6 +55,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 37** | Follow-Up Persistent Overdue Notification Tab in Navbar | **[x] COMPLETED** | `src/components/Navbar.tsx`, `src/lib/useFollowUpNotifications.ts`, `src/app/api/follow-ups/due/route.ts`, `src/repository/followup.repository.ts`, `src/service/followup.service.ts`, `src/app/components.css`, `src/tests/useFollowUpNotifications.test.ts`, `src/tests/Navbar.test.tsx`, `src/tests/followups.test.ts` |
 | **Phase 38** | 24-Hour Session Expiration & Middleware Guard Fix | **[x] COMPLETED** | `src/middleware.ts`, `src/app/api/auth/[...nextauth]/route.ts`, `src/app/page.tsx`, `src/tests/auth_expiration.test.ts` |
 | **Phase 39** | Team Monthly Scores Mobile Stacking (<1000px) & Clean `/login` Redirect URL | **[x] COMPLETED** | `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, `src/middleware.ts`, `src/tests/TeamMonthlyScoresWidget.test.tsx`, `src/tests/auth_expiration.test.ts` |
+| **Phase 40** | Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/backend-team.test.ts` |
 ---
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
@@ -9148,6 +9149,53 @@ In `src/middleware.ts`, handle unauthenticated requests directly inside the midd
   - [x] 2. Logged out user opens `crm.jdfusion.in/` -> Middleware redirects browser cleanly to `crm.jdfusion.in/login` without `?callbackUrl=...` parameter -> ✅ Done.
 
 ---
+## Phase 40 — Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup
+
+### W-4001 — Pending Cases by Category Table All-Time Cases & Link Filter Cleanup
+
+**Root cause / Goal:**
+Currently, the "Pending Cases by Category" table on the Executive Dashboard (`BackendTeamWidget.tsx`) applies a monthly date filter (`MONTH(o.order_created_date) = month AND YEAR(o.order_created_date) = year`) in `getBackendTeamPerformance`. This causes pending cases to reset every month, when pending cases represent unresolved operational backlog that backend agents must resolve regardless of when the order was originally created. Additionally, table cell links include `month` and `year` query parameters (e.g., `/orders?backendExecutiveId=12&status=Pending+Booking&month=8&year=2026`), filtering the destination Orders page by month as well. The goal is to make the Pending Cases table display all-time pending cases per backend executive, remove the month navigator UI control for the Pending Cases table, and strip `month`/`year` parameters from the clickable cell links leading to the Orders page. (Note: The Backend Team Top and Bottom Performers tables remain monthly performance rankings and are unchanged).
+
+**Fix / Approach:**
+1. **Repository (`src/repository/dashboard.repository.ts`):** In `getBackendTeamPerformance(month, year)`, remove `MONTH(o.order_created_date)` and `YEAR(o.order_created_date)` constraints from the `crm_orders` LEFT JOIN condition so pending case counts (`SUM(CASE WHEN o.order_current_status = ... THEN 1 ELSE 0 END)`) aggregate all-time open cases per active backend executive.
+2. **Component (`src/components/dashboard/BackendTeamWidget.tsx`):**
+   - Remove `pendingMonth` and `pendingYear` state, `handlePrevPendingMonth`, `handleNextPendingMonth`, and the month navigator header UI (`← Month Year →`) from the "Pending Cases by Category" section header.
+   - Remove `month` and `year` query parameters from `nameLink` and `buildQueueLink` helpers in the Pending Cases breakdown table rows (e.g., `/orders?backendExecutiveId=${row.agentId}&status=${encodeURIComponent(status)}`).
+   - Retain `perfMonth` and `perfYear` state and month navigator controls for the Top/Bottom Performers tables.
+3. **Integration Tests (`src/tests/backend-team.test.ts`):** Update the integration test to verify that pending cases created in previous months (e.g., May) are correctly included in all-time pending case counts.
+4. **Unit Tests (`src/tests/BackendTeamWidget.test.tsx`):** Update component unit tests asserting generated anchor link URLs to verify they omit `month` and `year` query parameters for pending cases links.
+
+---
+
+- [x] **RED — Integration (`src/tests/backend-team.test.ts`):**
+  - [x] Test: `GET /api/dashboard/backend-team?month=8&year=2026` returns `pendingByCategory` where orders created in prior months (e.g. May 2026) are included in `pendingBooking` and `totalPending` counts.
+  - [x] **Run — confirm RED (prior-month pending orders are currently excluded by the month/year JOIN condition).**
+
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] In `src/repository/dashboard.repository.ts`, update `getBackendTeamPerformance(month, year)` SQL query to remove `MONTH(o.order_created_date) = ${month}` and `YEAR(o.order_created_date) = ${year}` filters from the `LEFT JOIN crm_orders o` clause.
+  - [x] [Service] In `src/service/dashboard.service.ts`, verify `getBackendTeamDashboard` passes all-time `pendingByCategory` structure.
+  - [x] [Controller] In `src/app/api/dashboard/backend-team/route.ts`, verify endpoint returns all-time `pendingByCategory` data.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/BackendTeamWidget.test.tsx`):**
+  - [x] Test: Render `BackendTeamWidget` with `orders:view` permission. Assert that anchor links in the Pending Cases by Category table do NOT contain `month=` or `year=` query parameters (e.g., `href` equals `/orders?backendExecutiveId=12` or `/orders?backendExecutiveId=12&status=Pending+Booking`).
+  - [x] Test: Assert that the month navigator UI control (`← Month Year →`) is NOT rendered for the Pending Cases by Category header.
+  - [x] **Run — confirm RED (current component renders month navigator for Pending Cases and includes month/year in anchor links).**
+
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Component] In `src/components/dashboard/BackendTeamWidget.tsx`:
+    - Remove `pendingMonth` and `pendingYear` state variables and `handlePrevPendingMonth`/`handleNextPendingMonth` handlers.
+    - Remove month navigator markup (`<div ...>← {getMonthName(pendingMonth)} {pendingYear} →</div>`) from Section 2 ("Pending Cases by Category") header.
+    - Update `nameLink` in Pending Cases table to `/orders?backendExecutiveId=${row.agentId}`.
+    - Update `buildQueueLink` in Pending Cases table to `/orders?backendExecutiveId=${row.agentId}&status=${encodeURIComponent(status).replace(/%20/g, '+')}`.
+    - Keep Top/Bottom Performers month navigator and links intact.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Executive views Dashboard → Scrolls to "Pending Cases by Category" → Table header shows no month navigator → Table displays all-time pending cases per backend agent → Executive clicks a pending case count cell → Browser navigates to `/orders` filtered strictly by `backendExecutiveId` and `status` without month/year filters → All matching orders across all time are shown → ✅ Done.
+
+---
+
 ## 3. Session Notes
 
 ### Session 1 — June 23, 2026
@@ -10605,5 +10653,31 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
     * **Verification & Testing:**
         * **Automated Tests:** All unit & integration tests (`src/tests/TeamMonthlyScoresWidget.test.tsx` and `src/tests/auth_expiration.test.ts`) passed 100% GREEN (7/7 passed).
         * **Typecheck (`tsc --noEmit`):** Clean build with **0 type errors**.
+
+
+### Session 107 - August 10, 2026
+
+* **Phase 40 — Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup:**
+    * **Database Repository (`src/repository/dashboard.repository.ts`):**
+        * Added `getBackendPendingCasesAllTime()` querying open pipeline cases (`Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`, `Completed Orders`, `Total Pending`) without `MONTH(o.order_created_date)` / `YEAR(o.order_created_date)` filters, aggregating all-time pending cases per backend executive.
+        * Created `getBackendMonthlyPerformance(month, year)` specifically for Top & Bottom Performers to preserve monthly performance rankings.
+    * **Service Layer (`src/service/dashboard.service.ts`):**
+        * Updated `getBackendTeamDashboard(session, month, year)` to call `getBackendMonthlyPerformance(month, year)` for `topPerformers` and `bottomPerformers` (monthly rankings) and `getBackendPendingCasesAllTime()` for `pendingByCategory` (all-time open cases).
+    * **Frontend UI & Visual Subtitles (`src/components/dashboard/BackendTeamWidget.tsx`):**
+        * Removed `pendingMonth`/`pendingYear` state and month navigator controls (`← Month Year →`) from the Pending Cases by Category header.
+        * Stripped `month` and `year` query parameters from table cell anchor links leading to `/orders` (`nameLink` and `buildQueueLink`).
+        * Implemented Option 2 UI helper subtitles for visual clarity:
+            * Section 1: *"Monthly ranking based on cases completed in the selected month."*
+            * Section 2: *"Overall unresolved cases across all time per backend executive."*
+        * Resolved `react-hooks/set-state-in-effect` ESLint error by running asynchronous background fetch inside an unmounted-safe IIFE.
+    * **Verification & Testing:**
+        * **Automated Tests:** All 541 vitest unit and integration tests passed **100% GREEN** across 75 test suites (`npm run test`).
+        * **TypeScript Check:** `npm run typecheck` (`tsc --noEmit`) returned **0 errors**.
+        * **ESLint Check:** `npm run lint` (`eslint`) returned **0 errors, 0 warnings**.
+
+
+
+
+
 
 
