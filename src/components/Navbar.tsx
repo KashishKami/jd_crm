@@ -118,7 +118,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </li>
             )}
 
-            {(hasPermission(permissions, 'follow-ups:view') || hasPermission(permissions, 'follow-ups:create')) && (
+            {(hasPermission(permissions, 'follow-ups:view-all') || hasPermission(permissions, 'follow-ups:view-team') || hasPermission(permissions, 'follow-ups:create')) && (
               <li className="nav-item">
                 <Link
                   href="/follow-ups"

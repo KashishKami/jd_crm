@@ -56,7 +56,10 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 38** | 24-Hour Session Expiration & Middleware Guard Fix | **[x] COMPLETED** | `src/middleware.ts`, `src/app/api/auth/[...nextauth]/route.ts`, `src/app/page.tsx`, `src/tests/auth_expiration.test.ts` |
 | **Phase 39** | Team Monthly Scores Mobile Stacking (<1000px) & Clean `/login` Redirect URL | **[x] COMPLETED** | `src/components/dashboard/TeamMonthlyScoresWidget.tsx`, `src/middleware.ts`, `src/tests/TeamMonthlyScoresWidget.test.tsx`, `src/tests/auth_expiration.test.ts` |
 | **Phase 40** | Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/backend-team.test.ts` |
+| **Phase 41** | Follow-Ups: 3-Tier Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding | **[x] COMPLETED** | `scripts/sql/update-followup-team-permissions.sql` (new), `seed.sql`, `src/service/followup.service.ts`, `src/middleware.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
+| **Phase 42** | Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`) | **[ ] PLANNED** | `src/app/agents/page.tsx`, `src/repository/agent.repository.ts`, `src/service/agent.service.ts`, `src/app/api/agents/route.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/agents.test.ts`, `src/tests/agent.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
 ---
+
 
 ## 2. Phase-by-Phase Checklist (TDD Style)
 
@@ -9195,6 +9198,174 @@ Currently, the "Pending Cases by Category" table on the Executive Dashboard (`Ba
   - [x] Executive views Dashboard → Scrolls to "Pending Cases by Category" → Table header shows no month navigator → Table displays all-time pending cases per backend agent → Executive clicks a pending case count cell → Browser navigates to `/orders` filtered strictly by `backendExecutiveId` and `status` without month/year filters → All matching orders across all time are shown → ✅ Done.
 
 ---
+## Phase 41 — Follow-Ups: 3-Tier Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding
+
+### W-4101 — DB Migration Script & Baseline Seed Update for `follow-ups:view-all` and `follow-ups:view-team`
+
+**Root cause / Goal:**
+The current Follow-Up module permissions use `follow-ups:view` (global admin scope) and `follow-ups:create` (agent own scope). To grant team leads and managers visibility into follow-ups of their own center/team without giving them full global access to other teams' records, we need to introduce a dedicated team-level permission `follow-ups:view-team` (Permission ID 62) and rename `follow-ups:view` (Permission ID 58) to `follow-ups:view-all` for clarity. We must provide an idempotent SQL migration script for existing deployments and update `seed.sql` for fresh installations.
+
+**Fix / Approach:**
+Create `scripts/sql/update-followup-team-permissions.sql` using `UPDATE crm_permissions` to rename ID 58 to `follow-ups:view-all` and `INSERT IGNORE` to add ID 62 `follow-ups:view-team`. Update `seed.sql` so fresh database initializations include the renamed key and the new key.
+
+---
+
+- [x] **RED — Integration (`seed.test.ts`):**
+  - [x] Test: Query `crm_permissions` for permission ID 58 and assert `permission_name` is `'follow-ups:view-all'`.
+  - [x] Test: Query `crm_permissions` for permission ID 62 and assert `permission_name` is `'follow-ups:view-team'`.
+  - [x] **Run — confirm RED (ID 58 is currently `'follow-ups:view'` and ID 62 does not exist).**
+
+- [x] **GREEN — Backend (SQL Script → `seed.sql`):**
+  - [x] [Script] Create `scripts/sql/update-followup-team-permissions.sql`:
+    - `UPDATE crm_permissions SET permission_name = 'follow-ups:view-all', permission_description = 'Admin-level: view all follow-ups across all agents and centers' WHERE permission_name = 'follow-ups:view';`
+    - `INSERT IGNORE INTO crm_permissions (permission_id, permission_name, permission_description) VALUES (62, 'follow-ups:view-team', 'Team-level: view follow-ups of agents in own center/team only');`
+    - Map ID 58 to roles 1 & 2 (`crm_role_permissions`).
+    - Map ID 62 to roles 1, 2, 3, 4 (`crm_role_permissions`).
+  - [x] [Seed] Update `seed.sql` line 148 to `'follow-ups:view-all'` and add line 150 `(62, 'follow-ups:view-team', 'Team-level: view follow-ups of agents in own center/team only')`.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Execute `update-followup-team-permissions.sql` against local test DB → `crm_permissions` contains `follow-ups:view-all` (ID 58) and `follow-ups:view-team` (ID 62) → ✅ Done.
+
+---
+
+### W-4102 — Backend Service Layer Team Scoping Enforcement & Authorization Guarding
+
+**Root cause / Goal:**
+Users with `follow-ups:view-team` should only be able to view and manage follow-ups for agents belonging to their own team (`sessionUser.teamId`). Currently, `followup.service.ts` only checks `follow-ups:view` and `follow-ups:create`. If a user lacks global view permission, the service defaults to `filters.agentId = sessionUser.id`. We must extend `followup.service.ts` to evaluate the 3-tier permission hierarchy and forcefully set `filters.teamId = sessionUser.teamId` when the user has `follow-ups:view-team` (ignoring any client attempt to override `teamId`).
+
+**Fix / Approach:**
+In `src/service/followup.service.ts`, update `getAllFollowUps`, `getFollowUpById`, `updateFollowUp`, `deleteFollowUp`, `getDueFollowUps`, and `getOverdueFollowUps` to support `follow-ups:view-all`, `follow-ups:view-team`, and `follow-ups:create`. For `view-team` users, override `filters.teamId = sessionUser.teamId`. If `agentId` query parameter is provided, verify that the agent belongs to `sessionUser.teamId`. For detail actions (`getFollowUpById`, `updateFollowUp`), verify `record.agent.teamId === sessionUser.teamId`. Restrict `deleteFollowUp` to `view-all` users only.
+
+---
+
+- [x] **RED — Integration (`followup.service.test.ts` & `followups.test.ts`):**
+  - [x] Test: `getAllFollowUps` with `follow-ups:view-all` returns follow-ups across all teams.
+  - [x] Test: `getAllFollowUps` with `follow-ups:view-team` (user `teamId = 1`) returns ONLY follow-ups from agents in `teamId = 1`, even if `rawFilters.teamId = 2` is passed by client.
+  - [x] Test: `getAllFollowUps` with `follow-ups:view-team` when passing `agentId` for an agent in a different team throws `Forbidden: Insufficient Permissions`.
+  - [x] Test: `getFollowUpById` for a record belonging to an agent in another team throws `Forbidden: Insufficient Permissions` for a `view-team` user.
+  - [x] Test: `deleteFollowUp` called by a `view-team` user throws `Forbidden: Insufficient Permissions` (delete requires `view-all`).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Service Layer Update):**
+  - [x] [Service] In `src/service/followup.service.ts`:
+    - Define permission checks: `isViewAll = hasPermission(..., 'follow-ups:view-all')`, `isViewTeam = hasPermission(..., 'follow-ups:view-team')`, `isCreateOwn = hasPermission(..., 'follow-ups:create')`.
+    - If `!isViewAll && !isViewTeam && !isCreateOwn`, throw `Forbidden: Insufficient Permissions`.
+    - In `getAllFollowUps`:
+      - If `isViewAll`: keep `filters` as provided by client.
+      - Else if `isViewTeam`: set `filters.teamId = Number(sessionUser.teamId)`. If `filters.agentId` is present, verify agent's team matches `sessionUser.teamId` via repository lookup before querying; throw `Forbidden` if desynced.
+      - Else if `isCreateOwn`: set `filters.agentId = Number(sessionUser.id)` and delete `filters.teamId`.
+    - In `getFollowUpById` & `updateFollowUp`: if `!isViewAll`, fetch record and verify `record.agent.teamId === Number(sessionUser.teamId)` (or `record.agentId === Number(sessionUser.id)` for `isCreateOwn`); throw `Forbidden` if team mismatch.
+    - In `deleteFollowUp`: check `!isViewAll` and throw `Forbidden`.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User with `follow-ups:view-team` (Team 1) sends `GET /api/follow-ups?teamId=2` → Backend ignores `teamId=2` and forces `teamId=1` → Response contains only Team 1 follow-ups → User attempts `DELETE /api/follow-ups/5` → Backend returns 403 Forbidden → ✅ Done.
+
+---
+
+### W-4103 — Frontend UI Filter Guarding & Agent Dropdown Team Filtering
+
+**Root cause / Goal:**
+For users with `follow-ups:view-team`, team filtering should not be available in the UI. The Team (Center) filter dropdown must be hidden (or disabled) so the user cannot select another team. Additionally, the Agent filter dropdown must be filtered client-side to show **only agents belonging to the user's team (`session.user.teamId`)**.
+
+**Fix / Approach:**
+In `src/components/FollowUpListContainer.tsx`, update permission checks to `hasViewAll` (`follow-ups:view-all`) and `hasViewTeam` (`follow-ups:view-team`). If `hasViewTeam` is true and `hasViewAll` is false, hide the Team filter dropdown. Filter the `agents` list passed to the Agent dropdown component to only include agents where `agent.teamId === session.user.teamId`.
+
+---
+
+- [x] **RED — Unit (`FollowUpListContainer.test.tsx`):**
+  - [x] Test: Render `FollowUpListContainer` with session having `follow-ups:view-all`. Assert Team (Center) filter dropdown IS rendered.
+  - [x] Test: Render `FollowUpListContainer` with session having `follow-ups:view-team`. Assert Team (Center) filter dropdown IS NOT rendered.
+  - [x] Test: Render `FollowUpListContainer` with session having `follow-ups:view-team` (user `teamId = 1`). Assert Agent filter dropdown options contain ONLY agents with `teamId === 1`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Components → Pages → Guards):**
+  - [x] [Component] In `src/components/FollowUpListContainer.tsx`:
+    - `const hasViewAll = permissions.includes('follow-ups:view-all') || permissions.includes('super-admin');`
+    - `const hasViewTeam = permissions.includes('follow-ups:view-team');`
+    - Conditionally render Team `<select>` dropdown only when `hasViewAll` is true.
+    - Compute `filteredAgentsForDropdown = useMemo(() => { if (hasViewAll) return agents; if (hasViewTeam) return agents.filter(a => a.teamId === session?.user?.teamId); return []; }, [agents, hasViewAll, hasViewTeam, session]);`.
+    - Pass `filteredAgentsForDropdown` to the Agent `<select>` filter.
+  - [x] [Guards] In `src/middleware.ts`, update route permission check for `/follow-ups` to accept `'follow-ups:view-all'`, `'follow-ups:view-team'`, or `'follow-ups:create'`.
+  - [x] [Layout] In `src/components/Navbar.tsx` & `src/components/Sidebar.tsx`, update link visibility check for Follow-Ups to accept any of the three permissions.
+  - [x] [Pages] In `src/app/follow-ups/[id]/page.tsx` & `src/app/follow-ups/[id]/edit/page.tsx`, update page access checks to support `view-all` and `view-team` (with team ownership check).
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User with `follow-ups:view-team` logs in and navigates to `/follow-ups` → Team (Center) filter dropdown is absent from the page → Agent filter dropdown lists only members of their own team → User selects a team member agent → list filters to that agent's follow-ups → ✅ Done.
+
+---
+
+## Phase 42 — Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`)
+
+### W-4201 — Agent Directory (`/agents`) Email Field Projection Fix
+
+**Root cause / Goal:**
+In `src/app/agents/page.tsx`, the server component pre-fetches `initialAgents` via `prisma.users.findMany`. The `select` object includes `uid`, `name`, `nickname`, `designation`, `status`, `teamId`, `roleId`, `agentId`, `role`, and `team`, but omits `email: true`. As a result, `agent.email` arrives as `undefined` in `AgentList.tsx`, causing the Email column in the table to render dashes (`—`) for all agents.
+
+**Fix / Approach:**
+Add `email: true` to the Prisma `select` projection in `src/app/agents/page.tsx`.
+
+---
+
+- [ ] **RED — Integration & Unit (`agents.test.ts` & `AgentList.test.tsx`):**
+  - [ ] Test: `AgentsPage` server component pre-fetches `initialAgents` containing `email` field (e.g. `'agent@jdfusion.in'`).
+  - [ ] Test: `AgentList` renders table row with `email` value when provided in agent object rather than falling back to `—`.
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend & Page Fix:**
+  - [ ] [Page] In `src/app/agents/page.tsx`, add `email: true` to `prisma.users.findMany` `select` block.
+  - [ ] Run test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User navigates to `/agents` → Agent Directory table loads → Email column displays valid email addresses (e.g., `steven@jdfusion.in`) instead of dashes → ✅ Done.
+
+---
+
+### W-4202 — Backend Database Scoping for Sales Agent Filters (`/api/agents?salesOnly=true&teamId=X`)
+
+**Root cause / Goal:**
+Agent filter dropdowns on the Follow-Ups (`/follow-ups`) and Call Dispositions (`/call-dispositions`) pages currently return staff members with non-sales designations (e.g. HR, QA, Director, Admin, IT). Across the CRM, front-line sales positions are defined by 7 designations: `'Sales Supervisor'`, `'Sales Team Lead'`, `'Sales Specialist'`, `'Sales Expert'`, `'Sales Associate'`, `'Backend Specialist'`, and `'Backend Associate'`. Currently, `GET /api/agents` does not support designation or team filtering at the database layer. Backend enforcement is required so that names of agents from other designations are never sent by the API when fetching filter options.
+
+**Fix / Approach:**
+1. Update `agent.repository.ts` and `agent.service.ts` to accept optional `salesOnly?: boolean` (or `designations?: string[]`) and `teamId?: number`. When `salesOnly` is true, apply database-level `WHERE designation IN ('Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate')` in Prisma. When `teamId` is passed, filter `WHERE teamId = X` at database level.
+2. Update `GET /api/agents` (`src/app/api/agents/route.ts`) to parse `salesOnly` (e.g., `?salesOnly=true`) and `teamId` query parameters.
+3. Update `FollowUpListContainer.tsx` and `CallDispositionListContainer.tsx` to pass `?salesOnly=true` (and `teamId` when the user has `view-team` permission) to `/api/agents`.
+
+---
+
+- [ ] **RED — Integration (`agents.test.ts` & `agent.service.test.ts`):**
+  - [ ] Test: `GET /api/agents?salesOnly=true` returns ONLY users with one of the 7 sales designations (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`, `Backend Specialist`, `Backend Associate`). Users with designations like `HR`, `QA`, `Director` are excluded by the database query.
+  - [ ] Test: `GET /api/agents?salesOnly=true&teamId=1` returns ONLY sales agents belonging to `teamId = 1`.
+  - [ ] **Run — confirm RED (current `/api/agents` ignores `salesOnly` and `teamId` parameters).**
+
+- [ ] **GREEN — Backend (Repository → Service → Route Handler):**
+  - [ ] [Repository] In `src/repository/agent.repository.ts`, update `findAll(status?: number, salesOnly?: boolean, teamId?: number)`:
+    - Build Prisma `where` clause:
+      - If `status !== undefined`, set `status`.
+      - If `salesOnly === true`, set `designation: { in: ['Sales Supervisor', 'Sales Team Lead', 'Sales Specialist', 'Sales Expert', 'Sales Associate', 'Backend Specialist', 'Backend Associate'] }`.
+      - If `teamId !== undefined`, set `teamId: Number(teamId)`.
+  - [ ] [Service] In `src/service/agent.service.ts`, update `getAllAgents` to pass `salesOnly` and `teamId` parameters to `agentRepository.findAll` and `prisma.users.findMany`.
+  - [ ] [Route] In `src/app/api/agents/route.ts`, parse `salesOnly` (`searchParams.get('salesOnly') === 'true'`) and `teamId` (`searchParams.get('teamId')`), and pass them to `agentService.getAllAgents`.
+  - [ ] Run integration test — **confirm GREEN**.
+
+- [ ] **RED — Unit / Component (`FollowUpListContainer.test.tsx` & `CallDispositionListContainer.test.tsx`):**
+  - [ ] Test: `FollowUpListContainer` fetches `/api/agents?salesOnly=true` (or `/api/agents?salesOnly=true&teamId=1` for `view-team` user).
+  - [ ] Test: `CallDispositionListContainer` fetches `/api/agents?salesOnly=true` (or with `teamId`).
+  - [ ] **Run — confirm RED.**
+
+- [ ] **GREEN — Frontend (Containers):**
+  - [ ] [Component] In `src/components/FollowUpListContainer.tsx`, update `fetch('/api/agents')` call:
+    - If `canViewAll`, fetch `/api/agents?salesOnly=true`.
+    - If `canViewTeam`, fetch `/api/agents?salesOnly=true&teamId=${session.user.teamId}`.
+  - [ ] [Component] In `src/components/CallDispositionListContainer.tsx`, update `fetch('/api/agents')` call to pass `salesOnly=true` (and `teamId` if `view-team`).
+  - [ ] Run unit test — **confirm GREEN**.
+
+- [ ] **Verification chain:**
+  - [ ] User opens `/follow-ups` or `/call-dispositions` → Agent filter dropdown opens → Only active agents belonging to the 7 sales designations (and user's team for `view-team`) appear → Agents with HR/QA/Director designations are omitted at API level → ✅ Done.
+
+---
 
 ## 3. Session Notes
 
@@ -10687,6 +10858,31 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         * Configured distinct, individual steps for each check: `Run ESLint`, `Run TypeScript Check`, `Run Vitest Integration Tests`, and `Build Next.js Application`.
         * Updated `build` job to depend on `needs: quality-check` and `deploy` job to depend on `needs: [quality-check, build]`.
         * Prevents any broken build or failing test from reaching production deployment.
+
+
+### Session 109 - August 10, 2026
+
+* **Phase 41 — Follow-Ups: 3-Tier Permission Structure & Team-Level Scoping Implementation:**
+    * **SQL Migration Script & Seed Updates (`scripts/sql/update-followup-team-permissions.sql`, `seed.sql`):**
+        * Created `scripts/sql/update-followup-team-permissions.sql` to rename Permission ID 58 from `follow-ups:view` to `follow-ups:view-all` and insert Permission ID 62 `follow-ups:view-team`. Includes comprehensive Docker execution command instructions for local PowerShell, inline local execution, direct SSH production, and remote SSH pipe.
+        * Updated `seed.sql` baseline permissions so fresh installations seed ID 58 as `follow-ups:view-all` and ID 62 as `follow-ups:view-team`.
+    * **Backend Service Scoping (`src/service/followup.service.ts`):**
+        * Implemented 3-tier permission checks across `getAllFollowUps`, `getFollowUpById`, `createFollowUp`, `updateFollowUp`, `deleteFollowUp`, `getDueFollowUps`, and `getOverdueFollowUps`.
+        * Enforced server-side hard-scoping: for `follow-ups:view-team` users, `filters.teamId = sessionUser.teamId` is forcefully set, ignoring any client query parameter. Detail views (`getFollowUpById`, `updateFollowUp`) verify `record.agent.teamId === sessionUser.teamId`. Restricted `deleteFollowUp` to `view-all` users only.
+    * **Middleware, Navigation & UI Guards:**
+        * Updated route guards in `src/middleware.ts` for `/follow-ups` to grant access if user has `follow-ups:view-all`, `follow-ups:view-team`, or `follow-ups:create`.
+        * Updated `src/components/Navbar.tsx` and `src/components/Sidebar.tsx` navigation link permissions.
+        * Updated detail page guards (`src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`) and added Assigned Agent display for `view-team` and `view-all` users.
+        * Updated `src/components/FollowUpListContainer.tsx` to hide the Team filter dropdown for `view-team` users, populate the Agent dropdown with team members only (`session.user.teamId`), and pass `canViewTeam` prop to `src/components/FollowUpList.tsx` to display the Agent table column.
+    * **Documentation Updates:**
+        * Updated `CONTEXT/project_data.md` permissions dictionary for resource `follow-ups`.
+        * Updated `CONTEXT/decision_log.md` with Decision 43.
+        * Updated `CONTEXT/current_state.md` with Phase 41 summary row, completed TDD checklist, and Session 109 notes.
+    * **Verification & Testing:**
+        * **Automated Tests:** All unit & integration test suites passed **100% GREEN** across 75 test suites (545/545 passed).
+        * **TypeScript Check:** `npm run typecheck` (`tsc --noEmit`) returned **0 errors**.
+
+
 
 
 

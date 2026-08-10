@@ -74,10 +74,11 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
   });
 
   describe('getAllFollowUps filter scoping', () => {
-    const mockUserViewAll = { id: 10, userPermissions: 'follow-ups:view' };
-    const mockUserCreateOwn = { id: 20, userPermissions: 'follow-ups:create' };
+    const mockUserViewAll = { id: 10, userPermissions: 'follow-ups:view-all' };
+    const mockUserViewTeam = { id: 15, teamId: 1, userPermissions: 'follow-ups:view-team' };
+    const mockUserCreateOwn = { id: 20, teamId: 1, userPermissions: 'follow-ups:create' };
 
-    it('should scoping filters correctly for admin (view all)', async () => {
+    it('should scope filters correctly for admin (view all)', async () => {
       const mockResult = { followUps: [], total: 0 };
       vi.mocked(followupRepository.findAll).mockResolvedValue(mockResult);
 
@@ -87,6 +88,24 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
       expect(followupRepository.findAll).toHaveBeenCalledWith({
         agentId: 5,
         teamId: 2,
+        priority: 'High',
+      });
+    });
+
+    it('should enforce team-only scoping for team leads (view team)', async () => {
+      const mockResult = {
+        followUps: [
+          { followUpId: 1, agentId: 15, customerName: 'Alice', followUpDate: '2026-09-01', followUpTime: '10:00', customerTimezone: 'America/New_York', agent: { uid: 15, teamId: 1 } },
+        ],
+        total: 1,
+      };
+      vi.mocked(followupRepository.findAll).mockResolvedValue(mockResult as any);
+
+      const filters = { priority: 'High', teamId: 2 };
+      await getAllFollowUps(mockUserViewTeam, filters as any);
+
+      expect(followupRepository.findAll).toHaveBeenCalledWith({
+        teamId: 1, // Overridden to user's teamId (1) ignoring client teamId (2)
         priority: 'High',
       });
     });
@@ -111,17 +130,34 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
   });
 
   describe('getFollowUpById permissions check', () => {
-    const mockUserCreateOwn = { id: 20, userPermissions: 'follow-ups:create' };
+    const mockUserCreateOwn = { id: 20, teamId: 1, userPermissions: 'follow-ups:create' };
+    const mockUserViewTeam = { id: 15, teamId: 1, userPermissions: 'follow-ups:view-team' };
 
     it('should throw Forbidden if agent tries to access other agent record', async () => {
-      const mockRecord = { followUpId: 101, agentId: 99, customerName: 'Alice' } as any;
+      const mockRecord = { followUpId: 101, agentId: 99, agent: { teamId: 2 }, customerName: 'Alice' } as any;
       vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
 
       await expect(getFollowUpById(mockUserCreateOwn, 101)).rejects.toThrow('Forbidden: Insufficient Permissions');
     });
 
+    it('should throw Forbidden if view-team user tries to access record from another team', async () => {
+      const mockRecord = { followUpId: 101, agentId: 99, agent: { teamId: 2 }, customerName: 'Alice' } as any;
+      vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
+
+      await expect(getFollowUpById(mockUserViewTeam, 101)).rejects.toThrow('Forbidden: Insufficient Permissions');
+    });
+
+    it('should return record if view-team user accesses record from their team', async () => {
+      const mockRecord = { followUpId: 101, agentId: 99, agent: { teamId: 1 }, customerName: 'Alice' } as any;
+      vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
+
+      const result = await getFollowUpById(mockUserViewTeam, 101);
+      expect(result).toBeDefined();
+      expect(result?.customerName).toBe('Alice');
+    });
+
     it('should return record if agent owns it', async () => {
-      const mockRecord = { followUpId: 101, agentId: 20, customerName: 'Alice' } as any;
+      const mockRecord = { followUpId: 101, agentId: 20, agent: { teamId: 1 }, customerName: 'Alice' } as any;
       vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
 
       const result = await getFollowUpById(mockUserCreateOwn, 101);
@@ -131,10 +167,10 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
   });
 
   describe('updateFollowUp logic rules', () => {
-    const mockUserCreateOwn = { id: 20, userPermissions: 'follow-ups:create' };
+    const mockUserCreateOwn = { id: 20, teamId: 1, userPermissions: 'follow-ups:create' };
 
     it('should set notificationSentAt to null and lastContact to now if date changes', async () => {
-      const mockRecord = { followUpId: 101, agentId: 20, customerTimezone: 'America/New_York' } as any;
+      const mockRecord = { followUpId: 101, agentId: 20, agent: { teamId: 1 }, customerTimezone: 'America/New_York' } as any;
       vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
       vi.mocked(followupRepository.update).mockResolvedValue({} as any);
 
@@ -153,7 +189,7 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
     });
 
     it('should not update lastContact or notificationSentAt on non-meaningful fields like priority', async () => {
-      const mockRecord = { followUpId: 101, agentId: 20, customerTimezone: 'America/New_York' } as any;
+      const mockRecord = { followUpId: 101, agentId: 20, agent: { teamId: 1 }, customerTimezone: 'America/New_York' } as any;
       vi.mocked(followupRepository.findById).mockResolvedValue(mockRecord);
       vi.mocked(followupRepository.update).mockResolvedValue({} as any);
 
@@ -170,7 +206,10 @@ describe('Follow-Up Service Layer Unit Tests (W-3105)', () => {
   describe('deleteFollowUp permissions check', () => {
     it('should throw Forbidden for non-admin delete attempts', async () => {
       const mockUserCreateOwn = { id: 20, userPermissions: 'follow-ups:create' };
+      const mockUserViewTeam = { id: 15, teamId: 1, userPermissions: 'follow-ups:view-team' };
+
       await expect(deleteFollowUp(mockUserCreateOwn, 101)).rejects.toThrow('Forbidden: Insufficient Permissions');
+      await expect(deleteFollowUp(mockUserViewTeam, 101)).rejects.toThrow('Forbidden: Insufficient Permissions');
     });
   });
 });

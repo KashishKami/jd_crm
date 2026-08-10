@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import FollowUpListContainer from '../components/FollowUpListContainer';
 import { useSession } from 'next-auth/react';
@@ -29,16 +29,6 @@ describe('W-3402: FollowUpListContainer Filter Isolation & Back Restoration', ()
   beforeEach(() => {
     sessionStorage.clear();
     originalFetch = global.fetch;
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: 1,
-          name: 'Test Agent',
-          userPermissions: 'follow-ups:view,follow-ups:create',
-        },
-      },
-      status: 'authenticated',
-    } as any);
 
     vi.mocked(useSearchParams).mockReturnValue({
       get: () => null,
@@ -73,11 +63,24 @@ describe('W-3402: FollowUpListContainer Filter Isolation & Back Restoration', ()
   });
 
   afterEach(() => {
+    cleanup();
     global.fetch = originalFetch;
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should ignore stale ?agentId=5 from /orders when mounting FollowUpListContainer', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 1,
+          teamId: 1,
+          name: 'Test Agent',
+          userPermissions: 'follow-ups:view-all,follow-ups:create',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
     delete (window as any).location;
     window.location = {
       ...originalLocation,
@@ -99,6 +102,18 @@ describe('W-3402: FollowUpListContainer Filter Isolation & Back Restoration', ()
   });
 
   it('should restore page=2 and status=Interested when returning from detail page', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 1,
+          teamId: 1,
+          name: 'Test Agent',
+          userPermissions: 'follow-ups:view-all,follow-ups:create',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
     delete (window as any).location;
     window.location = {
       ...originalLocation,
@@ -116,6 +131,28 @@ describe('W-3402: FollowUpListContainer Filter Isolation & Back Restoration', ()
       expect(followUpCall).toBeDefined();
       expect(String(followUpCall[0])).toContain('status=Interested');
       expect(String(followUpCall[0])).toContain('page=2');
+    });
+
+    window.location = originalLocation as any;
+  });
+
+  it('should hide Team filter dropdown for users with follow-ups:view-team', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 15,
+          teamId: 1,
+          name: 'Team Lead',
+          userPermissions: 'follow-ups:view-team',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<FollowUpListContainer />);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/Team/i)).toBeNull();
     });
 
     window.location = originalLocation as any;

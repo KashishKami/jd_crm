@@ -3,11 +3,11 @@ import { prisma } from '../lib/db';
 import { execSync } from 'child_process';
 
 describe('Database Permission Seeding Sequential Order', () => {
-  it('should have all crm_permissions seeded in perfect sequence from 1 to 61', async () => {
+  it('should have all crm_permissions seeded in perfect sequence from 1 to 62', async () => {
     const permissions = await prisma.crmPermissions.findMany({
       orderBy: { permissionId: 'asc' },
     });
-    expect(permissions.length).toBe(61);
+    expect(permissions.length).toBe(62);
     for (let i = 0; i < permissions.length; i++) {
       expect(permissions[i].permissionId).toBe(i + 1);
     }

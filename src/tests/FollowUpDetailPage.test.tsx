@@ -61,7 +61,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
 
   it('should render all details correctly for Admin (including delete)', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
+      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view-all,follow-ups:create' },
     });
     vi.mocked(followupService.getFollowUpById).mockResolvedValue(mockRecord as any);
 
@@ -107,7 +107,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
 
   it('should remove Customer Timezone, apply Georgia font style, and show entry/lastContact dates in DD-MM-YYYY format', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
+      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view-all,follow-ups:create' },
     });
     vi.mocked(followupService.getFollowUpById).mockResolvedValue(mockRecord as any);
 
@@ -129,7 +129,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
 
   it('should render Notes card first and merged Classification & Schedule card second, and completely omit System Metadata card', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
+      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view-all,follow-ups:create' },
     });
     vi.mocked(followupService.getFollowUpById).mockResolvedValue(mockRecord as any);
 
@@ -152,7 +152,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
 
   it('should hide the Relative Day field when status is Not Interested', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view,follow-ups:create' },
+      user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view-all,follow-ups:create' },
     });
 
     const notInterestedRecord = {

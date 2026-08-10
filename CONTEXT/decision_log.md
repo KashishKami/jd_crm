@@ -1586,4 +1586,55 @@ The *Backend Team Performers* (Top Performers by completed cases and Bottom Perf
 - `src/tests/BackendTeamWidget.test.tsx` — Component unit tests updated to verify link URL parameters and month navigator removal
 
 
+---
+
+### Decision 43: 3-Tier Follow-Up Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding (Phase 41)
+
+**Date:** 2026-08-10
+**Status:** Approved
+
+#### Context
+The Follow-Up module originally used a 2-tier permission pattern: `follow-ups:view` (Admin-level, global access across all teams/centers) and `follow-ups:create` (Agent-level, own records only). The business requested a team-level view permission (`follow-ups:view-team`) allowing team leads and managers to view and manage follow-ups for all agents in their own team/center (`teamId`) without granting them full global access to other teams' records. Additionally, the team filter dropdown should be hidden for `view-team` users so they cannot attempt team filtering, and the backend service layer must strictly enforce team-scoping server-side regardless of client query parameters.
+
+#### Decision
+
+**D43.1 — Permission Key Renaming & Addition (`follow-ups:view-all` & `follow-ups:view-team`)**
+- Rename `follow-ups:view` (Permission ID 58) to `follow-ups:view-all` in the RBAC permissions library (`crm_permissions`) to clarify global admin scope.
+- Add `follow-ups:view-team` (Permission ID 62) to `crm_permissions` for team-level access.
+- Create migration script `scripts/sql/update-followup-team-permissions.sql` to execute the schema update idempotently.
+- Update `seed.sql` to reflect `follow-ups:view-all` and `follow-ups:view-team`.
+
+**D43.2 — Server-Side Team Scoping Enforcement in Service Layer**
+- In `followup.service.ts`, evaluate three permission tiers:
+  1. `follow-ups:view-all`: Global access. Allows filtering by any `teamId` or `agentId`.
+  2. `follow-ups:view-team`: Team access. The service layer **hard-scopes `filters.teamId = sessionUser.teamId`** and ignores any client-provided `teamId`. If `agentId` filter is passed, the service verifies that the requested agent belongs to `sessionUser.teamId`. Single-record detail operations (`getFollowUpById`, `updateFollowUp`) verify `record.agent.teamId === sessionUser.teamId`.
+  3. `follow-ups:create`: Agent access. Hard-scopes `filters.agentId = sessionUser.id`.
+- Users with none of these permissions receive a `403 Forbidden` error.
+
+**D43.3 — Frontend UI Filter Guarding (`FollowUpListContainer.tsx`)**
+- For `follow-ups:view-team` users (without `view-all`):
+  - **Hide the Team (Center) filter dropdown** entirely from the UI filter row.
+  - Filter the **Agent filter dropdown** options list to display **only agents whose `teamId === sessionUser.teamId`**.
+- For `follow-ups:view-all` users: render full Team and Agent dropdown controls.
+- For `follow-ups:create` users: hide both Team and Agent dropdown controls.
+
+**D43.4 — Dynamic Team Architecture Preservation**
+- Teams remain fully dynamic — fetched from `crm_teams` table via `GET /api/teams` and `prisma.crmTeams.findMany()`. No team names or team IDs are hardcoded in application logic. Restructuring teams or adding new teams requires zero code changes.
+
+#### Files Changed (Phase 41)
+- `scripts/sql/update-followup-team-permissions.sql` — New idempotent SQL migration script
+- `seed.sql` — Updated permission ID 58 to `follow-ups:view-all` and added ID 62 `follow-ups:view-team`
+- `CONTEXT/project_data.md` — Updated RBAC permissions dictionary for resource `follow-ups`
+- `CONTEXT/decision_log.md` — Decision 43 entry added
+- `CONTEXT/current_state.md` — Phase 41 summary row and TDD checklist added
+- `src/service/followup.service.ts` — Renamed `follow-ups:view` to `follow-ups:view-all`, added `follow-ups:view-team` server-side team hard-scoping
+- `src/middleware.ts` — Updated page guard permission map for `/follow-ups`
+- `src/components/FollowUpListContainer.tsx` — Updated permission checks, hidden Team dropdown for `view-team`, filtered Agent dropdown to team members
+- `src/components/FollowUpList.tsx` — Updated permission checks for list actions
+- `src/components/Navbar.tsx` & `src/components/Sidebar.tsx` — Updated link visibility permissions
+- `src/app/follow-ups/[id]/page.tsx` & `src/app/follow-ups/[id]/edit/page.tsx` — Updated detail page access guards
+- `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` — Updated existing tests and added `view-team` integration/unit tests
+
+
+
 

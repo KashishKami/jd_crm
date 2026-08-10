@@ -61,7 +61,7 @@ describe('FollowUpList and Container Unit Tests (W-3110)', () => {
   it('should render table with correct columns and data for Admin', async () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
-        user: { id: 1, userPermissions: 'follow-ups:view,follow-ups:create' },
+        user: { id: 1, userPermissions: 'follow-ups:view-all,follow-ups:create' },
       },
       status: 'authenticated',
     } as any);

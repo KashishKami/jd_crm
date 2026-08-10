@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
+import React, { useEffect, useState, useRef, useMemo, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -43,9 +43,9 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Teams & Agents for admin filters
-  const [teams, setTeams] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  // Teams & Agents for admin/team filters
+  const [teams, setTeams] = useState<any[]>(initialTeams || []);
+  const [agents, setAgents] = useState<any[]>(initialAgents || []);
 
   // Filters state (lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation)
   const [priorityFilter, setPriorityFilter] = useState<string>(() =>
@@ -140,7 +140,8 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
 
 
   const permissions = session?.user?.userPermissions || '';
-  const canViewAll = hasPermission(permissions, 'follow-ups:view');
+  const canViewAll = hasPermission(permissions, 'follow-ups:view-all');
+  const canViewTeam = hasPermission(permissions, 'follow-ups:view-team');
   const canCreate = hasPermission(permissions, 'follow-ups:create');
 
   // Sync pagination page with URL search params
@@ -311,17 +312,17 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     if (searchParam !== null) setSearchVal(searchParam);
   }, [searchParams]);
 
-  // Clear team/agent selection if view all is lacking
+  // Clear team/agent selection if view all/view team is lacking
   useEffect(() => {
-    if (status === 'authenticated' && !canViewAll) {
+    if (status === 'authenticated' && !canViewAll && !canViewTeam) {
       setAgentFilter('');
       setTeamFilter('');
     }
-  }, [status, canViewAll]);
+  }, [status, canViewAll, canViewTeam]);
 
-  // Fetch admin dropdowns (teams + agents)
+  // Fetch admin/team dropdowns (teams + agents)
   useEffect(() => {
-    if (status !== 'authenticated' || !canViewAll) return;
+    if (status !== 'authenticated' || (!canViewAll && !canViewTeam)) return;
 
     const fetchDropdowns = async () => {
       try {
@@ -343,7 +344,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     };
 
     fetchDropdowns();
-  }, [status, canViewAll]);
+  }, [status, canViewAll, canViewTeam]);
 
   // Clear agent filter if team selection changes and existing agent doesn't belong to new team
   const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -373,6 +374,8 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     if (debouncedSearch) queryParams.set('search', debouncedSearch);
     if (canViewAll) {
       if (teamFilter) queryParams.set('teamId', teamFilter);
+      if (agentFilter) queryParams.set('agentId', agentFilter);
+    } else if (canViewTeam) {
       if (agentFilter) queryParams.set('agentId', agentFilter);
     }
 
@@ -450,10 +453,18 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
     }
   };
 
-  // Cascade filter agents in dropdown by selected team
-  const filteredAgentsForDropdown = teamFilter
-    ? agents.filter((a) => Number(a.teamId) === Number(teamFilter))
-    : agents;
+  // Cascade filter agents in dropdown by selected team (for view-all) or user's team (for view-team)
+  const filteredAgentsForDropdown = useMemo(() => {
+    if (canViewAll) {
+      return teamFilter
+        ? agents.filter((a: any) => Number(a.teamId) === Number(teamFilter))
+        : agents;
+    }
+    if (canViewTeam && session?.user?.teamId) {
+      return agents.filter((a: any) => Number(a.teamId) === Number(session.user.teamId));
+    }
+    return [];
+  }, [agents, canViewAll, canViewTeam, teamFilter, session]);
 
   return (
     <div className="agents-page-container">
@@ -475,7 +486,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
             className="filter-select-custom"
             style={{ width: '260px', height: '38px', padding: '0 12px' }}
           />
-          {canCreate && (
+          {(canCreate || canViewAll || canViewTeam) && (
             <Link href="/follow-ups/new" className="btn-primary-custom">
               Add Follow-ups
             </Link>
@@ -486,47 +497,48 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
       {/* Advanced Filters Block */}
       <div className="filters-container">
         <div className="filters-row">
-          {/* Admin filters */}
+          {/* Admin filters: Team dropdown rendered ONLY for view-all users */}
           {canViewAll && (
-            <>
-              <div className="filter-select-wrapper">
-                <label htmlFor="teamFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
-                  Team
-                </label>
-                <select
-                  id="teamFilter"
-                  value={teamFilter}
-                  onChange={handleTeamChange}
-                  className="filter-select-custom"
-                >
-                  <option value="">All Teams</option>
-                  {teams.map((t) => (
-                    <option key={t.teamId} value={t.teamId}>
-                      {t.teamName}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="filter-select-wrapper">
+              <label htmlFor="teamFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
+                Team
+              </label>
+              <select
+                id="teamFilter"
+                value={teamFilter}
+                onChange={handleTeamChange}
+                className="filter-select-custom"
+              >
+                <option value="">All Teams</option>
+                {teams.map((t) => (
+                  <option key={t.teamId} value={t.teamId}>
+                    {t.teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-              <div className="filter-select-wrapper">
-                <label htmlFor="agentFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
-                  Agent
-                </label>
-                <select
-                  id="agentFilter"
-                  value={agentFilter}
-                  onChange={(e) => setAgentFilter(e.target.value)}
-                  className="filter-select-custom"
-                >
-                  <option value="">All Agents</option>
-                  {filteredAgentsForDropdown.map((a) => (
-                    <option key={a.uid} value={a.uid}>
-                      {a.nickname || a.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
+          {/* Agent dropdown rendered for view-all or view-team users */}
+          {(canViewAll || canViewTeam) && (
+            <div className="filter-select-wrapper">
+              <label htmlFor="agentFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>
+                Agent
+              </label>
+              <select
+                id="agentFilter"
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                className="filter-select-custom"
+              >
+                <option value="">All Agents</option>
+                {filteredAgentsForDropdown.map((a) => (
+                  <option key={a.uid} value={a.uid}>
+                    {a.nickname || a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           <div className="filter-select-wrapper">
@@ -709,6 +721,7 @@ function FollowUpListContainerContent({ initialAgents, initialTeams }: FollowUpL
           <FollowUpList
             followUps={followUps}
             canViewAll={canViewAll}
+            canViewTeam={canViewTeam}
             onDelete={handleDeleteFollowUp}
           />
 

@@ -11,13 +11,15 @@ import { formatPhoneNumber } from '../lib/formatPhone';
 interface FollowUpListProps {
   followUps: any[];
   canViewAll: boolean;
+  canViewTeam?: boolean;
   onDelete: (id: number) => Promise<void>;
 }
 
-export default function FollowUpList({ followUps, canViewAll, onDelete }: FollowUpListProps) {
+export default function FollowUpList({ followUps, canViewAll, canViewTeam, onDelete }: FollowUpListProps) {
   const { data: session } = useSession();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [activeNotesFollowUp, setActiveNotesFollowUp] = useState<any | null>(null);
+  const showAgentColumn = canViewAll || Boolean(canViewTeam);
 
   const getPriorityBadgeClass = (priority: string): string => {
     switch (priority?.toLowerCase()) {
@@ -75,7 +77,7 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                 <th>Customer Information</th>
                 <th>Location</th>
                 <th>Part Required</th>
-                {canViewAll && <th>Agent</th>}
+                {showAgentColumn && <th>Agent</th>}
                 <th>Priority</th>
                 <th>Status</th>
                 <th>Last Contact</th>
@@ -85,7 +87,7 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
             <tbody>
               {followUps.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewAll ? 9 : 8} className="text-center text-slate-400 py-8">
+                  <td colSpan={showAgentColumn ? 9 : 8} className="text-center text-slate-400 py-8">
                     No follow-ups found.
                   </td>
                 </tr>
@@ -129,29 +131,29 @@ export default function FollowUpList({ followUps, canViewAll, onDelete }: Follow
                     </td>
                     <td>
                       <div>
-                        <div className="font-bold" style={{ color: 'var(--text-main)' }}>{f.customerName}</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {f.customerPhone ? formatPhoneNumber(f.customerPhone) : '—'}
-                        </div>
+                        <div className="font-semibold" style={{ color: 'var(--text-main)' }}>{f.customerName}</div>
+                        {f.customerPhone && (
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            {formatPhoneNumber(f.customerPhone)}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td>
                       <div>
-                        <div className="font-medium" style={{ color: 'var(--text-main)' }}>{f.customerState || '—'}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {f.customerCountry || '—'}
-                        </div>
+                        <div style={{ fontWeight: 500, color: 'var(--text-main)' }}>{f.customerState}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{f.customerCountry}</div>
                       </div>
                     </td>
                     <td>
                       <div>
-                        <div className="font-medium" style={{ color: 'var(--text-main)' }}>{f.partRequired}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                        <div style={{ fontWeight: 500, color: 'var(--text-main)' }}>{f.partRequired}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                           {f.vehicleYearMakeModel}
                         </div>
                       </div>
                     </td>
-                    {canViewAll && (
+                    {showAgentColumn && (
                       <td className="font-medium" style={{ color: 'var(--text-main)' }}>
                         {f.agentName || '—'}
                       </td>

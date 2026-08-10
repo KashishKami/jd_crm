@@ -27,7 +27,7 @@ describe('Follow-Ups Permissions Seeding (W-3102)', () => {
     const permissions = await prisma.crmPermissions.findMany({
       where: {
         permissionName: {
-          in: ['follow-ups:view', 'follow-ups:create'],
+          in: ['follow-ups:view-all', 'follow-ups:view-team', 'follow-ups:create'],
         },
       },
       include: {
@@ -35,22 +35,30 @@ describe('Follow-Ups Permissions Seeding (W-3102)', () => {
       },
     });
     
-    expect(permissions.length).toBe(2);
+    expect(permissions.length).toBe(3);
     
-    const viewPermission = permissions.find(p => p.permissionName === 'follow-ups:view');
+    const viewAllPermission = permissions.find(p => p.permissionName === 'follow-ups:view-all');
+    const viewTeamPermission = permissions.find(p => p.permissionName === 'follow-ups:view-team');
     const createPermission = permissions.find(p => p.permissionName === 'follow-ups:create');
     
-    expect(viewPermission).toBeDefined();
+    expect(viewAllPermission).toBeDefined();
+    expect(viewTeamPermission).toBeDefined();
     expect(createPermission).toBeDefined();
     
-    // Super Admin is role 1, Admin is role 2, Agent is role 8
-    const viewRoleIds = viewPermission?.roles.map(r => r.roleId) ?? [];
+    // Super Admin is role 1, Admin is role 2, Manager is role 3, Team Lead is role 4, Agent is role 8
+    const viewAllRoleIds = viewAllPermission?.roles.map(r => r.roleId) ?? [];
+    const viewTeamRoleIds = viewTeamPermission?.roles.map(r => r.roleId) ?? [];
     const createRoleIds = createPermission?.roles.map(r => r.roleId) ?? [];
     
-    expect(viewRoleIds).toContain(1);
-    expect(viewRoleIds).toContain(2);
-    expect(viewRoleIds).not.toContain(8); // agent should not have view all
+    expect(viewAllRoleIds).toContain(1);
+    expect(viewAllRoleIds).toContain(2);
+    expect(viewAllRoleIds).not.toContain(8); // agent should not have view all
     
+    expect(viewTeamRoleIds).toContain(1);
+    expect(viewTeamRoleIds).toContain(2);
+    expect(viewTeamRoleIds).toContain(3);
+    expect(viewTeamRoleIds).toContain(4);
+
     expect(createRoleIds).toContain(1);
     expect(createRoleIds).toContain(2);
     expect(createRoleIds).toContain(8); // agent should have create own
@@ -263,7 +271,7 @@ describe('Follow-Up API Endpoints (W-3106 & W-3107)', () => {
 
     // Admin delete -> 200 OK
     vi.mocked(getServerSession).mockResolvedValueOnce({
-      user: { id: testAdminId, nickname: 'Admin', userPermissions: 'follow-ups:view' }
+      user: { id: testAdminId, nickname: 'Admin', userPermissions: 'follow-ups:view-all' }
     });
     const req2 = new Request(`http://localhost/api/follow-ups/${testFollowUpId}`);
     const res2 = await DELETE(req2, { params: Promise.resolve({ id: String(testFollowUpId) }) });
@@ -331,7 +339,7 @@ describe('Follow-Ups Search (W-3154)', () => {
 
   it('should filter by customerName via search query param', async () => {
     vi.mocked(getServerSession).mockResolvedValueOnce({
-      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view-all' }
     });
 
     // @ts-ignore
@@ -346,7 +354,7 @@ describe('Follow-Ups Search (W-3154)', () => {
 
   it('should filter by customerPhone via search query param', async () => {
     vi.mocked(getServerSession).mockResolvedValueOnce({
-      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view-all' }
     });
 
     // @ts-ignore
@@ -361,7 +369,7 @@ describe('Follow-Ups Search (W-3154)', () => {
 
   it('should filter by multiple comma-separated statuses (W-3602)', async () => {
     vi.mocked(getServerSession).mockResolvedValueOnce({
-      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view' }
+      user: { id: testAgentId, nickname: 'Sarah', userPermissions: 'follow-ups:view-all' }
     });
 
     // @ts-ignore

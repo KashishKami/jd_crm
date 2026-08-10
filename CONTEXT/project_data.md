@@ -140,14 +140,16 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 ### Resource: `follow-ups`
 | Permission Key | Permission ID | Description |
 | :--- | :--- | :--- |
-| `follow-ups:view` | `58` | **Admin-level.** View **all** follow-ups across all agents and centers (teams). Unlocks Center (Team) and Agent filter dropdowns and the Agent column in the list. Admin-only delete is also gated behind this permission. |
+| `follow-ups:view-all` | `58` | **Admin-level.** View **all** follow-ups across all agents and centers (teams). Unlocks Center (Team) and Agent filter dropdowns and the Agent column in the list. Admin-only delete is also gated behind this permission. (Renamed from `follow-ups:view`) |
+| `follow-ups:view-team` | `62` | **Team-level.** View follow-ups for all agents in the user's own team (`teamId`). Server hard-scopes `teamId = session.user.teamId`. Center (Team) dropdown filter is hidden/disabled in the UI; Agent dropdown displays only agents belonging to their team. Cannot delete. |
 | `follow-ups:create` | `59` | **Agent-level.** Access the Follow-Ups page and create new records. Backend hard-scopes all list and detail queries to the authenticated agent's own records — no Team/Agent filters or Agent column are shown. Cannot delete. |
 
 > [!NOTE]
-> **Restricted Follow-Ups Access (Phase 31):** This mirrors the `orders:view` / `orders:create` dual-permission pattern exactly.
-> - Users with `follow-ups:view` see all follow-ups from all agents and all centers, with full Team + Agent filter controls.
+> **Restricted Follow-Ups Access (Phase 31 & 41):** This mirrors the 3-tier permission pattern.
+> - Users with `follow-ups:view-all` see all follow-ups from all agents and all centers, with full Team + Agent filter controls.
+> - Users with `follow-ups:view-team` see follow-ups of agents in their own team (`session.user.teamId`). The server ignores any client attempt to query outside their team, and the UI hides the Team filter dropdown while populates the Agent dropdown with team members only.
 > - Users with only `follow-ups:create` can access the page, but all API endpoints (`GET /api/follow-ups`, `GET /api/follow-ups/[id]`) force `agentId = session.user.uid` server-side. The client cannot override this regardless of what it sends in query params or the request body.
-> - Users with neither permission receive a `403 Forbidden` from all `/api/follow-ups/*` endpoints and a redirect to `/access-denied` from `middleware.ts` on page load.
+> - Users with none of these permissions receive a `403 Forbidden` from all `/api/follow-ups/*` endpoints and a redirect to `/access-denied` from `middleware.ts` on page load.
 > - `agentId` and `agentName` on new follow-up records are **always derived from the authenticated session** — never trusted from the client POST body.
 
 > [!NOTE]
@@ -157,6 +159,7 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 > - **`computeDaysLabel` correction:** The daysLabel ("Today", "Tomorrow", etc.) compares follow-up date/time against `DateTime.now()` using the **customer's own IANA timezone** (`customerTimezone`). The Prisma-returned `Date` object for `follow_up_date` is read as UTC date (`.toISOString().split('T')[0]`) — NOT timezone-shifted — before comparison.
 > - **Notification hook timezone:** `useFollowUpNotifications.ts` determines "due now" by constructing `DateTime.fromISO(followUpDate + 'T' + followUpTime, { zone: customerTimezone })` and comparing against `DateTime.now()`. This is browser-timezone-independent.
 > - **Detail page timestamps in EST:** `entry_date` and `last_contact` on the detail page are displayed in `America/New_York` (EST/EDT) using Luxon's `.setZone('America/New_York')`, matching the orders page convention.
+
 
 
 ### Resource: `call-dispositions`

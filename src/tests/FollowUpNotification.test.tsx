@@ -39,7 +39,7 @@ describe('FollowUpNotification Unit Tests (W-3159)', () => {
 
     vi.mocked(useSession).mockReturnValue({
       data: {
-        user: { id: 1, userPermissions: 'follow-ups:view' },
+        user: { id: 1, userPermissions: 'follow-ups:view-all' },
       },
       status: 'authenticated',
     } as any);

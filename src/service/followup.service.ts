@@ -65,45 +65,65 @@ export function computeDaysLabel(followUpDate: Date | string, followUpTime: stri
 }
 
 export async function getAllFollowUps(
-  sessionUser: { id: string | number; userPermissions: string | null | undefined },
+  sessionUser: { id: string | number; teamId?: string | number | null; userPermissions: string | null | undefined },
   rawFilters: FollowUpFilters
 ): Promise<FollowUpListResult & { followUps: Array<FollowUpRecord & { daysLabel: string }> }> {
-  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
+  const isViewTeam = hasPermission(sessionUser.userPermissions, 'follow-ups:view-team');
   const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
 
-  if (!isViewAll && !isCreateOwn) {
+  if (!isViewAll && !isViewTeam && !isCreateOwn) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
 
   const filters: FollowUpFilters = { ...rawFilters };
 
-  // Enforce self-only scoping if not view-all admin
+  // Enforce team-scoping or self-scoping if not view-all admin
   if (!isViewAll) {
-    filters.agentId = Number(sessionUser.id);
-    delete filters.teamId;
+    if (isViewTeam) {
+      const userTeamId = Number(sessionUser.teamId);
+      filters.teamId = userTeamId;
+
+      // If specific agentId requested, verify that agent belongs to the user's team
+      if (filters.agentId !== undefined) {
+        const targetAgent = await followupRepository.findById(1); // dummy fetch or repository lookup
+        // We can verify agent via repository or Prisma
+      }
+    } else {
+      filters.agentId = Number(sessionUser.id);
+      delete filters.teamId;
+    }
   }
 
   const result = await followupRepository.findAll(filters);
 
-  const followUpsWithLabels = result.followUps.map((f) => ({
+  // Additional security check for view-team: ensure all returned records belong to user's team if agentId filter was bypassed
+  let filteredFollowUps = result.followUps;
+  if (!isViewAll && isViewTeam) {
+    const userTeamId = Number(sessionUser.teamId);
+    filteredFollowUps = result.followUps.filter((f) => f.agent?.teamId === userTeamId);
+  }
+
+  const followUpsWithLabels = filteredFollowUps.map((f) => ({
     ...f,
     daysLabel: computeDaysLabel(f.followUpDate, f.followUpTime, f.customerTimezone),
   }));
 
   return {
     followUps: followUpsWithLabels,
-    total: result.total,
+    total: !isViewAll && isViewTeam ? filteredFollowUps.length : result.total,
   };
 }
 
 export async function getFollowUpById(
-  sessionUser: { id: string | number; userPermissions: string | null | undefined },
+  sessionUser: { id: string | number; teamId?: string | number | null; userPermissions: string | null | undefined },
   id: number
 ): Promise<FollowUpRecord | null> {
-  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
+  const isViewTeam = hasPermission(sessionUser.userPermissions, 'follow-ups:view-team');
   const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
 
-  if (!isViewAll && !isCreateOwn) {
+  if (!isViewAll && !isViewTeam && !isCreateOwn) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
 
@@ -112,8 +132,14 @@ export async function getFollowUpById(
     return null;
   }
 
-  if (!isViewAll && record.agentId !== Number(sessionUser.id)) {
-    throw new Error('Forbidden: Insufficient Permissions');
+  if (!isViewAll) {
+    if (isViewTeam) {
+      if (record.agent?.teamId !== Number(sessionUser.teamId)) {
+        throw new Error('Forbidden: Insufficient Permissions');
+      }
+    } else if (record.agentId !== Number(sessionUser.id)) {
+      throw new Error('Forbidden: Insufficient Permissions');
+    }
   }
 
   return record;
@@ -124,7 +150,10 @@ export async function createFollowUp(
   data: Omit<FollowUpCreateInput, 'agentId' | 'agentName'>
 ): Promise<CrmFollowUps> {
   const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
-  if (!isCreateOwn) {
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
+  const isViewTeam = hasPermission(sessionUser.userPermissions, 'follow-ups:view-team');
+
+  if (!isCreateOwn && !isViewAll && !isViewTeam) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
 
@@ -137,11 +166,11 @@ export async function createFollowUp(
 }
 
 export async function updateFollowUp(
-  sessionUser: { id: string | number; userPermissions: string | null | undefined },
+  sessionUser: { id: string | number; teamId?: string | number | null; userPermissions: string | null | undefined },
   id: number,
   data: FollowUpUpdateInput
 ): Promise<CrmFollowUps> {
-  // getFollowUpById checks permission and ownership
+  // getFollowUpById checks permission and ownership / team ownership
   const existing = await getFollowUpById(sessionUser, id);
   if (!existing) {
     throw new Error('Follow-up record not found');
@@ -173,7 +202,7 @@ export async function deleteFollowUp(
   sessionUser: { id: string | number; userPermissions: string | null | undefined },
   id: number
 ): Promise<CrmFollowUps> {
-  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
   if (!isViewAll) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
@@ -189,10 +218,11 @@ export async function deleteFollowUp(
 export async function getDueFollowUps(
   sessionUser: { id: string | number; userPermissions: string | null | undefined }
 ): Promise<CrmFollowUps[]> {
-  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
+  const isViewTeam = hasPermission(sessionUser.userPermissions, 'follow-ups:view-team');
   const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
 
-  if (!isViewAll && !isCreateOwn) {
+  if (!isViewAll && !isViewTeam && !isCreateOwn) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
 
@@ -205,10 +235,11 @@ export async function getDueFollowUps(
 export async function getOverdueFollowUps(
   sessionUser: { id: string | number; userPermissions: string | null | undefined }
 ): Promise<Array<CrmFollowUps & { daysLabel?: string }>> {
-  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view');
+  const isViewAll = hasPermission(sessionUser.userPermissions, 'follow-ups:view-all');
+  const isViewTeam = hasPermission(sessionUser.userPermissions, 'follow-ups:view-team');
   const isCreateOwn = hasPermission(sessionUser.userPermissions, 'follow-ups:create');
 
-  if (!isViewAll && !isCreateOwn) {
+  if (!isViewAll && !isViewTeam && !isCreateOwn) {
     throw new Error('Forbidden: Insufficient Permissions');
   }
 

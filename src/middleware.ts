@@ -49,9 +49,10 @@ export async function middlewareHandler(req: NextRequest) {
         return NextResponse.redirect(new URL('/access-denied', req.url));
       }
     } else if (matchedPath === '/follow-ups') {
-      const canView = hasPermission(userPermissions, 'follow-ups:view');
+      const canViewAll = hasPermission(userPermissions, 'follow-ups:view-all');
+      const canViewTeam = hasPermission(userPermissions, 'follow-ups:view-team');
       const canCreate = hasPermission(userPermissions, 'follow-ups:create');
-      if (!canView && !canCreate) {
+      if (!canViewAll && !canViewTeam && !canCreate) {
         return NextResponse.redirect(new URL('/access-denied', req.url));
       }
     } else if (matchedPath === '/call-dispositions') {

@@ -78,7 +78,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
           )}
 
           {/* Conditional Follow Ups Navigation */}
-          {(hasPermission(permissions, 'follow-ups:view') || hasPermission(permissions, 'follow-ups:create')) && (
+          {(hasPermission(permissions, 'follow-ups:view-all') || hasPermission(permissions, 'follow-ups:view-team') || hasPermission(permissions, 'follow-ups:create')) && (
             <li className="nav-item">
               <Link
                 href="/follow-ups"

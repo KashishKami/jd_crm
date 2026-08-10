@@ -48,8 +48,9 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
   }
 
   const permissions = session.user.userPermissions || '';
-  const canViewAll = hasPermission(permissions, 'follow-ups:view');
-  const canEdit = hasPermission(permissions, 'follow-ups:create');
+  const canViewAll = hasPermission(permissions, 'follow-ups:view-all');
+  const canViewTeam = hasPermission(permissions, 'follow-ups:view-team');
+  const canEdit = hasPermission(permissions, 'follow-ups:create') || canViewAll || canViewTeam;
 
   const formatFollowUpTime = (dateVal: Date | string, timeStr: string, tz: string) => {
     let dateStr = '';
@@ -342,6 +343,12 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                 <span className="form-label">Reason</span>
                 <span className="info-value">{record.followUpReason}</span>
               </div>
+              {(canViewAll || canViewTeam) && (
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <span className="form-label">Assigned Agent</span>
+                  <span className="info-value font-semibold" style={{ color: 'var(--text-main)' }}>{record.agentName || '—'}</span>
+                </div>
+              )}
             </div>
           </div>
 
