@@ -215,6 +215,14 @@
   white-space: nowrap;
 }
 
+.custom-table td.vehicle-part-cell {
+  white-space: normal !important;
+  word-break: break-word;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+
 .custom-table tr:last-child td {
   border-bottom: none;
 }

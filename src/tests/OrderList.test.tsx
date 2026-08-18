@@ -497,5 +497,44 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(screen.getByText('CAD @ 0.74')).toBeDefined();
     });
   });
+
+  describe('Fix Blank Table Rows & Vehicle/Part Text Wrapping', () => {
+    it('should NOT apply inline opacity 0 on table rows so content remains visible', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 101,
+          orderDate: '2026-08-19',
+          orderMakeModel: '2014 Ford Truck-F150',
+          orderPart: 'Transmission, A/c compressors',
+          customer: { customerName: 'Test Visibility Customer' },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const row = screen.getByRole('row', { name: /#101/i });
+      expect(row.style.opacity).not.toBe('0');
+    });
+
+    it('should apply vehicle-part-cell class to Vehicle & Part cell for text wrapping', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 102,
+          orderDate: '2026-08-19',
+          orderMakeModel: '2014 Ford Truck-F150',
+          orderPart: 'Transmission, A/c compressors, Tail Gate with tail Light Both Side White Colour',
+          customer: { customerName: 'Test Wrapping Customer' },
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+
+      const partText = screen.getByText(/Tail Gate with tail Light/i);
+      const cell = partText.closest('td');
+      expect(cell).not.toBeNull();
+      expect(cell?.classList.contains('vehicle-part-cell')).toBe(true);
+    });
+  });
 });
+
 

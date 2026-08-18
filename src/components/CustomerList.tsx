@@ -218,7 +218,6 @@ export default function CustomerList({ initialCustomers }: CustomerListProps = {
                     {customers.map((customer) => (
                       <tr 
                         key={customer.customerId}
-                        style={{ opacity: hasAnimated ? 1 : 0 }}
                         className={`border-b last:border-0 border-slate-100/80 hover:bg-slate-50/50 transition-colors cursor-pointer ${
                           selectedCustomerId === customer.customerId ? 'bg-blue-50/20' : ''
                         }`}

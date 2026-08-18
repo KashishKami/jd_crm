@@ -315,28 +315,8 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
   const startIndex = (page - 1) * limit;
   const paginatedAgents = filteredAgents.slice(startIndex, startIndex + limit);
 
-  // Stagger entrance on table rows — fires once per mount.
-  // !hasAnimated is sufficient: it is set to true by the onComplete callback
-  // and prevents re-triggering on subsequent paginatedAgents reference changes.
-  useEffect(() => {
-    if (tableRowsRef.current && paginatedAgents.length > 0 && !hasAnimated) {
-      const rows = tableRowsRef.current.querySelectorAll('tr');
-      animCtxRef.current = gsap.context(() => {
-        fadeInStagger(rows, 0.05, () => {
-          setHasAnimated(true);
-        });
-      });
-    }
-  }, [paginatedAgents, hasAnimated]);
+  // Table rows render fully visible by default. Page container handles entrance animation.
 
-  // Clean up animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animCtxRef.current) {
-        animCtxRef.current.revert();
-      }
-    };
-  }, []);
 
   // Restore scroll position when loading completes or items render ONLY IF coming from detail page.
   useEffect(() => {
@@ -532,7 +512,7 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
             </thead>
             <tbody ref={tableRowsRef}>
               {paginatedAgents.map((agent) => (
-                <tr key={agent.uid} style={{ opacity: hasAnimated ? 1 : 0 }}>
+                <tr key={agent.uid}>
                   <td>
                     <div className="name-cell">
                       <div className="avatar-circle">{(agent.nickname || agent.name)[0]?.toUpperCase()}</div>

@@ -10897,6 +10897,20 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         * **Automated Tests:** All unit & integration test suites passed **100% GREEN** across 75 test suites (549/549 passed).
         * **TypeScript Check:** `npm run typecheck` (`tsc --noEmit`) returned **0 errors**.
 
+### Session 111 - August 19, 2026
+
+* **Dashboard Blank Table Rows & Vehicle/Part Text Wrapping Fixes:**
+    * **Blank Table Rows Fix (`OrderList.tsx`, `AgentList.tsx`, `VendorList.tsx`, `CustomerList.tsx`, `GatewayList.tsx`):**
+        * Removed fragile inline `style={{ opacity: hasAnimated ? 1 : 0 }}` and `fadeInStagger(rows)` GSAP table row animations from `OrderList.tsx`, `AgentList.tsx`, `VendorList.tsx`, `CustomerList.tsx`, and `GatewayList.tsx`.
+        * Resolved the race condition desync where NextAuth `useSession()` re-renders during component mount / session status changes force-applied `opacity: 0` inline onto `<tr>` elements, locking table rows in a blank/invisible state. Table rows now render 100% visible by default, while page-level container animations handle entrance transitions.
+    * **Vehicle & Part Text Wrapping (`components.css`, `OrderList.tsx`):**
+        * Added `.custom-table td.vehicle-part-cell` class styling in `components.css` (`white-space: normal !important; word-break: break-word; min-width: 180px; max-width: 320px;`).
+        * Applied `className="vehicle-part-cell"` to Vehicle & Part cells in `OrderList.tsx`. Long descriptions (e.g., *"Transmission, A/c compressors, Tail Gate with tail Light Both Side White Colour"*) now wrap cleanly across lines without expanding table width or triggering horizontal scrollbars.
+    * **Automated Tests & TDD Verification (`src/tests/OrderList.test.tsx`):**
+        * Added unit tests in `src/tests/OrderList.test.tsx` verifying row opacity visibility and `vehicle-part-cell` class assignment.
+        * Confirmed initial RED state failure and subsequent GREEN passing state across all unit and integration test suites.
+
+
 
 
 

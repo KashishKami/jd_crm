@@ -60,18 +60,7 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
     if (!loading && containerRef.current && !hasAnimated) {
       animCtxRef.current = gsap.context(() => {
         fadeInPage(containerRef.current!);
-        if (tableBodyRef.current) {
-          const rows = tableBodyRef.current.querySelectorAll('tr');
-          if (rows.length > 0) {
-            fadeInStagger(rows, 0.05, () => {
-              setHasAnimated(true);
-            });
-          } else {
-            setHasAnimated(true);
-          }
-        } else {
-          setHasAnimated(true);
-        }
+        setHasAnimated(true);
       });
     }
   }, [loading, hasAnimated]);
@@ -157,7 +146,7 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
                 </tr>
               ) : (
                 gateways.map((gateway, index) => (
-                  <tr key={gateway.gatewayId} style={{ opacity: hasAnimated ? 1 : 0 }}>
+                  <tr key={gateway.gatewayId}>
                     <td className="font-mono text-slate-500">{index + 1}</td>
                     <td style={{ fontWeight: '600' }}>{gateway.gatewayName}</td>
                     <td>

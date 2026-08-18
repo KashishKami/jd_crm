@@ -286,26 +286,8 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
   const tableRowsRef = useRef<HTMLTableSectionElement>(null);
   const animCtxRef = useRef<gsap.Context | null>(null);
 
-  // Stagger table rows entrance
-  useEffect(() => {
-    if (tableRowsRef.current && sortedOrders.length > 0 && !hasAnimated) {
-      const rows = tableRowsRef.current.querySelectorAll('tr');
-      animCtxRef.current = gsap.context(() => {
-        fadeInStagger(rows, 0.05, () => {
-          setHasAnimated(true);
-        });
-      });
-    }
-  }, [sortedOrders, hasAnimated]);
+  // Table rows render fully visible by default. Page container handles entrance animation.
 
-  // Clean up animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animCtxRef.current) {
-        animCtxRef.current.revert();
-      }
-    };
-  }, []);
 
   const renderSortableHeader = (label: string, field: string) => {
     const isSorted = sortBy === field;
@@ -348,7 +330,7 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
               const isDisabled = !canView && canCreate && Number(order.orderSalesAgentId) !== Number(session?.user?.id);
               const isDisabledEdit = isDisabled || !canEdit;
               return (
-                <tr key={order.crmOrderId} style={{ opacity: hasAnimated ? 1 : 0 }}>
+                <tr key={order.crmOrderId}>
                   <td>
                     <span className="font-mono font-semibold text-slate-500" style={{ fontSize: '0.95em' }}>
                       #{order.crmOrderId}
@@ -386,7 +368,7 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td className="vehicle-part-cell">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div>
                         <div className="font-medium text-slate-800" style={{ fontSize: 'inherit' }}>

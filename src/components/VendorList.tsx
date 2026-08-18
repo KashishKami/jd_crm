@@ -276,26 +276,8 @@ function VendorListContent() {
     return () => ctx.revert();
   }, []);
 
-  // Stagger animation on table rows — fires once per mount.
-  useEffect(() => {
-    if (tableRowsRef.current && vendors.length > 0 && !hasAnimated) {
-      const rows = tableRowsRef.current.querySelectorAll('tr');
-      animCtxRef.current = gsap.context(() => {
-        fadeInStagger(rows, 0.05, () => {
-          setHasAnimated(true);
-        });
-      });
-    }
-  }, [vendors, hasAnimated]);
+  // Table rows render fully visible by default. Page container handles entrance animation.
 
-  // Clean up animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animCtxRef.current) {
-        animCtxRef.current.revert();
-      }
-    };
-  }, []);
 
   const handleToggleStatus = async (vendorId: number, currentStatus: number) => {
     const actionText = currentStatus === 1 ? 'blacklist' : 'restore';
@@ -395,7 +377,7 @@ function VendorListContent() {
             </thead>
             <tbody ref={tableRowsRef}>
               {vendors.map((vendor) => (
-                <tr key={vendor.vendorId} style={{ opacity: hasAnimated ? 1 : 0 }}>
+                <tr key={vendor.vendorId}>
                   <td>
                     <Link href={`/vendors/${vendor.vendorId}`} prefetch={false} className="font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                       {vendor.vendorName}
