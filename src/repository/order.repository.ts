@@ -448,8 +448,10 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     });
   }
 
-  if (filters.backendExecutiveId) {
-    andConditions.push({ orderBackendExecutiveId: filters.backendExecutiveId });
+  if (filters.backendExecutiveId === 'unassigned') {
+    andConditions.push({ orderBackendExecutiveId: null });
+  } else if (filters.backendExecutiveId) {
+    andConditions.push({ orderBackendExecutiveId: Number(filters.backendExecutiveId) });
   }
 
   if (filters.partFoundById) {
@@ -469,15 +471,11 @@ export async function findAll(filters: OrderFilters): Promise<any> {
 
   if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
-    const { convertEstToUtc } = require('../lib/date');
     if (filters.dateFrom) {
-      dateFilter.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
+      dateFilter.gte = toUtcNoonDate(filters.dateFrom);
     }
     if (filters.dateTo) {
-      const endEstUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
-      endEstUtc.setSeconds(59);
-      endEstUtc.setMilliseconds(999);
-      dateFilter.lte = endEstUtc;
+      dateFilter.lte = toUtcNoonDate(filters.dateTo);
     }
     andConditions.push({ orderDate: dateFilter });
   }

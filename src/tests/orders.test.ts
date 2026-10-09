@@ -3847,5 +3847,96 @@ describe('Order Management Integration Tests', () => {
       await prisma.crmOrders.delete({ where: { crmOrderId: parentId } });
     });
   });
+
+  describe('W-4301 — Platform-Wide Date Filter Boundary & Rollover Fix', () => {
+    it('[RED] should include September 30 order and strictly exclude October 1 order when filtering for September', async () => {
+      // Create 4 orders across the month boundaries
+      const orderAug31 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 7, 31, 12, 0, 0)), // 2026-08-31
+          orderTotalPitched: '100.00',
+          orderAmountCharged: '100.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      const orderSept01 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 1, 12, 0, 0)), // 2026-09-01
+          orderTotalPitched: '200.00',
+          orderAmountCharged: '200.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      const orderSept30 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 30, 12, 0, 0)), // 2026-09-30
+          orderTotalPitched: '300.00',
+          orderAmountCharged: '300.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      const orderOct01 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 9, 1, 12, 0, 0)), // 2026-10-01
+          orderTotalPitched: '400.00',
+          orderAmountCharged: '400.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request('http://localhost/api/orders?dateFrom=2026-09-01&dateTo=2026-09-30');
+        const res = await GET(req);
+
+        const data = await res.json();
+        if (res.status !== 200) {
+          console.error('API Error:', data);
+        }
+        expect(res.status).toBe(200);
+        const ordersList = data.data || data;
+
+        const foundAug31 = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderAug31.crmOrderId);
+        const foundSept01 = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderSept01.crmOrderId);
+        const foundSept30 = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderSept30.crmOrderId);
+        const foundOct01 = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderOct01.crmOrderId);
+
+        // Sept 1 and Sept 30 MUST be included
+        expect(foundSept01).toBe(true);
+        expect(foundSept30).toBe(true);
+
+        // Aug 31 and Oct 1 MUST be strictly excluded
+        expect(foundAug31).toBe(false);
+        expect(foundOct01).toBe(false);
+      } finally {
+        await prisma.crmOrders.deleteMany({
+          where: {
+            crmOrderId: {
+              in: [orderAug31.crmOrderId, orderSept01.crmOrderId, orderSept30.crmOrderId, orderOct01.crmOrderId],
+            },
+          },
+        });
+      }
+    });
+  });
 });
 

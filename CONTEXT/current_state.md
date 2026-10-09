@@ -58,6 +58,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 40** | Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/backend-team.test.ts` |
 | **Phase 41** | Follow-Ups: 3-Tier Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding | **[x] COMPLETED** | `scripts/sql/update-followup-team-permissions.sql` (new), `seed.sql`, `src/service/followup.service.ts`, `src/middleware.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
 | **Phase 42** | Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`) | **[x] COMPLETED** | `src/app/agents/page.tsx`, `src/repository/agent.repository.ts`, `src/service/agent.service.ts`, `src/app/api/agents/route.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/agents.test.ts`, `src/tests/agent.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
+| **Phase 43** | Date Filter Boundary Fix, Dynamic Team-to-Agent Dropdown Scoping & "Unassigned" Backend Executive Filter | **[ ] IN PROGRESS** | `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/repository/callDisposition.repository.ts`, `src/components/OrderListContainer.tsx`, `src/types/order.ts`, `src/tests/orders.test.ts`, `src/tests/OrderListContainer.test.tsx`, `src/tests/dashboard.test.ts`, `src/tests/callDispositions.test.ts` |
 ---
 
 
@@ -10911,13 +10912,159 @@ Execute tasks W-3201 through W-3204 of Phase 32 following strict TDD. Add `order
         * Confirmed initial RED state failure and subsequent GREEN passing state across all unit and integration test suites.
 
 
+### Phase 43 — Date Filter Boundary Fix, Dynamic Team-to-Agent Dropdown Scoping & "Unassigned" Backend Executive Filter
 
+#### W-4301 — Platform-Wide Date Filter Boundary & Rollover Fix
 
+**Root cause / Goal:**
+When filtering by date range (e.g. `dateFrom = '2026-09-01'` to `dateTo = '2026-09-30'`) on the Orders page, `src/repository/order.repository.ts` and `src/repository/dashboard.repository.ts` execute `convertEstToUtc(filters.dateTo, '23:59')`. Because America/New_York is in EDT (UTC-4) in September, `23:59:59 EDT` is converted to `2026-10-01 03:59:59 UTC`. Because `orderDate` is a MySQL `DATE` column (`@db.Date` in Prisma), Prisma/MySQL evaluates `order_date <= '2026-10-01'`, causing all orders created on October 1st to be incorrectly matched and returned within the September date filter. The same rollover occurs in `getPendingCounts` / `getPipelineSummary` (orders summary statistics banner) and `dashboard.service.ts` (`getAdvancedChartData` custom date range). Additionally, `src/repository/callDisposition.repository.ts` incorrectly queries the UTC `createdAt` timestamp with naive UTC strings (`filters.dateFrom + 'T00:00:00.000Z'`), causing late evening EST calls to be omitted.
 
+**Fix / Approach:**
+1. For `@db.Date` fields (`orderDate` in `order.repository.ts` and `dashboard.repository.ts`), eliminate `convertEstToUtc(..., '23:59')` time rollover. Use calendar-date alignment (`localDateStringToUtcNoon(filters.dateFrom)` for `gte` and `localDateStringToUtcNoon(filters.dateTo)` for `lte`) matching the storage format in `toUtcNoonDate()`.
+2. In `dashboard.service.ts`, ensure custom range date boundaries for `orderDate` queries use UTC calendar date boundaries.
+3. In `callDisposition.repository.ts`, convert user-selected EST date bounds to true UTC timestamps using `convertEstToUtc(filters.dateFrom, '00:00')` for `gte` and `convertEstToUtc(filters.dateTo, '23:59')` (with seconds 59 and ms 999) for `lte` so `createdAt` captures the entire EST calendar day.
 
+---
 
+- [x] **RED — Integration (`src/tests/orders.test.ts` & `src/tests/dashboard.test.ts`):**
+  - [x] Test in `src/tests/orders.test.ts`: Create two orders — Order A with `orderDate = '2026-09-30'` and Order B with `orderDate = '2026-10-01'`. Make request `GET /api/orders?dateFrom=2026-09-01&dateTo=2026-09-30`. Assert response returns Order A in `orders` array and does NOT return Order B (`orders.find(o => o.orderDate === '2026-10-01')` is undefined).
+  - [x] Test in `src/tests/dashboard.test.ts`: Request `GET /api/orders/pending-counts?dateFrom=2026-09-01&dateTo=2026-09-30`. Assert Order B (`orderDate: 2026-10-01`) is excluded from `counts['All Orders'].count` and `counts['All Orders'].amount`.
+  - [x] **Run — confirm RED (Order B dated 2026-10-01 is currently included in the September 2026 response).**
 
+- [x] **GREEN — Backend (Schema → Repository → Service → Controller):**
+  - [x] [Schema] N/A — No database schema migration needed. `order_date` is already `@db.Date`.
+  - [x] [Repository] In `src/repository/order.repository.ts` (lines 470–483), update `filters.dateFrom` to `dateFilter.gte = toUtcNoonDate(filters.dateFrom)` and `filters.dateTo` to `dateFilter.lte = toUtcNoonDate(filters.dateTo)`.
+  - [x] [Repository] In `src/repository/dashboard.repository.ts` (lines 435–448), update `getPendingCounts` date filter to use `toUtcNoonDate(filters.dateFrom)` and `toUtcNoonDate(filters.dateTo)`.
+  - [x] [Repository] In `src/repository/callDisposition.repository.ts` (lines 18–22 and lines 42–46), replace naive UTC strings with `convertEstToUtc(filters.dateFrom, '00:00')` for `gte` and `convertEstToUtc(filters.dateTo, '23:59')` for `lte`.
+  - [x] [Service] In `src/service/dashboard.service.ts` (lines 447–452), update custom range handler for `getAdvancedChartData` to use `toUtcNoonDate(startDateStr)` and `toUtcNoonDate(endDateStr)` for `where.orderDate`.
+  - [x] Run integration tests — **confirm GREEN**.
 
+- [x] **RED — Unit / Component (`src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: Render `OrderListContainer` with `dateFrom = '2026-09-01'` and `dateTo = '2026-09-30'`. Mock fetch to return only September orders. Verify active filter badge displays `Date Range: 2026-09-01 to 2026-09-30` and orders table renders 0 October orders.
+  - [x] **Run — confirm RED.**
 
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] Verify `OrderFilters` in `src/types/order.ts` supports `dateFrom?: string` and `dateTo?: string`.
+  - [x] [Component] Verify `OrderListContainer.tsx` passes `dateFrom` and `dateTo` query parameters cleanly into API calls.
+  - [x] Run unit test — **confirm GREEN**.
 
+- [x] **Verification chain:**
+  - [x] User navigates to `/orders` → sets Start Date to `01/09/2026` and End Date to `30/09/2026` → API receives `dateFrom=2026-09-01&dateTo=2026-09-30` → Database queries `order_date >= '2026-09-01' AND order_date <= '2026-09-30'` → Order #2012 dated `01-10-2026` is excluded → Summary banner and table show exactly 0 October orders → ✅ Done.
+
+---
+
+#### W-4302 — Team Dropdown Dynamic Scoping for Agent Filter on Orders Page
+
+**Root cause / Goal:**
+On the Orders page (`/orders`), the Agent filter dropdown is populated once on initial mount with all active sales agents. When a user selects a specific Team from the "Team" filter dropdown (e.g., *Center A*), the Agent dropdown continues to display agents from all teams rather than scoping the list to agents belonging to *Center A*. Furthermore, if an agent was previously selected and the user changes the Team filter to a team that does not contain that agent, the filter enters an invalid state where the agent does not match the selected team.
+
+**Fix / Approach:**
+In `src/components/OrderListContainer.tsx`, update the agent fetching `useEffect` hook to depend on `teamFilter`. When `teamFilter` is non-empty, query `/api/agents?salesOnly=true&teamId=${teamFilter}`. If `teamFilter` changes and the currently selected `agentFilter` is not in the newly fetched agent list, reset `agentFilter` to `''`. When `teamFilter` is cleared (`''`), fetch all active sales agents with `/api/agents?salesOnly=true`.
+
+---
+
+- [x] **RED — Integration (`src/tests/agents.test.ts`):**
+  - [x] Test: `GET /api/agents?salesOnly=true&teamId=1` returns only active agents where `teamId === 1` and `designation` is in `SALES_DESIGNATIONS`.
+  - [x] Test: `GET /api/agents?salesOnly=true` (without teamId) returns all active sales agents across all teams.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Controller / API Route):**
+  - [x] [Controller] Verify `/api/agents` route in `src/app/api/agents/route.ts` forwards `salesOnly=true` and `teamId` to `agentService.getAllAgents(salesOnly, teamId)`.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: Select "Team Alpha" (id: 1) from the Team dropdown. Verify `fetch` is called with `/api/agents?salesOnly=true&teamId=1` and the Agent dropdown options update to only show Team Alpha agents.
+  - [x] Test: With Agent "Keith" (team 1) selected, change Team dropdown to "Team Beta" (team 2). Verify `agentFilter` state is reset to `''` ("All Agents") because Keith does not belong to Team Beta.
+  - [x] **Run — confirm RED (Agent dropdown does not re-fetch on team filter change today).**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/components/OrderListContainer.tsx` (lines 378–394):
+    - Add `teamFilter` to the dependency array of the agent fetching `useEffect`.
+    - Fetch `/api/agents?salesOnly=true${teamFilter ? `&teamId=${teamFilter}` : ''}`.
+    - Inside the fetch callback, if `agentFilter` is set and the new agent list does not contain an agent with `uid === Number(agentFilter)`, call `setAgentFilter('')`.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User navigates to `/orders` → selects "Team A" in the Team dropdown → Agent dropdown immediately updates to only list Team A sales agents → User selects "Team B" → previously selected Team A agent is cleared and Agent dropdown updates to Team B members → ✅ Done.
+
+---
+
+#### W-4303 — "Unassigned" Backend Executive Filter on Orders Page & Metric Aggregations
+
+**Root cause / Goal:**
+Supervisors and QA verifiers need to identify orders in the pipeline that have not yet been assigned to any Backend Executive (`order_backend_executive_id IS NULL`). Currently, the Backend Executive filter dropdown only allows selecting specific existing agents (`uid`), with no option to filter for unassigned orders. Furthermore, the repository layer and pending counts summary only accept numeric IDs and do not handle an `"unassigned"` condition.
+
+**Fix / Approach:**
+1. Add an `<option value="unassigned">Unassigned</option>` to the Backend Executive dropdown in `OrderListContainer.tsx`.
+2. Update `OrderFilters` and `getPendingCounts` parameter types to accept `backendExecutiveId?: number | 'unassigned' | string`.
+3. In `src/repository/order.repository.ts` and `src/repository/dashboard.repository.ts`, if `filters.backendExecutiveId === 'unassigned'`, append `{ orderBackendExecutiveId: null }` to the Prisma `WHERE` conditions.
+
+---
+
+- [x] **RED — Integration (`src/tests/orders.test.ts` & `src/tests/dashboard.test.ts`):**
+  - [x] Test in `src/tests/orders.test.ts`: Create Order 1 with `orderBackendExecutiveId = null` and Order 2 with `orderBackendExecutiveId = 5`. Request `GET /api/orders?backendExecutiveId=unassigned`. Assert response returns Order 1 and excludes Order 2.
+  - [x] Test in `src/tests/dashboard.test.ts`: Request `GET /api/orders/pending-counts?backendExecutiveId=unassigned`. Assert count matches only orders where `order_backend_executive_id IS NULL`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Types] In `src/types/order.ts`, update `OrderFilters.backendExecutiveId?: number | 'unassigned' | string`.
+  - [x] [Repository] In `src/repository/order.repository.ts` (lines 451–453):
+    ```typescript
+    if (filters.backendExecutiveId === 'unassigned') {
+      andConditions.push({ orderBackendExecutiveId: null });
+    } else if (filters.backendExecutiveId) {
+      andConditions.push({ orderBackendExecutiveId: Number(filters.backendExecutiveId) });
+    }
+    ```
+  - [x] [Repository] In `src/repository/dashboard.repository.ts` (lines 420–422):
+    ```typescript
+    if (filters.backendExecutiveId === 'unassigned') {
+      where.orderBackendExecutiveId = null;
+    } else if (filters.backendExecutiveId) {
+      where.orderBackendExecutiveId = Number(filters.backendExecutiveId);
+    }
+    ```
+  - [x] [Controller] In `src/app/api/orders/route.ts` and `src/app/api/orders/pending-counts/route.ts`, parse `backendExecutiveId` as `'unassigned'` string or number.
+  - [x] Run integration tests — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: Backend Executive dropdown contains `<option value="unassigned">Unassigned</option>`.
+  - [x] Test: Selecting "Unassigned" sets URL param `backendExecutiveId=unassigned` and displays active filter badge `Backend Executive: Unassigned`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component):**
+  - [x] [Component] In `src/components/OrderListContainer.tsx` (line 765), add `<option value="unassigned">Unassigned</option>` directly beneath the "All Backend Executives" option.
+  - [x] [Component] In `OrderListContainer.tsx` active filter tags, render `Backend Executive: Unassigned` when `backendExecutiveFilter === 'unassigned'`.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User navigates to `/orders` → selects "Unassigned" from the Backend Executive dropdown → Table and summary cards refresh showing only orders where Backend Executive is not yet assigned (`orderBackendExecutiveId IS NULL`) → User clicks "x" on the active filter tag to clear → Table restores all orders → ✅ Done.
+
+---
+
+### Session 112 - October 9, 2026
+
+* **Phase 43 Implementation — Date Filter Boundary Fix, Dynamic Team-to-Agent Scoping, & "Unassigned" Backend Executive Filter:**
+    * **W-4301 Platform-Wide Date Filter Boundary & Rollover Fix:**
+        * Updated `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, and `src/service/dashboard.service.ts` to utilize calendar UTC noon date boundaries (`toUtcNoonDate`) for all `orderDate` (`@db.Date`) queries, preventing next-month rollover when filtering across daylight saving or timezone offsets.
+        * Updated `src/repository/callDisposition.repository.ts` to convert EST date boundaries to UTC boundaries spanning full calendar days (`00:00` to `23:59:59.999`).
+        * Added integration and unit tests covering month-boundary edge cases (September 30 vs October 1) in `orders.test.ts`, `dashboard.test.ts`, and `callDispositions.test.ts`.
+    * **W-4302 Dynamic Team-to-Agent Filter Scoping on Orders Page:**
+        * Updated `src/components/OrderListContainer.tsx` agent fetching `useEffect` to depend on `teamFilter`, dynamically fetching `/api/agents?salesOnly=true&teamId=${teamFilter}`.
+        * Added logic to reset `agentFilter` to `''` whenever the currently selected agent does not belong to the selected team.
+        * Added unit tests in `src/tests/OrderListContainer.test.tsx` verifying dynamic agent scoping and state reset.
+    * **W-4303 "Unassigned" Backend Executive Filter on Orders Page & Metric Aggregations:**
+        * Updated `OrderFilters` and `getPendingCounts` parameter interfaces to support `backendExecutiveId?: number | string` (allowing `'unassigned'`).
+        * Updated `src/repository/order.repository.ts` and `src/repository/dashboard.repository.ts` to query `{ orderBackendExecutiveId: null }` when `backendExecutiveId === 'unassigned'`.
+        * Added `<option value="unassigned">Unassigned</option>` and active filter tag handling to `OrderListContainer.tsx`.
+        * Added integration and unit tests in `orders.test.ts`, `dashboard.test.ts`, and `OrderListContainer.test.tsx`.
+    * **Database Backup MariaDB Client & Self-Signed SSL Fix (`src/lib/backup.ts`):**
+        * Resolved production and containerized database dump failure (`mysqldump: Got error: 2026: "TLS/SSL error: self-signed certificate in certificate chain"`) caused by MariaDB dump client strict certificate verification when connecting to MySQL 8 across Docker container networks.
+        * Added `--ssl=0` flag to direct `mysqldump` invocation in `src/lib/backup.ts`, cleanly bypassing self-signed cert verification across internal networks.
+        * Rebuilt and verified backup script execution directly in the `jd_crm_app` container (`docker exec jd_crm_app node run-backup.js` -> `[run-backup] SUCCESS`).
+    * **Item 4 Documentation (Agent Sales Aggregates Page):**
+        * Captured all requirements, multi-select agent dropdown design, team filter scoping, session storage state/scroll restoration, and drill-down navigation specs in `CONTEXT/agent_sales_aggregates_proposal.md`.
+    * **Verification & Testing:**
+        * **Automated Tests:** All 75 test suites (557 tests) passed **100% GREEN**.
+        * **TypeScript Check:** `npx tsc --noEmit` passed with **0 errors**.
 

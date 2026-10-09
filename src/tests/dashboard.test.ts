@@ -940,4 +940,70 @@ describe('Dashboard Integration Tests', () => {
       });
     });
   });
+
+  describe('W-4301 — Date Boundary Filter in Pending Counts', () => {
+    it('should include September 30 order and exclude October 1 order in pending counts for September', async () => {
+      const customer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Pending Count Date Test Cust',
+          customerEmail: 'pending.date@example.com',
+        },
+      });
+
+      const orderSept30 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+          orderAmountCharged: '500',
+          orderRefundAmount: '0',
+          orderDate: new Date(Date.UTC(2026, 8, 30, 12, 0, 0)), // 2026-09-30
+          orderVendorName: 'DATE_BOUNDARY_TEST',
+        },
+      });
+
+      const orderOct01 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: customer.customerId,
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+          orderAmountCharged: '700',
+          orderRefundAmount: '0',
+          orderDate: new Date(Date.UTC(2026, 9, 1, 12, 0, 0)), // 2026-10-01
+          orderVendorName: 'DATE_BOUNDARY_TEST',
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'orders:view' },
+      });
+
+      try {
+        const { GET } = await import('../app/api/orders/pending-counts/route');
+        const req = new Request('http://localhost/api/orders/pending-counts?dateFrom=2026-09-01&dateTo=2026-09-30');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+
+        // Pending Booking should include 500 from Sept 30, NOT 700 from Oct 1
+        expect(data['Pending Booking'].count).toBeGreaterThanOrEqual(1);
+        expect(data['Pending Booking'].amount).toBeGreaterThanOrEqual(500);
+
+        // Test October 1st specifically
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: { id: '1', name: 'Super Admin', userPermissions: 'orders:view' },
+        });
+        const reqOct = new Request('http://localhost/api/orders/pending-counts?dateFrom=2026-10-01&dateTo=2026-10-31');
+        const resOct = await GET(reqOct);
+        expect(resOct.status).toBe(200);
+        const dataOct = await resOct.json();
+        expect(dataOct['Pending Booking'].amount).toBeGreaterThanOrEqual(700);
+      } finally {
+        await prisma.crmOrders.deleteMany({ where: { orderVendorName: 'DATE_BOUNDARY_TEST' } });
+        await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
+      }
+    });
+  });
 });
+

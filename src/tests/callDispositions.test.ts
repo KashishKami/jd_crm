@@ -503,4 +503,35 @@ describe('Call Dispositions API Integration tests (W-3301)', () => {
     expect(res.headers.get('Content-Type')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(res.headers.get('Content-Disposition')).toContain('attachment; filename="call-dispositions-export.xlsx"');
   });
+
+  it('W-4301: GET /api/call-dispositions filters createdAt using true EST day boundaries', async () => {
+    // 2026-09-30 at 23:30 EDT is 2026-10-01 03:30:00 UTC
+    const lateEveningCall = await prisma.crmCallDispositions.create({
+      data: {
+        customerPhone: '111-222-3333',
+        customerName: 'Late Evening Caller',
+        agentId: testAgentId,
+        agentName: 'CD Agent',
+        teamId: testAgentTeamId,
+        disposition: 'Callback Requested',
+        createdAt: new Date('2026-10-01T03:30:00.000Z'), // 23:30 EDT on 2026-09-30
+      },
+    });
+
+    vi.mocked(getServerSession).mockResolvedValueOnce({
+      user: { id: testAdminId, nickname: 'CD Admin', teamId: testAgentTeamId, userPermissions: 'call-dispositions:view,call-dispositions:create' }
+    });
+
+    try {
+      const { GET } = await import('../app/api/call-dispositions/route');
+      const req = new Request('http://localhost/api/call-dispositions?dateFrom=2026-09-30&dateTo=2026-09-30');
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      const found = data.dispositions.some((d: any) => d.callId === lateEveningCall.callId);
+      expect(found).toBe(true);
+    } finally {
+      await prisma.crmCallDispositions.delete({ where: { callId: lateEveningCall.callId } });
+    }
+  });
 });

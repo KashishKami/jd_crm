@@ -158,7 +158,7 @@ export interface OrderFilters {
   saleStatus?: string;
   agentId?: number;
   teamId?: number;
-  backendExecutiveId?: number;
+  backendExecutiveId?: number | string;
   partFoundById?: number;
   dateFrom?: string;
   dateTo?: string;

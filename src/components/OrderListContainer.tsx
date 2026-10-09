@@ -375,23 +375,35 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
 
 
 
-  // Fetch agents for dropdown
+  // Fetch agents for dropdown (dynamically scoped when teamFilter changes)
   useEffect(() => {
     if (status !== 'authenticated') return;
-    if (initialAgents && initialAgents.length > 0) return;
+    if (!teamFilter && initialAgents && initialAgents.length > 0) {
+      setAgents(initialAgents);
+      return;
+    }
     const fetchAgents = async () => {
       try {
-        const res = await fetch('/api/agents');
+        const url = teamFilter
+          ? `/api/agents?salesOnly=true&teamId=${teamFilter}`
+          : '/api/agents';
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           setAgents(data);
+          if (agentFilter) {
+            const stillExists = data.some((a: any) => String(a.uid) === agentFilter);
+            if (!stillExists) {
+              setAgentFilter('');
+            }
+          }
         }
       } catch (err) {
         console.error('Error fetching agents:', err);
       }
     };
     fetchAgents();
-  }, [status, initialAgents]);
+  }, [status, teamFilter, initialAgents]);
 
   // Fetch teams for dropdown
   useEffect(() => {
@@ -689,8 +701,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           </div>
           {hasPermission(permissions, 'orders:view') && (
             <div className="filter-select-wrapper">
-              <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
+              <label htmlFor="teamFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Team</label>
               <select
+                id="teamFilter"
                 value={teamFilter}
                 onChange={(e) => setTeamFilter(e.target.value)}
                 className="filter-select-custom"
@@ -704,8 +717,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           )}
           {hasPermission(permissions, 'orders:view') && (
             <div className="filter-select-wrapper">
-              <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Agent</label>
+              <label htmlFor="agentFilter" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Agent</label>
               <select
+                id="agentFilter"
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
                 className="filter-select-custom"
@@ -735,6 +749,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               className="filter-select-custom"
             >
               <option value="">All Backend Executives</option>
+              <option value="unassigned">Unassigned</option>
               {(() => {
                 const BACKEND_DESIGNATIONS = ['Backend Specialist', 'Backend Associate'];
                 const filtered = agents.filter(a => BACKEND_DESIGNATIONS.includes(a.designation));
@@ -843,7 +858,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           )}
           {backendExecutiveFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              BE: {agents.find(a => String(a.uid) === backendExecutiveFilter)?.nickname || agents.find(a => String(a.uid) === backendExecutiveFilter)?.name || backendExecutiveFilter}
+              BE: {backendExecutiveFilter === 'unassigned' ? 'Unassigned' : (agents.find(a => String(a.uid) === backendExecutiveFilter)?.nickname || agents.find(a => String(a.uid) === backendExecutiveFilter)?.name || backendExecutiveFilter)}
               <button 
                 onClick={() => setBackendExecutiveFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}

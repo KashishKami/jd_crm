@@ -350,5 +350,69 @@ describe('OrderListContainer Unit Tests', () => {
         expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('page=2'));
       });
     });
+
+    it('W-4301: should pass dateFrom and dateTo in API query and display Date Range active filter badge', async () => {
+      vi.mocked(useSearchParams).mockReturnValueOnce({
+        get: (key: string) => {
+          if (key === 'dateFrom') return '2026-09-01';
+          if (key === 'dateTo') return '2026-09-30';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Date Range: 2026-09-01 to 2026-09-30/)).toBeDefined();
+        const calls = (global.fetch as any).mock.calls;
+        const ordersCalls = calls.filter((c: any[]) => String(c[0]).includes('/api/orders?'));
+        const lastOrdersCall = ordersCalls[ordersCalls.length - 1];
+        expect(lastOrdersCall).toBeDefined();
+        expect(String(lastOrdersCall[0])).toContain('dateFrom=2026-09-01');
+        expect(String(lastOrdersCall[0])).toContain('dateTo=2026-09-30');
+      });
+    });
+
+    it('W-4302: should fetch scoped agents when Team is selected and reset agentFilter if agent does not match', async () => {
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Team')).toBeDefined();
+      });
+
+      // Select Team with id 10
+      const teamSelect = screen.getByLabelText('Team');
+      fireEvent.change(teamSelect, { target: { value: '10' } });
+
+      await waitFor(() => {
+        const calls = (global.fetch as any).mock.calls;
+        const scopedAgentCall = calls.find((c: any[]) => String(c[0]).includes('/api/agents?salesOnly=true&teamId=10'));
+        expect(scopedAgentCall).toBeDefined();
+      });
+    });
+
+    it('W-4303: should render "Unassigned" Backend Executive option, pass backendExecutiveId=unassigned, and show active badge', async () => {
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Backend Executive')).toBeDefined();
+      });
+
+      const beSelect = screen.getByLabelText('Backend Executive');
+      const unassignedOption = Array.from((beSelect as HTMLSelectElement).options).find(o => o.value === 'unassigned');
+      expect(unassignedOption).toBeDefined();
+      expect(unassignedOption?.textContent).toBe('Unassigned');
+
+      fireEvent.change(beSelect, { target: { value: 'unassigned' } });
+
+      await waitFor(() => {
+        expect(screen.getByText('BE: Unassigned')).toBeDefined();
+        const calls = (global.fetch as any).mock.calls;
+        const ordersCalls = calls.filter((c: any[]) => String(c[0]).includes('/api/orders?'));
+        const lastOrdersCall = ordersCalls[ordersCalls.length - 1];
+        expect(lastOrdersCall).toBeDefined();
+        expect(String(lastOrdersCall[0])).toContain('backendExecutiveId=unassigned');
+      });
+    });
   });
 

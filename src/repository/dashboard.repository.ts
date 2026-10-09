@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
+import { localDateStringToUtcNoon } from '../lib/date';
 
 export async function getSalesBetweenDates(start: Date, end: Date) {
   // Push SUM and COUNT into SQL instead of fetching all rows into Node.js
@@ -384,7 +385,7 @@ export async function getAttendanceSummary(date: Date) {
 export async function getPendingCounts(filters?: {
   agentId?: number;
   teamId?: number;
-  backendExecutiveId?: number;
+  backendExecutiveId?: number | string;
   partFoundById?: number;
   dateFrom?: string;
   dateTo?: string;
@@ -417,8 +418,10 @@ export async function getPendingCounts(filters?: {
     if (filters.teamId) {
       where.salesAgent = { teamId: filters.teamId };
     }
-    if (filters.backendExecutiveId) {
-      where.orderBackendExecutiveId = filters.backendExecutiveId;
+    if (filters.backendExecutiveId === 'unassigned') {
+      where.orderBackendExecutiveId = null;
+    } else if (filters.backendExecutiveId) {
+      where.orderBackendExecutiveId = Number(filters.backendExecutiveId);
     }
     if (filters.partFoundById) {
       where.OR = [
@@ -434,15 +437,11 @@ export async function getPendingCounts(filters?: {
     }
     if (filters.dateFrom || filters.dateTo) {
       const dateFilter: Prisma.DateTimeNullableFilter = {};
-      const { convertEstToUtc } = require('../lib/date');
       if (filters.dateFrom) {
-        dateFilter.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
+        dateFilter.gte = localDateStringToUtcNoon(filters.dateFrom);
       }
       if (filters.dateTo) {
-        const endEstUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
-        endEstUtc.setSeconds(59);
-        endEstUtc.setMilliseconds(999);
-        dateFilter.lte = endEstUtc;
+        dateFilter.lte = localDateStringToUtcNoon(filters.dateTo);
       }
       where.orderDate = dateFilter;
     }

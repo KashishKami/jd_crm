@@ -1,4 +1,5 @@
 import { prisma } from '../lib/db';
+import { convertEstToUtc } from '../lib/date';
 import {
   CallDispositionFilters,
   CallDispositionListResult,
@@ -17,8 +18,13 @@ export async function findAll(filters: CallDispositionFilters): Promise<CallDisp
   if (filters.disposition) where.disposition = filters.disposition;
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom + 'T00:00:00.000Z');
-    if (filters.dateTo)   where.createdAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
+    if (filters.dateFrom) where.createdAt.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
+    if (filters.dateTo) {
+      const endUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
+      endUtc.setSeconds(59);
+      endUtc.setMilliseconds(999);
+      where.createdAt.lte = endUtc;
+    }
   }
 
   const [dispositions, total] = await prisma.$transaction([
@@ -41,8 +47,13 @@ export async function findAll_noLimit(filters: CallDispositionFilters): Promise<
   if (filters.disposition) where.disposition = filters.disposition;
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom + 'T00:00:00.000Z');
-    if (filters.dateTo)   where.createdAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
+    if (filters.dateFrom) where.createdAt.gte = new Date(convertEstToUtc(filters.dateFrom, '00:00'));
+    if (filters.dateTo) {
+      const endUtc = new Date(convertEstToUtc(filters.dateTo, '23:59'));
+      endUtc.setSeconds(59);
+      endUtc.setMilliseconds(999);
+      where.createdAt.lte = endUtc;
+    }
   }
   return prisma.crmCallDispositions.findMany({
     where,

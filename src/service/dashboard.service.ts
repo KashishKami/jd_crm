@@ -1,5 +1,6 @@
 import { hasPermission } from './permission.service';
 import * as dashboardRepository from '../repository/dashboard.repository';
+import { localDateStringToUtcNoon } from '../lib/date';
 
 function calcPctChange(current: number, previous: number): number {
   if (previous === 0) {
@@ -444,12 +445,8 @@ export async function getAdvancedChartMetrics(
     dateTo = new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
     granularity = 'yearly';
   } else if (range === 'custom' && startDateStr && endDateStr) {
-    const { convertEstToUtc } = require('../lib/date');
-    dateFrom = new Date(convertEstToUtc(startDateStr, '00:00'));
-    const endEstUtc = new Date(convertEstToUtc(endDateStr, '23:59'));
-    endEstUtc.setSeconds(59);
-    endEstUtc.setMilliseconds(999);
-    dateTo = endEstUtc;
+    dateFrom = localDateStringToUtcNoon(startDateStr);
+    dateTo = localDateStringToUtcNoon(endDateStr);
     const diffTime = Math.abs(dateTo.getTime() - dateFrom.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays <= 31) {

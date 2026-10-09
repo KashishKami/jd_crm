@@ -73,7 +73,7 @@ export async function runBackup(): Promise<BackupResult> {
       '-P', String(creds.port),
       `-u${creds.user}`,
       `-p${creds.password}`,
-      '--ssl-mode=DISABLED',
+      '--ssl=0',
       creds.database
     ], { maxBuffer: 500 * 1024 * 1024 });
 
@@ -95,7 +95,6 @@ export async function runBackup(): Promise<BackupResult> {
         'mysqldump',
         `-u${creds.user}`,
         `-p${creds.password}`,
-        '--ssl-mode=DISABLED',
         creds.database
       ], { maxBuffer: 500 * 1024 * 1024 });
 
