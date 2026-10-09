@@ -391,12 +391,11 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
         if (res.ok) {
           const data = await res.json();
           setAgents(data);
-          if (agentFilter) {
-            const stillExists = data.some((a: any) => String(a.uid) === agentFilter);
-            if (!stillExists) {
-              setAgentFilter('');
-            }
-          }
+          setAgentFilter((prev) => {
+            if (!prev) return prev;
+            const stillExists = data.some((a: any) => String(a.uid) === prev);
+            return stillExists ? prev : '';
+          });
         }
       } catch (err) {
         console.error('Error fetching agents:', err);
