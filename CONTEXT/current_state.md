@@ -58,7 +58,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 40** | Dashboard: Pending Cases by Category Table — All-Time Pending Breakdown & Link Filter Cleanup | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/backend-team.test.ts` |
 | **Phase 41** | Follow-Ups: 3-Tier Permission Structure (`follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`) & Team-Level Server Guarding | **[x] COMPLETED** | `scripts/sql/update-followup-team-permissions.sql` (new), `seed.sql`, `src/service/followup.service.ts`, `src/middleware.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` |
 | **Phase 42** | Bug Fixes: Agent Directory Email Projection & Sales-Only Backend Scoping for Filters (`/api/agents`) | **[x] COMPLETED** | `src/app/agents/page.tsx`, `src/repository/agent.repository.ts`, `src/service/agent.service.ts`, `src/app/api/agents/route.ts`, `src/components/FollowUpListContainer.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/tests/agents.test.ts`, `src/tests/agent.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx`, `src/tests/CallDispositionList.test.tsx` |
-| **Phase 43** | Date Filter Boundary Fix, Dynamic Team-to-Agent Dropdown Scoping & "Unassigned" Backend Executive Filter | **[ ] IN PROGRESS** | `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/repository/callDisposition.repository.ts`, `src/components/OrderListContainer.tsx`, `src/types/order.ts`, `src/tests/orders.test.ts`, `src/tests/OrderListContainer.test.tsx`, `src/tests/dashboard.test.ts`, `src/tests/callDispositions.test.ts` |
+| **Phase 43** | Date Filter Boundary Fix, Dynamic Team-to-Agent Dropdown Scoping & "Unassigned" Backend Executive Filter | **[x] COMPLETED** | `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/repository/callDisposition.repository.ts`, `src/components/OrderListContainer.tsx`, `src/types/order.ts`, `src/tests/orders.test.ts`, `src/tests/OrderListContainer.test.tsx`, `src/tests/dashboard.test.ts`, `src/tests/callDispositions.test.ts` |
+| **Phase 44** | Reports Module: Agent Sales Aggregates Matrix, Dynamic Scoped Multi-Select Filters & 2-Tier Styled Excel Exporter | **[x] COMPLETED** | `src/repository/report.repository.ts`, `src/service/report.service.ts`, `src/types/report.ts`, `src/app/api/reports/agent-sales/route.ts`, `src/app/api/reports/agent-sales/export/route.ts`, `src/components/reports/MultiSelectDropdown.tsx`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/AgentSalesReportTable.tsx`, `src/lib/agent-sales-excel-exporter.ts`, `src/app/reports/page.tsx`, `src/components/reports/ReportsContainer.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/middleware.ts` |
 ---
 
 
@@ -11067,4 +11068,216 @@ Supervisors and QA verifiers need to identify orders in the pipeline that have n
     * **Verification & Testing:**
         * **Automated Tests:** All 75 test suites (557 tests) passed **100% GREEN**.
         * **TypeScript Check:** `npx tsc --noEmit` passed with **0 errors**.
+
+---
+
+### Phase 44 — Reports Module: Agent Sales Aggregates Matrix, Dynamic Scoped Multi-Select Filters & 2-Tier Styled Excel Exporter
+
+#### W-4401 — Backend Aggregates Engine & Dynamic Period Breakdown Repository & Service
+
+**Root cause / Goal:**
+Supervisors and financial managers need to evaluate agent-level performance across customizable time buckets (e.g., all 12 months for "monthly", 7 days for "this-week", or arbitrary custom date boundaries). Loading thousands of individual order rows into Node.js memory causes high latency and memory pressure. A single, optimized SQL aggregation query grouped by agent, time bucket, and sale status is required to return Sales Amount/Count, Refunds Amount/Count, Chargebacks Amount/Count, and Net Sales Amount/Count across multiple selected teams and agents.
+
+**Fix / Approach:**
+1. Create `src/repository/report.repository.ts` with method `getAgentSalesAggregates(filters)` executing a `$queryRaw` aggregation grouped by `o.order_sales_agent_id`, `time_bucket`, and `o.sale_status`.
+2. Support multi-select arrays for `teamIds?: number[]` and `agentIds?: number[]`, alongside date boundary presets (`today`, `yesterday`, `this-week`, `last-week`, `monthly`, `yearly`, `custom`).
+3. Create `src/service/report.service.ts` to transform the flat grouped database rows into a structured matrix of periods with computed Net Sales (`Sales - Refunds - Chargebacks`), gross volume, refund rates, and grand totals.
+
+---
+
+- [x] **RED — Integration (`src/tests/reports.repository.test.ts` & `src/tests/reports.service.test.ts`):**
+  - [x] Test in `src/tests/reports.repository.test.ts`: Seed 3 agents with Sold (`saleStatus = '1'`), Refunded (`saleStatus = '2'`), and Chargebacked (`saleStatus = '3'`) orders across January, February, and March 2026. Query with `range = 'monthly'` and `teamIds = [1, 2]`. Assert raw grouped buckets return exact sums and order counts for each agent per month.
+  - [x] Test in `src/tests/reports.service.test.ts`: Call `reportService.getAgentSalesMatrix({ range: 'monthly', teamIds: [1], agentIds: [10, 11] })`. Assert response returns an array of agents where each agent object contains `periods: Record<string, { salesAmount: number, salesCount: number, refundsAmount: number, refundsCount: number, chargebacksAmount: number, chargebacksCount: number, netSales: number, netSalesCount: number }>` and a `grandTotal` object matching exact mathematical sums.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository → Service → Types):**
+  - [x] [Types] In `src/types/report.ts`, define `AgentSalesFilterParams`, `PeriodMetrics`, `AgentSalesRowData`, `ReportMatrixResponse`, and `MetricViewType` (`'all' | 'net' | 'sales' | 'refunds' | 'chargebacks'`).
+  - [x] [Repository] In `src/repository/report.repository.ts`, implement `getAgentSalesAggregates(filters)` using SQL `CASE` statements and `DATE_FORMAT` / `STR_TO_DATE` with calendar UTC noon date boundaries (`toUtcNoonDate`).
+  - [x] [Service] In `src/service/report.service.ts`, implement `getAgentSalesMatrix(filters)` to map repository results into full period arrays (ensuring months with $0/0 counts are filled with 0s).
+  - [x] Run integration tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Database contains orders across 12 months → `reportService.getAgentSalesMatrix()` is invoked with `range: 'monthly'` → Service outputs 12 complete monthly buckets per agent with exact Sales, Refunds, Chargebacks, and Net Sales calculations without missing empty months → ✅ Done.
+
+---
+
+#### W-4402 — Reports API Controller & Dynamic Scoped Multi-Select Agent/Team Filter Endpoints
+
+**Root cause / Goal:**
+The frontend needs secure, authorized REST endpoints to fetch aggregated matrix datasets and populated filter options (centers, designations, and dynamically scoped active/inactive agents) with support for comma-separated multi-select query params.
+
+**Fix / Approach:**
+1. Create `src/app/api/reports/agent-sales/route.ts` handling `GET` requests.
+2. Validate NextAuth session and enforce `dashboard:view-advanced-chart`, `orders:view`, or `super-admin` permission check.
+3. Parse multi-value query params: `teamId=1,2,3`, `agentId=10,12,15`, `range=monthly`, `startDate=YYYY-MM-DD`, `endDate=YYYY-MM-DD`.
+4. Create `src/app/api/reports/filters/route.ts` (or extend `/api/agents`) returning only agents with the 7 chart designations (`Sales Supervisor`, `Sales Team Lead`, `Sales Specialist`, `Sales Expert`, `Sales Associate`, `Backend Specialist`, `Backend Associate`) categorized by active (`status: 1`) and inactive (`status: 0`), dynamically filterable by `teamIds`.
+
+---
+
+- [x] **RED — Integration (`src/tests/reports.api.test.ts`):**
+  - [x] Test: `GET /api/reports/agent-sales` without authentication returns `401 Unauthorized`.
+  - [x] Test: `GET /api/reports/agent-sales?range=monthly&teamId=1,2&agentId=10,11` with authenticated session returns `200 OK` with `success: true`, `data: { periods: string[], agents: [...], summary: {...} }`.
+  - [x] Test: `GET /api/reports/agent-sales?range=custom&startDate=2026-01-01&endDate=2026-01-15` returns exact 15-day daily buckets.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Controller / API Routes):**
+  - [x] [Controller] In `src/app/api/reports/agent-sales/route.ts`, extract query params, validate user session, call `reportService.getAgentSalesMatrix()`, and return serialized JSON.
+  - [x] [Controller] Ensure 400 Bad Request is returned if `range === 'custom'` but `startDate` or `endDate` are missing or malformed.
+  - [x] Run integration tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Client requests `GET /api/reports/agent-sales?range=monthly&teamId=1` → Controller verifies permissions → Returns 200 OK with formatted agent matrix JSON → Unauthorized user receives 401/403 → ✅ Done.
+
+---
+
+#### W-4403 — Multi-Select Filter Bar & Scoped Agents Dropdown Component
+
+**Root cause / Goal:**
+The user must be able to filter by one, multiple, or all Centers (Teams) and Agents simultaneously. When Centers are selected or deselected, the Agent multi-select dropdown must dynamically scope itself to show only sales agents belonging to those centers, display active/inactive badges, and auto-deselect agents that no longer belong to the selected centers. Additionally, users need preset range buttons and the **Approach C Metric View Switcher** (`All 4 Metrics`, `Net Sales Only`, `Gross Sales`, `Refunds`, `Chargebacks`).
+
+**Fix / Approach:**
+1. Create `src/components/reports/MultiSelectDropdown.tsx` with search filter, "Select All", "Clear All", and individual checkbox items.
+2. Create `src/components/reports/ReportFilterBar.tsx` integrating Center Multi-Select, Scoped Agent Multi-Select, Range Selector, Custom Date Pickers, and the Metric View Switcher pill tabs.
+3. Label agents with `"Nickname" Real Name (Designation) [Active/Inactive]`.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/ReportFilterBar.test.tsx`):**
+  - [x] Test: Center dropdown renders all available teams. Clicking "Select All" selects all teams; unchecking a team updates the selection badge.
+  - [x] Test: When Team A is selected, Agent dropdown displays only agents with `teamId === Team A` possessing the 7 sales designations. Agents with `status === 0` display `[Inactive]` badge.
+  - [x] Test: Deselecting Team A automatically removes any Team A agents from the active `selectedAgentIds` array.
+  - [x] Test: Clicking Metric Switcher pills (`[Net Sales Only]`, `[All 4 Metrics]`, `[Refunds]`) triggers `onMetricViewChange` callback with the corresponding key.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Components & State):**
+  - [x] [Component] Implement `src/components/reports/MultiSelectDropdown.tsx` with outside-click dismiss, badge counts, and search filtering.
+  - [x] [Component] Implement `src/components/reports/ReportFilterBar.tsx` managing synchronized filter state and dynamic agent scoping.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User opens Center dropdown → selects "IT Park" → Agent dropdown immediately filters to only IT Park sales agents → User checks "John Doe" and "Jane Smith" → User clicks "Net Sales Only" pill → Active filter triggers parent re-fetch with new parameters → ✅ Done.
+
+---
+
+#### W-4404 — Agent Sales Aggregates Matrix Table & Drill-Down Navigation
+
+**Root cause / Goal:**
+Managers need to see the period-by-period matrix on screen with sticky frozen entity and grand total columns, color-coded metrics (Blue for Sales, Red for Refunds, Orange for Chargebacks, Green for Net Sales), and instant click-through navigation to `/orders` pre-filtering by agent, date range, and sale status. When returning via the browser Back button, filter selections and scroll position must be deterministically restored via `sessionStorage`.
+
+**Fix / Approach:**
+1. Create `src/components/reports/AgentSalesReportTable.tsx` rendering:
+   - Sticky frozen Left Column: Agent Name, Nickname, Center, Designation, Status.
+   - Sticky frozen Range Summary Column: Overall Net Sales, Gross Sales, Refunds, and Chargebacks.
+   - Horizontally scrollable Period Columns: Grouped by Month/Period with sub-columns according to active `metricView`.
+   - Grand Total Summary Row at the bottom with combined column totals.
+2. Every dollar amount and count cell renders as a clickable `<Link>` or drilldown button navigating to `/orders` with query params: `agentId`, `teamId`, `dateFrom`, `dateTo`, `saleStatus`.
+3. Integrate `src/lib/urlStateHelper.ts` to cache and restore active filter state and table scroll position.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/AgentSalesReportTable.test.tsx`):**
+  - [x] Test: When `metricView === 'all'`, table renders 4 sub-columns (`Sales`, `Refunds`, `Chargebacks`, `Net Sales`) with amount and count for each period.
+  - [x] Test: When `metricView === 'net'`, table collapses to render only `Net Sales ($ / #)` per period column.
+  - [x] Test: Clicking on John Doe's Jan 2026 Net Sales cell navigates to `/orders?agentId=10&dateFrom=2026-01-01&dateTo=2026-01-31&saleStatus=1,4`.
+  - [x] Test: Clicking on John Doe's Jan 2026 Refunds cell navigates to `/orders?agentId=10&dateFrom=2026-01-01&dateTo=2026-01-31&saleStatus=2`.
+  - [x] Test: Filter state and scroll offset are preserved in `sessionStorage` upon navigation.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component & Styling):**
+  - [x] [Component] Implement `src/components/reports/AgentSalesReportTable.tsx` with sticky CSS positioning (`position: sticky`, `left: 0`, `z-index: 10`).
+  - [x] [Styling] Add `.report-matrix-table`, `.sticky-col-entity`, `.sticky-col-total`, and metric color badges (`.metric-net`, `.metric-sales`, `.metric-refunds`, `.metric-chargebacks`) in `src/app/components.css`.
+  - [x] [State] Connect `urlStateHelper` to save filter parameters into session storage.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User views matrix on screen → Scrolls horizontally across 12 months while Agent Name stays pinned on the left → Clicks "$14,000 (9 sales)" in Jan 2026 Net Sales column → Navigates directly to Orders page showing those exact 9 orders → Presses browser Back button → Returns to the Report table with all filters and scroll position intact → ✅ Done.
+
+---
+
+#### W-4405 — 2-Tier Formatted Excel Exporter (`exceljs`) with Auto-Freeze Panes & Live Formulas
+
+**Root cause / Goal:**
+When financial users export the report to Excel, they need to perform arithmetic, run `=SUM()` / `=AVERAGE()` formulas, sort agents, and build pivot tables. Combined string text (e.g. `"$14,000 (9)"`) in a single cell breaks Excel math. The Excel file must feature a 2-tier header (Month row merged across 8 sub-columns on top, Metric sub-headers below), separate numeric `$ Amount` and `# Count` columns, automatic row/column freezing, theme color-coding matching the CRM, live `=SUM()` formula rows, and 100% synchronization with all applied UI filters.
+
+**Fix / Approach:**
+1. Create `src/lib/agent-sales-excel-exporter.ts` using `exceljs`.
+2. Generate 2-tier headers:
+   - Row 1: Merged Month Headers (`JANUARY 2026`, `FEBRUARY 2026`, ...) with dark navy styling (`#1E293B`).
+   - Row 2: Sub-headers (`Net Sales ($)`, `Net (Qty)`, `Sales ($)`, `Sales (Qty)`, `Refunds ($)`, `Refunds (Qty)`, `CB ($)`, `CB (Qty)`).
+3. If `metricView === 'net'`, dynamically shrink to 2 columns per month (`Net Sales ($)`, `Net (Qty)`).
+4. Set cell number formats (`numFmt = '$#,##0.00'` for currency, `numFmt = '#,##0'` for counts).
+5. Set worksheet freeze panes: `xSplit: 3, ySplit: 2` (freezes Agent Name, Nickname, Center, and top 2 headers).
+6. Create `src/app/api/reports/agent-sales/export/route.ts` streaming the generated `.xlsx` buffer with appropriate `Content-Disposition: attachment; filename="Agent_Sales_Report_...xlsx"`.
+
+---
+
+- [x] **RED — Integration (`src/tests/agentSalesExcelExporter.test.ts`):**
+  - [x] Test: Call `generateAgentSalesWorkbook(mockData, { metricView: 'all' })`. Inspect the generated ExcelJS workbook:
+    - Row 1 has merged cells over each month's 8 sub-columns with fill color `#1E293B`.
+    - Row 2 sub-headers have separated Amount and Count labels.
+    - Data cells contain raw `number` types (not formatted strings) with currency and integer number formats.
+    - Total summary row at the bottom contains valid Excel `=SUM(...)` formula strings.
+    - Worksheet views contain `{ state: 'frozen', xSplit: 3, ySplit: 2 }`.
+  - [x] Test: `GET /api/reports/agent-sales/export?range=monthly&teamId=1` returns `200 OK`, `content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, and non-empty binary payload.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Lib → Export Route):**
+  - [x] [Lib] Implement `src/lib/agent-sales-excel-exporter.ts` with complete ExcelJS styling, borders, colors, freeze panes, and `=SUM()` formulas.
+  - [x] [Route] Implement `src/app/api/reports/agent-sales/export/route.ts` parsing filters, fetching data via `reportService`, generating workbook buffer, and returning binary response stream.
+  - [x] Run integration tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User selects "IT Park", checks 4 agents, chooses "Monthly", and clicks "Export XLS" → Browser downloads `.xlsx` file → User opens in Microsoft Excel → Top 2 header rows and left 3 columns are automatically frozen → Month 1 has 8 clearly formatted currency and count columns → User changes an agent's number in Excel and the bottom `=SUM()` total automatically recalculates → ✅ Done.
+
+---
+
+#### W-4406 — Reports Layout, Navbar Integration & Permissions Guarding
+
+**Root cause / Goal:**
+The user needs a dedicated page route (`/reports`), sub-navigation tabs matching the Orders workflow queue styling (`.tab-group` / `.tab-btn`) with the active `Agent Report` tab, top Navbar and mobile Sidebar navigation links, and server-side RBAC protection via NextAuth and middleware.
+
+**Fix / Approach:**
+1. Create `src/app/reports/page.tsx` and `src/components/reports/ReportsContainer.tsx`.
+2. Render the sub-navigation tab bar with `Agent Report` active, styled identically to `.tab-group` in `OrderListContainer.tsx`.
+3. Add "Reports" navigation pill link in `src/components/Navbar.tsx` and `src/components/Sidebar.tsx` guarded by permission `dashboard:view-advanced-chart`, `orders:view`, or `super-admin`.
+4. Update `src/middleware.ts` to secure `/reports` routes.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/ReportsPage.test.tsx` & `src/tests/Navbar.test.tsx`):**
+  - [x] Test in `src/tests/Navbar.test.tsx`: When user has `orders:view` or `super-admin`, "Reports" tab is rendered in the top navbar linking to `/reports`.
+  - [x] Test in `src/tests/ReportsPage.test.tsx`: Navigating to `/reports` renders the page title "Reports", the sub-navigation queue tab "Agent Report" (marked active), and loads `ReportFilterBar` + `AgentSalesReportTable`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Pages, Components & Navigation):**
+  - [x] [Navbar] In `src/components/Navbar.tsx` and `src/components/Sidebar.tsx`, add the "Reports" route button.
+  - [x] [Page] Create `src/app/reports/page.tsx` and `src/components/reports/ReportsContainer.tsx`.
+  - [x] [Middleware] In `src/middleware.ts`, add `/reports` to protected route matcher.
+  - [x] Run unit tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Authenticated user logs in → Clicks "Reports" in top navbar → Browser loads `/reports` → User sees "Agent Report" active queue tab with full multi-select filters, interactive matrix table, and export button → Unauthorized users are redirected to `/access-denied` → ✅ Done.
+
+---
+
+### Session Note — Phase 44: Reports Module (Agent Sales Performance Aggregates, Multi-Select Filters & 2-Tier Styled Excel Exporter)
+
+- **Completed Deliverables:**
+  1. **Data Layer & Aggregation Services**:
+     - `src/repository/report.repository.ts`: SQL aggregate query with `Prisma.raw()` grouping to comply with MySQL `only_full_group_by`.
+     - `src/service/report.service.ts`: Period bucketing (`today`, `yesterday`, `this_week`, `last_week`, `monthly`, `yearly`, `custom`), computing Net Sales (`Sold + Partial Refund`), Gross Sales, Refunds, and Chargebacks with agent & org grand totals.
+     - `src/types/report.ts`: Full type contracts.
+  2. **API Endpoints**:
+     - `GET /api/reports/filters`: Returns scoped centers & sales agents.
+     - `GET /api/reports/agent-sales`: Secured aggregate JSON endpoint with multi-center/agent/date filtering.
+     - `GET /api/reports/agent-sales/export`: ExcelJS 2-Tier workbook builder (`Option B`: separated `$ Amount` and `# Count` columns with live `=SUM()` formula row and freeze panes).
+  3. **Web UI Components & Styling**:
+     - `src/components/reports/ReportsContainer.tsx`: Standard page container with tab header and session storage persistence.
+     - `src/components/reports/ReportFilterBar.tsx` & `MultiSelectDropdown.tsx`: Light-theme multi-select dropdowns for Centers & Agents, range selector, and metric view switcher.
+     - `src/components/reports/AgentSalesReportTable.tsx`: Single-column-per-period matrix layout with monospace key-value formatting (`Net:`, `Sold:`, `Refund:`, `CB:`), top aggregate `TOTAL` summary row, drilldown links to `/orders`, and standard 10-item pagination.
+     - `src/app/components.css`: Clean light table styling (`#f8fafc` / `#f1f5f9`) matching CRM design standards.
+  4. **Test Coverage**:
+     - Comprehensive unit and integration test suites covering repositories, services, API endpoints, Excel exporter, filter bars, table components, and page routing.
+
+
 

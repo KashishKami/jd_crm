@@ -1,0 +1,207 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import ExcelJS from 'exceljs';
+import { getServerSession } from 'next-auth';
+import { generateAgentSalesWorkbook } from '../lib/agent-sales-excel-exporter';
+import { ReportMatrixResponse } from '../types/report';
+import * as reportService from '../service/report.service';
+
+vi.mock('next-auth', () => ({
+  default: vi.fn(),
+  getServerSession: vi.fn(),
+}));
+
+vi.mock('../service/report.service', () => ({
+  getAgentSalesMatrix: vi.fn(),
+}));
+
+const mockMatrixData: ReportMatrixResponse = {
+  periods: [
+    { key: '2026-01', label: 'Jan 2026', startDate: '2026-01-01', endDate: '2026-01-31' },
+    { key: '2026-02', label: 'Feb 2026', startDate: '2026-02-01', endDate: '2026-02-28' },
+  ],
+  globalStartDate: '2026-01-01',
+  globalEndDate: '2026-02-28',
+  rangeLabel: 'Jan - Feb 2026',
+  agents: [
+    {
+      agentId: 101,
+      agentName: 'John Doe',
+      nickname: 'Johnny',
+      teamId: 1,
+      teamName: 'IT Park',
+      designation: 'Sales Specialist',
+      status: 1,
+      periods: {
+        '2026-01': {
+          salesAmount: 15000,
+          salesCount: 10,
+          refundsAmount: 1000,
+          refundsCount: 1,
+          chargebacksAmount: 0,
+          chargebacksCount: 0,
+          netSales: 14000,
+          netSalesCount: 9,
+        },
+        '2026-02': {
+          salesAmount: 20000,
+          salesCount: 12,
+          refundsAmount: 0,
+          refundsCount: 0,
+          chargebacksAmount: 500,
+          chargebacksCount: 1,
+          netSales: 19500,
+          netSalesCount: 11,
+        },
+      },
+      grandTotal: {
+        salesAmount: 35000,
+        salesCount: 22,
+        refundsAmount: 1000,
+        refundsCount: 1,
+        chargebacksAmount: 500,
+        chargebacksCount: 1,
+        netSales: 33500,
+        netSalesCount: 20,
+      },
+    },
+  ],
+  orgTotal: {
+    periods: {
+      '2026-01': {
+        salesAmount: 15000,
+        salesCount: 10,
+        refundsAmount: 1000,
+        refundsCount: 1,
+        chargebacksAmount: 0,
+        chargebacksCount: 0,
+        netSales: 14000,
+        netSalesCount: 9,
+      },
+      '2026-02': {
+        salesAmount: 20000,
+        salesCount: 12,
+        refundsAmount: 0,
+        refundsCount: 0,
+        chargebacksAmount: 500,
+        chargebacksCount: 1,
+        netSales: 19500,
+        netSalesCount: 11,
+      },
+    },
+    grandTotal: {
+      salesAmount: 35000,
+      salesCount: 22,
+      refundsAmount: 1000,
+      refundsCount: 1,
+      chargebacksAmount: 500,
+      chargebacksCount: 1,
+      netSales: 33500,
+      netSalesCount: 20,
+    },
+  },
+};
+
+describe('W-4405: Agent Sales 2-Tier Excel Exporter & Route', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('generateAgentSalesWorkbook', () => {
+    it('generates a valid 2-tier formatted Excel workbook with formulas, freeze panes and numFmt when metricView="all"', async () => {
+      const buffer = await generateAgentSalesWorkbook(mockMatrixData, { metricView: 'all' });
+      expect(buffer).toBeDefined();
+      expect(buffer.length).toBeGreaterThan(0);
+
+      // Load into ExcelJS to inspect internal properties
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer as any);
+
+      const ws = wb.getWorksheet('Agent Sales Report');
+      expect(ws).toBeDefined();
+
+      // Check freeze panes: xSplit 5, ySplit 2
+      expect(ws!.views).toBeDefined();
+      expect(ws!.views[0].state).toBe('frozen');
+      expect((ws!.views[0] as any).ySplit).toBe(2);
+
+      // Row 1 Period Headers
+      const row1 = ws!.getRow(1);
+      expect(row1.getCell(1).value).toBe('AGENT DETAILS');
+
+      // Row 2 Sub-headers
+      const row2 = ws!.getRow(2);
+      expect(row2.getCell(1).value).toBe('Alias');
+      expect(row2.getCell(2).value).toBe('Agent Name');
+      expect(row2.getCell(3).value).toBe('Center');
+      expect(row2.getCell(4).value).toBe('Designation');
+      expect(row2.getCell(5).value).toBe('Status');
+
+      // Check agent data row (Row 3)
+      const row3 = ws!.getRow(3);
+      expect(row3.getCell(1).value).toBe('Johnny');
+      expect(row3.getCell(2).value).toBe('John Doe');
+      expect(row3.getCell(3).value).toBe('IT Park');
+      // Numeric values (not strings!) - Col 6 is Sales, Col 12 is Net
+      const salesGrandTotalCell = row3.getCell(6);
+      expect(typeof salesGrandTotalCell.value).toBe('number');
+      expect(salesGrandTotalCell.value).toBe(35000);
+      expect(salesGrandTotalCell.numFmt).toBe('$#,##0.00');
+
+      const netGrandTotalCell = row3.getCell(12);
+      expect(typeof netGrandTotalCell.value).toBe('number');
+      expect(netGrandTotalCell.value).toBe(33500);
+      expect(netGrandTotalCell.numFmt).toBe('$#,##0.00');
+
+      // Check total summary row (Row 4) has SUM formulas
+      const row4 = ws!.getRow(4);
+      expect(row4.getCell(1).value).toBe('TOTAL');
+      const formulaCell = row4.getCell(6);
+      expect(formulaCell.value).toHaveProperty('formula');
+      expect((formulaCell.value as any).formula).toBe('SUM(F3:F3)');
+    });
+
+    it('generates 2 sub-columns per period when metricView="net"', async () => {
+      const buffer = await generateAgentSalesWorkbook(mockMatrixData, { metricView: 'net' });
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer as any);
+      const ws = wb.getWorksheet('Agent Sales Report');
+
+      // Total columns: 5 (entity) + 2 (grand total) + 2 (Jan) + 2 (Feb) = 11 columns
+      expect(ws!.columnCount).toBe(11);
+    });
+  });
+
+  describe('GET /api/reports/agent-sales/export', () => {
+    it('returns 401 if unauthenticated', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce(null);
+
+      const { GET } = await import('../app/api/reports/agent-sales/export/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales/export');
+      const res = await GET(req);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 200 OK with excel binary buffer and proper Content-Disposition', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 1, userPermissions: ['orders:view'] },
+      } as any);
+
+      vi.mocked(reportService.getAgentSalesMatrix).mockResolvedValueOnce(mockMatrixData);
+
+      const { GET } = await import('../app/api/reports/agent-sales/export/route');
+      const req = new Request(
+        'http://localhost:3080/api/reports/agent-sales/export?range=monthly&teamId=1&metricView=all'
+      );
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      expect(res.headers.get('Content-Disposition')).toContain('attachment; filename=');
+      const blob = await res.arrayBuffer();
+      expect(blob.byteLength).toBeGreaterThan(0);
+    });
+  });
+});

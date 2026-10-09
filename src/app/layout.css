@@ -598,7 +598,7 @@ html, .app-container {
   margin: 0 20px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1400px) {
   .navbar-aligned-content {
     position: absolute;
     left: 0;
@@ -612,12 +612,6 @@ html, .app-container {
   }
   .navbar-aligned-content > * {
     pointer-events: auto;
-  }
-}
-
-@media (min-width: 1440px) {
-  .navbar-aligned-content {
-    padding: 0 10%;
   }
 }
 
@@ -992,7 +986,7 @@ html, .app-container {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1399px) {
   .hamburger-btn {
     display: flex;
     order: 1;
@@ -1013,8 +1007,11 @@ html, .app-container {
     order: 4;
   }
   .navbar-aligned-content {
-    display: none !important; /* Hide navigation pills completely on mobile */
+    display: none !important; /* Hide navigation pills completely on screens < 1400px */
   }
+}
+
+@media (max-width: 768px) {
 
   /* KPI cards swipe container (1 card visible at a time) */
   .kpi-cards-swipeable {

@@ -29,6 +29,7 @@ export async function middlewareHandler(req: NextRequest) {
     '/pending/resolutions': 'orders:view-pending-resolutions',
     '/pending/returned': 'orders:view-returned',
     '/pending/cancelled': 'orders:view-cancelled',
+    '/reports': 'reports:view',
     '/settings/data-management': 'super-admin',
   };
 
@@ -46,6 +47,15 @@ export async function middlewareHandler(req: NextRequest) {
       const canView = hasPermission(userPermissions, 'orders:view');
       const canCreate = hasPermission(userPermissions, 'orders:create');
       if (!canView && !canCreate) {
+        return NextResponse.redirect(new URL('/access-denied', req.url));
+      }
+    } else if (matchedPath === '/reports') {
+      const canViewReports =
+        hasPermission(userPermissions, 'dashboard:view-advanced-chart') ||
+        hasPermission(userPermissions, 'orders:view') ||
+        hasPermission(userPermissions, 'super-admin') ||
+        token?.roleId === 1;
+      if (!canViewReports) {
         return NextResponse.redirect(new URL('/access-denied', req.url));
       }
     } else if (matchedPath === '/follow-ups') {

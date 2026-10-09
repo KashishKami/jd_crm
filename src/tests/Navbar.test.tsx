@@ -199,6 +199,21 @@ describe('Navbar Component Unit Tests', () => {
     render(<Navbar />);
     expect(screen.queryByText('Follow Ups')).toBeNull();
   });
+
+  it('should render Reports link when user has permissions', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Admin User',
+          userPermissions: 'dashboard:view-advanced-chart',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Reports')).not.toBeNull();
+  });
 });
 
 describe('Navbar W-3702 Notification Bell & Tab Tests', () => {

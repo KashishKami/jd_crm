@@ -51,6 +51,34 @@ export function formatDateTimeDDMMYYYY(dateVal: string | Date | null | undefined
   return `${day}-${month}-${year} ${hour}:${minute}`;
 }
 
+export function getEstDateUTC(d: Date = new Date()): Date {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(d);
+  const partMap: Record<string, string> = {};
+  for (const part of parts) {
+    partMap[part.type] = part.value;
+  }
+  return new Date(
+    Date.UTC(
+      parseInt(partMap.year),
+      parseInt(partMap.month) - 1,
+      parseInt(partMap.day),
+      parseInt(partMap.hour) === 24 ? 0 : parseInt(partMap.hour),
+      parseInt(partMap.minute),
+      parseInt(partMap.second)
+    )
+  );
+}
+
 export function localDateStringToUtcNoon(dateStr: string): Date {
   // Input YYYY-MM-DD: set to noon UTC to avoid MySQL timezone rollback for @db.Date columns.
   // Midnight UTC (00:00Z) maps to previous-day EST (19:00), so MySQL stores one day early.

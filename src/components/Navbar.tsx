@@ -182,6 +182,22 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 </Link>
               </li>
             )}
+
+            {(hasPermission(permissions, 'dashboard:view-advanced-chart') ||
+              hasPermission(permissions, 'orders:view') ||
+              hasPermission(permissions, 'super-admin') ||
+              (session?.user as any)?.roleId === 1) && (
+              <li className="nav-item">
+                <Link
+                  href="/reports"
+                  prefetch={false}
+                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
+                  className={`nav-pill-btn ${isActive('/reports') ? 'active' : ''}`}
+                >
+                  Reports
+                </Link>
+              </li>
+            )}
           </ul>
 
         </nav>

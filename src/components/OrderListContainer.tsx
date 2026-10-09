@@ -838,7 +838,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           {saleStatusFilter && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
               Sale Status: {
-                saleStatusFilter === '1' ? 'Sold'
+                saleStatusFilter === '1,4' ? 'Sold & Partial Refund'
+                : saleStatusFilter === '1,4,2,3' ? 'Sold, Refund, Chargeback & Partial'
+                : saleStatusFilter === '1' ? 'Sold'
                 : saleStatusFilter === '2' ? 'Refunded'
                 : saleStatusFilter === '3' ? 'Chargebacked'
                 : saleStatusFilter === '4' ? 'Partial Refund'
