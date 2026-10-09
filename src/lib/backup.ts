@@ -66,45 +66,66 @@ export async function runBackup(): Promise<BackupResult> {
   let sqlDump: Buffer | null = null;
   let errorMsg = '';
 
-  // Method 1: Try direct mysqldump (ideal inside docker container where mysql-client is installed)
-  try {
-    const res = spawnSync('mysqldump', [
-      '-h', creds.host,
-      '-P', String(creds.port),
-      `-u${creds.user}`,
-      `-p${creds.password}`,
-      '--ssl=0',
-      creds.database
-    ], { maxBuffer: 500 * 1024 * 1024 });
+  // Method 1: Try direct mysqldump (ideal inside docker container or native host where mysql-client is installed)
+  // Oracle MySQL 8 (Ubuntu CI) uses --ssl-mode=DISABLED.
+  // MariaDB dump (Alpine container) uses --ssl=0.
+  const sslOptionsToTry: string[][] = [
+    ['--ssl-mode=DISABLED'],
+    ['--ssl=0'],
+    []
+  ];
 
-    if (res.status === 0 && res.stdout && res.stdout.length > 0) {
-      sqlDump = res.stdout;
-    } else {
-      errorMsg = res.stderr?.toString() || 'mysqldump exited with non-zero status';
-    }
-  } catch (err: any) {
-    errorMsg = err.message || String(err);
-  }
-
-  // Method 2: Fallback to docker exec if direct mysqldump failed (common on Windows developer hosts)
-  if (!sqlDump) {
+  for (const sslFlags of sslOptionsToTry) {
     try {
-      const res = spawnSync('docker', [
-        'exec',
-        containerName,
-        'mysqldump',
+      const res = spawnSync('mysqldump', [
+        '-h', creds.host,
+        '-P', String(creds.port),
         `-u${creds.user}`,
         `-p${creds.password}`,
+        ...sslFlags,
         creds.database
       ], { maxBuffer: 500 * 1024 * 1024 });
 
       if (res.status === 0 && res.stdout && res.stdout.length > 0) {
         sqlDump = res.stdout;
+        break;
       } else {
-        errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${res.stderr?.toString() || 'Unknown docker error'}`;
+        errorMsg = res.stderr?.toString() || 'mysqldump exited with non-zero status';
       }
     } catch (err: any) {
-      errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${err.message || String(err)}`;
+      errorMsg = err.message || String(err);
+    }
+  }
+
+  // Method 2: Fallback to docker exec if direct mysqldump failed (common on Windows developer hosts)
+  if (!sqlDump) {
+    const dockerSslOptionsToTry: string[][] = [
+      ['--ssl-mode=DISABLED'],
+      ['--ssl=0'],
+      []
+    ];
+
+    for (const sslFlags of dockerSslOptionsToTry) {
+      try {
+        const res = spawnSync('docker', [
+          'exec',
+          containerName,
+          'mysqldump',
+          `-u${creds.user}`,
+          `-p${creds.password}`,
+          ...sslFlags,
+          creds.database
+        ], { maxBuffer: 500 * 1024 * 1024 });
+
+        if (res.status === 0 && res.stdout && res.stdout.length > 0) {
+          sqlDump = res.stdout;
+          break;
+        } else {
+          errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${res.stderr?.toString() || 'Unknown docker error'}`;
+        }
+      } catch (err: any) {
+        errorMsg = `Direct mysqldump failed (${errorMsg}), and Docker exec fallback failed: ${err.message || String(err)}`;
+      }
     }
   }
 
