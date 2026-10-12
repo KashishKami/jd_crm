@@ -15,12 +15,14 @@ export async function GET(request: Request) {
 
   const permissions = (session.user as any).userPermissions;
   const sessionUser = session.user as any;
-  const canViewAgentSales =
+  const canViewAll =
     hasPermission(permissions, 'reports:agent-sales') ||
     hasPermission(permissions, 'super-admin') ||
     sessionUser?.roleId === 1;
 
-  if (!canViewAgentSales) {
+  const canViewTeam = hasPermission(permissions, 'reports:agent-sales-team');
+
+  if (!canViewAll && !canViewTeam) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -33,6 +35,8 @@ export async function GET(request: Request) {
   const yearParam = searchParams.get('year');
   const monthParam = searchParams.get('month');
   const granularity = searchParams.get('granularity') as AgentSalesFilterParams['granularity'] || undefined;
+  const sortBy = (searchParams.get('sortBy') || undefined) as AgentSalesFilterParams['sortBy'];
+  const sortOrder = (searchParams.get('sortOrder') || undefined) as AgentSalesFilterParams['sortOrder'];
 
   const year = yearParam ? parseInt(yearParam, 10) : undefined;
   const month = monthParam ? parseInt(monthParam, 10) : undefined;
@@ -44,12 +48,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const teamIds = teamIdParam
+  let teamIds = teamIdParam
     ? teamIdParam
         .split(',')
         .map((s) => Number(s.trim()))
         .filter((n) => !isNaN(n))
     : undefined;
+
+  // Strict team enforcement: users with only team-scoped permission are locked to their own team
+  if (!canViewAll && canViewTeam) {
+    teamIds = sessionUser?.teamId ? [Number(sessionUser.teamId)] : [];
+  }
 
   const agentIds = agentIdParam
     ? agentIdParam
@@ -68,6 +77,8 @@ export async function GET(request: Request) {
       year: year && !isNaN(year) ? year : undefined,
       month: month && !isNaN(month) ? month : undefined,
       granularity,
+      sortBy,
+      sortOrder,
     });
 
     return NextResponse.json({

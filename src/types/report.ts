@@ -3,6 +3,9 @@ export type MetricViewType = 'all' | 'net' | 'sales' | 'refunds' | 'chargebacks'
 
 export type GranularityType = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'summary';
 
+export type ReportSortField = 'net' | 'sales' | 'refunds' | 'chargebacks' | 'name';
+export type ReportSortOrder = 'asc' | 'desc';
+
 export interface AgentSalesFilterParams {
   range?: string; // 'today' | 'yesterday' | 'this-week' | 'last-week' | 'monthly' | 'yearly' | 'all-time' | 'custom'
   startDate?: string;
@@ -13,6 +16,8 @@ export interface AgentSalesFilterParams {
   year?: number;
   month?: number; // 1 - 12
   granularity?: GranularityType;
+  sortBy?: ReportSortField;
+  sortOrder?: ReportSortOrder;
 }
 
 export interface PeriodMetrics {

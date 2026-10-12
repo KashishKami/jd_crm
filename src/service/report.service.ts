@@ -253,9 +253,6 @@ export async function getAgentSalesMatrix(
           endDate: `${selYear}-${mStr}-${String(lastDay).padStart(2, '0')}`,
         });
       }
-    } else if (selGranularity === 'weekly') {
-      repoGranularity = 'daily';
-      periods.push(...generateCalendarWeeks(dateFrom, dateTo));
     } else {
       repoGranularity = 'daily';
       periods.push({
@@ -471,6 +468,48 @@ export async function getAgentSalesMatrix(
     }
     agentsResult.push(agentRow);
   }
+
+  // 6. Sort agents based on sortBy and sortOrder parameters
+  const sortBy = filters.sortBy || 'net';
+  const sortOrder = filters.sortOrder || (sortBy === 'name' ? 'asc' : 'desc');
+
+  agentsResult.sort((a, b) => {
+    if (sortBy === 'name') {
+      const nameA = (a.nickname || a.agentName || '').toLowerCase();
+      const nameB = (b.nickname || b.agentName || '').toLowerCase();
+      const cmp = nameA.localeCompare(nameB);
+      return sortOrder === 'asc' ? cmp : -cmp;
+    }
+
+    let valA = 0;
+    let valB = 0;
+    if (sortBy === 'sales') {
+      valA = a.grandTotal.salesAmount;
+      valB = b.grandTotal.salesAmount;
+    } else if (sortBy === 'refunds') {
+      valA = a.grandTotal.refundsAmount;
+      valB = b.grandTotal.refundsAmount;
+    } else if (sortBy === 'chargebacks') {
+      valA = a.grandTotal.chargebacksAmount;
+      valB = b.grandTotal.chargebacksAmount;
+    } else {
+      // Default 'net'
+      valA = a.grandTotal.netSales;
+      valB = b.grandTotal.netSales;
+    }
+
+    if (valA !== valB) {
+      return sortOrder === 'asc' ? valA - valB : valB - valA;
+    }
+
+    // Tie-breaker: active status first, then alphabetical by name
+    if (a.status !== b.status) {
+      return b.status - a.status;
+    }
+    const nameA = (a.nickname || a.agentName || '').toLowerCase();
+    const nameB = (b.nickname || b.agentName || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
 
   return {
     periods,

@@ -214,5 +214,63 @@ describe('Reports API Controller Integration Tests (W-4402)', () => {
       expect(json.agents[1].status).toBe(0);
       expect(reportRepository.getReportAgentsList).toHaveBeenCalledWith([1], undefined, undefined);
     });
+
+    it('enforces own teamId and hides teams list when user only has reports:agent-sales-team', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 42, teamId: 2, userPermissions: 'reports:agent-sales-team' },
+      } as any);
+
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValueOnce([]);
+
+      const { GET } = await import('../app/api/reports/filters/route');
+      const req = new Request('http://localhost:3080/api/reports/filters?teamId=1'); // Attempted bypass
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.teams).toEqual([]); // Teams dropdown hidden
+      expect(reportRepository.getReportAgentsList).toHaveBeenCalledWith([2], undefined, undefined); // Forced to own team 2
+    });
+  });
+
+  describe('GET /api/reports/agent-sales team-scoped permission & sorting', () => {
+    it('allows access and locks teamIds to sessionUser.teamId for reports:agent-sales-team user', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 42, teamId: 3, userPermissions: 'reports:agent-sales-team' },
+      } as any);
+
+      vi.mocked(reportService.getAgentSalesMatrix).mockResolvedValueOnce({} as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales?teamId=1,2'); // Attempt to query other teams
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(reportService.getAgentSalesMatrix).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teamIds: [3], // Forced to sessionUser.teamId
+        })
+      );
+    });
+
+    it('forwards sortBy and sortOrder parameters to getAgentSalesMatrix', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 1, userPermissions: 'reports:agent-sales' },
+      } as any);
+
+      vi.mocked(reportService.getAgentSalesMatrix).mockResolvedValueOnce({} as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales?sortBy=net&sortOrder=asc');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(reportService.getAgentSalesMatrix).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sortBy: 'net',
+          sortOrder: 'asc',
+        })
+      );
+    });
   });
 });

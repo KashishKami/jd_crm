@@ -343,4 +343,80 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
 
     expect(screen.getByRole('button', { name: /export xls/i })).toBeDefined();
   });
+
+  it('hides Center dropdown when showTeamFilter is false (team-scoped user)', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[2]}
+        selectedAgentIds={[]}
+        range="monthly"
+        metricView="all"
+        showTeamFilter={false}
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    // Center dropdown button must NOT be present in DOM
+    expect(screen.queryByText(/Centers Selected/i)).toBeNull();
+    expect(screen.queryByText('All Centers')).toBeNull();
+  });
+
+  it('does NOT render "Weekly (Calendar Weeks)" option in Granularity dropdown when range is "yearly"', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="yearly"
+        year={2026}
+        granularity="summary"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    const granSelect = screen.getByLabelText(/granularity/i) as HTMLSelectElement;
+    expect(granSelect).toBeDefined();
+    const options = Array.from(granSelect.options).map((o) => o.text);
+    expect(options).toContain('Yearly Summary');
+    expect(options).toContain('Monthly (12 Months)');
+    expect(options).not.toContain('Weekly (Calendar Weeks)');
+  });
+
+  it('renders Sort selector and triggers onFilterChange with selected sort', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="monthly"
+        metricView="all"
+        sortBy="net"
+        sortOrder="desc"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    const sortSelect = screen.getByLabelText(/sort by/i) as HTMLSelectElement;
+    expect(sortSelect).toBeDefined();
+
+    // Change sort to 'sales'
+    fireEvent.change(sortSelect, { target: { value: 'sales:desc' } });
+    expect(onFilterChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sortBy: 'sales',
+        sortOrder: 'desc',
+      })
+    );
+  });
 });

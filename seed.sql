@@ -153,7 +153,8 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (61, 'call-dispositions:create',          'Agent-level: create and view own call dispositions only, no delete, no export'),
 -- Reports (Phase 44)
 (63, 'reports:agent-sales',               'View Agent Sales Matrix performance report'),
-(64, 'reports:agent-sales-export',        'Export Agent Sales Matrix performance report to Excel spreadsheets')
+(64, 'reports:agent-sales-export',        'Export Agent Sales Matrix performance report to Excel spreadsheets'),
+(65, 'reports:agent-sales-team',          'Team-level: view Agent Sales Matrix performance report for own center/team only')
 ON DUPLICATE KEY UPDATE permission_name = VALUES(permission_name), permission_description = VALUES(permission_description);
 
 -- ============================================================
@@ -176,7 +177,7 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53),
 (1,54),
 (1,58),(1,59),(1,60),(1,61),(1,62),
-(1,63),(1,64);
+(1,63),(1,64),(1,65);
 
 -- Admin (role_id = 2) — all permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -191,11 +192,11 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53),
 (2,54),
 (2,58),(2,59),(2,60),(2,61),(2,62),
-(2,63),(2,64);
+(2,63),(2,64),(2,65);
 
--- Manager (role_id = 3) & Team Lead (role_id = 4) — follow-ups:view-team, reports:agent-sales (Manager + Team Lead), reports:agent-sales-export (Manager)
+-- Manager (role_id = 3) & Team Lead (role_id = 4) — follow-ups:view-team, reports:agent-sales (Manager), reports:agent-sales-export (Manager), reports:agent-sales-team (Team Lead)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(3,62),(4,62),(3,63),(3,64),(4,63);
+(3,62),(4,62),(3,63),(3,64),(4,65);
 
 -- Agent (role_id = 8) — follow-ups:create and call-dispositions:create permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES

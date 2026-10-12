@@ -318,6 +318,7 @@ The following standard permissions are seeded in the system:
 - `call-dispositions:view`, `call-dispositions:create`: 2-tier call disposition logging and export.
 - `reports:agent-sales` (ID 63): Access and inspect the Agent Sales Performance matrix report and data endpoints.
 - `reports:agent-sales-export` (ID 64): Export Agent Sales Performance report matrix to multi-tiered Excel (.xlsx).
+- `reports:agent-sales-team` (ID 65): Team-level: view Agent Sales Matrix performance report for own center/team only.
 
 ### crm_role_permissions
 *   **Engine:** InnoDB

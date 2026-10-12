@@ -19,6 +19,9 @@ interface ReportFilterBarProps {
   granularity?: AgentSalesFilterParams['granularity'];
   availableYears?: number[];
   metricView: MetricViewType;
+  showTeamFilter?: boolean;
+  sortBy?: AgentSalesFilterParams['sortBy'];
+  sortOrder?: AgentSalesFilterParams['sortOrder'];
   onFilterChange: (filters: {
     teamIds?: number[];
     agentIds?: number[];
@@ -28,6 +31,8 @@ interface ReportFilterBarProps {
     year?: number;
     month?: number;
     granularity?: AgentSalesFilterParams['granularity'];
+    sortBy?: AgentSalesFilterParams['sortBy'];
+    sortOrder?: AgentSalesFilterParams['sortOrder'];
   }) => void;
   onMetricViewChange: (metricView: MetricViewType) => void;
   onExportExcel: () => void;
@@ -63,6 +68,9 @@ export default function ReportFilterBar({
   granularity,
   availableYears,
   metricView,
+  showTeamFilter = true,
+  sortBy = 'net',
+  sortOrder = 'desc',
   onFilterChange,
   onMetricViewChange,
   onExportExcel,
@@ -359,109 +367,111 @@ export default function ReportFilterBar({
       <div className="reports-filter-top-row">
         <div className="reports-filter-controls-group">
           {/* Centers Multi-Select */}
-          <div className="filter-select-wrapper" ref={centerRef} style={{ position: 'relative', width: '160px' }}>
-            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.72rem', fontWeight: 600 }}>
-              Center
-            </label>
-            <button
-              type="button"
-              id="center-select"
-              onClick={() => setIsCenterOpen(!isCenterOpen)}
-              className="filter-select-custom"
-              style={{
-                fontSize: '0.75rem',
-                height: '34px',
-                padding: '0 8px',
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                textAlign: 'left',
-                background: '#ffffff',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {centerButtonLabel}
-              </span>
-              <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: '4px' }}>▼</span>
-            </button>
-
-            {isCenterOpen && (
-              <div
+          {showTeamFilter !== false && (
+            <div className="filter-select-wrapper" ref={centerRef} style={{ position: 'relative', width: '160px' }}>
+              <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.72rem', fontWeight: 600 }}>
+                Center
+              </label>
+              <button
+                type="button"
+                id="center-select"
+                onClick={() => setIsCenterOpen(!isCenterOpen)}
+                className="filter-select-custom"
                 style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  marginTop: '4px',
-                  width: '200px',
+                  fontSize: '0.75rem',
+                  height: '34px',
+                  padding: '0 8px',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  textAlign: 'left',
                   background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                  zIndex: 50,
-                  padding: '6px',
-                  maxHeight: '260px',
-                  overflowY: 'auto',
+                  cursor: 'pointer',
                 }}
               >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {centerButtonLabel}
+                </span>
+                <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: '4px' }}>▼</span>
+              </button>
+
+              {isCenterOpen && (
                 <div
-                  onClick={selectAllCenters}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: '#1e293b',
-                    background: selectedTeamIds.length === 0 ? '#f1f5f9' : 'transparent',
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '4px',
+                    width: '200px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                    zIndex: 50,
+                    padding: '6px',
+                    maxHeight: '260px',
+                    overflowY: 'auto',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedTeamIds.length === 0}
-                    onChange={() => {}}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>All Centers</span>
+                  <div
+                    onClick={selectAllCenters}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#1e293b',
+                      background: selectedTeamIds.length === 0 ? '#f1f5f9' : 'transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTeamIds.length === 0}
+                      onChange={() => {}}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span>All Centers</span>
+                  </div>
+                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                  {teams.map((t) => {
+                    const isChecked = selectedTeamIds.includes(t.teamId);
+                    return (
+                      <div
+                        key={t.teamId}
+                        onClick={() => toggleCenter(t.teamId)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          color: '#334155',
+                          background: isChecked ? '#f8fafc' : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.teamName}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
-                {teams.map((t) => {
-                  const isChecked = selectedTeamIds.includes(t.teamId);
-                  return (
-                    <div
-                      key={t.teamId}
-                      onClick={() => toggleCenter(t.teamId)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 8px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        color: '#334155',
-                        background: isChecked ? '#f8fafc' : 'transparent',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {}}
-                        style={{ cursor: 'pointer' }}
-                      />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {t.teamName}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Agents Multi-Select */}
           <div className="filter-select-wrapper" ref={agentRef} style={{ position: 'relative', width: '180px' }}>
@@ -724,7 +734,6 @@ export default function ReportFilterBar({
                   <>
                     <option value="summary">Yearly Summary</option>
                     <option value="monthly">Monthly (12 Months)</option>
-                    <option value="weekly">Weekly (Calendar Weeks)</option>
                   </>
                 )}
                 {range === 'all-time' && (
@@ -925,6 +934,60 @@ export default function ReportFilterBar({
 
         <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
           Showing sales aggregates across <strong style={{ color: '#0f172a', fontWeight: 700 }}>{filteredAgents.length}</strong> sales agents
+        </div>
+      </div>
+
+      {/* Row Below Metric View: Sort By */}
+      <div
+        className="reports-sort-row"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginTop: '10px',
+          paddingTop: '10px',
+          borderTop: '1px solid #f1f5f9',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>
+          Sort By:
+        </span>
+        <div style={{ width: '220px' }}>
+          <select
+            id="sort-select"
+            aria-label="Sort By"
+            className="filter-select-custom"
+            value={`${sortBy || 'net'}:${sortOrder || 'desc'}`}
+            onChange={(e) => {
+              const [sBy, sOrder] = e.target.value.split(':') as [
+                AgentSalesFilterParams['sortBy'],
+                AgentSalesFilterParams['sortOrder']
+              ];
+              onFilterChange({
+                teamIds: selectedTeamIds,
+                agentIds: selectedAgentIds,
+                range,
+                startDate: range === 'custom' ? customStartDate || startDate : undefined,
+                endDate: range === 'custom' ? customEndDate || endDate : undefined,
+                year: range === 'monthly' || range === 'yearly' ? activeYear : undefined,
+                month: range === 'monthly' ? activeMonth : undefined,
+                granularity: activeGranularity,
+                sortBy: sBy,
+                sortOrder: sOrder,
+              });
+            }}
+            style={{ fontSize: '0.75rem', height: '32px', padding: '0 8px', width: '100%', background: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+          >
+            <option value="net:desc">Net Sales (High to Low)</option>
+            <option value="net:asc">Net Sales (Low to High)</option>
+            <option value="sales:desc">Gross Sales (High to Low)</option>
+            <option value="sales:asc">Gross Sales (Low to High)</option>
+            <option value="refunds:desc">Refunds (High to Low)</option>
+            <option value="chargebacks:desc">Chargebacks (High to Low)</option>
+            <option value="name:asc">Agent Name (A-Z)</option>
+            <option value="name:desc">Agent Name (Z-A)</option>
+          </select>
         </div>
       </div>
     </div>

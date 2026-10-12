@@ -1693,6 +1693,28 @@ Rather than binding `/reports` to a static 1:1 route permission (like single-tab
 - `CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md`, `CONTEXT/current_state.md` — Updated RBAC permissions & architecture documentation
 - `src/tests/*` — 100% test pass across all unit, component, API, and seed suites
 
+---
 
+### Decision 45: Team-Scoped Report Permission, Yearly Granularity Optimization & Agent Sales Matrix Sorting
 
+**Date:** 2026-10-13
+**Status:** Approved
 
+#### Context
+1. **Team-Scoped Access**: Team Leads (Role 4) and team-level supervisors need access to the Agent Sales Matrix report scoped strictly to their own team/center without being able to select other centers or view organization-wide aggregates.
+2. **Yearly Weekly Granularity Elimination**: Calculating 52+ calendar weeks across an entire year generated excessive query load, leading to background performance bottlenecks and large grid rendering overhead.
+3. **Matrix Sorting**: Users need the ability to sort agents by name and by all 4 metrics (`net`, `sales`, `refunds`, `chargebacks`) ascending and descending, persisted across browser navigation and reflected in Excel exports.
+
+#### Decision
+- **D45.1 — New Sequential Permission (ID 65: `reports:agent-sales-team`)**:
+  - Sequential key added to `crm_permissions`: `(65, 'reports:agent-sales-team', 'Team-level: view Agent Sales Matrix performance report for own center/team only')`.
+  - Assigned to Super Admin (1), Admin (2), and Team Lead (4).
+  - Users with only `reports:agent-sales-team` are strictly scoped to their `teamId`. The Center/Team filter dropdown is automatically hidden (`showTeamFilter = false`), and API routes enforce `teamIds = [sessionUser.teamId]`.
+  - Migration script `scripts/sql/add-reports-permissions.sql` is strictly idempotent using `ON DUPLICATE KEY UPDATE` and `INSERT IGNORE`, without any destructive `DELETE` queries.
+- **D45.2 — Yearly Weekly Granularity Removed**:
+  - The `weekly` granularity option is removed from the Yearly range in both frontend `ReportFilterBar` and backend `report.service.ts` (falling back to `summary`).
+- **D45.3 — Agent Sales Matrix Sorting**:
+  - Added `sortBy` (`'net' | 'sales' | 'refunds' | 'chargebacks' | 'name'`) and `sortOrder` (`'asc' | 'desc'`) query parameters to backend service and API routes.
+  - Sorting is applied server-side prior to pagination and Excel export, ensuring 1:1 parity between UI table and exported workbook.
+  - Placed the Sort By selector on a dedicated row right below Metric View in `ReportFilterBar`.
+  - Filter state, including `sortBy` and `sortOrder`, is persisted in `sessionStorage` (`REPORT_MATRIX_STATE`) and restored on Back button navigation from orders.

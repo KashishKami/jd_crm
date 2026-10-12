@@ -278,4 +278,49 @@ describe('W-4406: Reports Page Layout and Container', () => {
       expect(agentCall[0]).toContain('range=yearly');
     });
   });
+
+  it('restores sortBy and sortOrder from sessionStorage on back navigation', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { uid: 1, name: 'Admin', userPermissions: 'reports:agent-sales' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    sessionStorage.setItem(
+      'REPORT_MATRIX_STATE',
+      JSON.stringify({ range: 'monthly', sortBy: 'sales', sortOrder: 'asc' })
+    );
+
+    render(<ReportsContainer />);
+
+    await waitFor(() => {
+      const fetchCalls = (global.fetch as any).mock.calls;
+      const agentCall = fetchCalls.find((c: any[]) => c[0]?.includes('/api/reports/agent-sales'));
+      expect(agentCall).toBeDefined();
+      expect(agentCall[0]).toContain('sortBy=sales');
+      expect(agentCall[0]).toContain('sortOrder=asc');
+    });
+  });
+
+  it('scopes teamIds and hides team selector for users with reports:agent-sales-team', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { uid: 25, teamId: 2, name: 'Lead', userPermissions: 'reports:agent-sales-team' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<ReportsContainer />);
+
+    await waitFor(() => {
+      const fetchCalls = (global.fetch as any).mock.calls;
+      const agentCall = fetchCalls.find((c: any[]) => c[0]?.includes('/api/reports/agent-sales'));
+      expect(agentCall).toBeDefined();
+      expect(agentCall[0]).toContain('teamId=2');
+    });
+
+    // Center dropdown should be hidden for team-scoped user
+    expect(screen.queryByText(/Centers Selected/i)).toBeNull();
+  });
 });

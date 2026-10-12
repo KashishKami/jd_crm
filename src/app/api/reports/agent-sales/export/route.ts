@@ -25,6 +25,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const canViewAll =
+    hasPermission(permissions, 'reports:agent-sales') ||
+    hasPermission(permissions, 'super-admin') ||
+    sessionUser?.roleId === 1;
+  const canViewTeam = hasPermission(permissions, 'reports:agent-sales-team');
+
   const { searchParams } = new URL(request.url);
   const range = (searchParams.get('range') || 'monthly') as AgentSalesFilterParams['range'];
   const teamIdParam = searchParams.get('teamId');
@@ -35,16 +41,23 @@ export async function GET(request: Request) {
   const monthParam = searchParams.get('month');
   const granularity = searchParams.get('granularity') as AgentSalesFilterParams['granularity'] || undefined;
   const metricView = (searchParams.get('metricView') || 'all') as MetricViewType;
+  const sortBy = (searchParams.get('sortBy') || undefined) as AgentSalesFilterParams['sortBy'];
+  const sortOrder = (searchParams.get('sortOrder') || undefined) as AgentSalesFilterParams['sortOrder'];
 
   const year = yearParam ? parseInt(yearParam, 10) : undefined;
   const month = monthParam ? parseInt(monthParam, 10) : undefined;
 
-  const teamIds = teamIdParam
+  let teamIds = teamIdParam
     ? teamIdParam
         .split(',')
         .map((s) => Number(s.trim()))
         .filter((n) => !isNaN(n))
     : undefined;
+
+  // Strict team enforcement: users with only team-scoped permission are locked to their own team
+  if (!canViewAll && canViewTeam) {
+    teamIds = sessionUser?.teamId ? [Number(sessionUser.teamId)] : [];
+  }
 
   const agentIds = agentIdParam
     ? agentIdParam
@@ -63,6 +76,8 @@ export async function GET(request: Request) {
       year: year && !isNaN(year) ? year : undefined,
       month: month && !isNaN(month) ? month : undefined,
       granularity,
+      sortBy,
+      sortOrder,
     });
 
     const buffer = await generateAgentSalesWorkbook(matrixData, { metricView });

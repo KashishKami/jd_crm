@@ -468,5 +468,195 @@ describe('Report Service Layer Unit & Logic Tests (W-4401)', () => {
       expect(result.periods.length).toBeGreaterThanOrEqual(4);
       expect(result.periods[0].key).toBe('2023');
     });
+
+    it('falls back to Yearly Summary when range is "yearly" and granularity is "weekly" (weekly disallowed)', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue([]);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue([]);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'yearly',
+        year: 2026,
+        granularity: 'weekly',
+      });
+
+      // Weekly must NOT generate 52-53 periods; must fallback to single Yearly Summary
+      expect(result.periods.length).toBe(1);
+      expect(result.periods[0].key).toBe('2026');
+      expect(result.periods[0].label).toContain('Summary');
+    });
+  });
+
+  describe('Agent Matrix Sorting', () => {
+    const mockAgentsForSort = [
+      {
+        uid: 101,
+        name: 'Bob Johnson',
+        nickname: 'Bob',
+        teamId: 1,
+        teamName: 'IT Park',
+        designation: 'Sales Specialist',
+        status: 1,
+      },
+      {
+        uid: 102,
+        name: 'Alice Williams',
+        nickname: 'Alice',
+        teamId: 1,
+        teamName: 'IT Park',
+        designation: 'Sales Associate',
+        status: 1,
+      },
+      {
+        uid: 103,
+        name: 'Charlie Brown',
+        nickname: 'Charlie',
+        teamId: 1,
+        teamName: 'IT Park',
+        designation: 'Sales Expert',
+        status: 1,
+      },
+    ];
+
+    const mockAggregatesForSort = [
+      // Bob: Net 500, Sales 600, Refunds 100, Chargebacks 0
+      {
+        periodKey: '2026-10-01',
+        agentId: 101,
+        saleStatus: '1',
+        orderCount: 1,
+        totalCharged: 600,
+        totalRefund: 100,
+      },
+      {
+        periodKey: '2026-10-01',
+        agentId: 101,
+        saleStatus: '2',
+        orderCount: 1,
+        totalCharged: 100,
+        totalRefund: 100,
+      },
+      // Alice: Net 1000, Sales 1000, Refunds 0, Chargebacks 0
+      {
+        periodKey: '2026-10-01',
+        agentId: 102,
+        saleStatus: '1',
+        orderCount: 2,
+        totalCharged: 1000,
+        totalRefund: 0,
+      },
+      // Charlie: Net 200, Sales 500, Refunds 0, Chargebacks 300
+      {
+        periodKey: '2026-10-01',
+        agentId: 103,
+        saleStatus: '1',
+        orderCount: 1,
+        totalCharged: 200,
+        totalRefund: 0,
+      },
+      {
+        periodKey: '2026-10-01',
+        agentId: 103,
+        saleStatus: '3',
+        orderCount: 1,
+        totalCharged: 300,
+        totalRefund: 0,
+      },
+    ];
+
+    it('sorts agents by net sales descending (default)', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'net',
+        sortOrder: 'desc',
+      });
+
+      // Alice (1000) > Bob (500) > Charlie (200)
+      expect(result.agents.map((a) => a.agentId)).toEqual([102, 101, 103]);
+    });
+
+    it('sorts agents by net sales ascending', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'net',
+        sortOrder: 'asc',
+      });
+
+      // Charlie (200) < Bob (500) < Alice (1000)
+      expect(result.agents.map((a) => a.agentId)).toEqual([103, 101, 102]);
+    });
+
+    it('sorts agents by gross sales descending', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'sales',
+        sortOrder: 'desc',
+      });
+
+      // Alice (1000) > Bob (600) > Charlie (500)
+      expect(result.agents.map((a) => a.agentId)).toEqual([102, 101, 103]);
+    });
+
+    it('sorts agents by refunds descending', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'refunds',
+        sortOrder: 'desc',
+      });
+
+      // Bob (100) > Alice (0) / Charlie (0)
+      expect(result.agents[0].agentId).toBe(101);
+    });
+
+    it('sorts agents by chargebacks descending', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'chargebacks',
+        sortOrder: 'desc',
+      });
+
+      // Charlie (300) > Bob (0) / Alice (0)
+      expect(result.agents[0].agentId).toBe(103);
+    });
+
+    it('sorts agents alphabetically by name ascending', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue(mockAggregatesForSort);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'monthly',
+        year: 2026,
+        month: 10,
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
+
+      // Alice < Bob < Charlie
+      expect(result.agents.map((a) => a.nickname || a.agentName)).toEqual(['Alice', 'Bob', 'Charlie']);
+    });
   });
 });

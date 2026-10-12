@@ -26,6 +26,8 @@ interface FilterState {
   month?: number;
   granularity?: AgentSalesFilterParams['granularity'];
   metricView: MetricViewType;
+  sortBy?: AgentSalesFilterParams['sortBy'];
+  sortOrder?: AgentSalesFilterParams['sortOrder'];
   page: number;
 }
 
@@ -35,10 +37,14 @@ function ReportsContainerContent() {
   const permissions = session?.user?.userPermissions;
   const sessionUser = session?.user as any;
 
-  const canViewAgentSales =
+  const canViewAll =
     hasPermission(permissions, 'reports:agent-sales') ||
     hasPermission(permissions, 'super-admin') ||
     sessionUser?.roleId === 1;
+
+  const canViewTeam = hasPermission(permissions, 'reports:agent-sales-team');
+
+  const canViewAgentSales = canViewAll || canViewTeam;
 
   const canExport =
     hasPermission(permissions, 'reports:agent-sales-export') ||
@@ -68,6 +74,8 @@ function ReportsContainerContent() {
       month: now.getUTCMonth() + 1,
       granularity: 'summary',
       metricView: 'all',
+      sortBy: 'net',
+      sortOrder: 'desc',
       page: 1,
     };
   });
@@ -90,8 +98,11 @@ function ReportsContainerContent() {
           const saved = sessionStorage.getItem(STORAGE_KEY);
           if (saved) {
             const parsed = JSON.parse(saved);
+            const teamIdsToRestore = (!canViewAll && canViewTeam && sessionUser?.teamId)
+              ? [Number(sessionUser.teamId)]
+              : (parsed.teamIds || []);
             setFilterState({
-              teamIds: parsed.teamIds || [],
+              teamIds: teamIdsToRestore,
               agentIds: parsed.agentIds || [],
               range: parsed.range || 'monthly',
               startDate: parsed.startDate || undefined,
@@ -100,6 +111,8 @@ function ReportsContainerContent() {
               month: parsed.month !== undefined ? parsed.month : (new Date().getUTCMonth() + 1),
               granularity: parsed.granularity || 'summary',
               metricView: parsed.metricView || 'all',
+              sortBy: parsed.sortBy || 'net',
+              sortOrder: parsed.sortOrder || 'desc',
               page: initialPage !== 1 ? initialPage : (parsed.page || 1),
             });
             setIsHydrated(true);
@@ -109,13 +122,18 @@ function ReportsContainerContent() {
           console.error('Failed to parse saved report state:', e);
         }
 
-        if (initialPage !== 1) {
-          setFilterState((prev) => ({ ...prev, page: initialPage }));
-        }
+        const initialTeamIds = (!canViewAll && canViewTeam && sessionUser?.teamId)
+          ? [Number(sessionUser.teamId)]
+          : [];
+        setFilterState((prev) => ({
+          ...prev,
+          teamIds: initialTeamIds.length > 0 ? initialTeamIds : prev.teamIds,
+          page: initialPage !== 1 ? initialPage : prev.page,
+        }));
       }
       setIsHydrated(true);
     });
-  }, []);
+  }, [canViewAll, canViewTeam, sessionUser?.teamId]);
 
   const pageParam = searchParams?.get('page');
   const parsedPage = pageParam ? (parseInt(pageParam, 10) || 1) : 1;
@@ -180,8 +198,11 @@ function ReportsContainerContent() {
         setFetchError(null);
         const params = new URLSearchParams();
         params.set('range', filterState.range || 'monthly');
-        if (filterState.teamIds.length > 0) {
-          params.set('teamId', filterState.teamIds.join(','));
+        const effectiveTeamIds = (!canViewAll && canViewTeam && sessionUser?.teamId)
+          ? [Number(sessionUser.teamId)]
+          : filterState.teamIds;
+        if (effectiveTeamIds.length > 0) {
+          params.set('teamId', effectiveTeamIds.join(','));
         }
         if (filterState.agentIds.length > 0) {
           params.set('agentId', filterState.agentIds.join(','));
@@ -200,6 +221,12 @@ function ReportsContainerContent() {
         }
         if (filterState.granularity) {
           params.set('granularity', filterState.granularity);
+        }
+        if (filterState.sortBy) {
+          params.set('sortBy', filterState.sortBy);
+        }
+        if (filterState.sortOrder) {
+          params.set('sortOrder', filterState.sortOrder);
         }
 
         const res = await fetch(`/api/reports/agent-sales?${params.toString()}`);
@@ -239,6 +266,9 @@ function ReportsContainerContent() {
     isHydrated,
     sessionStatus,
     canViewAgentSales,
+    canViewAll,
+    canViewTeam,
+    sessionUser?.teamId,
     filterState.range,
     filterState.teamIds,
     filterState.agentIds,
@@ -247,6 +277,8 @@ function ReportsContainerContent() {
     filterState.year,
     filterState.month,
     filterState.granularity,
+    filterState.sortBy,
+    filterState.sortOrder,
   ]);
 
   // Restore scroll position when returning from another page
@@ -274,10 +306,14 @@ function ReportsContainerContent() {
     year?: number;
     month?: number;
     granularity?: AgentSalesFilterParams['granularity'];
+    sortBy?: AgentSalesFilterParams['sortBy'];
+    sortOrder?: AgentSalesFilterParams['sortOrder'];
   }) => {
     setFilterState((prev) => ({
       ...prev,
-      teamIds: newFilters.teamIds !== undefined ? newFilters.teamIds : prev.teamIds,
+      teamIds: (!canViewAll && canViewTeam && sessionUser?.teamId)
+        ? [Number(sessionUser.teamId)]
+        : (newFilters.teamIds !== undefined ? newFilters.teamIds : prev.teamIds),
       agentIds: newFilters.agentIds !== undefined ? newFilters.agentIds : prev.agentIds,
       range: newFilters.range !== undefined ? newFilters.range : prev.range,
       startDate: newFilters.startDate,
@@ -285,6 +321,8 @@ function ReportsContainerContent() {
       year: newFilters.year !== undefined ? newFilters.year : prev.year,
       month: newFilters.month !== undefined ? newFilters.month : prev.month,
       granularity: newFilters.granularity !== undefined ? newFilters.granularity : prev.granularity,
+      sortBy: newFilters.sortBy !== undefined ? newFilters.sortBy : prev.sortBy,
+      sortOrder: newFilters.sortOrder !== undefined ? newFilters.sortOrder : prev.sortOrder,
       page: 1,
     }));
     if (typeof window !== 'undefined') {
@@ -328,8 +366,11 @@ function ReportsContainerContent() {
           ? filterState.metricView.join(',')
           : filterState.metricView
       );
-      if (filterState.teamIds.length > 0) {
-        params.set('teamId', filterState.teamIds.join(','));
+      const effectiveTeamIds = (!canViewAll && canViewTeam && sessionUser?.teamId)
+        ? [Number(sessionUser.teamId)]
+        : filterState.teamIds;
+      if (effectiveTeamIds.length > 0) {
+        params.set('teamId', effectiveTeamIds.join(','));
       }
       if (filterState.agentIds.length > 0) {
         params.set('agentId', filterState.agentIds.join(','));
@@ -348,6 +389,12 @@ function ReportsContainerContent() {
       }
       if (filterState.granularity) {
         params.set('granularity', filterState.granularity);
+      }
+      if (filterState.sortBy) {
+        params.set('sortBy', filterState.sortBy);
+      }
+      if (filterState.sortOrder) {
+        params.set('sortOrder', filterState.sortOrder);
       }
 
       const res = await fetch(`/api/reports/agent-sales/export?${params.toString()}`);
@@ -426,7 +473,7 @@ function ReportsContainerContent() {
           <ReportFilterBar
             teams={teams}
             agents={agents}
-            selectedTeamIds={filterState.teamIds}
+            selectedTeamIds={(!canViewAll && canViewTeam && sessionUser?.teamId) ? [Number(sessionUser.teamId)] : filterState.teamIds}
             selectedAgentIds={filterState.agentIds}
             range={filterState.range}
             startDate={filterState.startDate}
@@ -435,6 +482,9 @@ function ReportsContainerContent() {
             month={filterState.month}
             granularity={filterState.granularity}
             metricView={filterState.metricView}
+            showTeamFilter={canViewAll}
+            sortBy={filterState.sortBy}
+            sortOrder={filterState.sortOrder}
             onFilterChange={handleFilterChange}
             onMetricViewChange={handleMetricViewChange}
             onExportExcel={handleExportExcel}
@@ -449,7 +499,7 @@ function ReportsContainerContent() {
               globalStartDate={matrixData.globalStartDate}
               globalEndDate={matrixData.globalEndDate}
               rangeLabel={matrixData.rangeLabel}
-              teamIds={filterState.teamIds}
+              teamIds={(!canViewAll && canViewTeam && sessionUser?.teamId) ? [Number(sessionUser.teamId)] : filterState.teamIds}
             />
           )}
 
@@ -457,7 +507,7 @@ function ReportsContainerContent() {
           <AgentSalesReportTable
             matrixData={matrixData}
             metricView={filterState.metricView}
-            selectedTeamIds={filterState.teamIds}
+            selectedTeamIds={(!canViewAll && canViewTeam && sessionUser?.teamId) ? [Number(sessionUser.teamId)] : filterState.teamIds}
             isLoading={effectiveLoading}
             currentPage={filterState.page}
             onPageChange={handlePageChange}

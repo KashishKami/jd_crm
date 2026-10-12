@@ -21,10 +21,11 @@
 
 USE jd_crm;
 
--- ---- Step 1: Upsert report-specific permissions at sequential IDs 63 and 64 ----
+-- ---- Step 1: Upsert report-specific permissions at sequential IDs 63, 64, and 65 ----
 INSERT INTO crm_permissions (permission_id, permission_name, permission_description) VALUES
 (63, 'reports:agent-sales',        'View Agent Sales Matrix performance report'),
-(64, 'reports:agent-sales-export', 'Export Agent Sales Matrix performance report to Excel spreadsheets')
+(64, 'reports:agent-sales-export', 'Export Agent Sales Matrix performance report to Excel spreadsheets'),
+(65, 'reports:agent-sales-team',   'Team-level: view Agent Sales Matrix performance report for own center/team only')
 ON DUPLICATE KEY UPDATE 
   permission_name = VALUES(permission_name),
   permission_description = VALUES(permission_description);
@@ -33,11 +34,13 @@ ON DUPLICATE KEY UPDATE
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1, 63),
 (1, 64),
+(1, 65),
 (2, 63),
 (2, 64),
+(2, 65),
 (3, 63),
 (3, 64),
-(4, 63);
+(4, 65);
 
 -- ---- Step 3: Verification output --------------------------------
 SELECT 
@@ -48,5 +51,5 @@ SELECT
 FROM crm_role_permissions rp
 JOIN crm_roles r ON rp.role_id = r.role_id
 JOIN crm_permissions p ON rp.permission_id = p.permission_id
-WHERE p.permission_id IN (63, 64)
+WHERE p.permission_id IN (63, 64, 65)
 ORDER BY r.role_id, p.permission_id;
