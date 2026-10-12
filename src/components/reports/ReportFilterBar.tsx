@@ -240,13 +240,20 @@ export default function ReportFilterBar({
   const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newRange = e.target.value as AgentSalesFilterParams['range'];
     if (newRange === 'custom') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const start = customStartDate || todayStr;
+      const end = customEndDate || todayStr;
+      setCustomStartDate(start);
+      setCustomEndDate(end);
       onFilterChange({
         teamIds: selectedTeamIds,
         agentIds: selectedAgentIds,
         range: 'custom',
-        startDate: customStartDate || undefined,
-        endDate: customEndDate || undefined,
+        startDate: start,
+        endDate: end,
         granularity: 'summary',
+        sortBy,
+        sortOrder,
       });
     } else if (newRange === 'monthly') {
       setCustomStartDate('');
@@ -752,7 +759,6 @@ export default function ReportFilterBar({
                   <>
                     <option value="summary">Period Summary</option>
                     <option value="daily">Daily</option>
-                    <option value="weekly">Weekly (Calendar Weeks)</option>
                     <option value="monthly">Monthly</option>
                   </>
                 )}

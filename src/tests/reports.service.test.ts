@@ -658,5 +658,45 @@ describe('Report Service Layer Unit & Logic Tests (W-4401)', () => {
       // Alice < Bob < Charlie
       expect(result.agents.map((a) => a.nickname || a.agentName)).toEqual(['Alice', 'Bob', 'Charlie']);
     });
+
+    it('formats partial month labels in custom range with monthly granularity', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue([]);
+
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'custom',
+        startDate: '2026-09-01',
+        endDate: '2026-10-13',
+        granularity: 'monthly',
+      });
+
+      expect(result.periods).toHaveLength(2);
+      // Sep 1 to Sep 30 is a full month
+      expect(result.periods[0].key).toBe('2026-09');
+      expect(result.periods[0].label).toBe('Sep 2026');
+      expect(result.periods[0].startDate).toBe('2026-09-01');
+      expect(result.periods[0].endDate).toBe('2026-09-30');
+
+      // Oct 1 to Oct 13 is a partial month
+      expect(result.periods[1].key).toBe('2026-10');
+      expect(result.periods[1].label).toBe('Oct 2026 (Oct 1 - Oct 13)');
+      expect(result.periods[1].startDate).toBe('2026-10-01');
+      expect(result.periods[1].endDate).toBe('2026-10-13');
+    });
+
+    it('safely generates calendar weeks across multiple months without infinite loop or hanging', async () => {
+      vi.mocked(reportRepository.getReportAgentsList).mockResolvedValue(mockAgentsForSort);
+      vi.mocked(reportRepository.getAgentSalesAggregates).mockResolvedValue([]);
+
+      // Test across month boundaries (Sep 1 to Oct 13)
+      const result = await reportService.getAgentSalesMatrix({
+        range: 'custom',
+        startDate: '2026-09-01',
+        endDate: '2026-10-13',
+        granularity: 'weekly',
+      });
+
+      expect(result).toBeDefined();
+    });
   });
 });

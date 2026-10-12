@@ -66,7 +66,7 @@ function generateCalendarWeeks(startDate: Date, endDate: Date): PeriodDefinition
     });
 
     weekNum++;
-    current.setUTCDate(weekEnd.getUTCDate() + 1);
+    current.setTime(weekEnd.getTime() + 24 * 60 * 60 * 1000);
   }
 
   return result;
@@ -312,7 +312,7 @@ export async function getAgentSalesMatrix(
     );
     const selGranularity = filters.granularity || (diffDays <= 31 ? 'daily' : 'monthly');
 
-    if (selGranularity === 'summary') {
+    if (selGranularity === 'summary' || selGranularity === 'weekly') {
       repoGranularity = 'daily';
       periods.push({
         key: 'custom-summary',
@@ -320,9 +320,6 @@ export async function getAgentSalesMatrix(
         startDate: filters.startDate,
         endDate: filters.endDate,
       });
-    } else if (selGranularity === 'weekly') {
-      repoGranularity = 'daily';
-      periods.push(...generateCalendarWeeks(dateFrom, dateTo));
     } else if (selGranularity === 'monthly') {
       repoGranularity = 'monthly';
       const temp = new Date(Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth(), 1));
@@ -333,11 +330,25 @@ export async function getAgentSalesMatrix(
         const monthStr = String(m + 1).padStart(2, '0');
         const key = `${y}-${monthStr}`;
         const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+
+        const isFirstMonth = (y === dateFrom.getUTCFullYear() && m === dateFrom.getUTCMonth());
+        const isLastMonth = (y === dateTo.getUTCFullYear() && m === dateTo.getUTCMonth());
+
+        const effectiveStartDay = isFirstMonth ? dateFrom.getUTCDate() : 1;
+        const effectiveEndDay = isLastMonth ? dateTo.getUTCDate() : lastDay;
+
+        const isPartial = (effectiveStartDay !== 1) || (effectiveEndDay !== lastDay);
+
+        let label = `${MONTH_NAMES[m]} ${y}`;
+        if (isPartial) {
+          label = `${MONTH_NAMES[m]} ${y} (${MONTH_NAMES[m]} ${effectiveStartDay} - ${MONTH_NAMES[m]} ${effectiveEndDay})`;
+        }
+
         periods.push({
           key,
-          label: `${MONTH_NAMES[m]} ${y}`,
-          startDate: `${y}-${monthStr}-01`,
-          endDate: `${y}-${monthStr}-${String(lastDay).padStart(2, '0')}`,
+          label,
+          startDate: `${y}-${monthStr}-${String(effectiveStartDay).padStart(2, '0')}`,
+          endDate: `${y}-${monthStr}-${String(effectiveEndDay).padStart(2, '0')}`,
         });
         temp.setUTCMonth(temp.getUTCMonth() + 1);
       }

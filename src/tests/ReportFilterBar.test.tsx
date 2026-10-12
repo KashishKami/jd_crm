@@ -419,4 +419,59 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
       })
     );
   });
+
+  it('defaults start and end date to today when switching to custom range', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="monthly"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    const rangeSelect = screen.getByLabelText(/range/i) as HTMLSelectElement;
+    fireEvent.change(rangeSelect, { target: { value: 'custom' } });
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    expect(onFilterChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        range: 'custom',
+        startDate: todayStr,
+        endDate: todayStr,
+      })
+    );
+  });
+
+  it('does NOT render "Weekly (Calendar Weeks)" option in Granularity dropdown when range is "custom"', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="custom"
+        startDate="2026-09-01"
+        endDate="2026-10-13"
+        granularity="summary"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    const granSelect = screen.getByLabelText(/granularity/i) as HTMLSelectElement;
+    expect(granSelect).toBeDefined();
+    const options = Array.from(granSelect.options).map((o) => o.text);
+    expect(options).toContain('Period Summary');
+    expect(options).toContain('Daily');
+    expect(options).toContain('Monthly');
+    expect(options).not.toContain('Weekly (Calendar Weeks)');
+  });
 });

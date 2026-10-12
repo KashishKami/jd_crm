@@ -1718,3 +1718,8 @@ Rather than binding `/reports` to a static 1:1 route permission (like single-tab
   - Sorting is applied server-side prior to pagination and Excel export, ensuring 1:1 parity between UI table and exported workbook.
   - Placed the Sort By selector on a dedicated row right below Metric View in `ReportFilterBar`.
   - Filter state, including `sortBy` and `sortOrder`, is persisted in `sessionStorage` (`REPORT_MATRIX_STATE`) and restored on Back button navigation from orders.
+- **D45.4 — Custom Date Range Enhancements & Weekly Date Rollover Fix**:
+  - Removed `weekly` granularity from Custom Range dropdown (keeping Period Summary, Daily, and Monthly).
+  - Resolved date rollover leap bug in `generateCalendarWeeks()` (`current.setTime(weekEnd.getTime() + 86400000)`), eliminating infinite loops across multi-month boundaries.
+  - Custom Range selection now defaults `startDate` and `endDate` to today's date in both the UI date inputs and API requests, preventing empty `dd/mm/yyyy` inputs and 400 Bad Request errors.
+  - Monthly granularity in Custom Range now formats partial boundary months with date ranges in their column headers (e.g. `OCT 2026 (Oct 1 - Oct 13)`), while full months remain clean (e.g. `SEP 2026`).

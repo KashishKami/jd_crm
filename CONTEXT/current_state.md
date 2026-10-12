@@ -11386,3 +11386,41 @@ The user needs a dedicated page route (`/reports`), sub-navigation tabs matching
      - Added comprehensive tests in `AgentSalesReportTable.test.tsx`, `ReportsPage.test.tsx`, and `Navbar.test.tsx` (all passing cleanly: 30/30 tests).
      - `npm run typecheck`: 0 errors.
      - `npm run lint`: 0 errors, 0 warnings.
+
+---
+
+### Session Note — Phase 45: Team-Scoped Report Access (reports:agent-sales-team), Matrix Sorting, Safe Date Granularity Engine & UI Polish
+
+- **Completed Deliverables:**
+  1. **Team-Scoped Report Permission (`reports:agent-sales-team`, ID 65)**:
+     - Added new sequential permission `65` (`reports:agent-sales-team`, "Team-level: view Agent Sales Matrix performance report for own center/team only").
+     - Updated `seed.sql` and `scripts/sql/add-reports-permissions.sql` to assign ID 65 to Roles 1 (Super Admin), 2 (Admin), and 4 (Team Lead).
+     - Updated `scripts/sql/add-reports-permissions.sql` using idempotent `INSERT ... ON DUPLICATE KEY UPDATE` and `INSERT IGNORE`, strictly avoiding any destructive `DELETE` statements.
+     - Updated `src/service/permission.service.ts`: `hasReportsAccess` dynamically recognizes `reports:agent-sales-team` via prefix matching, and `canViewAgentSalesReport` validates either global (`63`) or team-scoped (`65`) permissions.
+     - Scoped UI & Backend: In `ReportFilterBar.tsx`, users with only `reports:agent-sales-team` have `showTeamFilter = false`, hiding the Center/Team dropdown filter. In `route.ts` (`/api/reports/agent-sales` and `/api/reports/agent-sales/export`), the server enforces `teamIds = [session.user.teamId]` preventing unauthorized cross-team data access.
+  2. **Yearly & Custom Weekly Granularity Elimination**:
+     - Removed the `weekly` ("Weekly (Calendar Weeks)") option from the Yearly range in both `ReportFilterBar.tsx` and `report.service.ts` (falling back to `summary`), eliminating heavy 52+ week query calculations.
+     - Removed `weekly` from Custom Range dropdown in `ReportFilterBar.tsx` and server fallback in `report.service.ts`.
+  3. **Critical Infinite Loop Bug Fix in Date Calculation (`generateCalendarWeeks`)**:
+     - **Root Cause**: In `src/service/report.service.ts`, `generateCalendarWeeks()` previously advanced loop iterations using `current.setUTCDate(weekEnd.getUTCDate() + 1)`. When a calendar week crossed a month boundary (e.g. week ending October 4), `weekEnd.getUTCDate()` evaluated to `4`, and calling `current.setUTCDate(5)` on `current` (which was still in September) reset `current` back to September 5 instead of advancing to October 5. This rolled the pointer backward, trapping the server in an infinite `while` loop that caused process hangs and 100% CPU usage.
+     - **Fix**: Replaced month-relative date mutation with absolute millisecond advancement: `current.setTime(weekEnd.getTime() + 86400000)`.
+     - **Codebase Loop Audit**: Audited all `while` and recursive loops across the entire project (`src/service/dashboard.service.ts`, `src/lib/agent-sales-excel-exporter.ts`, `src/service/report.service.ts`). Confirmed zero potential infinite loops exist across the repository.
+  4. **Custom Range Default Date & Partial Month Formatting**:
+     - Selecting Custom Range in `ReportFilterBar.tsx` immediately initializes `startDate` and `endDate` to today's date (`YYYY-MM-DD`), preventing blank inputs (`dd/mm/yyyy`) and avoiding 400 Bad Request / "Unable to Load Report" errors.
+     - For Monthly granularity in Custom Range, `report.service.ts` detects partial boundary months (e.g. Sep 1 to Oct 13) and dynamically formats the column header title with the exact range (e.g. `OCT 2026 (OCT 1 - OCT 13)`), leaving complete months uncluttered (`SEP 2026`).
+  5. **Agent Sales Matrix Sorting & UI Repositioning**:
+     - Added server-side sorting: `sortBy` (`'net' | 'sales' | 'refunds' | 'chargebacks' | 'name'`) and `sortOrder` (`'asc' | 'desc'`).
+     - Relocated Sort By controls in `ReportFilterBar.tsx` to a dedicated bar directly underneath `METRIC VIEW` for clean, intuitive discoverability.
+     - Persisted sort preferences in `sessionStorage` (`REPORT_MATRIX_STATE`), preserving user selections across browser back-button navigation.
+     - Integrated sorting into `agent-sales-excel-exporter.ts`, guaranteeing 1:1 row ordering parity between the interactive table and exported Excel workbooks.
+  6. **TDD Test Suite & Quality Verification**:
+     - Added comprehensive test suites across unit, service, API, and component layers:
+       - `ReportFilterBar.test.tsx` (15 passing tests, testing sort bar location, custom range today defaults, weekly removal)
+       - `reports.service.test.ts` (24 passing tests, testing multi-month date boundaries, safe weekly generation, custom partial month labels)
+       - `reports.api.test.ts` (9 passing tests)
+       - `ReportsPage.test.tsx` (8 passing tests)
+       - `agentSalesExcelExporter.test.ts` (7 passing tests)
+       - `seed.test.ts` (2 passing tests asserting contiguous permissions 1..65)
+     - 63 / 63 report tests passing GREEN.
+     - `npm run typecheck` passed with 0 errors.
+     - `npm run lint` passed with 0 errors, 0 warnings.

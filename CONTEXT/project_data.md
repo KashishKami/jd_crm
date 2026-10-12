@@ -182,16 +182,18 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 ### Resource: `reports`
 | Permission Key | Permission ID | Description |
 | :--- | :--- | :--- |
-| `reports:agent-sales` | `63` | **Report-level.** Access and inspect the Agent Sales Performance matrix report, access the `/reports` module, and data endpoints. |
+| `reports:agent-sales` | `63` | **Report-level.** Access and inspect the Agent Sales Performance matrix report across all centers/teams, access the `/reports` module, and data endpoints. |
 | `reports:agent-sales-export` | `64` | **Export-level.** Export Agent Sales Performance report matrix to multi-tiered Excel (.xlsx). |
+| `reports:agent-sales-team` | `65` | **Team-level.** Access and inspect the Agent Sales Performance matrix report strictly for user's own center/team. Hides team filter and enforces session team ID. |
 
 > [!NOTE]
-> **Reports Module Permissions (Phase 44):**
-> - The Reports module follows a direct **2-tier model per report** (`reports:<name>` and `reports:<name>-export`). There is no redundant `reports:view` permission.
+> **Reports Module Permissions (Phase 44 & 45):**
+> - The Reports module follows a direct **2-tier model per report** (`reports:<name>` and `reports:<name>-export`) with team-scoped access (`reports:<name>-team`). There is no redundant `reports:view` permission.
 > - Access to `/reports` and the navbar/sidebar "Reports" entry is granted dynamically if the user has **any non-export report permission** (`reports:*`), is `super-admin`, or has `roleId === 1`.
-> - Users with `reports:agent-sales` can fetch and inspect the Agent Sales matrix aggregates across custom, monthly, yearly, and calendar week granularities.
+> - Users with `reports:agent-sales` can fetch and inspect the Agent Sales matrix aggregates across custom, monthly, yearly, and calendar week granularities across all teams.
+> - Users with `reports:agent-sales-team` can only view data for agents in their own center/team (`teamId`). The Team dropdown filter is automatically hidden and API routes enforce their `teamId`.
 > - Users with `reports:agent-sales-export` can trigger multi-tiered Excel workbook generation and downloads via `GET /api/reports/agent-sales/export`.
-> - In `seed.sql`: Roles 1 (Super Admin), 2 (Admin), and 3 (Sales Manager) are granted both view (`63`) and export (`64`). Role 4 (Team Lead) is granted view only (`63`).
+> - In `seed.sql`: Roles 1 (Super Admin) and 2 (Admin) are granted all report permissions (`63`, `64`, `65`); Role 3 (Sales Manager) is granted `63` and `64`; Role 4 (Team Lead) is granted team view (`65`).
 
 ### Super Admin
 
