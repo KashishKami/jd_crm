@@ -11424,3 +11424,141 @@ The user needs a dedicated page route (`/reports`), sub-navigation tabs matching
      - 63 / 63 report tests passing GREEN.
      - `npm run typecheck` passed with 0 errors.
      - `npm run lint` passed with 0 errors, 0 warnings.
+
+
+---
+
+### Session Note — Phase 46: Multi-Select "All" Checkbox Synchronization & Active/Inactive Group Filters in Reports Filter Bar
+
+#### W-4601 — Synchronized "All" Checkbox State & Active/Inactive Group Filters
+
+**Root cause / Goal:**
+1. Currently, in `ReportFilterBar.tsx`, selecting "All Centers" or "All Agents" sets `selectedTeamIds` / `selectedAgentIds` to empty arrays (`[]`). The top "All" checkbox is checked, but every individual checkbox below evaluates to `false` (unchecked). A user who wants to view data from "all agents except one" cannot uncheck that single agent—they currently have to manually click 20+ individual checkboxes one by one.
+2. In the Agent dropdown, agents are visually grouped under `ACTIVE` and `INACTIVE` headers, but these headers are static text. Users have no quick way to select or deselect all active or inactive agents in one click (e.g. to exclude all inactive agents or quickly view only active staff).
+
+**Fix / Approach:**
+1. **Synchronized Checkbox State (All Centers & All Agents)**:
+   - When "All" is active (or all available options are selected), every individual checkbox in the dropdown visually renders as checked (`isChecked = isAll || selectedIds.includes(id)`).
+   - Clicking an already-checked individual item while "All" is active unchecks that specific item and sets the selection to `allAvailableIds.filter(id => id !== clickedId)`. The top "All" checkbox unchecks automatically.
+   - Clicking the top "All" checkbox toggles between selecting all items and clearing/deselecting all items.
+2. **Active & Inactive Group Checkboxes**:
+   - Transform `ACTIVE` and `INACTIVE` headers into interactive group checkboxes: `[✓] Active` and `[✓] Inactive`.
+   - Clicking `[✓] Active` toggles all active agents on or off in a single click without altering inactive agents.
+   - Clicking `[✓] Inactive` toggles all inactive agents on or off in a single click without altering active agents.
+   - If all active agents in scope are selected, the `Active` header checkbox is checked; otherwise, it is unchecked. Same applies to `Inactive`.
+   - When searching agents via the search bar, group toggling respects the current search scope.
+3. **Session & API Preservation**:
+   - Query URLs omit redundant full-ID lists when all items are selected to keep network requests clean.
+   - State continues to be persisted in `sessionStorage` (`REPORT_MATRIX_STATE`), preserving exact filters, pagination, vertical window scroll (`REPORT_SCROLL_POS`), and horizontal table scroll (`REPORT_SCROLL_X`) across drilldown navigation and browser Back button clicks.
+
+---
+
+- [x] **RED — Unit / Component (`src/tests/ReportFilterBar.test.tsx`):**
+  - [x] Test 1: When `selectedTeamIds={[]}`, all individual center checkboxes are rendered as checked (`checked === true`).
+  - [x] Test 2: Clicking an individual center while "All Centers" is active unchecks that center and calls `onFilterChange` with all teams EXCEPT that center.
+  - [x] Test 3: When `selectedAgentIds={[]}`, all active and inactive agent checkboxes are rendered as checked (`checked === true`).
+  - [x] Test 4: Clicking an individual agent while "All Agents" is active unchecks that agent and calls `onFilterChange` with all agents EXCEPT that agent.
+  - [x] Test 5: "Active" group header has an interactive checkbox that is checked when all active agents are selected.
+  - [x] Test 6: Clicking "Active" group checkbox when all active agents are checked unchecks all active agents in one click without altering inactive agents.
+  - [x] Test 7: Clicking "Active" group checkbox when active agents are unchecked checks all active agents in one click.
+  - [x] Test 8: "Inactive" group header has an interactive checkbox that is checked when all inactive agents are selected.
+  - [x] Test 9: Clicking "Inactive" group checkbox when all inactive agents are checked unchecks all inactive agents in one click without altering active agents.
+  - [x] Test 10: Clicking "Inactive" group checkbox when inactive agents are unchecked checks all inactive agents in one click.
+  - [x] Test 11: When filtering agents with the search bar, clicking "Active" group checkbox only toggles the active agents matching the search query.
+  - [x] **Run — confirm RED (all new assertions fail against current code).**
+
+- [x] **GREEN — Frontend (Component Implementation):**
+  - [x] [Component] In `ReportFilterBar.tsx`:
+    - Derive `isAllCentersChecked = selectedTeamIds.length === 0 || selectedTeamIds.length === teams.length`.
+    - Derive `isAllAgentsChecked = selectedAgentIds.length === 0 || (filteredAgents.length > 0 && selectedAgentIds.length === filteredAgents.length)`.
+    - Update center checkbox `checked = isAllCentersChecked || selectedTeamIds.includes(t.teamId)`.
+    - Update `toggleCenter(teamId)` to handle unchecking from "All" state (`teams.map(t => t.teamId).filter(id => id !== teamId)`).
+    - Update agent checkbox `checked = isAllAgentsChecked || selectedAgentIds.includes(a.uid)`.
+    - Update `toggleAgent(agentUid)` to handle unchecking from "All" state (`filteredAgents.map(a => a.uid).filter(id => id !== agentUid)`).
+    - Implement `toggleActiveAgents()` and `toggleInactiveAgents()`.
+    - Render interactive checkbox controls on `Active` and `Inactive` headers.
+  - [x] Run `ReportFilterBar.test.tsx` — **confirm GREEN (26/26 tests passed)**.
+
+- [x] **Verification chain:**
+  - [x] User opens Reports page -> Opens Agent dropdown -> "All Agents", "Active", "Inactive", and all individual agent checkboxes are visibly checked.
+  - [x] User clicks "Aiden" -> Aiden unchecks, All Agents unchecks, all other agents stay checked -> Report loads sales for all agents except Aiden.
+  - [x] User opens Agent dropdown -> clicks "Inactive" checkbox -> All inactive agents uncheck in one click -> only active agents remain checked.
+  - [x] User clicks on any sales number to view orders -> clicks browser Back button -> returns to Reports page with the exact same agent filters, same page, and same scroll positions.
+  - [x] `npm run typecheck`: 0 errors. All test suites verified.
+
+---
+
+#### W-4602 — Excel Report Exporter Visual Discernment & Multi-Period Styling Overhaul
+
+**Root cause / Goal:**
+In exported Excel workbooks (`generateAgentSalesWorkbook`), period boundaries and metrics bleed together horizontally into an indistinguishable sea of dark navy and slate gray. Row 1 uses `#1E293B` uniformly across all period blocks; Row 2 repeats identical slate gray `#334155` for all 8 sub-headers; thin gray borders make it impossible to see where one month ends and the next begins; data cells lack zebra/alternating period tinting; Net metrics are not visually emphasized; and currency columns sized at 15 display `########` for numbers $\ge \$100,000$.
+
+**Fix / Approach:**
+1. **Widen Columns to Prevent `########`**:
+   - Currency column widths increased from `15` to `18`.
+   - Count column widths set to `11`.
+2. **Distinct Period Header Colors (Row 1)**:
+   - Agent Details (Cols 1-5): Deep Slate / Charcoal (`#0F172A`).
+   - Range Grand Total: Forest Emerald (`#065F46`).
+   - Alternating Periods: Month 1 (Jan) Deep Navy (`#1E293B`), Month 2 (Feb) Deep Slate Blue (`#1E3A8A`), Month 3 Deep Navy (`#1E293B`), etc.
+3. **Color-Coded Metric Sub-Headers (Row 2)**:
+   - Sales sub-headers (`$ Sales`, `# Sales`): Slate Blue (`#334155`).
+   - Refunds sub-headers (`$ Ref`, `# Ref`): Deep Maroon / Rose (`#881337`).
+   - Chargebacks sub-headers (`$ Chb`, `# Chb`): Dark Amber (`#78350F`).
+   - Net Sales sub-headers (`$ Net`, `# Net`): Emerald Green (`#065F46` with bold text).
+4. **Prominent Vertical Period Dividers (Medium Borders)**:
+   - Apply a medium right border (`{ style: 'medium', color: { argb: 'FF0F172A' } }`) on the right boundary of Agent Details (Col 5), Grand Total (Col 13), and each Period block across Row 1, Row 2, every Data Row, and the bottom Total row.
+5. **Data Row Shading & Net Metric Bold**:
+   - Grand Total block cells get a subtle soft tint (`#F8FAFC`).
+   - Alternating periods get light background banding: Odd periods `#FFFFFF`, Even periods `#F8FAFC`.
+   - Net Sales and Net Qty cells in data rows and total row are styled with `bold: true`.
+
+---
+
+- [x] **RED — Unit / Integration (`src/tests/agentSalesExcelExporter.test.ts`):**
+  - [x] Test 1: Column widths for currency are $\ge 18$, count columns $\ge 11$.
+  - [x] Test 2: Row 1 header cells have distinct period colors (Agent Details: `0F172A`, Grand Total: `065F46`, Jan: `1E293B`, Feb: `1E3A8A`).
+  - [x] Test 3: Row 2 sub-header cells have distinct metric colors (Sales: `334155`, Refunds: `881337`, Chargebacks: `78350F`, Net: `065F46`).
+  - [x] Test 4: Vertical medium border separator exists on the right edge of Agent Details, Grand Total, and each Period block across Row 1, Row 2, Data Rows, and Total row.
+  - [x] Test 5: In data rows and total row, Net Sales and Net Qty cells have `bold: true`.
+  - [x] Test 6: In data rows, alternating periods have background shading (even period cells have fill color `F8FAFC`).
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Lib):**
+  - [x] [Lib] In `src/lib/agent-sales-excel-exporter.ts`, implement column width expansion, period header color banding, metric sub-header palette, medium vertical period boundary borders, zebra period background shading, and Net metric bolding.
+  - [x] Run `src/tests/agentSalesExcelExporter.test.ts` — **confirm GREEN (8/8 tests passed)**.
+
+- [x] **Verification chain:**
+  - [x] User selects multiple months and clicks "Export XLS" → Opens file in Microsoft Excel → Grand Total has green header, Jan has navy header, Feb has slate blue header → Thick border clearly separates each month → Net Sales column is bold and green-accented → Currency values never show `########` → ✅ Done.
+  - [x] `npm run typecheck`: 0 errors. All test suites verified.
+
+---
+
+### Session Note — Phase 46: Reports Filter Bar UX (Synchronized Multi-Select & Active/Inactive Toggles) and Excel Report Visual Discernment Overhaul
+
+- **Completed Deliverables:**
+  1. **Multi-Select "All" Checkbox Synchronization & "All Except Some" Selection (`W-4601`)**:
+     - **Visual Synchronization**: When `"All Centers"` or `"All Agents"` is active (`teamIds: []` or `agentIds: []`), all individual center and agent checkboxes in the dropdown visually render as checked (`[✓]`).
+     - **Single-Item Exclusion**: Clicking any checked center or agent while "All" is active unchecks only that specific item, immediately setting the filter to all available items except the clicked one (`filter(id => id !== clickedId)`). The top "All" checkbox unchecks automatically.
+     - **Automatic Normalization**: When all available items are re-selected, the state cleanly normalizes back to `[]` to maintain clean URL query parameters and lightweight requests.
+     - **Interactive Group Checkboxes**: Upgraded static `ACTIVE` and `INACTIVE` headers into interactive checkbox headers (`[✓] Active Agents (count)` and `[✓] Inactive Agents (count)`), allowing toggling the entire active or inactive roster in a single click without altering the other group.
+     - **Search Scope Awareness**: Group toggling dynamically respects the search query when filtering agents in the search input.
+     - **Deterministic Session & Position Preservation**: Verified 100% preservation of all filter criteria (`teamIds`, `agentIds`, `metricView`, `range`, `sortBy`, `sortOrder`, pagination) alongside both vertical window scroll (`REPORT_SCROLL_POS`) and horizontal matrix scroll (`REPORT_SCROLL_X`) in `sessionStorage['REPORT_MATRIX_STATE']`. Navigating into orders drilldown and returning via the browser Back button restores the exact view and scroll coordinates without loss.
+  2. **Excel Report Exporter Visual Discernment & Multi-Period Styling Overhaul (`W-4602`)**:
+     - **Column Width Expansion**: Increased currency column widths from `15` to `18` and count column widths to `11`, preventing large values ($\ge \$100,000$) in the TOTAL row from displaying as `########`.
+     - **Period Header Color Banding (Row 1)**: Distinct header fills for each block:
+       - Agent Details: Deep Slate / Charcoal (`#0F172A`).
+       - Range Grand Total: Forest Emerald (`#065F46`).
+       - Monthly Periods: Alternating Deep Navy (`#1E293B`) for odd months and Deep Slate Blue (`#1E3A8A`) for even months.
+     - **Metric-Specific Sub-Header Palette (Row 2)**: Aligned sub-headers with CRM metric badge colors:
+       - Gross Sales (`$ Sales`, `# Sales`): Slate Blue (`#334155`).
+       - Refunds (`$ Ref`, `# Ref`): Deep Maroon / Rose (`#881337`).
+       - Chargebacks (`$ Chb`, `# Chb`): Dark Amber (`#78350F`).
+       - Net Sales (`$ Net`, `# Net`): Emerald Green (`#065F46`).
+     - **Prominent Vertical Boundary Dividers**: Continuous medium-weight borders (`style: 'medium'`, `#0F172A`) applied to the right edge of Agent Details (Col 5), Grand Total (Col 13), and each Period block (Col 21, etc.) across Row 1, Row 2, every Data Row, and the bottom Total row.
+     - **Data Row Alternating Shading & Bold Net Metric**: Soft zebra tint (`#F8FAFC`) applied to Grand Total and even-month columns; Net Sales and Net Qty values formatted with `bold: true` for immediate visual prominence.
+  3. **Strict TDD & Quality Verification**:
+     - `src/tests/ReportFilterBar.test.tsx`: **26 / 26 tests PASSED GREEN**.
+     - `src/tests/agentSalesExcelExporter.test.ts`: **8 / 8 tests PASSED GREEN**.
+     - Combined Vitest run: **34 / 34 tests PASSED GREEN**.
+     - `npm run typecheck`: **0 errors**, full TypeScript compile pass.

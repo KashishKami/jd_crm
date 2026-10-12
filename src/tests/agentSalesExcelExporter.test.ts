@@ -189,6 +189,65 @@ describe('W-4405: Agent Sales 2-Tier Excel Exporter & Route', () => {
       const grandTotalFound = cellValues.some((v) => typeof v === 'string' && v.includes('RANGE GRAND TOTAL'));
       expect(grandTotalFound).toBe(false);
     });
+
+    it('applies visual discernment enhancements: widened columns, period header color banding, metric sub-header colors, thick boundary borders, zebra shading, and bold net metrics', async () => {
+      const buffer = await generateAgentSalesWorkbook(mockMatrixData, { metricView: 'all' });
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer as any);
+      const ws = wb.getWorksheet('Agent Sales Report')!;
+
+      // 1. Column widths: currency >= 18, count >= 11
+      // Col 6 is Sales ($), Col 7 is Sales (#), Col 12 is Net ($), Col 13 is Net (#)
+      expect(ws.getColumn(6).width).toBeGreaterThanOrEqual(18);
+      expect(ws.getColumn(7).width).toBeGreaterThanOrEqual(11);
+      expect(ws.getColumn(12).width).toBeGreaterThanOrEqual(18);
+      expect(ws.getColumn(13).width).toBeGreaterThanOrEqual(11);
+
+      // 2. Row 1: Distinct Period Header Colors
+      const row1 = ws.getRow(1);
+      // Col 1 (Agent Details) -> fgColor: FF0F172A
+      expect((row1.getCell(1).fill as any)?.fgColor?.argb).toBe('FF0F172A');
+      // Col 6 (Range Grand Total) -> fgColor: FF065F46
+      expect((row1.getCell(6).fill as any)?.fgColor?.argb).toBe('FF065F46');
+      // Col 14 (Jan 2026, odd period) -> fgColor: FF1E293B
+      expect((row1.getCell(14).fill as any)?.fgColor?.argb).toBe('FF1E293B');
+      // Col 22 (Feb 2026, even period) -> fgColor: FF1E3A8A
+      expect((row1.getCell(22).fill as any)?.fgColor?.argb).toBe('FF1E3A8A');
+
+      // 3. Row 2: Color-Coded Metric Sub-Headers
+      const row2 = ws.getRow(2);
+      // Grand Total block:
+      // Col 6 ($ Sales) -> 334155
+      expect((row2.getCell(6).fill as any)?.fgColor?.argb).toBe('FF334155');
+      // Col 8 ($ Ref) -> 881337
+      expect((row2.getCell(8).fill as any)?.fgColor?.argb).toBe('FF881337');
+      // Col 10 ($ Chb) -> 78350F
+      expect((row2.getCell(10).fill as any)?.fgColor?.argb).toBe('FF78350F');
+      // Col 12 ($ Net) -> 065F46
+      expect((row2.getCell(12).fill as any)?.fgColor?.argb).toBe('FF065F46');
+
+      // 4. Prominent Vertical Boundary Borders (medium border on right edge of blocks)
+      // Col 5 (Agent Details end), Col 13 (Grand Total end), Col 21 (Jan end)
+      // Check on row 1, row 2, data row 3, and total row 4
+      [1, 2, 3, 4].forEach((rowNum) => {
+        const row = ws.getRow(rowNum);
+        expect(row.getCell(5).border?.right?.style).toBe('medium');
+        expect(row.getCell(13).border?.right?.style).toBe('medium');
+        expect(row.getCell(21).border?.right?.style).toBe('medium');
+      });
+
+      // 5. Data Rows: Net metrics bolded and zebra period shading
+      const row3 = ws.getRow(3);
+      // Col 12 ($ Net in Grand Total) & Col 13 (# Net in Grand Total)
+      expect(row3.getCell(12).font?.bold).toBe(true);
+      expect(row3.getCell(13).font?.bold).toBe(true);
+      // Col 20 ($ Net in Jan) & Col 21 (# Net in Jan)
+      expect(row3.getCell(20).font?.bold).toBe(true);
+      expect(row3.getCell(21).font?.bold).toBe(true);
+
+      // Period 2 (Feb 2026, even period) data cells should have zebra fill
+      expect((row3.getCell(22).fill as any)?.fgColor?.argb).toBe('FFF8FAFC');
+    });
   });
 
   describe('GET /api/reports/agent-sales/export', () => {

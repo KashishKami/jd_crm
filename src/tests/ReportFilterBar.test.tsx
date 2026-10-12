@@ -77,14 +77,14 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
     // Click to open dropdown
     fireEvent.click(centerBtn);
 
-    // Select IT Park
+    // Click IT Park while All Centers is active -> unchecks IT Park, selecting remaining teams [2, 3]
     const itParkOption = screen.getByText('IT Park');
     expect(itParkOption).toBeDefined();
     fireEvent.click(itParkOption);
 
     expect(onFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({
-        teamIds: [1],
+        teamIds: [2, 3],
         agentIds: [],
       })
     );
@@ -118,12 +118,12 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
     // Painter in Team 2 should NOT be in the options
     expect(screen.queryByText('Painter')).toBeNull();
 
-    // Select Johnny
+    // Click Johnny while All Agents in Team 1 is active -> unchecks Johnny, leaving Janey [102]
     fireEvent.click(screen.getByText('Johnny'));
     expect(onFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({
         teamIds: [1],
-        agentIds: [101],
+        agentIds: [102],
       })
     );
   });
@@ -473,5 +473,347 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
     expect(options).toContain('Daily');
     expect(options).toContain('Monthly');
     expect(options).not.toContain('Weekly (Calendar Weeks)');
+  });
+
+  describe('Phase 46 — Synchronized "All" Checkboxes & Active/Inactive Group Filters', () => {
+    it('renders all individual Center checkboxes as checked when selectedTeamIds is empty (All Centers)', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      // Open Center dropdown via select button
+      fireEvent.click(document.getElementById('center-select')!);
+
+      // The "All Centers" checkbox in the dropdown list should be checked
+      const allCentersDiv = screen.getAllByText('All Centers').find((el) => el.tagName === 'SPAN')?.closest('div');
+      const allCentersCheckbox = allCentersDiv?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(allCentersCheckbox.checked).toBe(true);
+
+      // Every individual center checkbox must also be checked
+      for (const t of mockTeams) {
+        const teamDiv = screen.getByText(t.teamName).closest('div');
+        const teamCheckbox = teamDiv?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(teamCheckbox.checked).toBe(true);
+      }
+    });
+
+    it('unchecks one center when clicked from "All Centers", setting selectedTeamIds to all remaining teams', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('center-select')!);
+
+      // Click "IT Park" (teamId 1) to uncheck it
+      const itParkDiv = screen.getByText('IT Park').closest('div')!;
+      fireEvent.click(itParkDiv);
+
+      // Should call onFilterChange with teams EXCEPT IT Park: [2, 3]
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teamIds: [2, 3],
+        })
+      );
+    });
+
+    it('renders all individual Agent checkboxes as checked when selectedAgentIds is empty (All Agents)', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const allAgentsDiv = screen.getAllByText('All Agents').find((el) => el.tagName === 'SPAN')?.closest('div');
+      const allAgentsCheckbox = allAgentsDiv?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(allAgentsCheckbox.checked).toBe(true);
+
+      // Every individual agent checkbox must be checked
+      for (const a of mockAgents) {
+        const agentDiv = screen.getByText(a.nickname || a.name).closest('div');
+        const agentCheckbox = agentDiv?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(agentCheckbox.checked).toBe(true);
+      }
+    });
+
+    it('unchecks one agent when clicked from "All Agents", setting selectedAgentIds to all remaining agents', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      // Click "Johnny" (uid 101) to uncheck him
+      const johnnyDiv = screen.getByText('Johnny').closest('div')!;
+      fireEvent.click(johnnyDiv);
+
+      // Should call onFilterChange with agents EXCEPT Johnny: [102, 201]
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [102, 201],
+        })
+      );
+    });
+
+    it('renders interactive Active and Inactive group checkboxes in the Agent dropdown that reflect full selection', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const activeGroupCheckbox = screen.getByLabelText(/select all active agents/i) as HTMLInputElement;
+      const inactiveGroupCheckbox = screen.getByLabelText(/select all inactive agents/i) as HTMLInputElement;
+
+      expect(activeGroupCheckbox).toBeDefined();
+      expect(inactiveGroupCheckbox).toBeDefined();
+      expect(activeGroupCheckbox.checked).toBe(true);
+      expect(inactiveGroupCheckbox.checked).toBe(true);
+    });
+
+    it('toggles off all Active agents in one click when clicking Active group checkbox', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const activeGroupCheckbox = screen.getByLabelText(/select all active agents/i);
+      fireEvent.click(activeGroupCheckbox);
+
+      // Active agents are 101 (Johnny) and 201 (Painter). Inactive is 102 (Janey).
+      // Unchecking active group should leave only inactive agents: [102]
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [102],
+        })
+      );
+    });
+
+    it('toggles on all Active agents in one click when clicking Active group checkbox while active agents are unselected', () => {
+      // Starting with only Janey (102, inactive) selected
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[102]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const activeGroupCheckbox = screen.getByLabelText(/select all active agents/i);
+      expect((activeGroupCheckbox as HTMLInputElement).checked).toBe(false);
+
+      fireEvent.click(activeGroupCheckbox);
+
+      // Should now select active agents 101 and 201 while retaining 102 -> all 3 agents selected (normalized to [])
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [],
+        })
+      );
+    });
+
+    it('toggles off all Inactive agents in one click when clicking Inactive group checkbox', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const inactiveGroupCheckbox = screen.getByLabelText(/select all inactive agents/i);
+      fireEvent.click(inactiveGroupCheckbox);
+
+      // Inactive agent is 102 (Janey). Active agents are 101 (Johnny) and 201 (Painter).
+      // Unchecking inactive should retain only active agents: [101, 201]
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [101, 201],
+        })
+      );
+    });
+
+    it('toggles on all Inactive agents in one click when clicking Inactive group checkbox while inactive agents are unselected', () => {
+      // Starting with only active agents [101, 201] selected
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[101, 201]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const inactiveGroupCheckbox = screen.getByLabelText(/select all inactive agents/i);
+      expect((inactiveGroupCheckbox as HTMLInputElement).checked).toBe(false);
+
+      fireEvent.click(inactiveGroupCheckbox);
+
+      // Should add 102 (inactive) to [101, 201] -> all 3 agents (normalized to [])
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [],
+        })
+      );
+    });
+
+    it('scopes Active/Inactive toggling when search query is typed in agent filter', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      // Search for "John" -> only Johnny (101) matches in active
+      const searchInput = screen.getByPlaceholderText(/search agents/i);
+      fireEvent.change(searchInput, { target: { value: 'John' } });
+
+      const activeGroupCheckbox = screen.getByLabelText(/select all active agents/i);
+      fireEvent.click(activeGroupCheckbox);
+
+      // Unchecking active group while searching "John" should only remove Johnny (101),
+      // retaining Painter (201) and Janey (102)
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [102, 201],
+        })
+      );
+    });
+
+    it('correctly re-checks "All Centers" and "All Agents" when clicked again', () => {
+      // Starting with partial centers selected
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[2]}
+          selectedAgentIds={[101]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      // Click center button
+      fireEvent.click(document.getElementById('center-select')!);
+      const allCentersOption = screen
+        .getAllByText('All Centers')
+        .find((el) => el.parentElement?.querySelector('input[type="checkbox"]'))?.parentElement!;
+      fireEvent.click(allCentersOption);
+
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teamIds: [],
+        })
+      );
+
+      // Click agent button
+      fireEvent.click(document.getElementById('agent-select')!);
+      const allAgentsOption = screen
+        .getAllByText('All Agents')
+        .find((el) => el.parentElement?.querySelector('input[type="checkbox"]'))?.parentElement!;
+      fireEvent.click(allAgentsOption);
+
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [],
+        })
+      );
+    });
   });
 });

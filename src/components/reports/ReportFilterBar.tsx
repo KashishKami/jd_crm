@@ -137,13 +137,40 @@ export default function ReportFilterBar({
     return { activeAgents: active, inactiveAgents: inactive };
   }, [searchedAgents]);
 
+  // Derived selection states
+  const isAllCentersChecked = selectedTeamIds.length === 0 || (teams.length > 0 && selectedTeamIds.length === teams.length);
+  const isCenterChecked = (teamId: number) => {
+    return isAllCentersChecked || selectedTeamIds.includes(teamId);
+  };
+
+  const isAllAgentsChecked = selectedAgentIds.length === 0 || (filteredAgents.length > 0 && selectedAgentIds.length === filteredAgents.length);
+  const isAgentChecked = (agentUid: number) => {
+    return isAllAgentsChecked || selectedAgentIds.includes(agentUid);
+  };
+
+  const isActiveGroupChecked = useMemo(() => {
+    if (activeAgents.length === 0) return false;
+    return activeAgents.every((a) => isAgentChecked(a.uid));
+  }, [activeAgents, isAllAgentsChecked, selectedAgentIds]);
+
+  const isInactiveGroupChecked = useMemo(() => {
+    if (inactiveAgents.length === 0) return false;
+    return inactiveAgents.every((a) => isAgentChecked(a.uid));
+  }, [inactiveAgents, isAllAgentsChecked, selectedAgentIds]);
+
   // Center multi-select toggle
   const toggleCenter = (teamId: number) => {
     let nextTeamIds: number[];
-    if (selectedTeamIds.includes(teamId)) {
+    if (isAllCentersChecked) {
+      nextTeamIds = teams.map((t) => t.teamId).filter((id) => id !== teamId);
+    } else if (selectedTeamIds.includes(teamId)) {
       nextTeamIds = selectedTeamIds.filter((id) => id !== teamId);
     } else {
       nextTeamIds = [...selectedTeamIds, teamId];
+    }
+
+    if (teams.length > 0 && nextTeamIds.length === teams.length) {
+      nextTeamIds = [];
     }
 
     // Filter out agents that are not in nextTeamIds
@@ -177,11 +204,18 @@ export default function ReportFilterBar({
   // Agent multi-select toggle
   const toggleAgent = (agentUid: number) => {
     let nextAgentIds: number[];
-    if (selectedAgentIds.includes(agentUid)) {
+    if (isAllAgentsChecked) {
+      nextAgentIds = filteredAgents.map((a) => a.uid).filter((id) => id !== agentUid);
+    } else if (selectedAgentIds.includes(agentUid)) {
       nextAgentIds = selectedAgentIds.filter((id) => id !== agentUid);
     } else {
       nextAgentIds = [...selectedAgentIds, agentUid];
     }
+
+    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+      nextAgentIds = [];
+    }
+
     onFilterChange({
       teamIds: selectedTeamIds,
       agentIds: nextAgentIds,
@@ -201,25 +235,83 @@ export default function ReportFilterBar({
     });
   };
 
+  // Toggle Active Agents group
+  const toggleActiveAgents = () => {
+    const currentSelectedUids = isAllAgentsChecked
+      ? filteredAgents.map((a) => a.uid)
+      : [...selectedAgentIds];
+
+    const activeUids = new Set(activeAgents.map((a) => a.uid));
+    let nextAgentIds: number[];
+
+    if (isActiveGroupChecked) {
+      nextAgentIds = currentSelectedUids.filter((id) => !activeUids.has(id));
+    } else {
+      const combined = new Set([...currentSelectedUids, ...activeAgents.map((a) => a.uid)]);
+      nextAgentIds = Array.from(combined);
+    }
+
+    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+      nextAgentIds = [];
+    }
+
+    onFilterChange({
+      teamIds: selectedTeamIds,
+      agentIds: nextAgentIds,
+      range,
+      startDate: range === 'custom' ? startDate : undefined,
+      endDate: range === 'custom' ? endDate : undefined,
+    });
+  };
+
+  // Toggle Inactive Agents group
+  const toggleInactiveAgents = () => {
+    const currentSelectedUids = isAllAgentsChecked
+      ? filteredAgents.map((a) => a.uid)
+      : [...selectedAgentIds];
+
+    const inactiveUids = new Set(inactiveAgents.map((a) => a.uid));
+    let nextAgentIds: number[];
+
+    if (isInactiveGroupChecked) {
+      nextAgentIds = currentSelectedUids.filter((id) => !inactiveUids.has(id));
+    } else {
+      const combined = new Set([...currentSelectedUids, ...inactiveAgents.map((a) => a.uid)]);
+      nextAgentIds = Array.from(combined);
+    }
+
+    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+      nextAgentIds = [];
+    }
+
+    onFilterChange({
+      teamIds: selectedTeamIds,
+      agentIds: nextAgentIds,
+      range,
+      startDate: range === 'custom' ? startDate : undefined,
+      endDate: range === 'custom' ? endDate : undefined,
+    });
+  };
+
   // Center button label
   const centerButtonLabel = useMemo(() => {
-    if (selectedTeamIds.length === 0) return 'All Centers';
+    if (isAllCentersChecked) return 'All Centers';
     if (selectedTeamIds.length === 1) {
       const t = teams.find((x) => x.teamId === selectedTeamIds[0]);
       return t ? t.teamName : '1 Center';
     }
     return `${selectedTeamIds.length} Centers Selected`;
-  }, [selectedTeamIds, teams]);
+  }, [isAllCentersChecked, selectedTeamIds, teams]);
 
   // Agent button label
   const agentButtonLabel = useMemo(() => {
-    if (selectedAgentIds.length === 0) return 'All Agents';
+    if (isAllAgentsChecked) return 'All Agents';
     if (selectedAgentIds.length === 1) {
       const a = agents.find((x) => x.uid === selectedAgentIds[0]);
       return a ? a.nickname || a.name : '1 Agent';
     }
     return `${selectedAgentIds.length} Agents Selected`;
-  }, [selectedAgentIds, agents]);
+  }, [isAllAgentsChecked, selectedAgentIds, agents]);
 
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const currentMonth = useMemo(() => new Date().getUTCMonth() + 1, []);
@@ -433,12 +525,12 @@ export default function ReportFilterBar({
                       fontSize: '0.75rem',
                       fontWeight: 600,
                       color: '#1e293b',
-                      background: selectedTeamIds.length === 0 ? '#f1f5f9' : 'transparent',
+                      background: isAllCentersChecked ? '#f1f5f9' : 'transparent',
                     }}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedTeamIds.length === 0}
+                      checked={isAllCentersChecked}
                       onChange={() => {}}
                       style={{ cursor: 'pointer' }}
                     />
@@ -446,7 +538,7 @@ export default function ReportFilterBar({
                   </div>
                   <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
                   {teams.map((t) => {
-                    const isChecked = selectedTeamIds.includes(t.teamId);
+                    const isChecked = isCenterChecked(t.teamId);
                     return (
                       <div
                         key={t.teamId}
@@ -556,12 +648,12 @@ export default function ReportFilterBar({
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     color: '#1e293b',
-                    background: selectedAgentIds.length === 0 ? '#f1f5f9' : 'transparent',
+                    background: isAllAgentsChecked ? '#f1f5f9' : 'transparent',
                   }}
                 >
                   <input
                     type="checkbox"
-                    checked={selectedAgentIds.length === 0}
+                    checked={isAllAgentsChecked}
                     onChange={() => {}}
                     style={{ cursor: 'pointer' }}
                   />
@@ -570,11 +662,45 @@ export default function ReportFilterBar({
 
                 {activeAgents.length > 0 && (
                   <>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', padding: '6px 8px 2px', textTransform: 'uppercase' }}>
-                      Active
+                    <div
+                      onClick={toggleActiveAgents}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px 3px',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        background: isActiveGroupChecked ? '#f8fafc' : 'transparent',
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: '#64748b',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          margin: 0,
+                          width: '100%',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label="Select all active agents"
+                          checked={isActiveGroupChecked}
+                          onChange={toggleActiveAgents}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>Active Agents ({activeAgents.length})</span>
+                      </label>
                     </div>
                     {activeAgents.map((a) => {
-                      const isChecked = selectedAgentIds.includes(a.uid);
+                      const isChecked = isAgentChecked(a.uid);
                       return (
                         <div
                           key={a.uid}
@@ -608,11 +734,47 @@ export default function ReportFilterBar({
 
                 {inactiveAgents.length > 0 && (
                   <>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', padding: '6px 8px 2px', textTransform: 'uppercase' }}>
-                      Inactive
+                    <div
+                      onClick={toggleInactiveAgents}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px 3px',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        background: isInactiveGroupChecked ? '#f8fafc' : 'transparent',
+                        borderTop: '1px solid #f1f5f9',
+                        marginTop: '4px',
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: '#94a3b8',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          margin: 0,
+                          width: '100%',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label="Select all inactive agents"
+                          checked={isInactiveGroupChecked}
+                          onChange={toggleInactiveAgents}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>Inactive Agents ({inactiveAgents.length})</span>
+                      </label>
                     </div>
                     {inactiveAgents.map((a) => {
-                      const isChecked = selectedAgentIds.includes(a.uid);
+                      const isChecked = isAgentChecked(a.uid);
                       return (
                         <div
                           key={a.uid}

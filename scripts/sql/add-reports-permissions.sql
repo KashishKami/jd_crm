@@ -5,7 +5,7 @@
 --            63: reports:agent-sales (View Agent Sales Performance matrix)
 --            64: reports:agent-sales-export (Export Agent Sales matrix to Excel)
 --            Assigns them to Super Admin (1), Admin (2), Manager (3) [view+export],
---            and Team Lead (4) [view only].
+--            and Team Lead (4) [view team only].
 -- Safe     : Idempotent, safe to run multiple times without side effects.
 -- Applies  : Production database (jd_crm) AND local development.
 -- ============================================================
@@ -32,14 +32,16 @@ ON DUPLICATE KEY UPDATE
 
 -- ---- Step 2: Assign to Super Admin (1), Admin (2), Manager (3), Team Lead (4) ----
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
+-- Super Admin (1): full report & export
 (1, 63),
 (1, 64),
-(1, 65),
+-- Admin (2): full report & export
 (2, 63),
 (2, 64),
-(2, 65),
+-- Manager (3): full report & export
 (3, 63),
 (3, 64),
+-- Team Lead (4): team permission only
 (4, 65);
 
 -- ---- Step 3: Verification output --------------------------------

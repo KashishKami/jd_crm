@@ -85,18 +85,31 @@ export async function generateAgentSalesWorkbook(
   // Grand total block (only if multiple periods)
   if (includeGrandTotal) {
     for (let i = 0; i < subColCount; i++) {
-      colWidths.push(subCols[i].isCurrency ? 15 : 10);
+      colWidths.push(subCols[i].isCurrency ? 18 : 11);
     }
   }
   // Period blocks
   for (let p = 0; p < periods.length; p++) {
     for (let i = 0; i < subColCount; i++) {
-      colWidths.push(subCols[i].isCurrency ? 15 : 10);
+      colWidths.push(subCols[i].isCurrency ? 18 : 11);
     }
   }
 
   colWidths.forEach((w, idx) => {
     ws.getColumn(idx + 1).width = w;
+  });
+
+  // Boundary column indices (right edge of Agent details, Grand Total, and each Period)
+  const boundaryColIndices = new Set<number>();
+  boundaryColIndices.add(5); // End of Agent details (Status)
+  let marker = 5;
+  if (includeGrandTotal) {
+    marker += subColCount;
+    boundaryColIndices.add(marker);
+  }
+  periods.forEach(() => {
+    marker += subColCount;
+    boundaryColIndices.add(marker);
   });
 
   // Row 1: Top Tier Header
@@ -127,13 +140,24 @@ export async function generateAgentSalesWorkbook(
     currentCol += subColCount;
   });
 
-  // Style Row 1
+  // Style Row 1 with Distinct Period Color Bands
   for (let c = 1; c <= colWidths.length; c++) {
     const cell = headerRow1.getCell(c);
+    let headerBg = 'FF0F172A'; // Agent details default (Deep Slate / Charcoal)
+    if (c > 5) {
+      if (includeGrandTotal && c <= 5 + subColCount) {
+        headerBg = 'FF065F46'; // Range Grand Total (Forest Emerald)
+      } else {
+        const periodOffset = includeGrandTotal ? c - 5 - subColCount : c - 5;
+        const periodIdx = Math.floor((periodOffset - 1) / subColCount);
+        headerBg = periodIdx % 2 === 0 ? 'FF1E293B' : 'FF1E3A8A'; // Odd: Deep Navy, Even: Deep Slate Blue
+      }
+    }
+
     cell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF1E293B' }, // Dark Navy
+      fgColor: { argb: headerBg },
     };
     cell.font = {
       name: 'Calibri',
@@ -145,11 +169,15 @@ export async function generateAgentSalesWorkbook(
       vertical: 'middle',
       horizontal: 'center',
     };
+    const isBoundary = boundaryColIndices.has(c);
     cell.border = {
       top: { style: 'medium', color: { argb: 'FF0F172A' } },
       bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
       left: { style: 'thin', color: { argb: 'FF334155' } },
-      right: { style: 'thin', color: { argb: 'FF334155' } },
+      right: {
+        style: isBoundary ? 'medium' : 'thin',
+        color: { argb: isBoundary ? 'FF0F172A' : 'FF334155' },
+      },
     };
   }
 
@@ -169,10 +197,26 @@ export async function generateAgentSalesWorkbook(
 
   for (let c = 1; c <= colWidths.length; c++) {
     const cell = headerRow2.getCell(c);
+    let subBg = 'FF334155'; // Default Slate
+
+    if (c > 5) {
+      const subColIndex = (c - 6) % subColCount;
+      const sc = subCols[subColIndex];
+      if (sc.key === 'salesAmount' || sc.key === 'salesCount') {
+        subBg = 'FF334155'; // Slate Blue for Gross Sales
+      } else if (sc.key === 'refundsAmount' || sc.key === 'refundsCount') {
+        subBg = 'FF881337'; // Deep Rose / Maroon for Refunds
+      } else if (sc.key === 'chargebacksAmount' || sc.key === 'chargebacksCount') {
+        subBg = 'FF78350F'; // Dark Amber for Chargebacks
+      } else if (sc.key === 'netSales' || sc.key === 'netSalesCount') {
+        subBg = 'FF065F46'; // Emerald Green for Net Sales
+      }
+    }
+
     cell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF334155' }, // Slate
+      fgColor: { argb: subBg },
     };
     cell.font = {
       name: 'Calibri',
@@ -184,11 +228,15 @@ export async function generateAgentSalesWorkbook(
       vertical: 'middle',
       horizontal: c <= 5 ? (c === 5 ? 'center' : 'left') : 'right',
     };
+    const isBoundary = boundaryColIndices.has(c);
     cell.border = {
       top: { style: 'thin', color: { argb: 'FF1E293B' } },
       bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
       left: { style: 'thin', color: { argb: 'FF475569' } },
-      right: { style: 'thin', color: { argb: 'FF475569' } },
+      right: {
+        style: isBoundary ? 'medium' : 'thin',
+        color: { argb: isBoundary ? 'FF0F172A' : 'FF475569' },
+      },
     };
   }
 
@@ -231,11 +279,16 @@ export async function generateAgentSalesWorkbook(
 
     for (let c = 1; c <= colWidths.length; c++) {
       const cell = dataRow.getCell(c);
+      const isBoundary = boundaryColIndices.has(c);
+
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: {
+          style: isBoundary ? 'medium' : 'thin',
+          color: { argb: isBoundary ? 'FF0F172A' : 'FFE2E8F0' },
+        },
       };
 
       if (c <= 5) {
@@ -245,7 +298,30 @@ export async function generateAgentSalesWorkbook(
         };
       } else {
         const subColIndex = (c - 6) % subColCount;
-        const isCurr = subCols[subColIndex].isCurrency;
+        const sc = subCols[subColIndex];
+        const isCurr = sc.isCurrency;
+        const isNet = sc.key === 'netSales' || sc.key === 'netSalesCount';
+
+        const isGrandTotalCol = includeGrandTotal && c <= 5 + subColCount;
+        const periodOffset = includeGrandTotal ? c - 5 - subColCount : c - 5;
+        const periodIdx = isGrandTotalCol ? -1 : Math.floor((periodOffset - 1) / subColCount);
+
+        // Zebra background shading: Grand total and even periods get soft tint
+        if (isGrandTotalCol || periodIdx % 2 === 1) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8FAFC' },
+          };
+        }
+
+        cell.font = {
+          name: 'Calibri',
+          size: 10,
+          bold: isNet,
+          color: { argb: 'FF0F172A' },
+        };
+
         cell.numFmt = isCurr ? '$#,##0.00' : '#,##0';
         cell.alignment = {
           vertical: 'middle',
@@ -306,6 +382,8 @@ export async function generateAgentSalesWorkbook(
 
   for (let c = 1; c <= colWidths.length; c++) {
     const cell = totalRow.getCell(c);
+    const isBoundary = boundaryColIndices.has(c);
+
     cell.fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -321,7 +399,10 @@ export async function generateAgentSalesWorkbook(
       top: { style: 'medium', color: { argb: 'FF0F172A' } },
       bottom: { style: 'double', color: { argb: 'FF0F172A' } },
       left: { style: 'thin', color: { argb: 'FF334155' } },
-      right: { style: 'thin', color: { argb: 'FF334155' } },
+      right: {
+        style: isBoundary ? 'medium' : 'thin',
+        color: { argb: isBoundary ? 'FF0F172A' : 'FF334155' },
+      },
     };
 
     if (c <= 5) {
