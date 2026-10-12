@@ -43,9 +43,37 @@ describe('Reports API Controller Integration Tests (W-4402)', () => {
       expect(json.error).toBe('Unauthorized');
     });
 
+    it('should return 403 Forbidden if user lacks reports:agent-sales permission', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 1, userPermissions: ['customers:view'] },
+      } as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.error).toBe('Forbidden');
+    });
+
+    it('should return 403 Forbidden if user only has export permission but lacks reports:agent-sales', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 1, userPermissions: ['reports:agent-sales-export'] },
+      } as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.error).toBe('Forbidden');
+    });
+
     it('should return 400 Bad Request if range is custom but dates are missing', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
-        user: { uid: 1, userPermissions: ['orders:view'] },
+        user: { uid: 1, userPermissions: ['reports:agent-sales'] },
       } as any);
 
       const { GET } = await import('../app/api/reports/agent-sales/route');
@@ -59,7 +87,7 @@ describe('Reports API Controller Integration Tests (W-4402)', () => {
 
     it('should parse multi-select teamId and agentId and return matrix data successfully', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
-        user: { uid: 1, userPermissions: ['dashboard:view-advanced-chart'] },
+        user: { uid: 1, userPermissions: ['reports:agent-sales'] },
       } as any);
 
       const mockResponse = {

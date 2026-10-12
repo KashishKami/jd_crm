@@ -150,7 +150,10 @@ INSERT INTO crm_permissions (permission_id, permission_name, permission_descript
 (62, 'follow-ups:view-team',               'Team-level: view follow-ups of agents in own center/team only'),
 -- Call-dispositions
 (60, 'call-dispositions:view',            'Admin-level: view all call dispositions across all agents, full filter controls, delete, and Excel export'),
-(61, 'call-dispositions:create',          'Agent-level: create and view own call dispositions only, no delete, no export')
+(61, 'call-dispositions:create',          'Agent-level: create and view own call dispositions only, no delete, no export'),
+-- Reports (Phase 44)
+(63, 'reports:agent-sales',               'View Agent Sales Matrix performance report'),
+(64, 'reports:agent-sales-export',        'Export Agent Sales Matrix performance report to Excel spreadsheets')
 ON DUPLICATE KEY UPDATE permission_name = VALUES(permission_name), permission_description = VALUES(permission_description);
 
 -- ============================================================
@@ -172,7 +175,8 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (1,41),(1,42),(1,43),(1,44),(1,45),(1,46),
 (1,47),(1,48),(1,49),(1,50),(1,51),(1,52),(1,53),
 (1,54),
-(1,58),(1,59),(1,60),(1,61),(1,62);
+(1,58),(1,59),(1,60),(1,61),(1,62),
+(1,63),(1,64);
 
 -- Admin (role_id = 2) — all permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
@@ -186,11 +190,12 @@ INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
 (2,41),(2,42),(2,43),(2,44),(2,45),(2,46),
 (2,47),(2,48),(2,49),(2,50),(2,51),(2,52),(2,53),
 (2,54),
-(2,58),(2,59),(2,60),(2,61),(2,62);
+(2,58),(2,59),(2,60),(2,61),(2,62),
+(2,63),(2,64);
 
--- Manager (role_id = 3) & Team Lead (role_id = 4) — follow-ups:view-team
+-- Manager (role_id = 3) & Team Lead (role_id = 4) — follow-ups:view-team, reports:agent-sales (Manager + Team Lead), reports:agent-sales-export (Manager)
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES
-(3,62),(4,62);
+(3,62),(4,62),(3,63),(3,64),(4,63);
 
 -- Agent (role_id = 8) — follow-ups:create and call-dispositions:create permissions
 INSERT IGNORE INTO crm_role_permissions (role_id, permission_id) VALUES

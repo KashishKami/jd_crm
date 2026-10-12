@@ -251,4 +251,96 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
     fireEvent.click(exportBtn);
     expect(onExportExcel).toHaveBeenCalledTimes(1);
   });
+
+  it('renders Month, Year, and Granularity selectors when range is "monthly"', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="monthly"
+        year={2026}
+        month={10}
+        granularity="summary"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    // Month selector present with 'Oct'
+    const monthSelect = screen.getByLabelText(/month/i) || screen.getByDisplayValue('Oct');
+    expect(monthSelect).toBeDefined();
+
+    // Year selector present with '2026'
+    const yearSelect = screen.getByLabelText(/year/i) || screen.getByDisplayValue('2026');
+    expect(yearSelect).toBeDefined();
+
+    // Granularity selector present with 'Monthly Summary'
+    const granSelect = screen.getByLabelText(/granularity/i) || screen.getByDisplayValue(/Monthly Summary/i);
+    expect(granSelect).toBeDefined();
+  });
+
+  it('renders Year and Granularity selectors when range is "yearly"', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="yearly"
+        year={2025}
+        granularity="summary"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+      />
+    );
+
+    expect(screen.getByDisplayValue('2025')).toBeDefined();
+    expect(screen.getByDisplayValue(/Yearly Summary/i)).toBeDefined();
+    // Month should NOT be shown in yearly
+    expect(screen.queryByDisplayValue('Oct')).toBeNull();
+  });
+
+  it('omits Export XLS button when canExport is false', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="monthly"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+        canExport={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /export xls/i })).toBeNull();
+  });
+
+  it('renders Export XLS button when canExport is true', () => {
+    render(
+      <ReportFilterBar
+        teams={mockTeams}
+        agents={mockAgents}
+        selectedTeamIds={[]}
+        selectedAgentIds={[]}
+        range="monthly"
+        metricView="all"
+        onFilterChange={onFilterChange}
+        onMetricViewChange={onMetricViewChange}
+        onExportExcel={onExportExcel}
+        canExport={true}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /export xls/i })).toBeDefined();
+  });
 });

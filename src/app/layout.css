@@ -462,12 +462,12 @@ html, .app-container {
 }
 
 
-/* Floating Sidebar overlay for mobile screens (max-width: 768px) */
-@media (max-width: 768px) {
-  .app-container {
-    display: block !important;
-  }
-  
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Floating Sidebar overlay for screens with hamburger menu (max-width: 1399px) */
+@media (max-width: 1399px) {
   .sidebar {
     display: flex !important;
     position: fixed !important;
@@ -485,12 +485,33 @@ html, .app-container {
     flex-direction: column;
     border-right: 1px solid rgba(255, 255, 255, 0.05);
     font-size: 0.95rem;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
   .app-container.sidebar-closed .sidebar {
     transform: translateX(-100%) !important;
     opacity: 0 !important;
     pointer-events: none !important;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+    transition: opacity 0.3s ease;
+  }
+}
+
+/* Mobile screens refinements (max-width: 768px) */
+@media (max-width: 768px) {
+  .app-container {
+    display: block !important;
   }
 
   /* Responsive Sidebar Typography and Paddings */
@@ -553,26 +574,9 @@ html, .app-container {
     height: 16px !important;
   }
   
-  .sidebar-backdrop {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 999;
-    backdrop-filter: blur(2px);
-    transition: opacity 0.3s ease;
-  }
-  
   .kpi-cards-grid {
     grid-template-columns: 1fr !important;
   }
-}
-
-.sidebar-backdrop {
-  display: none;
 }
 
 /* Top Navbar layout */

@@ -5,11 +5,24 @@ import { getAgentSalesMatrix } from '../../../../../service/report.service';
 import { generateAgentSalesWorkbook } from '../../../../../lib/agent-sales-excel-exporter';
 import { AgentSalesFilterParams, MetricViewType } from '../../../../../types/report';
 
+import { hasPermission } from '../../../../../service/permission.service';
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const permissions = (session.user as any).userPermissions;
+  const sessionUser = session.user as any;
+  const canExport =
+    hasPermission(permissions, 'reports:agent-sales-export') ||
+    hasPermission(permissions, 'super-admin') ||
+    sessionUser?.roleId === 1;
+
+  if (!canExport) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -18,7 +31,13 @@ export async function GET(request: Request) {
   const agentIdParam = searchParams.get('agentId');
   const startDate = searchParams.get('startDate') || undefined;
   const endDate = searchParams.get('endDate') || undefined;
+  const yearParam = searchParams.get('year');
+  const monthParam = searchParams.get('month');
+  const granularity = searchParams.get('granularity') as AgentSalesFilterParams['granularity'] || undefined;
   const metricView = (searchParams.get('metricView') || 'all') as MetricViewType;
+
+  const year = yearParam ? parseInt(yearParam, 10) : undefined;
+  const month = monthParam ? parseInt(monthParam, 10) : undefined;
 
   const teamIds = teamIdParam
     ? teamIdParam
@@ -41,6 +60,9 @@ export async function GET(request: Request) {
       agentIds: agentIds && agentIds.length > 0 ? agentIds : undefined,
       startDate,
       endDate,
+      year: year && !isNaN(year) ? year : undefined,
+      month: month && !isNaN(month) ? month : undefined,
+      granularity,
     });
 
     const buffer = await generateAgentSalesWorkbook(matrixData, { metricView });

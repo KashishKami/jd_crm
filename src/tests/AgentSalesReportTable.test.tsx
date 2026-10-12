@@ -183,7 +183,7 @@ describe('W-4404: AgentSalesReportTable Component', () => {
     expect(grandTotalNetLink.getAttribute('href')).toContain('saleStatus=1%2C4');
   });
 
-  it('handles pagination for large agent lists (> 10 agents)', () => {
+  it('handles pagination with 20 agent records per page (PAGE_SIZE = 20)', () => {
     const manyAgents = Array.from({ length: 25 }, (_, i) => ({
       agentId: 200 + i,
       agentName: `Agent ${i + 1}`,
@@ -216,11 +216,49 @@ describe('W-4404: AgentSalesReportTable Component', () => {
       />
     );
 
-    // Page 1 should show Agent 1, but not Agent 15
+    // Page 1 should show Agent 1 and Agent 20, but not Agent 21
     expect(screen.getByText('Agent 1')).toBeDefined();
-    expect(screen.queryByText('Agent 15')).toBeNull();
+    expect(screen.getByText('Agent 20')).toBeDefined();
+    expect(screen.queryByText('Agent 21')).toBeNull();
 
     // Pagination controls rendered
     expect(screen.getByRole('button', { name: /page 2/i })).toBeDefined();
   });
+
+  it('hides Range Grand Total column when periods.length === 1 (avoiding redundancy)', () => {
+    const singlePeriodData: ReportMatrixResponse = {
+      ...mockMatrixData,
+      periods: [
+        { key: '2026-10', label: 'Oct 2026 (Monthly Summary)', startDate: '2026-10-01', endDate: '2026-10-31' },
+      ],
+    };
+
+    render(
+      <AgentSalesReportTable
+        matrixData={singlePeriodData}
+        metricView="all"
+        isLoading={false}
+      />
+    );
+
+    // Header should contain the single period
+    expect(screen.getByText(/Oct 2026 \(Monthly Summary\)/i)).toBeDefined();
+
+    // Redundant "Range Grand Total" should NOT be rendered
+    expect(screen.queryByText(/Range Grand Total/i)).toBeNull();
+  });
+
+  it('shows Range Grand Total column when periods.length > 1', () => {
+    render(
+      <AgentSalesReportTable
+        matrixData={mockMatrixData} // has 2 periods
+        metricView="all"
+        isLoading={false}
+      />
+    );
+
+    // "Range Grand Total" MUST be rendered when multiple period columns exist
+    expect(screen.getByText(/Range Grand Total/i)).toBeDefined();
+  });
 });
+

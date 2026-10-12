@@ -112,7 +112,7 @@ describe('W-4406: Reports Page Layout and Container', () => {
         user: {
           uid: 1,
           name: 'Admin User',
-          userPermissions: 'dashboard:view-advanced-chart,orders:view',
+          userPermissions: 'reports:agent-sales,reports:agent-sales-export',
         },
       },
       status: 'authenticated',
@@ -175,5 +175,83 @@ describe('W-4406: Reports Page Layout and Container', () => {
       const parsed = JSON.parse(saved);
       expect(parsed.metricView).toEqual(['net']);
     }
+  });
+
+  it('shows Access Restricted card, hides Agent Report tab, and skips matrix fetch when user lacks reports:agent-sales', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          uid: 2,
+          name: 'Restricted User',
+          userPermissions: 'reports:agent-sales-export',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<ReportsContainer />);
+
+    expect(screen.getByText('Reports')).toBeDefined();
+    expect(screen.getByText('Access Restricted')).toBeDefined();
+    expect(
+      screen.getByText(/You do not have permission to view this report/i)
+    ).toBeDefined();
+    // Tab must NOT be shown
+    expect(screen.queryByText('Agent Report')).toBeNull();
+
+    // /api/reports/agent-sales should NOT have been fetched
+    const fetchCalls = (global.fetch as any).mock.calls;
+    const agentSalesFetch = fetchCalls.find((call: any[]) =>
+      call[0]?.includes('/api/reports/agent-sales')
+    );
+    expect(agentSalesFetch).toBeUndefined();
+  });
+
+  it('hides Export XLS button when user has reports:agent-sales but lacks reports:agent-sales-export', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          uid: 3,
+          name: 'Agent Sales Viewer',
+          userPermissions: 'reports:agent-sales',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<ReportsContainer />);
+
+    expect(screen.getByText('Agent Report')).toBeDefined();
+
+    await waitFor(() => {
+      expect(screen.getByText('Johnny')).toBeDefined();
+    });
+
+    // Export button must NOT be present
+    expect(screen.queryByRole('button', { name: /export xls/i })).toBeNull();
+  });
+
+  it('shows Export XLS button when user has reports:agent-sales-export', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          uid: 1,
+          name: 'Super Admin',
+          userPermissions: 'reports:agent-sales,reports:agent-sales-export',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<ReportsContainer />);
+
+    expect(screen.getByText('Agent Report')).toBeDefined();
+
+    await waitFor(() => {
+      expect(screen.getByText('Johnny')).toBeDefined();
+    });
+
+    // Export button must be present
+    expect(screen.getByRole('button', { name: /export xls/i })).toBeDefined();
   });
 });

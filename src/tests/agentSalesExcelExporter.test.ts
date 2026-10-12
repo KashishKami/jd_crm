@@ -169,6 +169,26 @@ describe('W-4405: Agent Sales 2-Tier Excel Exporter & Route', () => {
       // Total columns: 5 (entity) + 2 (grand total) + 2 (Jan) + 2 (Feb) = 11 columns
       expect(ws!.columnCount).toBe(11);
     });
+
+    it('omits Range Grand Total columns when periods.length === 1 to avoid redundancy', async () => {
+      const singlePeriodData: ReportMatrixResponse = {
+        ...mockMatrixData,
+        periods: [
+          { key: '2026-10', label: 'Oct 2026', startDate: '2026-10-01', endDate: '2026-10-31' },
+        ],
+      };
+      const buffer = await generateAgentSalesWorkbook(singlePeriodData, { metricView: 'all' });
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer as any);
+      const ws = wb.getWorksheet('Agent Sales Report');
+
+      // For all metrics with 1 period: 5 (entity) + 8 (Oct 2026) = 13 columns (NO Range Grand Total cols)
+      expect(ws!.columnCount).toBe(13);
+      const headerRow1 = ws!.getRow(1);
+      const cellValues = headerRow1.values as any[];
+      const grandTotalFound = cellValues.some((v) => typeof v === 'string' && v.includes('RANGE GRAND TOTAL'));
+      expect(grandTotalFound).toBe(false);
+    });
   });
 
   describe('GET /api/reports/agent-sales/export', () => {
@@ -182,9 +202,37 @@ describe('W-4405: Agent Sales 2-Tier Excel Exporter & Route', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 200 OK with excel binary buffer and proper Content-Disposition', async () => {
+    it('returns 403 Forbidden if user lacks export permissions', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce({
-        user: { uid: 1, userPermissions: ['orders:view'] },
+        user: { uid: 99, roleId: 8, userPermissions: ['customers:view'] },
+      } as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/export/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales/export');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.error).toBe('Forbidden');
+    });
+
+    it('returns 403 Forbidden if user has reports:agent-sales but lacks reports:agent-sales-export', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 99, roleId: 8, userPermissions: ['reports:agent-sales'] },
+      } as any);
+
+      const { GET } = await import('../app/api/reports/agent-sales/export/route');
+      const req = new Request('http://localhost:3080/api/reports/agent-sales/export');
+      const res = await GET(req);
+
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.error).toBe('Forbidden');
+    });
+
+    it('returns 200 OK with excel binary buffer when user has reports:agent-sales-export', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { uid: 1, userPermissions: ['reports:agent-sales-export'] },
       } as any);
 
       vi.mocked(reportService.getAgentSalesMatrix).mockResolvedValueOnce(mockMatrixData);

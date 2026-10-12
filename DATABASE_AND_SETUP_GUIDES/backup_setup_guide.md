@@ -182,3 +182,33 @@ To inspect cron backup history or debug failures, view the log:
 ```bash
 tail -n 50 /jd_crm_backup/backup.log
 ```
+
+---
+
+## 5. Local Development: Reset & Restore Backup into Local Database
+
+For development testing, follow these 4 steps to reset your local database and restore from a `.sql.gz` backup file stored in your local `db_backup/` directory.
+
+> [!NOTE]
+> Replace `<backup-file-name>.sql.gz` with your actual backup file (e.g., `jd_crm_YYYY-MM-DD_HH-mm-ss.sql.gz`).
+
+### 1. Copy backup into MySQL Docker container
+```powershell
+docker cp .\db_backup\<backup-file-name>.sql.gz jd_crm_db:/tmp/backup.sql.gz
+```
+
+### 2. Reset the database (Wipes existing data & creates fresh empty database)
+```powershell
+docker exec jd_crm_db mysql -u root -proot_password -e "DROP DATABASE IF EXISTS jd_crm; CREATE DATABASE jd_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 3. Restore the clean database from backup
+```powershell
+docker exec jd_crm_db bash -c "zcat /tmp/backup.sql.gz | mysql -u root -proot_password jd_crm"
+```
+
+### 4. Delete the temporary backup file from the container
+```powershell
+docker exec jd_crm_db rm /tmp/backup.sql.gz
+```
+

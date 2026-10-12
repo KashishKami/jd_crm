@@ -4,7 +4,7 @@ import React, { forwardRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { hasPermission } from '../service/permission.service';
+import { hasPermission, hasReportsAccess } from '../service/permission.service';
 
 interface SidebarProps {
   onToggle?: () => void;
@@ -28,14 +28,35 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
   const isActive = (path: string) => pathname === path;
 
   const handleLinkClick = () => {
-    if (typeof window !== 'undefined' && window.innerWidth <= 768 && onToggle) {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1399 && onToggle) {
       onToggle();
     }
   };
 
   return (
     <aside ref={ref} className="sidebar" style={{ display: 'flex', flexDirection: 'column' }}>
-      <nav className="sidebar-nav" style={{ padding: '24px 16px', flex: 1 }}>
+      {/* Drawer Header with Logo and Close Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="logo-icon" style={{ width: '28px', height: '28px', fontSize: '0.85rem' }}>JD</span>
+          <span className="logo-text" style={{ color: '#ffffff', fontSize: '1rem', fontWeight: 700 }}>CRM</span>
+        </div>
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="Close Navigation Drawer"
+            className="sidebar-close-btn"
+            style={{ color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px' }}
+          >
+            <svg style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <nav className="sidebar-nav" style={{ padding: '20px 16px', flex: 1 }}>
         <div className="nav-section-title" style={{ color: '#ffffff', opacity: 0.6, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', paddingLeft: '12px', fontWeight: 600 }}>
           Menu
         </div>
@@ -169,10 +190,7 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
           )}
 
           {/* Conditional Reports Navigation */}
-          {(hasPermission(permissions, 'dashboard:view-advanced-chart') ||
-            hasPermission(permissions, 'orders:view') ||
-            hasPermission(permissions, 'super-admin') ||
-            (session?.user as any)?.roleId === 1) && (
+          {hasReportsAccess(permissions, (session?.user as any)?.roleId) && (
             <li className="nav-item">
               <Link
                 href="/reports"

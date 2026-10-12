@@ -179,6 +179,20 @@ To avoid the spaghetti SQL queries in the old PHP files, the code will be struct
 > [!NOTE]
 > **Phase 33 Follow-Up Status Dropdown Update:** The `status` dropdown in Follow-Up Add/Edit forms and the list filter has been updated to 14 options. No database migration needed (`status` is `varchar(50)`). New values: `Comparing Prices`, `Needs More Time`, `Price Quoted`, `Waiting for Payment`. Removed values: `Wrong Number`, `Spanish`. Existing records with removed values are unaffected — they display as historical string values.
 
+### Resource: `reports`
+| Permission Key | Permission ID | Description |
+| :--- | :--- | :--- |
+| `reports:agent-sales` | `63` | **Report-level.** Access and inspect the Agent Sales Performance matrix report, access the `/reports` module, and data endpoints. |
+| `reports:agent-sales-export` | `64` | **Export-level.** Export Agent Sales Performance report matrix to multi-tiered Excel (.xlsx). |
+
+> [!NOTE]
+> **Reports Module Permissions (Phase 44):**
+> - The Reports module follows a direct **2-tier model per report** (`reports:<name>` and `reports:<name>-export`). There is no redundant `reports:view` permission.
+> - Access to `/reports` and the navbar/sidebar "Reports" entry is granted dynamically if the user has **any non-export report permission** (`reports:*`), is `super-admin`, or has `roleId === 1`.
+> - Users with `reports:agent-sales` can fetch and inspect the Agent Sales matrix aggregates across custom, monthly, yearly, and calendar week granularities.
+> - Users with `reports:agent-sales-export` can trigger multi-tiered Excel workbook generation and downloads via `GET /api/reports/agent-sales/export`.
+> - In `seed.sql`: Roles 1 (Super Admin), 2 (Admin), and 3 (Sales Manager) are granted both view (`63`) and export (`64`). Role 4 (Team Lead) is granted view only (`63`).
+
 ### Super Admin
 
 | Permission Key | Legacy Code | Description |

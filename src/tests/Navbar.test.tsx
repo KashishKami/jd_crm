@@ -200,12 +200,57 @@ describe('Navbar Component Unit Tests', () => {
     expect(screen.queryByText('Follow Ups')).toBeNull();
   });
 
-  it('should render Reports link when user has permissions', () => {
+  it('should NOT render Reports link when user only has orders:view or other non-report permissions', () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
-          name: 'Admin User',
-          userPermissions: 'dashboard:view-advanced-chart',
+          name: 'Regular Agent',
+          userPermissions: 'orders:view,orders:create,dashboard:monthly-sales',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Reports')).toBeNull();
+  });
+
+  it('should NOT render Reports link when user only has export permission', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Export Only User',
+          userPermissions: 'reports:agent-sales-export',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Reports')).toBeNull();
+  });
+
+  it('should render Reports link when user has a specific report permission like reports:agent-sales', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Agent Sales User',
+          userPermissions: 'reports:agent-sales',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByText('Reports')).not.toBeNull();
+  });
+
+  it('should render Reports link when user is super-admin', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Super Admin',
+          userPermissions: 'super-admin',
         },
       },
       status: 'authenticated',

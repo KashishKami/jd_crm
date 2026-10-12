@@ -43,6 +43,7 @@ export const authOptions: NextAuthOptions = {
           nickname: user.nickname,
           userPermissions: permissionNames,
           teamId: user.teamId,
+          roleId: user.roleId,
         };
       },
     }),
@@ -58,6 +59,7 @@ export const authOptions: NextAuthOptions = {
         token.nickname = user.nickname;
         token.userPermissions = user.userPermissions;
         token.teamId = user.teamId;
+        token.roleId = user.roleId;
         token.loginTime = nowSeconds;
       }
 
@@ -81,6 +83,7 @@ export const authOptions: NextAuthOptions = {
         session.user.nickname = token.nickname;
         session.user.userPermissions = token.userPermissions;
         session.user.teamId = token.teamId;
+        session.user.roleId = token.roleId;
       }
       return session;
     },

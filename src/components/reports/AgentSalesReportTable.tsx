@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Pagination from '../Pagination';
 import { MetricType, MetricViewType, PeriodMetrics, ReportMatrixResponse } from '../../types/report';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 interface AgentSalesReportTableProps {
   matrixData: ReportMatrixResponse | null;
@@ -14,6 +14,7 @@ interface AgentSalesReportTableProps {
   isLoading?: boolean;
   currentPage?: number;
   onPageChange?: (page: number) => void;
+  error?: string | null;
 }
 
 function formatCurrency(num: number): string {
@@ -46,6 +47,7 @@ export default function AgentSalesReportTable({
   isLoading = false,
   currentPage,
   onPageChange,
+  error,
 }: AgentSalesReportTableProps) {
   const [localPage, setLocalPage] = useState<number>(1);
   const activePage = currentPage !== undefined ? currentPage : localPage;
@@ -88,6 +90,16 @@ export default function AgentSalesReportTable({
       <div className="reports-table-card p-16 text-center">
         <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-slate-600 text-sm font-semibold">Generating report matrix...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="reports-table-card p-16 text-center">
+        <div className="text-red-500 text-3xl mb-2">⚠️</div>
+        <h3 className="text-base font-bold text-slate-800">Unable to Load Report</h3>
+        <p className="text-xs text-red-600 mt-1 font-medium">{error}</p>
       </div>
     );
   }
@@ -321,8 +333,10 @@ export default function AgentSalesReportTable({
     return 'Selected Metrics Breakdown';
   };
 
+  const isSinglePeriod = periods.length <= 1;
+
   return (
-    <div className="reports-table-card">
+    <div className={`reports-table-card ${isSinglePeriod ? 'single-column-card' : ''}`}>
       <div
         ref={scrollContainerRef}
         onMouseDown={handleMouseDown}
@@ -331,7 +345,7 @@ export default function AgentSalesReportTable({
         onMouseLeave={handleMouseUpOrLeave}
         className={`reports-table-scroll-container ${isGrabbing ? 'is-grabbing' : ''}`}
       >
-        <table className="reports-matrix-table">
+        <table className={`reports-matrix-table ${isSinglePeriod ? 'single-column-table' : ''}`}>
           {/* Header Row: Clean light styling matching CRM tables */}
           <thead>
             <tr>
@@ -343,13 +357,15 @@ export default function AgentSalesReportTable({
                 </div>
               </th>
 
-              {/* Range Grand Total Header */}
-              <th className="grandtotal-header">
-                <div style={{ color: '#0f172a', fontWeight: 700 }}>Range Grand Total</div>
-                <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: '2px', textTransform: 'none' }}>
-                  {getMetricHeaderLabel()}
-                </div>
-              </th>
+              {/* Range Grand Total Header (only if > 1 period to avoid redundancy) */}
+              {periods.length > 1 && (
+                <th className="grandtotal-header">
+                  <div style={{ color: '#0f172a', fontWeight: 700 }}>Range Grand Total</div>
+                  <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: '2px', textTransform: 'none' }}>
+                    {getMetricHeaderLabel()}
+                  </div>
+                </th>
+              )}
 
               {/* 1 Header Column Per Period */}
               {periods.map((period) => (
@@ -388,10 +404,12 @@ export default function AgentSalesReportTable({
                   </div>
                 </td>
 
-                {/* Grand Total for this Agent */}
-                <td className="grandtotal-cell">
-                  {renderMetricCell(agent.grandTotal, agent.agentId)}
-                </td>
+                {/* Grand Total for this Agent (only if > 1 period) */}
+                {periods.length > 1 && (
+                  <td className="grandtotal-cell">
+                    {renderMetricCell(agent.grandTotal, agent.agentId)}
+                  </td>
+                )}
 
                 {/* Period Metric Cells (1 cell per month with vertical stack) */}
                 {periods.map((period) => {

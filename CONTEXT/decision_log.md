@@ -1635,6 +1635,57 @@ The Follow-Up module originally used a 2-tier permission pattern: `follow-ups:vi
 - `src/app/follow-ups/[id]/page.tsx` & `src/app/follow-ups/[id]/edit/page.tsx` — Updated detail page access guards
 - `src/tests/followups.test.ts`, `src/tests/followup.service.test.ts`, `src/tests/FollowUpListContainer.test.tsx` — Updated existing tests and added `view-team` integration/unit tests
 
+---
+
+### Decision 44: Granular Reports Permissions & Multi-Tier Matrix Analytics Architecture (Phase 44)
+
+**Date:** 2026-10-12
+**Status:** Approved
+
+#### Context
+The Reports section provides organization-wide aggregate financial analysis and individual agent performance breakdowns across diverse time horizons (Today, Yesterday, Calendar Weeks, Months, Years, and All Time). The business requested granular permission control so that future report types (e.g., Gateways, Vendors, Refunds) can be governed individually, along with dedicated export rights. Additionally, range and calendar week selection, default summary aggregations, omission of redundant grand totals, and responsive card formatting were introduced.
+
+#### Decision
+
+**D44.1 — Dedicated Reports RBAC Permissions & Streamlined 2-Tier Model**
+- Seeded sequential report permissions at IDs 63 and 64:
+  - `63`: `reports:agent-sales` ("Access and view Agent Sales Performance report matrix")
+  - `64`: `reports:agent-sales-export` ("Export Agent Sales Performance report matrix to multi-tiered Excel (.xlsx)")
+- Purged legacy redundant permission `reports:view` (formerly ID 63). Each report now operates strictly on a **2-tier model**: specific report view permission and specific report export permission.
+- Mapped IDs 63 and 64 to Role 1 (Super Admin), Role 2 (Admin), and Role 3 (Sales Manager) [view + export]; mapped ID 63 to Role 4 (Team Lead) [view only].
+
+**D44.2 — Dedicated Reports Access Evaluation (`hasReportsAccess`) & Architectural Rationale**
+Rather than binding `/reports` to a static 1:1 route permission (like single-table pages), access to `/reports` and its navigation presence in `Navbar.tsx` and `Sidebar.tsx` is evaluated dynamically via `hasReportsAccess()`, which checks if the user has `roleId === 1`, `super-admin`, or **any** non-export `reports:*` permission (`p.startsWith('reports:') && !p.endsWith('-export')`). This architecture exists for three distinct reasons:
+1. **Aggregator Container vs. Single-Entity Model**: Unlike single-entity pages (`/customers` -> `customers:view`, `/orders` -> `orders:view`) that map 1:1 with an individual database table, the Reports module is an umbrella container designed to host multiple diverse, independent reports (e.g., Agent Sales currently, Gateway Sales, Center Performance, and Vendor Margins in future iterations).
+2. **Elimination of Dual-Permission Friction & Empty Container State**: Requiring an overarching `reports:view` permission forced administrators to assign two permissions just to view a single report. More importantly, if an admin assigned `reports:view` without any specific report permission, the user could access `/reports` but would be greeted by an empty container with no selectable tabs. Conversely, granting `reports:agent-sales` without `reports:view` caused `middleware.ts` to block access completely. The 2-tier model eliminates this dilemma.
+3. **Future-Proof Scalability**: When new report modules are added in the future (e.g. `reports:gateway-sales`), simply granting that new permission automatically unlocks `/reports` navigation in the navbar and sidebar, and allows entry through `middleware.ts` without needing code changes across navigation components or route maps. Users only see the specific report tabs they are authorized to access.
+
+**D44.3 — Strict Calendar Weeks (Monday–Sunday) & Multi-Granularity Bucketing**
+- Calendar weeks strictly follow Monday to Sunday calendar boundaries, correctly handling partial weeks at month boundaries (e.g., Oct 1–4, Oct 5–11, etc.).
+- Granularity selection is range-aware (`summary`, `daily`, `weekly`, `monthly`, `yearly`).
+- Ranges default to **Summary** to provide concise instant overviews.
+
+**D44.4 — Elimination of Redundant Single-Period Totals & Centered Responsive Card Layout**
+- When `periods.length <= 1`, the redundant `RANGE GRAND TOTAL` column is omitted from both UI and Excel export.
+- When `periods.length <= 1`, the table card is styled as `width: fit-content; margin: 0 auto;` with compact 195px–230px columns and snug borders, avoiding wide empty gaps between metric keys and values.
+- Table cell borders across the entire grid are bolded (`2px solid #94a3b8` and `2.5px solid #64748b` for sticky headers).
+- Summary cards format counts and subtexts in dedicated vertical stacks with responsive 2-column and 1-column layouts to prevent text collisions on smaller viewports.
+
+#### Files Changed (Phase 44)
+- `seed.sql` — Sequential permissions 63 and 64 added; assigned to roles 1, 2, 3, 4
+- `scripts/sql/add-reports-permissions.sql` — Idempotent migration script for permissions 63 and 64
+- `src/types/report.ts` — Added `GranularityType` and extended filter param types
+- `src/service/report.service.ts` — Implemented calendar weeks, multi-granularity, and summary defaults
+- `src/service/permission.service.ts` — Implemented `hasReportsAccess` with dynamic prefix matching (`reports:*` non-export)
+- `src/middleware.ts` — Protected `/reports` route using `hasReportsAccess`
+- `src/app/api/reports/agent-sales/route.ts` & `src/app/api/reports/agent-sales/export/route.ts` — Granular permission checks and query params
+- `src/components/reports/AgentSalesReportTable.tsx` — Pagination 20, single-column centering, omitted grand total when single period
+- `src/components/reports/ReportFilterBar.tsx` — Month, Year, and dynamic Granularity dropdowns
+- `src/components/reports/ReportsContainer.tsx` — Client hydration without SSR mismatch, session persistence, query assembly
+- `src/app/components.css` — Bold 2px grid cell borders, fit-content single-column card, responsive summary cards
+- `CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md`, `CONTEXT/current_state.md` — Updated RBAC permissions & architecture documentation
+- `src/tests/*` — 100% test pass across all unit, component, API, and seed suites
+
 
 
 

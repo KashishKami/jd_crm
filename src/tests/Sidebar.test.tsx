@@ -96,4 +96,49 @@ describe('Sidebar Component Unit Tests', () => {
 
     expect(screen.queryByText('Roles and Permissions')).not.toBeNull();
   });
+
+  it('should NOT render Reports link when user has only orders:view', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Regular Agent',
+          userPermissions: 'orders:view,orders:create',
+        },
+      },
+      status: 'authenticated',
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<Sidebar />);
+    expect(screen.queryByText('Reports')).toBeNull();
+  });
+
+  it('should NOT render Reports link when user only has export permission', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Export Only User',
+          userPermissions: 'reports:agent-sales-export',
+        },
+      },
+      status: 'authenticated',
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<Sidebar />);
+    expect(screen.queryByText('Reports')).toBeNull();
+  });
+
+  it('should render Reports link when user has reports:agent-sales', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          name: 'Agent Sales Viewer',
+          userPermissions: 'reports:agent-sales',
+        },
+      },
+      status: 'authenticated',
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<Sidebar />);
+    expect(screen.queryByText('Reports')).not.toBeNull();
+  });
 });

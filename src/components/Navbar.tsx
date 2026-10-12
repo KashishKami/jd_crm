@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { hasPermission } from '../service/permission.service';
+import { hasPermission, hasReportsAccess } from '../service/permission.service';
 import GlobalSearchBar from './GlobalSearchBar';
 import { useNavbarNotifications } from '../lib/useNavbarNotifications';
 
@@ -183,10 +183,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </li>
             )}
 
-            {(hasPermission(permissions, 'dashboard:view-advanced-chart') ||
-              hasPermission(permissions, 'orders:view') ||
-              hasPermission(permissions, 'super-admin') ||
-              (session?.user as any)?.roleId === 1) && (
+            {hasReportsAccess(permissions, (session?.user as any)?.roleId) && (
               <li className="nav-item">
                 <Link
                   href="/reports"

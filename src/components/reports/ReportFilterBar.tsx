@@ -14,6 +14,10 @@ interface ReportFilterBarProps {
   range: AgentSalesFilterParams['range'];
   startDate?: string;
   endDate?: string;
+  year?: number;
+  month?: number;
+  granularity?: AgentSalesFilterParams['granularity'];
+  availableYears?: number[];
   metricView: MetricViewType;
   onFilterChange: (filters: {
     teamIds?: number[];
@@ -21,11 +25,30 @@ interface ReportFilterBarProps {
     range?: AgentSalesFilterParams['range'];
     startDate?: string;
     endDate?: string;
+    year?: number;
+    month?: number;
+    granularity?: AgentSalesFilterParams['granularity'];
   }) => void;
   onMetricViewChange: (metricView: MetricViewType) => void;
   onExportExcel: () => void;
   isExporting?: boolean;
+  canExport?: boolean;
 }
+
+const MONTH_OPTIONS = [
+  { value: 1, label: 'Jan' },
+  { value: 2, label: 'Feb' },
+  { value: 3, label: 'Mar' },
+  { value: 4, label: 'Apr' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'Jun' },
+  { value: 7, label: 'Jul' },
+  { value: 8, label: 'Aug' },
+  { value: 9, label: 'Sep' },
+  { value: 10, label: 'Oct' },
+  { value: 11, label: 'Nov' },
+  { value: 12, label: 'Dec' },
+];
 
 export default function ReportFilterBar({
   teams,
@@ -35,11 +58,16 @@ export default function ReportFilterBar({
   range = 'this-week',
   startDate,
   endDate,
+  year,
+  month,
+  granularity,
+  availableYears,
   metricView,
   onFilterChange,
   onMetricViewChange,
   onExportExcel,
   isExporting = false,
+  canExport = true,
 }: ReportFilterBarProps) {
   const [customStartDate, setCustomStartDate] = useState<string>(startDate || '');
   const [customEndDate, setCustomEndDate] = useState<string>(endDate || '');
@@ -185,6 +213,22 @@ export default function ReportFilterBar({
     return `${selectedAgentIds.length} Agents Selected`;
   }, [selectedAgentIds, agents]);
 
+  const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
+  const currentMonth = useMemo(() => new Date().getUTCMonth() + 1, []);
+
+  const activeYear = year !== undefined ? year : currentYear;
+  const activeMonth = month !== undefined ? month : currentMonth;
+  const activeGranularity = granularity || 'summary';
+
+  const yearOptions = useMemo(() => {
+    if (availableYears && availableYears.length > 0) return availableYears;
+    const yrs: number[] = [];
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      yrs.push(y);
+    }
+    return yrs;
+  }, [availableYears, currentYear]);
+
   const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newRange = e.target.value as AgentSalesFilterParams['range'];
     if (newRange === 'custom') {
@@ -194,6 +238,43 @@ export default function ReportFilterBar({
         range: 'custom',
         startDate: customStartDate || undefined,
         endDate: customEndDate || undefined,
+        granularity: 'summary',
+      });
+    } else if (newRange === 'monthly') {
+      setCustomStartDate('');
+      setCustomEndDate('');
+      onFilterChange({
+        teamIds: selectedTeamIds,
+        agentIds: selectedAgentIds,
+        range: 'monthly',
+        year: activeYear,
+        month: activeMonth,
+        granularity: 'summary',
+        startDate: undefined,
+        endDate: undefined,
+      });
+    } else if (newRange === 'yearly') {
+      setCustomStartDate('');
+      setCustomEndDate('');
+      onFilterChange({
+        teamIds: selectedTeamIds,
+        agentIds: selectedAgentIds,
+        range: 'yearly',
+        year: activeYear,
+        granularity: 'summary',
+        startDate: undefined,
+        endDate: undefined,
+      });
+    } else if (newRange === 'all-time') {
+      setCustomStartDate('');
+      setCustomEndDate('');
+      onFilterChange({
+        teamIds: selectedTeamIds,
+        agentIds: selectedAgentIds,
+        range: 'all-time',
+        granularity: 'summary',
+        startDate: undefined,
+        endDate: undefined,
       });
     } else {
       setCustomStartDate('');
@@ -202,10 +283,49 @@ export default function ReportFilterBar({
         teamIds: selectedTeamIds,
         agentIds: selectedAgentIds,
         range: newRange,
+        granularity: (newRange === 'today' || newRange === 'yesterday') ? 'daily' : 'summary',
         startDate: undefined,
         endDate: undefined,
       });
     }
+  };
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextM = parseInt(e.target.value, 10);
+    onFilterChange({
+      teamIds: selectedTeamIds,
+      agentIds: selectedAgentIds,
+      range,
+      year: activeYear,
+      month: nextM,
+      granularity: activeGranularity,
+    });
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextY = parseInt(e.target.value, 10);
+    onFilterChange({
+      teamIds: selectedTeamIds,
+      agentIds: selectedAgentIds,
+      range,
+      year: nextY,
+      month: range === 'monthly' ? activeMonth : undefined,
+      granularity: activeGranularity,
+    });
+  };
+
+  const handleGranularityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextG = e.target.value as AgentSalesFilterParams['granularity'];
+    onFilterChange({
+      teamIds: selectedTeamIds,
+      agentIds: selectedAgentIds,
+      range,
+      year: range === 'monthly' || range === 'yearly' ? activeYear : undefined,
+      month: range === 'monthly' ? activeMonth : undefined,
+      granularity: nextG,
+      startDate: range === 'custom' ? customStartDate || startDate : undefined,
+      endDate: range === 'custom' ? customEndDate || endDate : undefined,
+    });
   };
 
   const handleApplyCustom = () => {
@@ -216,6 +336,7 @@ export default function ReportFilterBar({
         range: 'custom',
         startDate: customStartDate,
         endDate: customEndDate,
+        granularity: activeGranularity,
       });
     }
   };
@@ -532,6 +653,104 @@ export default function ReportFilterBar({
             </select>
           </div>
 
+          {/* Month Selector (when range === 'monthly') */}
+          {range === 'monthly' && (
+            <div className="filter-select-wrapper" style={{ width: '85px' }}>
+              <label htmlFor="month-select" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.72rem', fontWeight: 600 }}>
+                Month
+              </label>
+              <select
+                id="month-select"
+                aria-label="Month"
+                className="filter-select-custom"
+                value={activeMonth}
+                onChange={handleMonthChange}
+                style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px', width: '100%' }}
+              >
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Year Selector (when range === 'monthly' || range === 'yearly') */}
+          {(range === 'monthly' || range === 'yearly') && (
+            <div className="filter-select-wrapper" style={{ width: '90px' }}>
+              <label htmlFor="year-select" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.72rem', fontWeight: 600 }}>
+                Year
+              </label>
+              <select
+                id="year-select"
+                aria-label="Year"
+                className="filter-select-custom"
+                value={activeYear}
+                onChange={handleYearChange}
+                style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px', width: '100%' }}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Granularity Selector (when range !== 'today' && range !== 'yesterday') */}
+          {range !== 'today' && range !== 'yesterday' && (
+            <div className="filter-select-wrapper" style={{ width: '185px' }}>
+              <label htmlFor="granularity-select" className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.72rem', fontWeight: 600 }}>
+                Granularity
+              </label>
+              <select
+                id="granularity-select"
+                aria-label="Granularity"
+                className="filter-select-custom"
+                value={activeGranularity}
+                onChange={handleGranularityChange}
+                style={{ fontSize: '0.75rem', height: '34px', padding: '0 8px', width: '100%' }}
+              >
+                {range === 'monthly' && (
+                  <>
+                    <option value="summary">Monthly Summary</option>
+                    <option value="weekly">Weekly (Calendar Weeks)</option>
+                    <option value="daily">Daily (Days of Month)</option>
+                  </>
+                )}
+                {range === 'yearly' && (
+                  <>
+                    <option value="summary">Yearly Summary</option>
+                    <option value="monthly">Monthly (12 Months)</option>
+                    <option value="weekly">Weekly (Calendar Weeks)</option>
+                  </>
+                )}
+                {range === 'all-time' && (
+                  <>
+                    <option value="summary">All-Time Summary</option>
+                    <option value="yearly">Yearly (All Years)</option>
+                  </>
+                )}
+                {(range === 'this-week' || range === 'last-week') && (
+                  <>
+                    <option value="summary">Weekly Summary</option>
+                    <option value="daily">Daily (Days of Week)</option>
+                  </>
+                )}
+                {range === 'custom' && (
+                  <>
+                    <option value="summary">Period Summary</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly (Calendar Weeks)</option>
+                    <option value="monthly">Monthly</option>
+                  </>
+                )}
+              </select>
+            </div>
+          )}
+
           {/* Custom Date Pickers */}
           {range === 'custom' && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -584,29 +803,31 @@ export default function ReportFilterBar({
         </div>
 
         {/* Action Button: Export XLS */}
-        <div style={{ flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={onExportExcel}
-            disabled={isExporting}
-            className="reports-export-btn"
-          >
-            <svg
-              style={{ width: '15px', height: '15px' }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        {canExport && (
+          <div style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onExportExcel}
+              disabled={isExporting}
+              className="reports-export-btn"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <span>{isExporting ? 'Exporting...' : 'Export XLS'}</span>
-          </button>
-        </div>
+              <svg
+                style={{ width: '15px', height: '15px' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              <span>{isExporting ? 'Exporting...' : 'Export XLS'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom Row: Metric View Switcher Pills */}

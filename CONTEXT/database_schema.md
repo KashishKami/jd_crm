@@ -314,6 +314,10 @@ The following standard permissions are seeded in the system:
 - `agents:view`: View and manage agents/staff list.
 - `gateways:view`: View and manage payment gateways.
 - `orders:view`: View orders, transactions, and status boards.
+- `follow-ups:view-all`, `follow-ups:view-team`, `follow-ups:create`: 3-tier follow-up queue management.
+- `call-dispositions:view`, `call-dispositions:create`: 2-tier call disposition logging and export.
+- `reports:agent-sales` (ID 63): Access and inspect the Agent Sales Performance matrix report and data endpoints.
+- `reports:agent-sales-export` (ID 64): Export Agent Sales Performance report matrix to multi-tiered Excel (.xlsx).
 
 ### crm_role_permissions
 *   **Engine:** InnoDB

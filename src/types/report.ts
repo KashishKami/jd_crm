@@ -1,6 +1,8 @@
 export type MetricType = 'sales' | 'refunds' | 'chargebacks' | 'net';
 export type MetricViewType = 'all' | 'net' | 'sales' | 'refunds' | 'chargebacks' | MetricType[];
 
+export type GranularityType = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'summary';
+
 export interface AgentSalesFilterParams {
   range?: string; // 'today' | 'yesterday' | 'this-week' | 'last-week' | 'monthly' | 'yearly' | 'all-time' | 'custom'
   startDate?: string;
@@ -8,6 +10,9 @@ export interface AgentSalesFilterParams {
   teamIds?: number[];
   agentIds?: number[];
   metricView?: MetricViewType;
+  year?: number;
+  month?: number; // 1 - 12
+  granularity?: GranularityType;
 }
 
 export interface PeriodMetrics {

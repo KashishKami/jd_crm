@@ -11279,5 +11279,91 @@ The user needs a dedicated page route (`/reports`), sub-navigation tabs matching
   4. **Test Coverage**:
      - Comprehensive unit and integration test suites covering repositories, services, API endpoints, Excel exporter, filter bars, table components, and page routing.
 
+---
 
+### Session Note — Phase 44.1: Reports Granularity Engine, Compact Single-Column Centering, Bold Borders & Report-Specific Permissions
 
+- **Completed Deliverables:**
+  1. **Granularity Engine & Multi-Period Bucketing**:
+     - Added `GranularityType = 'summary' | 'daily' | 'weekly' | 'monthly' | 'yearly'` across `src/types/report.ts` and `src/service/report.service.ts`.
+     - Preserved all range presets (`today`, `yesterday`, `this-week`, `last-week`, `monthly`, `yearly`, `all-time`, `custom`).
+     - Granularity selector defaults to `summary` for all ranges (single consolidated column for the active range).
+     - Range-scoped granularity choices:
+       - `today` / `yesterday`: `summary` only.
+       - `this-week` / `last-week`: `summary`, `daily`.
+       - `monthly`: `summary`, `daily`, `weekly`.
+       - `yearly`: `summary`, `monthly`, `weekly`, `daily`.
+       - `all-time`: `summary`, `yearly`, `monthly`.
+       - `custom`: dynamically calculates day span; provides appropriate combinations of `summary`, `daily`, `weekly`, `monthly`, `yearly`.
+     - Strict Calendar Week calculation (`generateCalendarWeeks`) enforcing Monday-to-Sunday boundaries with correct partial edge-week slicing.
+     - Year selector added for `yearly` range; Month & Year selectors for `monthly` range.
+
+  2. **Single-Column Snug Centering & Layout Aesthetics**:
+     - When only 1 period is present (`periods.length <= 1`), hidden redundant `RANGE GRAND TOTAL` column from both web table and Excel export.
+     - Table card centers cleanly when displaying a single period (`.reports-table-card.single-column-card` with `width: fit-content; margin: 0 auto; min-width: 440px`), wrapping borders snugly around the table without empty outer flanks.
+     - Single-column width tightened (~210px agent column, ~230px period column) with `.report-cell-stack` max-width at 195px, eliminating excess whitespace between metric labels (`Sales:`) and values (`$1,135.00 (4)`).
+     - Bold table grid cell borders added across the entire matrix (`2px solid #94a3b8` on all headers and cells, `2.5px solid #64748b` on sticky agent columns).
+     - Summary cards responsive redesign: flex wrapping with 2-column layout on medium screens (<=1200px) and 1-column layout on mobile (<=580px). Fixed card metadata subtitle collision using vertical column flex.
+
+  3. **Report-Specific RBAC Permissions (`reports:agent-sales-export`)**:
+     - Adopted fine-grained, report-specific permission naming:
+       - `reports:view` (`ID 63`): Dashboard-level access to the `/reports` module and overview pages.
+       - `reports:agent-sales` (`ID 64`): Report-level access to view and fetch the Agent Sales Performance matrix.
+       - `reports:agent-sales-export` (`ID 65`): Export-level permission strictly controlling Excel (`.xlsx`) downloads for the Agent Sales Performance report via `GET /api/reports/agent-sales/export`.
+     - Seeded into `seed.sql`: Assigned permissions 63, 64, and 65 to Roles 1 (Super Admin) & 2 (Admin); assigned permissions 63 and 64 to Roles 3 (Manager) & 4 (Team Lead).
+     - Updated all documentation files (`CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md`, `CONTEXT/current_state.md`).
+
+  4. **Hydration & Code Health**:
+     - Resolved React SSR hydration mismatch by wrapping `sessionStorage` state restoration in `queueMicrotask` inside `src/components/reports/ReportsContainer.tsx`, satisfying ESLint `react-hooks/set-state-in-effect` rule.
+     - `npm run lint` passing with 0 errors and 0 warnings.
+     - 100% test suite green: all 83 test files and 602 Vitest tests passing.
+
+---
+
+### Session Note — Phase 44.2: Small Screen Drawer Overlay, Strict RBAC Permission Isolation (Backend & Frontend) & Generic Access Denied UI
+
+- **Completed Deliverables:**
+  1. **Mobile & Tablet Drawer Navigation Fix (<1400px)**:
+     - Synchronized `.sidebar` and `.sidebar-backdrop` overlay CSS in `src/app/layout.css` to `@media (max-width: 1399px)` matching `.hamburger-btn` visibility.
+     - Added drawer header with JD CRM branding and close button ("✕") in `src/components/Sidebar.tsx`.
+     - Drawer auto-closes when clicking links on screens <= 1399px.
+  2. **Complete Removal of Legacy Fallback Permissions**:
+     - Removed `orders:view` and `dashboard:view-advanced-chart` from `Navbar.tsx`, `Sidebar.tsx`, `src/app/reports/page.tsx`, and backend report routes. Users with only order or dashboard permissions no longer see Reports in the menu or bypass module guarding.
+     - Added `hasReportsAccess(userPermissions, roleId)` helper in `src/service/permission.service.ts`: grants module access only if user has `reports:view`, any report-specific permission (`reports:<name>`), `super-admin`, or `roleId === 1`.
+  3. **Strict 3-Tier Report Permission Isolation**:
+     - **Module Access (`reports:view`)**: Allows visiting `/reports`.
+     - **Report Access (`reports:agent-sales`)**: Required to view the "Agent Report" tab and matrix table. When missing, the "Agent Report" tab is omitted and a generic "Access Restricted" card is displayed: `"You do not have permission to view this report. Please contact your system administrator to assign report permissions."`
+     - **Export Access (`reports:agent-sales-export`)**: Required to see the "Export XLS" button and fetch `/api/reports/agent-sales/export`. When missing, the export button is omitted from the UI and backend strictly returns 403 Forbidden.
+  4. **NextAuth Role ID Pipeline**:
+     - Added `roleId` to `next-auth.d.ts` and NextAuth callbacks in `src/app/api/auth/[...nextauth]/route.ts` to ensure consistent Super Admin `roleId === 1` checks.
+  5. **TDD Test Suite & Code Verification**:
+     - Updated and added test suites in `Navbar.test.tsx`, `Sidebar.test.tsx`, `ReportFilterBar.test.tsx`, `ReportsPage.test.tsx`, `reports.api.test.ts`, and `agentSalesExcelExporter.test.ts`.
+     - Vitest suite passing 100% (50/50 tests across modified suites).
+     - `npm run typecheck` and `npm run lint` passing with 0 errors.
+
+---
+
+### Session Note — Phase 44.3: Elimination of Redundant reports:view Permission, Strict 2-Tier Architecture & Dynamic Sub-Report Prefix Resolution
+
+- **Completed Deliverables:**
+  1. **Purge of Redundant `reports:view` Permission**:
+     - Eliminated `reports:view` from the RBAC permissions schema, shifting Reports into a streamlined **2-tier model per report**: specific report view permission and specific report export permission.
+     - Re-numbered permissions in `seed.sql` and `scripts/sql/add-reports-permissions.sql` to maintain a perfect contiguous sequence (1 to 64):
+       - `63`: `reports:agent-sales` ("View Agent Sales Matrix performance report")
+       - `64`: `reports:agent-sales-export` ("Export Agent Sales Matrix performance report to Excel spreadsheets")
+     - Role mappings: Roles 1 (Super Admin), 2 (Admin), and 3 (Sales Manager) assigned IDs 63 and 64; Role 4 (Team Lead) assigned ID 63.
+  2. **Dynamic Prefix Access Architecture (`hasReportsAccess`)**:
+     - `hasReportsAccess(userPermissions, roleId)` in `src/service/permission.service.ts` evaluates module access via `roleId === 1`, `super-admin`, or any non-export `reports:*` permission (`p.startsWith('reports:') && !p.endsWith('-export')`).
+     - Adopted this architecture for three primary architectural reasons:
+       1. *Aggregator Container vs Single-Entity Model*: Reports is a collection of distinct reports rather than a single database table.
+       2. *Elimination of Dual-Permission Friction & Empty Container State*: Avoids requiring two permissions just to see one report, and prevents users with only a general view permission from entering a blank container with no selectable tabs.
+       3. *Future-Proof Scalability*: New sub-reports (e.g. `reports:gateway-sales`, `reports:center-sales`) automatically grant navigation and route access to authorized users without code edits in `middleware.ts`, `Navbar.tsx`, or `Sidebar.tsx`.
+  3. **SQL Migration Scripts**:
+     - Cleaned up `scripts/sql/add-reports-permissions.sql` to upsert sequential IDs 63 and 64 and assign them to roles 1, 2, 3, and 4 without legacy delete statements.
+  4. **TDD Validation & Code Quality**:
+     - Updated `src/tests/seed.test.ts` to assert contiguous 1..64 sequence (went RED first, then GREEN).
+     - Verified all report unit and integration test suites: 52 tests passed cleanly.
+     - `npm run typecheck` passed with 0 errors.
+     - `npm run lint` passed with 0 errors, 0 warnings.
+  5. **Documentation Alignment**:
+     - Updated `CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md` (Decision 44), and `CONTEXT/current_state.md`.

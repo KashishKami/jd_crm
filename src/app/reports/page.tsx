@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '../api/auth/[...nextauth]/route';
-import { hasPermission } from '../../service/permission.service';
+import { hasReportsAccess } from '../../service/permission.service';
 import ReportsContainer from '../../components/reports/ReportsContainer';
 
 export const metadata = {
@@ -18,11 +18,7 @@ export default async function ReportsPage() {
 
   const permissions = session.user.userPermissions;
   const sessionUser = session.user as any;
-  const canViewReports =
-    hasPermission(permissions, 'dashboard:view-advanced-chart') ||
-    hasPermission(permissions, 'orders:view') ||
-    hasPermission(permissions, 'super-admin') ||
-    sessionUser?.roleId === 1;
+  const canViewReports = hasReportsAccess(permissions, sessionUser?.roleId);
 
   if (!canViewReports) {
     redirect('/access-denied');

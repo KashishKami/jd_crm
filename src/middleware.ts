@@ -1,6 +1,6 @@
 import { getToken } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
-import { hasPermission } from './service/permission.service';
+import { hasPermission, hasReportsAccess } from './service/permission.service';
 
 export function isAuthorized({ token }: { token: any }) {
   return !!(token && token.uid);
@@ -29,7 +29,7 @@ export async function middlewareHandler(req: NextRequest) {
     '/pending/resolutions': 'orders:view-pending-resolutions',
     '/pending/returned': 'orders:view-returned',
     '/pending/cancelled': 'orders:view-cancelled',
-    '/reports': 'reports:view',
+    '/reports': 'reports',
     '/settings/data-management': 'super-admin',
   };
 
@@ -50,11 +50,7 @@ export async function middlewareHandler(req: NextRequest) {
         return NextResponse.redirect(new URL('/access-denied', req.url));
       }
     } else if (matchedPath === '/reports') {
-      const canViewReports =
-        hasPermission(userPermissions, 'dashboard:view-advanced-chart') ||
-        hasPermission(userPermissions, 'orders:view') ||
-        hasPermission(userPermissions, 'super-admin') ||
-        token?.roleId === 1;
+      const canViewReports = hasReportsAccess(userPermissions, token?.roleId);
       if (!canViewReports) {
         return NextResponse.redirect(new URL('/access-denied', req.url));
       }

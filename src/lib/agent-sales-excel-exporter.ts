@@ -78,12 +78,15 @@ export async function generateAgentSalesWorkbook(
   }
 
   const subColCount = subCols.length;
+  const includeGrandTotal = periods.length > 1;
 
   // Set column widths
   const colWidths: number[] = [22, 16, 18, 20, 12]; // Col 1-5: Agent details
-  // Grand total block
-  for (let i = 0; i < subColCount; i++) {
-    colWidths.push(subCols[i].isCurrency ? 15 : 10);
+  // Grand total block (only if multiple periods)
+  if (includeGrandTotal) {
+    for (let i = 0; i < subColCount; i++) {
+      colWidths.push(subCols[i].isCurrency ? 15 : 10);
+    }
   }
   // Period blocks
   for (let p = 0; p < periods.length; p++) {
@@ -98,8 +101,10 @@ export async function generateAgentSalesWorkbook(
 
   // Row 1: Top Tier Header
   const row1Values: (string | null)[] = ['AGENT DETAILS', null, null, null, null];
-  row1Values.push('RANGE GRAND TOTAL');
-  for (let i = 1; i < subColCount; i++) row1Values.push(null);
+  if (includeGrandTotal) {
+    row1Values.push('RANGE GRAND TOTAL');
+    for (let i = 1; i < subColCount; i++) row1Values.push(null);
+  }
 
   periods.forEach((period) => {
     row1Values.push(period.label.toUpperCase());
@@ -112,8 +117,10 @@ export async function generateAgentSalesWorkbook(
   // Merge Row 1 cells
   ws.mergeCells(1, 1, 1, 5); // Agent details
   let currentCol = 6;
-  ws.mergeCells(1, currentCol, 1, currentCol + subColCount - 1); // Grand total
-  currentCol += subColCount;
+  if (includeGrandTotal) {
+    ws.mergeCells(1, currentCol, 1, currentCol + subColCount - 1); // Grand total
+    currentCol += subColCount;
+  }
 
   periods.forEach(() => {
     ws.mergeCells(1, currentCol, 1, currentCol + subColCount - 1);
@@ -148,8 +155,10 @@ export async function generateAgentSalesWorkbook(
 
   // Row 2: Sub-headers
   const row2Values: string[] = ['Alias', 'Agent Name', 'Center', 'Designation', 'Status'];
-  // Grand total sub-headers
-  subCols.forEach((sc) => row2Values.push(sc.label));
+  // Grand total sub-headers (only if multiple periods)
+  if (includeGrandTotal) {
+    subCols.forEach((sc) => row2Values.push(sc.label));
+  }
   // Period sub-headers
   periods.forEach(() => {
     subCols.forEach((sc) => row2Values.push(sc.label));
@@ -193,10 +202,12 @@ export async function generateAgentSalesWorkbook(
       agent.status === 1 ? 'Active' : 'Inactive',
     ];
 
-    // Grand total values
-    subCols.forEach((sc) => {
-      rowValues.push(Number(agent.grandTotal[sc.key]) || 0);
-    });
+    // Grand total values (only if multiple periods)
+    if (includeGrandTotal) {
+      subCols.forEach((sc) => {
+        rowValues.push(Number(agent.grandTotal[sc.key]) || 0);
+      });
+    }
 
     // Period values
     periods.forEach((period) => {
@@ -255,23 +266,27 @@ export async function generateAgentSalesWorkbook(
     null,
   ];
 
-  // Grand total formula + values
-  subCols.forEach((sc, idx) => {
-    const colIndex = 6 + idx;
-    const colLetter = getColumnLetter(colIndex);
-    const formulaStr =
-      agents.length > 0
-        ? `SUM(${colLetter}${startDataRow}:${colLetter}${lastAgentRow})`
-        : '0';
-    const resultVal = Number(matrixData.orgTotal?.grandTotal?.[sc.key]) || 0;
-    totalRowValues.push({ formula: formulaStr, result: resultVal });
-  });
+  let currentTotalCol = 6;
+  // Grand total formula + values (only if multiple periods)
+  if (includeGrandTotal) {
+    subCols.forEach((sc, idx) => {
+      const colIndex = currentTotalCol + idx;
+      const colLetter = getColumnLetter(colIndex);
+      const formulaStr =
+        agents.length > 0
+          ? `SUM(${colLetter}${startDataRow}:${colLetter}${lastAgentRow})`
+          : '0';
+      const resultVal = Number(matrixData.orgTotal?.grandTotal?.[sc.key]) || 0;
+      totalRowValues.push({ formula: formulaStr, result: resultVal });
+    });
+    currentTotalCol += subColCount;
+  }
 
   // Period formula + values
-  periods.forEach((period, pIdx) => {
+  periods.forEach((period) => {
     const pMetrics = matrixData.orgTotal?.periods?.[period.key];
     subCols.forEach((sc, idx) => {
-      const colIndex = 6 + subColCount + (pIdx * subColCount) + idx;
+      const colIndex = currentTotalCol + idx;
       const colLetter = getColumnLetter(colIndex);
       const formulaStr =
         agents.length > 0
@@ -280,6 +295,7 @@ export async function generateAgentSalesWorkbook(
       const resultVal = Number(pMetrics?.[sc.key]) || 0;
       totalRowValues.push({ formula: formulaStr, result: resultVal });
     });
+    currentTotalCol += subColCount;
   });
 
   const totalRow = ws.addRow(totalRowValues);
