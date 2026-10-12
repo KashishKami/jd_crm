@@ -104,6 +104,7 @@ export default function ReportSummaryCards({
           onClick={() => {
             if (typeof window !== 'undefined') {
               sessionStorage.setItem('REPORT_SCROLL_POS', String(window.scrollY));
+              sessionStorage.setItem('REPORT_RETURNING_FROM_DRILLDOWN', 'true');
             }
           }}
           className={`reports-summary-card ${card.isPrimary ? 'primary-net-card' : ''}`}

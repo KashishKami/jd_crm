@@ -11367,3 +11367,21 @@ The user needs a dedicated page route (`/reports`), sub-navigation tabs matching
      - `npm run lint` passed with 0 errors, 0 warnings.
   5. **Documentation Alignment**:
      - Updated `CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md` (Decision 44), and `CONTEXT/current_state.md`.
+
+---
+
+### Session Note — Phase 44.4: UI Column Header Width Fix, Back Button Horizontal Scroll Preservation & Selective State Reset
+
+- **Completed Deliverables:**
+  1. **Column Header Width Expansion (`components.css`)**:
+     - Fixed `OCT 2026 (MONTHLY SUMMARY)` text clipping by increasing single-period column width to `width: 290px; min-width: 270px; max-width: 340px` and single-column card `min-width: 520px`. The full header label and subtitle render cleanly without boundary clipping.
+  2. **Horizontal Table Scroll Position Preservation**:
+     - Updated `handleDrillDownClick` in `AgentSalesReportTable.tsx` to record `scrollContainerRef.current.scrollLeft` as `REPORT_SCROLL_X` in `sessionStorage` alongside vertical `REPORT_SCROLL_POS`.
+     - Placed `useEffect` hook at top of component (before conditional early returns to prevent React "Rendered fewer hooks than expected" errors) to restore `scrollLeft` on table mount and clean up `REPORT_SCROLL_X`.
+  3. **Deterministic Back Button State Restoration**:
+     - **Back Navigation**: Fully and unconditionally restores `filterState`, page number, vertical window scroll (`REPORT_SCROLL_POS`), and horizontal matrix scroll (`REPORT_SCROLL_X`) from `sessionStorage` upon client mount. Removed fragile `performance.navigation` timing check that falsely triggered on SPA client transitions if the page had ever been reloaded.
+     - **Navbar & Sidebar Clicks**: `onClick` handlers explicitly remove `REPORT_MATRIX_STATE`, `REPORT_SCROLL_POS`, and `REPORT_SCROLL_X`, ensuring deliberate menu navigation starts fresh at default filters.
+  4. **TDD Test Suite & Quality Verification**:
+     - Added comprehensive tests in `AgentSalesReportTable.test.tsx`, `ReportsPage.test.tsx`, and `Navbar.test.tsx` (all passing cleanly: 30/30 tests).
+     - `npm run typecheck`: 0 errors.
+     - `npm run lint`: 0 errors, 0 warnings.

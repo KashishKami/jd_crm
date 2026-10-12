@@ -196,7 +196,13 @@ const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar({ onToggl
                 href="/reports"
                 prefetch={false}
                 className={`nav-link ${isActive('/reports') ? 'active' : ''}`}
-                onClick={handleLinkClick}
+                onClick={() => {
+                  handleLinkClick();
+                  sessionStorage.removeItem('coming_from_detail');
+                  sessionStorage.removeItem('REPORT_MATRIX_STATE');
+                  sessionStorage.removeItem('REPORT_SCROLL_POS');
+                  sessionStorage.removeItem('REPORT_SCROLL_X');
+                }}
                 style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}
               >
                 <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>

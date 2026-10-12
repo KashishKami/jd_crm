@@ -2607,7 +2607,7 @@
 /* Single Period Column Table Card: Center-aligned and wrapped tightly without empty flanks */
 .reports-table-card.single-column-card {
   width: fit-content !important;
-  min-width: 440px;
+  min-width: 520px;
   max-width: 100%;
   margin: 0 auto !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -2628,16 +2628,16 @@
 
 .reports-matrix-table.single-column-table th:not(.agent-header),
 .reports-matrix-table.single-column-table td:not(.agent-cell) {
-  width: 230px !important;
-  min-width: 200px !important;
-  max-width: 240px !important;
+  width: 290px !important;
+  min-width: 270px !important;
+  max-width: 340px !important;
   padding: 10px 14px !important;
   border-right: none !important;
 }
 
 .reports-matrix-table.single-column-table .report-cell-stack {
   min-width: 0 !important;
-  max-width: 195px !important;
+  max-width: 200px !important;
   width: 100% !important;
   margin: 0 auto !important;
 }

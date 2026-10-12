@@ -188,7 +188,12 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 <Link
                   href="/reports"
                   prefetch={false}
-                  onClick={() => sessionStorage.removeItem('coming_from_detail')}
+                  onClick={() => {
+                    sessionStorage.removeItem('coming_from_detail');
+                    sessionStorage.removeItem('REPORT_MATRIX_STATE');
+                    sessionStorage.removeItem('REPORT_SCROLL_POS');
+                    sessionStorage.removeItem('REPORT_SCROLL_X');
+                  }}
                   className={`nav-pill-btn ${isActive('/reports') ? 'active' : ''}`}
                 >
                   Reports

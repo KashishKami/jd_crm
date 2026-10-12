@@ -1671,6 +1671,12 @@ Rather than binding `/reports` to a static 1:1 route permission (like single-tab
 - Table cell borders across the entire grid are bolded (`2px solid #94a3b8` and `2.5px solid #64748b` for sticky headers).
 - Summary cards format counts and subtexts in dedicated vertical stacks with responsive 2-column and 1-column layouts to prevent text collisions on smaller viewports.
 
+**D44.5 — Single-Column Header Width, Horizontal Scroll Restoration & Selective State Reset**
+- Expanded single-period column width to `min-width: 270px; width: 290px; max-width: 340px;` and table card `min-width: 520px;`, preventing header labels (e.g. `OCT 2026 (MONTHLY SUMMARY)`) from clipping at the border.
+- Saved horizontal table scroll position (`REPORT_SCROLL_X`) alongside vertical scroll (`REPORT_SCROLL_POS`) on drilldown click; restored `scrollContainerRef.current.scrollLeft` on table mount so the user returns to the exact scrolled column when navigating Back.
+- Ensured Back-button navigation preserves full state (`REPORT_MATRIX_STATE`, page, vertical & horizontal scroll).
+- Guarded state resets: Clicking "Reports" in Navbar/Sidebar or hard-refreshing with Ctrl+Shift+R / F5 (`performance.getEntriesByType('navigation')[0]?.type === 'reload'`) resets `sessionStorage` and returns the user to the fresh default view.
+
 #### Files Changed (Phase 44)
 - `seed.sql` — Sequential permissions 63 and 64 added; assigned to roles 1, 2, 3, 4
 - `scripts/sql/add-reports-permissions.sql` — Idempotent migration script for permissions 63 and 64
@@ -1679,10 +1685,11 @@ Rather than binding `/reports` to a static 1:1 route permission (like single-tab
 - `src/service/permission.service.ts` — Implemented `hasReportsAccess` with dynamic prefix matching (`reports:*` non-export)
 - `src/middleware.ts` — Protected `/reports` route using `hasReportsAccess`
 - `src/app/api/reports/agent-sales/route.ts` & `src/app/api/reports/agent-sales/export/route.ts` — Granular permission checks and query params
-- `src/components/reports/AgentSalesReportTable.tsx` — Pagination 20, single-column centering, omitted grand total when single period
+- `src/components/reports/AgentSalesReportTable.tsx` — Pagination 20, single-column centering, omitted grand total when single period, horizontal scroll saving & restoration
 - `src/components/reports/ReportFilterBar.tsx` — Month, Year, and dynamic Granularity dropdowns
-- `src/components/reports/ReportsContainer.tsx` — Client hydration without SSR mismatch, session persistence, query assembly
-- `src/app/components.css` — Bold 2px grid cell borders, fit-content single-column card, responsive summary cards
+- `src/components/reports/ReportsContainer.tsx` — Client hydration without SSR mismatch, deterministic back-nav state preservation (filters, page, vertical & horizontal scroll)
+- `src/components/Navbar.tsx` & `src/components/Sidebar.tsx` — Fresh reset of report session state on menu navigation
+- `src/app/components.css` — Bold 2px grid cell borders, fit-content single-column card with 290px period width, responsive summary cards
 - `CONTEXT/project_data.md`, `CONTEXT/database_schema.md`, `CONTEXT/decision_log.md`, `CONTEXT/current_state.md` — Updated RBAC permissions & architecture documentation
 - `src/tests/*` — 100% test pass across all unit, component, API, and seed suites
 

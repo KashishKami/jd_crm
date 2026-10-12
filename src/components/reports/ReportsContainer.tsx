@@ -86,6 +86,7 @@ function ReportsContainerContent() {
         } catch {}
 
         try {
+          // Normal visit or Back-button navigation: restore saved state if present
           const saved = sessionStorage.getItem(STORAGE_KEY);
           if (saved) {
             const parsed = JSON.parse(saved);

@@ -303,5 +303,43 @@ describe('Navbar W-3702 Notification Bell & Tab Tests', () => {
 
     expect(screen.queryByTestId('notification-dropdown-menu')).not.toBeNull();
   });
+
+  it('should render Reports link when user has reports:agent-sales and clear report session state on click', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 101,
+          name: 'Manager Bob',
+          userPermissions: 'reports:agent-sales',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+    render(<Navbar />);
+    const reportsLink = screen.getByRole('link', { name: /reports/i });
+    expect(reportsLink).not.toBeNull();
+
+    fireEvent.click(reportsLink);
+    expect(removeItemSpy).toHaveBeenCalledWith('REPORT_MATRIX_STATE');
+    removeItemSpy.mockRestore();
+  });
+
+  it('should hide Reports link when user lacks reports permissions', () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: 101,
+          name: 'Regular Agent',
+          userPermissions: 'orders:view',
+        },
+      },
+      status: 'authenticated',
+    } as any);
+
+    render(<Navbar />);
+    expect(screen.queryByRole('link', { name: /reports/i })).toBeNull();
+  });
 });
 

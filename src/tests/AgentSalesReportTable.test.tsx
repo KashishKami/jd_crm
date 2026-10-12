@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
-import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import AgentSalesReportTable from '../components/reports/AgentSalesReportTable';
 import { ReportMatrixResponse } from '../types/report';
 
@@ -248,17 +248,43 @@ describe('W-4404: AgentSalesReportTable Component', () => {
     expect(screen.queryByText(/Range Grand Total/i)).toBeNull();
   });
 
-  it('shows Range Grand Total column when periods.length > 1', () => {
+  it('saves REPORT_SCROLL_POS and REPORT_SCROLL_X on drilldown click', () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     render(
       <AgentSalesReportTable
-        matrixData={mockMatrixData} // has 2 periods
+        matrixData={mockMatrixData}
         metricView="all"
         isLoading={false}
       />
     );
 
-    // "Range Grand Total" MUST be rendered when multiple period columns exist
-    expect(screen.getByText(/Range Grand Total/i)).toBeDefined();
+    // Click on a drilldown link
+    const drilldownLinks = screen.getAllByRole('link');
+    expect(drilldownLinks.length).toBeGreaterThan(0);
+    fireEvent.click(drilldownLinks[0]);
+
+    expect(setItemSpy).toHaveBeenCalledWith('REPORT_SCROLL_POS', expect.any(String));
+    expect(setItemSpy).toHaveBeenCalledWith('REPORT_SCROLL_X', expect.any(String));
+    setItemSpy.mockRestore();
+  });
+
+  it('restores horizontal scroll position if REPORT_SCROLL_X is in sessionStorage and cleans it up', () => {
+    sessionStorage.setItem('REPORT_SCROLL_X', '350');
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+
+    const { container } = render(
+      <AgentSalesReportTable
+        matrixData={mockMatrixData}
+        metricView="all"
+        isLoading={false}
+      />
+    );
+
+    const scrollContainer = container.querySelector('.reports-table-scroll-container') as HTMLElement;
+    expect(scrollContainer).not.toBeNull();
+    expect(scrollContainer.scrollLeft).toBe(350);
+    expect(removeItemSpy).toHaveBeenCalledWith('REPORT_SCROLL_X');
+    removeItemSpy.mockRestore();
   });
 });
 

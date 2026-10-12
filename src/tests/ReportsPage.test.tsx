@@ -254,4 +254,28 @@ describe('W-4406: Reports Page Layout and Container', () => {
     // Export button must be present
     expect(screen.getByRole('button', { name: /export xls/i })).toBeDefined();
   });
+
+  it('restores filterState from sessionStorage on back navigation when not a reload', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { uid: 1, name: 'Admin', userPermissions: 'reports:agent-sales' },
+      },
+      status: 'authenticated',
+    } as any);
+
+    // Seed saved state
+    sessionStorage.setItem(
+      'REPORT_MATRIX_STATE',
+      JSON.stringify({ range: 'yearly', year: 2024, granularity: 'monthly' })
+    );
+
+    render(<ReportsContainer />);
+
+    await waitFor(() => {
+      const fetchCalls = (global.fetch as any).mock.calls;
+      const agentCall = fetchCalls.find((c: any[]) => c[0]?.includes('/api/reports/agent-sales'));
+      expect(agentCall).toBeDefined();
+      expect(agentCall[0]).toContain('range=yearly');
+    });
+  });
 });

@@ -61,6 +61,26 @@ export default function AgentSalesReportTable({
   const hasDraggedRef = useRef(false);
   const [isGrabbing, setIsGrabbing] = useState(false);
 
+  useEffect(() => {
+    if (!isLoading && matrixData && typeof window !== 'undefined') {
+      const savedX = sessionStorage.getItem('REPORT_SCROLL_X');
+      if (savedX !== null) {
+        const x = Number(savedX);
+        if (!isNaN(x)) {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = x;
+          }
+          setTimeout(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollLeft = x;
+            }
+          }, 60);
+          sessionStorage.removeItem('REPORT_SCROLL_X');
+        }
+      }
+    }
+  }, [isLoading, matrixData]);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !scrollContainerRef.current) return;
     isDraggingRef.current = true;
@@ -159,6 +179,10 @@ export default function AgentSalesReportTable({
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('REPORT_SCROLL_POS', String(window.scrollY));
+        if (scrollContainerRef.current) {
+          sessionStorage.setItem('REPORT_SCROLL_X', String(scrollContainerRef.current.scrollLeft));
+        }
+        sessionStorage.setItem('REPORT_RETURNING_FROM_DRILLDOWN', 'true');
       } catch {
         // ignore
       }
