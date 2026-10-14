@@ -11,6 +11,7 @@ import { fadeInStagger, fadeInPage } from '../lib/animations';
 import { gsap } from 'gsap';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
 import Pagination from './Pagination';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 interface AgentListProps {
   designations?: { designationId: number; designationName: string }[];
@@ -22,6 +23,7 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
 
   const [agents, setAgents] = useState<Agent[]>(initialAgents || []);
   const [loading, setLoading] = useState(!initialAgents);
@@ -497,7 +499,7 @@ function AgentListContent({ designations = [], initialAgents }: AgentListProps) 
         </div>
       ) : (
         <>
-          <div className="table-wrapper">
+          <div className={`table-wrapper ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
             <table className="custom-table table-responsive">
             <thead>
               <tr>

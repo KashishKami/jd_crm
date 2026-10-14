@@ -3,6 +3,7 @@
 import React from 'react';
 import { PerformerRow } from '../../types/dashboard';
 import { hasPermission } from '../../service/permission.service';
+import { useDragScroll } from '../../hooks/useDragScroll';
 
 interface PerformersTableProps {
   title: string;
@@ -23,6 +24,7 @@ export default function PerformersTable({
 }: PerformersTableProps) {
   const canLinkToOrders =
     hasPermission(permissions, 'orders:view') || hasPermission(permissions, 'orders:create');
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
 
   return (
     <div className="table-wrapper card-with-accent" style={{ flex: 1, minWidth: '300px' }}>
@@ -39,7 +41,7 @@ export default function PerformersTable({
           No data available
         </div>
       ) : (
-        <div className="card-table-container">
+        <div className={`card-table-container ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
           <table className="custom-table" style={{ width: '100%' }}>
             <thead>
               <tr>

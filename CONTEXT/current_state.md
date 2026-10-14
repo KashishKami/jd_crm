@@ -63,6 +63,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 45** | Reports Enhancements: Team-Scoped Permission (`reports:agent-sales-team`), Yearly Granularity Cleanup, Agent Matrix Sorting & UI Layout Polish | **[x] COMPLETED** | `seed.sql`, `scripts/sql/add-reports-permissions.sql`, `src/types/report.ts`, `src/service/report.service.ts`, `src/app/api/reports/agent-sales/route.ts`, `src/app/api/reports/agent-sales/export/route.ts`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/ReportsContainer.tsx` |
 | **Phase 46** | Reports Filter Bar UX (Synchronized Multi-Select & Active/Inactive Toggles) and Excel Report Visual Discernment Overhaul | **[x] COMPLETED** | `src/components/reports/ReportFilterBar.tsx`, `src/lib/agent-sales-excel-exporter.ts`, `src/tests/ReportFilterBar.test.tsx`, `src/tests/agentSalesExcelExporter.test.ts` |
 | **Phase 47** | Management Realization Dashboard Metrics (Cash-Basis Month Refunds, Chargebacks & Net Sales with EST Boundary Safety) & Follow-Up Card Stacking / Keyboard Tab Progression | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/components/MetricCard.tsx`, `src/components/dashboard/dashboard_client_page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/dashboard.test.ts`, `src/app/components.css` |
+| **Phase 48** | Sparkline Realization Timezone & Deduplication, Reports Agent Multi-Select Accordions & Scroll Isolation, and Universal Table Drag-to-Scroll Panning | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/ReportsContainer.tsx`, `src/hooks/useDragScroll.ts`, `src/app/components.css`, `src/components/OrderList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx` |
 ---
 
 
@@ -11725,4 +11726,132 @@ In exported Excel workbooks (`generateAgentSalesWorkbook`), period boundaries an
   - Removed temporary test file referencing real customer data.
   - Resolved CSS syntax error in `components.css`.
   - Confirmed dev server compilation and runtime health (HTTP 200 on `/follow-ups` and `/follow-ups/new`).
+
+---
+
+### Phase 48 — Sparkline Realization Timezone & Deduplication, Reports Agent Multi-Select Accordions & Scroll Isolation, and Universal Table Drag-to-Scroll Panning
+
+#### W-4801 — Sparkline Realization Timezone Correction & Transition Deduplication
+
+**Root cause / Goal:**
+`getRealizedSparklineData` in `src/repository/dashboard.repository.ts` groups by `DATE_FORMAT(h.changed_at, '%Y-%m')` in UTC directly in MySQL, erroneously placing late-evening Eastern Time refunds (e.g. Oct 31 22:30 EDT = Nov 1 02:30 UTC) into November. In addition, `SELECT DISTINCT order_id, changed_at` in the subquery produces duplicate rows when an order transitioned to refund/chargeback multiple times within the range, summing `o.order_refund_amount` multiple times.
+
+**Fix / Approach:**
+In `src/repository/dashboard.repository.ts`, group by `order_id` in SQL using `MAX(changed_at) AS event_time` to deduplicate transitions and return raw records. In Node.js, format timestamps into `YYYY-MM` via `Intl.DateTimeFormat` with `timeZone: 'America/New_York'`, grouping amounts into Eastern Time month buckets. In `src/service/dashboard.service.ts`, calculate `spark6MonthsStart` and `spark6MonthsEnd` via `getEstMidnightUtc`.
+
+---
+
+- [x] **RED — Integration & Unit (`src/tests/dashboard.test.ts`):**
+  - [x] Test: `getRealizedSparklineData` deduplicates multiple status transitions for the same order within the 6-month window (order refund amount is counted exactly once).
+  - [x] Test: `getRealizedSparklineData` assigns an end-of-month EDT transition (Oct 31 22:30 EDT = Nov 1 02:30 UTC) to October (`2026-10`), NOT November (`2026-11`).
+  - [x] Test: `getRealizedSparklineData` assigns a winter EST transition (Jan 31 21:00 EST = Feb 1 02:00 UTC) to January (`2026-01`), NOT February (`2026-02`).
+  - [x] Test: Multi-part child orders (`parent_order_id IS NOT NULL`) are strictly excluded.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Backend (Repository & Service):**
+  - [x] [Repository] Update `getRealizedSparklineData` in `src/repository/dashboard.repository.ts` to `GROUP BY order_id` with `MAX(changed_at)` and format labels in `America/New_York` timezone.
+  - [x] [Service] Update `spark6MonthsStart` and `spark6MonthsEnd` in `src/service/dashboard.service.ts` to use `getEstMidnightUtc`.
+  - [x] Run tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Orders refunded at 9:30 PM EDT on October 31 appear in October point on sparkline → orders transitioned multiple times sum correctly once → ✅ Done.
+
+---
+
+#### W-4802 — Reports Agent Multi-Select Accordion Dropdowns & Page Scroll Isolation
+
+**Root cause / Goal:**
+1. In `src/components/reports/ReportFilterBar.tsx`, the Agent filter dropdown menu lacks `overscroll-behavior: contain` and wheel propagation containment, causing mouse-wheel events to chain to the document window and scroll the page.
+2. Clicking "All Agents" when checked does not deselect all agents because `selectedAgentIds.length === 0` is treated as `isAllAgentsChecked = true`, creating a circular trap.
+3. Users need collapsed accordions for Active and Inactive agents so they don't have to scroll through a giant flat list, with group-level checkboxes to select/deselect each category in one click.
+4. When all agents are deselected (0 agents checked), the page must NOT refresh or clear the table; it should hold current data and wait for the user to select agents before updating.
+
+**Fix / Approach:**
+In `ReportFilterBar.tsx`, add `overscroll-behavior: contain;` and `onWheel={(e) => e.stopPropagation()}` to the dropdown menu. Introduce collapsible states `isActiveOpen` and `isInactiveOpen` (defaulting to closed/collapsed). Fix "All Agents" toggle to clear selection to empty (`[]`). In `ReportsContainer.tsx`, when 0 agents are selected, hold existing data without triggering a fetch.
+
+---
+
+- [x] **RED — Unit & Component (`src/tests/ReportFilterBar.test.tsx`):**
+  - [x] Test: Agent dropdown renders with "All Agents" checked, and Active / Inactive sections collapsed by default with group checkboxes checked.
+  - [x] Test: Clicking chevron next to "Active Agents" expands active list without toggling selection.
+  - [x] Test: Clicking chevron next to "Inactive Agents" expands inactive list without toggling selection.
+  - [x] Test: Clicking "All Agents" when checked clears all selections (`selectedAgentIds = [-1]`) and changes button label to `"Select Agents..."`.
+  - [x] Test: Clicking Active group checkbox when unchecked selects all active agents.
+  - [x] Test: Dropdown container has `overscroll-behavior: contain` style.
+  - [x] Test: "Showing sales aggregates across X sales agents" dynamically displays exact count of selected agents.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Component & Container):**
+  - [x] [Component] In `ReportFilterBar.tsx`, implement collapsible accordions, fix "All Agents" uncheck behavior, add scroll isolation styles, and bind summary count to `displayedAgentCount`.
+  - [x] [Container] In `ReportsContainer.tsx`, pause data refetch when 0 agents are selected (`selectedAgentIds === [-1]`) so existing report matrix stays stable.
+  - [x] Run tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User opens Agent filter → sees collapsed Active & Inactive sections → scrolling mouse-wheel scrolls dropdown only, not the page → user unchecks All Agents → table stays stable without reloading → user selects Active Agents only (e.g. 38) → summary line updates from 44 to 38 sales agents → ✅ Done.
+
+---
+
+#### W-4803 — Universal Table Horizontal Click-and-Drag Panning
+
+**Root cause / Goal:**
+Horizontal scrolling on wide data tables with touchpads or mouse wheels can be cumbersome. Users can currently drag-scroll the Reports table, and want the exact same intuitive click-and-drag panning on Orders, Call Disposition, Follow-Up, Agents, and Vendors tables.
+
+**Fix / Approach:**
+Create a reusable custom hook `src/hooks/useDragScroll.ts` extracted from `AgentSalesReportTable.tsx`. Add `.table-wrapper { cursor: grab; }` and `.is-grabbing { cursor: grabbing !important; }` to `src/app/components.css`. Wire `useDragScroll` into `OrderList.tsx`, `CallDispositionListContainer.tsx`, `FollowUpList.tsx`, `AgentList.tsx`, and `VendorList.tsx`.
+
+---
+
+- [x] **RED — Unit (`src/tests/useDragScroll.test.ts`):**
+  - [x] Test: `onMouseDown` with left click initiates dragging and sets `isGrabbing` to true.
+  - [x] Test: `onMouseDown` with right click (`button === 2`) does not initiate drag.
+  - [x] Test: `onMouseMove` adjusts `scrollLeft` by mouse delta.
+  - [x] Test: `hasDragged` is set to true when delta > 5px, preventing accidental link clicks.
+  - [x] Test: `onMouseUp` and `onMouseLeave` terminate drag state and set `isGrabbing` to false.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Hook, CSS & Components:**
+  - [x] [Hook] Create `src/hooks/useDragScroll.ts`.
+  - [x] [CSS] Add grab / grabbing styles to `.table-wrapper` and `.card-table-container` in `src/app/components.css`.
+  - [x] [Components] Wire `useDragScroll` to:
+    - Primary Data Tables: `OrderList.tsx`, `CallDispositionListContainer.tsx`, `FollowUpList.tsx`, `AgentList.tsx`, and `VendorList.tsx`.
+    - Gateway Module: `GatewayList.tsx` and `GatewayReport.tsx`.
+    - Dashboard Widgets: `PerformersTable.tsx` and `BackendTeamWidget.tsx` (all 3 tables: Top, Bottom, and Category Workloads).
+    - Vendor Detail Page: `src/app/vendors/[id]/page.tsx` (Supplier Order Logs and Drill-Down Modal table).
+    - Search Results & Agent Profiles: `SearchResults.tsx` and `AgentProfileView.tsx`.
+  - [x] Run unit & component tests — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] User clicks and drags horizontally on any table across the entire CRM (Orders, Dispositions, Follow-Ups, Agents, Vendors, Gateways, Dashboard Performers & Backend Team, Vendor Details, Search Results) → table scrolls smoothly → clicking a row without dragging opens item normally → dragging does not accidentally trigger clicks → ✅ Done.
+
+---
+
+### Session Notes — Phase 48 Completion & Universal Table Drag-to-Scroll Panning
+
+#### 1. Sparkline Realization Timezone & Deduplication (W-4801)
+- **Timezone Safety**: Replaced MySQL UTC `DATE_FORMAT` in `src/repository/dashboard.repository.ts` (`getRealizedSparklineData`) with raw timestamp retrieval grouped by `order_id` with `MAX(changed_at)`. Timestamps are formatted into `YYYY-MM` month buckets in Node.js using `Intl.DateTimeFormat` with `timeZone: 'America/New_York'`.
+- **Deduplication**: Prevented multiple transitions of an order into refund/chargeback from being counted multiple times within the 6-month window.
+- **Service Boundaries**: Updated `spark6MonthsStart` and `spark6MonthsEnd` in `src/service/dashboard.service.ts` to use `getEstMidnightUtc`.
+
+#### 2. Reports Agent Multi-Select Accordions, Scroll Isolation & Selection Banner (W-4802)
+- **Accordion Dropdown**: Added collapsible sections for **Active Agents** and **Inactive Agents** (closed by default) with group-level checkboxes in `src/components/reports/ReportFilterBar.tsx`.
+- **Page Scroll Isolation**: Added `overscrollBehavior: 'contain'` and mouse wheel `stopPropagation` to `.agent-dropdown-menu`, preventing the page window from scrolling when scrolling the dropdown.
+- **Deselect All State**: Clicking "All Agents" when selected clears to `selectedAgentIds: [-1]` ("Select Agents..."). In `src/components/reports/ReportsContainer.tsx`, data refetching is paused while zero agents are selected so the existing report matrix stays stable.
+- **Selected Agent Count**: Updated summary banner to dynamically display the exact number of selected agents (`displayedAgentCount`) instead of static total count. Cleaned derived values to comply with React Compiler and ESLint rules.
+
+#### 3. Universal Horizontal Click-and-Drag Table Panning (W-4803)
+- **Reusable Hook**: Created `src/hooks/useDragScroll.ts` with 5px drag threshold to distinguish intentional panning from clicks, preventing accidental row or link routing on release.
+- **CSS Styling**: Added `cursor: grab; user-select: none;` and `.is-grabbing { cursor: grabbing !important; }` across `.table-wrapper` and `.card-table-container` in `src/app/components.css`.
+- **Complete Application Table Coverage**:
+  - Primary Data Tables: Orders (`OrderList.tsx`), Call Dispositions (`CallDispositionListContainer.tsx`), Follow-Ups (`FollowUpList.tsx`), Agents (`AgentList.tsx`), and Vendors (`VendorList.tsx`).
+  - Gateways: Payment Gateways Directory (`GatewayList.tsx`) and Monthly Report (`GatewayReport.tsx`).
+  - Dashboard: Sales Performers Leaders/Review (`PerformersTable.tsx`), Recent Orders (`RecentOrdersTable.tsx`), and Backend Team Widgets (`BackendTeamWidget.tsx` - Top, Bottom, and Category tables).
+  - Vendor Details: Supplier Orders Log and Drill-down Modal tables (`src/app/vendors/[id]/page.tsx`).
+  - Global Search & Profiles: `SearchResults.tsx` and `AgentProfileView.tsx`.
+- **Quality & Build Verification**:
+  - `npm run lint` — 0 errors, 0 warnings.
+  - `npm run typecheck` — 0 type errors.
+  - `npm test` — All 39 unit/integration tests in `ReportFilterBar.test.tsx` and `useDragScroll.test.ts` passing.
+  - `npm run build` — 100% production build successful (45/45 routes compiled).
+
+
 

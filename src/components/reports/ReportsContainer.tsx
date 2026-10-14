@@ -191,6 +191,11 @@ function ReportsContainerContent() {
   useEffect(() => {
     if (!isHydrated || sessionStatus === 'loading' || !canViewAgentSales) return;
 
+    // When all agents are explicitly deselected (0 agents selected), hold existing report matrix and wait for user selection
+    if (filterState.agentIds.length === 1 && filterState.agentIds[0] === -1) {
+      return;
+    }
+
     let ignore = false;
     async function loadMatrixData() {
       try {
@@ -204,8 +209,9 @@ function ReportsContainerContent() {
         if (effectiveTeamIds.length > 0) {
           params.set('teamId', effectiveTeamIds.join(','));
         }
-        if (filterState.agentIds.length > 0) {
-          params.set('agentId', filterState.agentIds.join(','));
+        const effectiveAgentIds = filterState.agentIds.filter((id) => id > 0);
+        if (effectiveAgentIds.length > 0) {
+          params.set('agentId', effectiveAgentIds.join(','));
         }
         if (filterState.startDate) {
           params.set('startDate', filterState.startDate);
@@ -372,8 +378,9 @@ function ReportsContainerContent() {
       if (effectiveTeamIds.length > 0) {
         params.set('teamId', effectiveTeamIds.join(','));
       }
-      if (filterState.agentIds.length > 0) {
-        params.set('agentId', filterState.agentIds.join(','));
+      const effectiveAgentIds = filterState.agentIds.filter((id) => id > 0);
+      if (effectiveAgentIds.length > 0) {
+        params.set('agentId', effectiveAgentIds.join(','));
       }
       if (filterState.startDate) {
         params.set('startDate', filterState.startDate);

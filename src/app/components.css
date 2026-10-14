@@ -186,6 +186,13 @@
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
   width: 100%;
+  cursor: grab;
+  user-select: none;
+}
+
+.table-wrapper.is-grabbing {
+  cursor: grabbing !important;
+  user-select: none;
 }
 
 .custom-table {
@@ -1162,6 +1169,13 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   width: 100%;
+  cursor: grab;
+  user-select: none;
+}
+
+.card-table-container.is-grabbing {
+  cursor: grabbing !important;
+  user-select: none;
 }
 
 @media (max-width: 1024px) {

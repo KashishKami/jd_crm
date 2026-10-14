@@ -9,6 +9,7 @@ import AddDispositionModal from './AddDispositionModal';
 import EditDispositionModal from './EditDispositionModal';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
 import Pagination from './Pagination';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 function CallDispositionListContainerContent() {
   const { data: session, status } = useSession();
@@ -23,6 +24,7 @@ function CallDispositionListContainerContent() {
   const [dispositions, setDispositions] = useState<CallDispositionRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(() => {
     const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/call-dispositions', defaultValue: '1' });
@@ -329,7 +331,7 @@ function CallDispositionListContainerContent() {
       )}
 
       <div className="table-wrapper card-with-accent">
-        <div className="card-table-container" style={{ padding: 0 }}>
+        <div className={`card-table-container ${isTableGrabbing ? 'is-grabbing' : ''}`} style={{ padding: 0 }} {...tableDragProps}>
           <CallDispositionList
             dispositions={dispositions}
             isLoading={isLoading}

@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchResults as SearchResultsType } from '../types/search';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 interface SearchResultsProps {
   results: SearchResultsType;
@@ -10,6 +11,7 @@ interface SearchResultsProps {
 
 export default function SearchResults({ results }: SearchResultsProps) {
   const router = useRouter();
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
 
   const orders = results.orders || [];
   const hasOrders = orders.length > 0;
@@ -39,7 +41,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
   };
 
   return (
-    <div className="table-wrapper">
+    <div className={`table-wrapper ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
       <table className="custom-table table-responsive">
         <thead>
           <tr>

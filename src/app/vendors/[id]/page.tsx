@@ -9,6 +9,7 @@ import { Vendor } from '../../../types/vendor';
 import { fadeInPage, staggerEntrance } from '../../../lib/animations';
 import VendorStatusBadge from '../../../components/VendorStatusBadge';
 import { formatDateDDMMYYYY } from '../../../lib/date';
+import { useDragScroll } from '../../../hooks/useDragScroll';
 
 interface LinkedOrder {
   crmOrderId: number;
@@ -28,6 +29,8 @@ interface LinkedOrder {
 export default function VendorDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { isGrabbing: isOrdersGrabbing, dragProps: ordersDragProps } = useDragScroll<HTMLDivElement>();
+  const { isGrabbing: isDrilldownGrabbing, dragProps: drilldownDragProps } = useDragScroll<HTMLDivElement>();
   const id = params?.id ? Number(params.id) : NaN;
   const { data: session } = useSession();
 
@@ -589,7 +592,7 @@ export default function VendorDetailPage() {
             ) : orders.length === 0 ? (
               <p style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No orders recorded for this supplier.</p>
             ) : (
-              <div className="table-wrapper" style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }}>
+              <div className={`table-wrapper ${isOrdersGrabbing ? 'is-grabbing' : ''}`} style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }} {...ordersDragProps}>
                 <table className="custom-table table-responsive">
                   <thead>
                     <tr>
@@ -699,7 +702,7 @@ export default function VendorDetailPage() {
                 </button>
               </div>
               
-              <div className="table-wrapper" style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }}>
+              <div className={`table-wrapper ${isDrilldownGrabbing ? 'is-grabbing' : ''}`} style={{ border: 'none', borderRadius: '0', boxShadow: 'none' }} {...drilldownDragProps}>
                 <table className="custom-table table-responsive">
                   <thead>
                     <tr>

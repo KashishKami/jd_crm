@@ -111,6 +111,10 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
     // Click to open agent dropdown
     fireEvent.click(agentBtn);
 
+    // Expand both active and inactive accordions
+    fireEvent.click(screen.getByLabelText(/toggle active agents accordion/i));
+    fireEvent.click(screen.getByLabelText(/toggle inactive agents accordion/i));
+
     // Johnny (Active) and Janey (Inactive) in Team 1 should be present
     expect(screen.getByText('Johnny')).toBeDefined();
     expect(screen.getByText('Janey')).toBeDefined();
@@ -557,6 +561,10 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
       const allAgentsCheckbox = allAgentsDiv?.querySelector('input[type="checkbox"]') as HTMLInputElement;
       expect(allAgentsCheckbox.checked).toBe(true);
 
+      // Expand both accordions to inspect individual checkboxes
+      fireEvent.click(screen.getByLabelText(/toggle active agents accordion/i));
+      fireEvent.click(screen.getByLabelText(/toggle inactive agents accordion/i));
+
       // Every individual agent checkbox must be checked
       for (const a of mockAgents) {
         const agentDiv = screen.getByText(a.nickname || a.name).closest('div');
@@ -581,6 +589,9 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
       );
 
       fireEvent.click(document.getElementById('agent-select')!);
+
+      // Expand active agents accordion
+      fireEvent.click(screen.getByLabelText(/toggle active agents accordion/i));
 
       // Click "Johnny" (uid 101) to uncheck him
       const johnnyDiv = screen.getByText('Johnny').closest('div')!;
@@ -816,4 +827,215 @@ describe('W-4403: ReportFilterBar Component (Advance Performance Chart Style)', 
       );
     });
   });
+
+  describe('W-4802: Agent Filter Collapsible Accordions & Scroll Containment', () => {
+    it('opens with Active and Inactive sections collapsed by default and group checkboxes checked', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const activeGroupCheckbox = screen.getByLabelText(/select all active agents/i) as HTMLInputElement;
+      const inactiveGroupCheckbox = screen.getByLabelText(/select all inactive agents/i) as HTMLInputElement;
+
+      expect(activeGroupCheckbox.checked).toBe(true);
+      expect(inactiveGroupCheckbox.checked).toBe(true);
+
+      // Accordion toggle buttons exist
+      expect(screen.getByLabelText(/toggle active agents accordion/i)).toBeDefined();
+      expect(screen.getByLabelText(/toggle inactive agents accordion/i)).toBeDefined();
+
+      // By default collapsed, individual agent names are not displayed
+      expect(screen.queryByText('Johnny')).toBeNull();
+      expect(screen.queryByText('Janey')).toBeNull();
+    });
+
+    it('expands Active Agents accordion when clicking toggle button', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+      const toggleActiveBtn = screen.getByLabelText(/toggle active agents accordion/i);
+      fireEvent.click(toggleActiveBtn);
+
+      // Now active agents are visible
+      expect(screen.getByText('Johnny')).toBeDefined();
+      expect(screen.getByText('Painter')).toBeDefined();
+      // Inactive agent still hidden
+      expect(screen.queryByText('Janey')).toBeNull();
+    });
+
+    it('unchecking "All Agents" deselects all agents and sets selectedAgentIds to [-1] (empty)', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+
+      const allAgentsCheckbox = screen.getByLabelText(/select all agents/i) as HTMLInputElement;
+      expect(allAgentsCheckbox.checked).toBe(true);
+
+      fireEvent.click(allAgentsCheckbox);
+
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentIds: [-1],
+        })
+      );
+    });
+
+    it('displays "Select Agents..." button text when selectedAgentIds is [-1]', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[-1]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      expect(screen.getByText('Select Agents...')).toBeDefined();
+    });
+
+    it('dropdown container contains overscroll-behavior contain', () => {
+      render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+
+      fireEvent.click(document.getElementById('agent-select')!);
+      const dropdownMenu = screen.getByTestId('agent-dropdown-menu');
+      expect(dropdownMenu.style.overscrollBehavior).toBe('contain');
+    });
+
+    it('shows correct selected agent count in "Showing sales aggregates across X sales agents"', () => {
+      // 1. All agents selected by default -> 3 mock agents
+      const { rerender } = render(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+      expect(screen.getByText(/showing sales aggregates across/i).textContent).toContain('3 sales agents');
+
+      // 2. Subset selected: only 2 active agents [101, 201]
+      rerender(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[101, 201]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+      expect(screen.getByText(/showing sales aggregates across/i).textContent).toContain('2 sales agents');
+
+      // 3. Single agent selected [101]
+      rerender(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[101]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+      expect(screen.getByText(/showing sales aggregates across/i).textContent).toContain('1 sales agent');
+
+      // 4. Zero agents selected (isExplicitNone: [-1])
+      rerender(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[]}
+          selectedAgentIds={[-1]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+      expect(screen.getByText(/showing sales aggregates across/i).textContent).toContain('0 sales agents');
+
+      // 5. Scoped by Center: Team 1 has 2 agents (101, 102). With selectedAgentIds=[] (all in team 1)
+      rerender(
+        <ReportFilterBar
+          teams={mockTeams}
+          agents={mockAgents}
+          selectedTeamIds={[1]}
+          selectedAgentIds={[]}
+          range="monthly"
+          metricView="all"
+          onFilterChange={onFilterChange}
+          onMetricViewChange={onMetricViewChange}
+          onExportExcel={onExportExcel}
+        />
+      );
+      expect(screen.getByText(/showing sales aggregates across/i).textContent).toContain('2 sales agents');
+    });
+  });
 });
+
+

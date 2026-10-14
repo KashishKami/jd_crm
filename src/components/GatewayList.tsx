@@ -7,6 +7,7 @@ import { hasPermission } from '../service/permission.service';
 import { Gateway } from '../types/gateway';
 import { fadeInPage, fadeInStagger } from '../lib/animations';
 import { gsap } from 'gsap';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 interface GatewayListProps {
   initialGateways?: Gateway[];
@@ -17,6 +18,7 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
   const [gateways, setGateways] = useState<Gateway[]>(initialGateways || []);
   const [loading, setLoading] = useState(!initialGateways);
   const [error, setError] = useState<string | null>(null);
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
   const [hasAnimated, setHasAnimated] = useState(() => {
     if (typeof window === 'undefined') return false;
     // If returning from a detail page, skip animation unconditionally
@@ -127,7 +129,7 @@ export default function GatewayList({ initialGateways }: GatewayListProps = {}) 
         )}
       </div>
 
-      <div className="table-wrapper">
+      <div className={`table-wrapper ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
           <table className="custom-table table-responsive">
             <thead>
               <tr>

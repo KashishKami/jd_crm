@@ -146,6 +146,9 @@ export async function getMetricsForUser(session: any) {
   const spark6MonthsStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 5, 1));
   const spark6MonthsEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
 
+  const sparkRealized6MonthsStart = getEstMidnightUtc(now.getFullYear(), now.getMonth() - 5, 1);
+  const sparkRealized6MonthsEnd = getEstMidnightUtc(now.getFullYear(), now.getMonth() + 1, 1);
+
   const spark7DaysStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 6));
   const spark7DaysEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
@@ -216,14 +219,14 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getRealizedChargebacksBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
         dashboardRepository.getRealizedChargebacksBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
-        dashboardRepository.getRealizedSparklineData(spark6MonthsStart, spark6MonthsEnd, '3', 'monthly'),
+        dashboardRepository.getRealizedSparklineData(sparkRealized6MonthsStart, sparkRealized6MonthsEnd, '3', 'monthly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
-        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
+        sparklineData: fillSparklineGaps(sparkRaw, sparkRealized6MonthsStart, sparkRealized6MonthsEnd, 'monthly'),
       })),
     ]);
   }
@@ -234,14 +237,14 @@ export async function getMetricsForUser(session: any) {
       Promise.all([
         dashboardRepository.getRealizedRefundsBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
         dashboardRepository.getRealizedRefundsBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
-        dashboardRepository.getRealizedSparklineData(spark6MonthsStart, spark6MonthsEnd, '2', 'monthly'),
+        dashboardRepository.getRealizedSparklineData(sparkRealized6MonthsStart, sparkRealized6MonthsEnd, '2', 'monthly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
         lastAmount: previous.amount,
         lastCount: previous.count,
         percentageChange: calcPctChange(current.amount, previous.amount),
-        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
+        sparklineData: fillSparklineGaps(sparkRaw, sparkRealized6MonthsStart, sparkRealized6MonthsEnd, 'monthly'),
       })),
     ]);
   }

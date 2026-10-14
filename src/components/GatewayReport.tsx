@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { GatewayMonthlyReport } from '../types/gateway';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 const MONTH_NAMES = [
   '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -13,6 +14,8 @@ interface GatewayReportProps {
 }
 
 export default function GatewayReport({ monthly }: GatewayReportProps) {
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
+
   if (monthly.length === 0) {
     return (
       <div className="error-box" style={{ textAlign: 'center', padding: '40px', marginTop: '20px' }}>
@@ -22,7 +25,7 @@ export default function GatewayReport({ monthly }: GatewayReportProps) {
   }
 
   return (
-    <div className="table-wrapper">
+    <div className={`table-wrapper ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
       <table className="custom-table table-responsive">
         <thead>
           <tr>

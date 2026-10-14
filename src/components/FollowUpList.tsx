@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 import { hasPermission } from '../service/permission.service';
 import FollowUpNotesPopup from './FollowUpNotesPopup';
 import { formatPhoneNumber } from '../lib/formatPhone';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 interface FollowUpListProps {
   followUps: any[];
@@ -19,6 +20,7 @@ export default function FollowUpList({ followUps, canViewAll, canViewTeam, onDel
   const { data: session } = useSession();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [activeNotesFollowUp, setActiveNotesFollowUp] = useState<any | null>(null);
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
   const showAgentColumn = canViewAll || Boolean(canViewTeam);
 
   const getPriorityBadgeClass = (priority: string): string => {
@@ -69,7 +71,7 @@ export default function FollowUpList({ followUps, canViewAll, canViewTeam, onDel
   return (
     <>
       <div className="table-wrapper card-with-accent">
-        <div className="card-table-container" style={{ padding: 0 }}>
+        <div className={`card-table-container ${isTableGrabbing ? 'is-grabbing' : ''}`} style={{ padding: 0 }} {...tableDragProps}>
           <table className="custom-table table-responsive">
             <thead>
               <tr>

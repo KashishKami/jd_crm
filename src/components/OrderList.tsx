@@ -8,6 +8,7 @@ import { fadeInStagger } from '../lib/animations';
 import { gsap } from 'gsap';
 import { formatDateDDMMYYYY, getEstCalendarDaysDiff } from '../lib/date';
 import OrderCommentsPopup from './OrderCommentsPopup';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '—';
@@ -96,6 +97,7 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
   const canCreate = hasPermission(permissions, 'orders:create');
   const canEdit = hasPermission(permissions, 'orders:edit');
   const canViewPhone = hasPermission(permissions, 'customers:view-phone');
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
   const [activeCommentsOrderId, setActiveCommentsOrderId] = useState<number | null>(null);
   const [hasAnimated, setHasAnimated] = useState(() => {
     if (skipAnimation) return true;
@@ -307,7 +309,7 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
   };
 
   const tableContent = (
-    <div className="card-table-container" style={{ padding: 0 }}>
+    <div className={`card-table-container ${isTableGrabbing ? 'is-grabbing' : ''}`} style={{ padding: 0 }} {...tableDragProps}>
         <table className="custom-table table-responsive">
           <thead>
             <tr>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { hasPermission } from '../../service/permission.service';
+import { useDragScroll } from '../../hooks/useDragScroll';
 
 interface BackendTeamWidgetProps {
   initialData?: {
@@ -28,6 +29,10 @@ export default function BackendTeamWidget({
   const [topPerformers, setTopPerformers] = useState<any[]>(initialData?.topPerformers || []);
   const [bottomPerformers, setBottomPerformers] = useState<any[]>(initialData?.bottomPerformers || []);
   const [pendingByCategory, setPendingByCategory] = useState<any[]>(initialData?.pendingByCategory || []);
+
+  const { isGrabbing: isTopGrabbing, dragProps: topDragProps } = useDragScroll<HTMLDivElement>();
+  const { isGrabbing: isBottomGrabbing, dragProps: bottomDragProps } = useDragScroll<HTMLDivElement>();
+  const { isGrabbing: isPendingGrabbing, dragProps: pendingDragProps } = useDragScroll<HTMLDivElement>();
 
   // Loading/error flags
   const [perfLoading, setPerfLoading] = useState(false);
@@ -228,7 +233,7 @@ export default function BackendTeamWidget({
                         No data available
                       </div>
                     ) : (
-                      <div className="card-table-container">
+                      <div className={`card-table-container ${isTopGrabbing ? 'is-grabbing' : ''}`} {...topDragProps}>
                         <table className="custom-table" style={{ width: '100%' }}>
                           <thead>
                             <tr>
@@ -297,7 +302,7 @@ export default function BackendTeamWidget({
                         No data available
                       </div>
                     ) : (
-                      <div className="card-table-container">
+                      <div className={`card-table-container ${isBottomGrabbing ? 'is-grabbing' : ''}`} {...bottomDragProps}>
                         <table className="custom-table" style={{ width: '100%' }}>
                           <thead>
                             <tr>
@@ -386,7 +391,7 @@ export default function BackendTeamWidget({
                     No data available
                   </div>
                 ) : (
-                  <div className="card-table-container">
+                  <div className={`card-table-container ${isPendingGrabbing ? 'is-grabbing' : ''}`} {...pendingDragProps}>
                     <table className="custom-table" style={{ width: '100%' }}>
                       <thead>
                         <tr>

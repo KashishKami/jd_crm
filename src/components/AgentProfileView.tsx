@@ -8,6 +8,7 @@ import { hasPermission } from '../service/permission.service';
 import { AgentDetail } from '../types/agent';
 import { fadeInPage } from '../lib/animations';
 import { formatDateDDMMYYYY } from '../lib/date';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 interface AgentProfileViewProps {
   agent: AgentDetail;
@@ -18,6 +19,8 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'academic' | 'professional' | 'bank_emergency'>('basic');
+  const { isGrabbing: isAcademicGrabbing, dragProps: academicDragProps } = useDragScroll<HTMLDivElement>();
+  const { isGrabbing: isProfessionalGrabbing, dragProps: professionalDragProps } = useDragScroll<HTMLDivElement>();
 
   const permissions = session?.user?.userPermissions || '';
   const isSelf = session?.user?.id ? Number(session.user.id) === agent.uid : false;
@@ -178,7 +181,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
                 ) : !agent.academicRecord || agent.academicRecord.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">No academic history recorded.</p>
                 ) : (
-                  <div className="table-wrapper">
+                  <div className={`table-wrapper ${isAcademicGrabbing ? 'is-grabbing' : ''}`} {...academicDragProps}>
                     <table className="custom-table table-responsive">
                       <thead>
                         <tr>
@@ -218,7 +221,7 @@ export default function AgentProfileView({ agent }: AgentProfileViewProps) {
                 ) : !agent.professionalRecord || agent.professionalRecord.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">No professional experience recorded.</p>
                 ) : (
-                  <div className="table-wrapper">
+                  <div className={`table-wrapper ${isProfessionalGrabbing ? 'is-grabbing' : ''}`} {...professionalDragProps}>
                     <table className="custom-table table-responsive">
                       <thead>
                         <tr>

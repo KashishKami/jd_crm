@@ -82,6 +82,8 @@ export default function ReportFilterBar({
   const [prevDates, setPrevDates] = useState({ startDate, endDate });
   const [isCenterOpen, setIsCenterOpen] = useState(false);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [isActiveOpen, setIsActiveOpen] = useState(false);
+  const [isInactiveOpen, setIsInactiveOpen] = useState(false);
   const [agentSearch, setAgentSearch] = useState('');
 
   const centerRef = useRef<HTMLDivElement>(null);
@@ -143,20 +145,27 @@ export default function ReportFilterBar({
     return isAllCentersChecked || selectedTeamIds.includes(teamId);
   };
 
-  const isAllAgentsChecked = selectedAgentIds.length === 0 || (filteredAgents.length > 0 && selectedAgentIds.length === filteredAgents.length);
+  const isExplicitNone = selectedAgentIds.length === 1 && selectedAgentIds[0] === -1;
+  const isAllAgentsChecked = !isExplicitNone && (
+    selectedAgentIds.length === 0 ||
+    (filteredAgents.length > 0 &&
+      selectedAgentIds.length >= filteredAgents.length &&
+      filteredAgents.every((a) => selectedAgentIds.includes(a.uid)))
+  );
   const isAgentChecked = (agentUid: number) => {
+    if (isExplicitNone) return false;
     return isAllAgentsChecked || selectedAgentIds.includes(agentUid);
   };
 
-  const isActiveGroupChecked = useMemo(() => {
-    if (activeAgents.length === 0) return false;
-    return activeAgents.every((a) => isAgentChecked(a.uid));
-  }, [activeAgents, isAllAgentsChecked, selectedAgentIds]);
+  const isActiveGroupChecked =
+    !isExplicitNone &&
+    activeAgents.length > 0 &&
+    (isAllAgentsChecked || activeAgents.every((a) => isAgentChecked(a.uid)));
 
-  const isInactiveGroupChecked = useMemo(() => {
-    if (inactiveAgents.length === 0) return false;
-    return inactiveAgents.every((a) => isAgentChecked(a.uid));
-  }, [inactiveAgents, isAllAgentsChecked, selectedAgentIds]);
+  const isInactiveGroupChecked =
+    !isExplicitNone &&
+    inactiveAgents.length > 0 &&
+    (isAllAgentsChecked || inactiveAgents.every((a) => isAgentChecked(a.uid)));
 
   // Center multi-select toggle
   const toggleCenter = (teamId: number) => {
@@ -204,15 +213,19 @@ export default function ReportFilterBar({
   // Agent multi-select toggle
   const toggleAgent = (agentUid: number) => {
     let nextAgentIds: number[];
-    if (isAllAgentsChecked) {
+    if (isExplicitNone) {
+      nextAgentIds = [agentUid];
+    } else if (isAllAgentsChecked) {
       nextAgentIds = filteredAgents.map((a) => a.uid).filter((id) => id !== agentUid);
     } else if (selectedAgentIds.includes(agentUid)) {
       nextAgentIds = selectedAgentIds.filter((id) => id !== agentUid);
     } else {
-      nextAgentIds = [...selectedAgentIds, agentUid];
+      nextAgentIds = [...selectedAgentIds.filter((id) => id !== -1), agentUid];
     }
 
-    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+    if (nextAgentIds.length === 0) {
+      nextAgentIds = [-1];
+    } else if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
       nextAgentIds = [];
     }
 
@@ -225,21 +238,35 @@ export default function ReportFilterBar({
     });
   };
 
-  const selectAllAgents = () => {
-    onFilterChange({
-      teamIds: selectedTeamIds,
-      agentIds: [],
-      range,
-      startDate: range === 'custom' ? startDate : undefined,
-      endDate: range === 'custom' ? endDate : undefined,
-    });
+  const toggleAllAgents = () => {
+    if (isAllAgentsChecked) {
+      onFilterChange({
+        teamIds: selectedTeamIds,
+        agentIds: [-1],
+        range,
+        startDate: range === 'custom' ? startDate : undefined,
+        endDate: range === 'custom' ? endDate : undefined,
+      });
+    } else {
+      onFilterChange({
+        teamIds: selectedTeamIds,
+        agentIds: [],
+        range,
+        startDate: range === 'custom' ? startDate : undefined,
+        endDate: range === 'custom' ? endDate : undefined,
+      });
+    }
   };
+
+  const selectAllAgents = toggleAllAgents;
 
   // Toggle Active Agents group
   const toggleActiveAgents = () => {
-    const currentSelectedUids = isAllAgentsChecked
+    const currentSelectedUids = isExplicitNone
+      ? []
+      : isAllAgentsChecked
       ? filteredAgents.map((a) => a.uid)
-      : [...selectedAgentIds];
+      : selectedAgentIds.filter((id) => id !== -1);
 
     const activeUids = new Set(activeAgents.map((a) => a.uid));
     let nextAgentIds: number[];
@@ -251,7 +278,9 @@ export default function ReportFilterBar({
       nextAgentIds = Array.from(combined);
     }
 
-    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+    if (nextAgentIds.length === 0) {
+      nextAgentIds = [-1];
+    } else if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
       nextAgentIds = [];
     }
 
@@ -266,9 +295,11 @@ export default function ReportFilterBar({
 
   // Toggle Inactive Agents group
   const toggleInactiveAgents = () => {
-    const currentSelectedUids = isAllAgentsChecked
+    const currentSelectedUids = isExplicitNone
+      ? []
+      : isAllAgentsChecked
       ? filteredAgents.map((a) => a.uid)
-      : [...selectedAgentIds];
+      : selectedAgentIds.filter((id) => id !== -1);
 
     const inactiveUids = new Set(inactiveAgents.map((a) => a.uid));
     let nextAgentIds: number[];
@@ -280,7 +311,9 @@ export default function ReportFilterBar({
       nextAgentIds = Array.from(combined);
     }
 
-    if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
+    if (nextAgentIds.length === 0) {
+      nextAgentIds = [-1];
+    } else if (filteredAgents.length > 0 && nextAgentIds.length === filteredAgents.length) {
       nextAgentIds = [];
     }
 
@@ -304,14 +337,24 @@ export default function ReportFilterBar({
   }, [isAllCentersChecked, selectedTeamIds, teams]);
 
   // Agent button label
-  const agentButtonLabel = useMemo(() => {
+  const agentButtonLabel = (() => {
+    if (isExplicitNone) return 'Select Agents...';
     if (isAllAgentsChecked) return 'All Agents';
-    if (selectedAgentIds.length === 1) {
-      const a = agents.find((x) => x.uid === selectedAgentIds[0]);
+    const activeSelected = selectedAgentIds.filter((id) => id !== -1);
+    if (activeSelected.length === 1) {
+      const a = agents.find((x) => x.uid === activeSelected[0]);
       return a ? a.nickname || a.name : '1 Agent';
     }
-    return `${selectedAgentIds.length} Agents Selected`;
-  }, [isAllAgentsChecked, selectedAgentIds, agents]);
+    return `${activeSelected.length} Agents Selected`;
+  })();
+
+  // Displayed agent count for summary line
+  const displayedAgentCount = (() => {
+    if (isExplicitNone) return 0;
+    if (isAllAgentsChecked) return filteredAgents.length;
+    const filteredUids = new Set(filteredAgents.map((a) => a.uid));
+    return selectedAgentIds.filter((id) => id > 0 && filteredUids.has(id)).length;
+  })();
 
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const currentMonth = useMemo(() => new Date().getUTCMonth() + 1, []);
@@ -603,6 +646,8 @@ export default function ReportFilterBar({
 
             {isAgentOpen && (
               <div
+                data-testid="agent-dropdown-menu"
+                onWheel={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
                   top: '100%',
@@ -617,6 +662,7 @@ export default function ReportFilterBar({
                   padding: '6px',
                   maxHeight: '300px',
                   overflowY: 'auto',
+                  overscrollBehavior: 'contain',
                 }}
               >
                 <div style={{ padding: '2px 4px 6px' }}>
@@ -637,7 +683,7 @@ export default function ReportFilterBar({
                 </div>
 
                 <div
-                  onClick={selectAllAgents}
+                  onClick={toggleAllAgents}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -653,8 +699,10 @@ export default function ReportFilterBar({
                 >
                   <input
                     type="checkbox"
+                    aria-label="Select all agents"
                     checked={isAllAgentsChecked}
-                    onChange={() => {}}
+                    onChange={toggleAllAgents}
+                    onClick={(e) => e.stopPropagation()}
                     style={{ cursor: 'pointer' }}
                   />
                   <span>All Agents</span>
@@ -663,7 +711,6 @@ export default function ReportFilterBar({
                 {activeAgents.length > 0 && (
                   <>
                     <div
-                      onClick={toggleActiveAgents}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -685,7 +732,7 @@ export default function ReportFilterBar({
                           textTransform: 'uppercase',
                           cursor: 'pointer',
                           margin: 0,
-                          width: '100%',
+                          flex: 1,
                         }}
                       >
                         <input
@@ -698,44 +745,66 @@ export default function ReportFilterBar({
                         />
                         <span>Active Agents ({activeAgents.length})</span>
                       </label>
+                      <button
+                        type="button"
+                        aria-label="Toggle active agents accordion"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsActiveOpen(!isActiveOpen);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                          fontSize: '0.7rem',
+                          color: '#64748b',
+                          fontWeight: 'bold',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        {isActiveOpen ? '▼' : '▶'}
+                      </button>
                     </div>
-                    {activeAgents.map((a) => {
-                      const isChecked = isAgentChecked(a.uid);
-                      return (
-                        <div
-                          key={a.uid}
-                          onClick={() => toggleAgent(a.uid)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '5px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            color: '#334155',
-                            background: isChecked ? '#f8fafc' : 'transparent',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            style={{ cursor: 'pointer' }}
-                          />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {a.nickname || a.name}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {isActiveOpen &&
+                      activeAgents.map((a) => {
+                        const isChecked = isAgentChecked(a.uid);
+                        return (
+                          <div
+                            key={a.uid}
+                            onClick={() => toggleAgent(a.uid)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '5px 8px 5px 20px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              color: '#334155',
+                              background: isChecked ? '#f8fafc' : 'transparent',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {a.nickname || a.name}
+                            </span>
+                          </div>
+                        );
+                      })}
                   </>
                 )}
 
                 {inactiveAgents.length > 0 && (
                   <>
                     <div
-                      onClick={toggleInactiveAgents}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -759,7 +828,7 @@ export default function ReportFilterBar({
                           textTransform: 'uppercase',
                           cursor: 'pointer',
                           margin: 0,
-                          width: '100%',
+                          flex: 1,
                         }}
                       >
                         <input
@@ -772,37 +841,60 @@ export default function ReportFilterBar({
                         />
                         <span>Inactive Agents ({inactiveAgents.length})</span>
                       </label>
+                      <button
+                        type="button"
+                        aria-label="Toggle inactive agents accordion"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsInactiveOpen(!isInactiveOpen);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                          fontSize: '0.7rem',
+                          color: '#94a3b8',
+                          fontWeight: 'bold',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        {isInactiveOpen ? '▼' : '▶'}
+                      </button>
                     </div>
-                    {inactiveAgents.map((a) => {
-                      const isChecked = isAgentChecked(a.uid);
-                      return (
-                        <div
-                          key={a.uid}
-                          onClick={() => toggleAgent(a.uid)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '5px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            color: '#64748b',
-                            background: isChecked ? '#f8fafc' : 'transparent',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            style={{ cursor: 'pointer' }}
-                          />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {a.nickname || a.name}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {isInactiveOpen &&
+                      inactiveAgents.map((a) => {
+                        const isChecked = isAgentChecked(a.uid);
+                        return (
+                          <div
+                            key={a.uid}
+                            onClick={() => toggleAgent(a.uid)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '5px 8px 5px 20px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              color: '#64748b',
+                              background: isChecked ? '#f8fafc' : 'transparent',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {a.nickname || a.name}
+                            </span>
+                          </div>
+                        );
+                      })}
                   </>
                 )}
               </div>
@@ -1101,7 +1193,7 @@ export default function ReportFilterBar({
         </div>
 
         <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
-          Showing sales aggregates across <strong style={{ color: '#0f172a', fontWeight: 700 }}>{filteredAgents.length}</strong> sales agents
+          Showing sales aggregates across <strong style={{ color: '#0f172a', fontWeight: 700 }}>{displayedAgentCount}</strong> sales agent{displayedAgentCount === 1 ? '' : 's'}
         </div>
       </div>
 

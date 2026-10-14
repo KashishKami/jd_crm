@@ -127,7 +127,7 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
     expect(screen.queryAllByText(/01-09-2026/)).not.toHaveLength(0);
   });
 
-  it('should render Notes card first and merged Classification & Schedule card second, and completely omit System Metadata card', async () => {
+  it('should render merged Classification & Schedule card first and Notes or Remarks card second, and completely omit System Metadata card', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: 1, name: 'Admin', userPermissions: 'follow-ups:view-all,follow-ups:create' },
     });
@@ -141,8 +141,8 @@ describe('Follow-Up Detail Page Server Component Tests (W-3111)', () => {
 
     const headers = Array.from(sidebar!.querySelectorAll('h3')).map(h => h.textContent?.trim());
     expect(headers).toHaveLength(2);
-    expect(headers[0]).toBe('Notes or Remarks');
-    expect(headers[1]).toBe('Classification and Schedule');
+    expect(headers[0]).toBe('Classification and Schedule');
+    expect(headers[1]).toBe('Notes or Remarks');
 
     // Assert that GMT/EDT/EST is NOT rendered in the Callback Time block (it should be empty/null there)
     // The date/time is split into two lines: time, then date below it, with NO timezone suffix.

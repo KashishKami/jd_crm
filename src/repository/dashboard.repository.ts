@@ -938,26 +938,48 @@ export async function getRealizedSparklineData(
   status: '2' | '3',
   granularity: 'monthly' = 'monthly'
 ): Promise<{ label: string; amount: number }[]> {
-  const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
+  const rows = await prisma.$queryRaw<{ eventTime: Date; amount: string | null }[]>`
     SELECT
-      DATE_FORMAT(h.changed_at, '%Y-%m') AS label,
-      SUM(CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2))) AS amount
+      h.event_time AS eventTime,
+      CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2)) AS amount
     FROM crm_orders o
     JOIN (
-      SELECT DISTINCT order_id, changed_at
+      SELECT order_id, MAX(changed_at) AS event_time
       FROM crm_sale_status_history
       WHERE new_value = ${status}
         AND changed_at >= ${start}
         AND changed_at < ${end}
+      GROUP BY order_id
     ) h ON o.crm_order_id = h.order_id
     WHERE o.sale_status = ${status}
       AND o.parent_order_id IS NULL
-    GROUP BY label
-    ORDER BY label ASC
   `;
-  return rows.map(r => ({
-    label: String(r.label),
-    amount: parseFloat(r.amount ?? '0'),
-  }));
+
+  // Format in America/New_York (EST/EDT)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+  });
+
+  const monthMap = new Map<string, number>();
+
+  for (const row of rows) {
+    const d = new Date(row.eventTime);
+    const parts = formatter.formatToParts(d);
+    const year = parts.find(p => p.type === 'year')?.value || '0000';
+    const month = parts.find(p => p.type === 'month')?.value || '00';
+    const label = `${year}-${month}`;
+    const amt = parseFloat(row.amount ?? '0');
+    monthMap.set(label, (monthMap.get(label) ?? 0) + amt);
+  }
+
+  const result: { label: string; amount: number }[] = [];
+  for (const [label, amount] of monthMap.entries()) {
+    result.push({ label, amount });
+  }
+
+  result.sort((a, b) => a.label.localeCompare(b.label));
+  return result;
 }
 

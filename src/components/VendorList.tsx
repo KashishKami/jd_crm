@@ -12,12 +12,14 @@ import { gsap } from 'gsap';
 import VendorStatusBadge from './VendorStatusBadge';
 import { getSafeUrlParam } from '../lib/urlStateHelper';
 import Pagination from './Pagination';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 function VendorListContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { isGrabbing: isTableGrabbing, dragProps: tableDragProps } = useDragScroll<HTMLDivElement>();
 
   const [vendors, setVendors] = useState<VendorWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,7 +362,7 @@ function VendorListContent() {
         </div>
       ) : (
         <>
-          <div className="table-wrapper">
+          <div className={`table-wrapper ${isTableGrabbing ? 'is-grabbing' : ''}`} {...tableDragProps}>
             <table className="custom-table table-responsive">
             <thead>
               <tr>

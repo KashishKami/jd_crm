@@ -1431,6 +1431,138 @@ describe('Dashboard Integration Tests', () => {
       expect(res.amount).toBe(500);
       expect(res.count).toBe(1);
     });
+
+    it('W-4801: getRealizedSparklineData deduplicates multiple status transitions for the same order', async () => {
+      const { getRealizedSparklineData } = await import('../repository/dashboard.repository');
+
+      const dupOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '300',
+          orderRefundAmount: '300.00',
+          orderDate: new Date('2026-08-01T12:00:00.000Z'),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_SPARK_TEST',
+        },
+      });
+
+      // Insert two transitions to '2' for the same order within September
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: dupOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-09-10T14:00:00.000Z'),
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: dupOrder.crmOrderId,
+          oldValue: '4',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-09-25T16:00:00.000Z'),
+        },
+      });
+
+      const res = await getRealizedSparklineData(
+        new Date('2026-09-01T04:00:00.000Z'),
+        new Date('2026-10-01T04:00:00.000Z'),
+        '2',
+        'monthly'
+      );
+
+      const sep = res.find(r => r.label === '2026-09');
+      // Must be 300, NOT 600
+      expect(sep?.amount).toBe(300);
+    });
+
+    it('W-4801: getRealizedSparklineData buckets late-evening EDT transitions into the correct EST calendar month', async () => {
+      const { getRealizedSparklineData } = await import('../repository/dashboard.repository');
+
+      const lateOctOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '450',
+          orderRefundAmount: '450.00',
+          orderDate: new Date('2026-07-01T12:00:00.000Z'),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_SPARK_TEST',
+        },
+      });
+
+      // Oct 31, 2026 22:30 EDT = Nov 1, 2026 02:30:00 UTC
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: lateOctOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-11-01T02:30:00.000Z'),
+        },
+      });
+
+      const res = await getRealizedSparklineData(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-12-01T05:00:00.000Z'),
+        '2',
+        'monthly'
+      );
+
+      const oct = res.find(r => r.label === '2026-10');
+      const nov = res.find(r => r.label === '2026-11');
+      // In EST/EDT, Oct 31 22:30 belongs to October
+      expect(oct?.amount).toBe(450);
+      expect(nov?.amount ?? 0).toBe(0);
+    });
+
+    it('W-4801: getRealizedSparklineData buckets winter EST (UTC-5) transitions correctly', async () => {
+      const { getRealizedSparklineData } = await import('../repository/dashboard.repository');
+
+      const lateJanOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '3',
+          orderAmountCharged: '250',
+          orderRefundAmount: '250.00',
+          orderDate: new Date('2026-01-10T12:00:00.000Z'),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_SPARK_TEST',
+        },
+      });
+
+      // Jan 31, 2026 21:00 EST = Feb 1, 2026 02:00:00 UTC
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: lateJanOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '3',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-02-01T02:00:00.000Z'),
+        },
+      });
+
+      const res = await getRealizedSparklineData(
+        new Date('2026-01-01T05:00:00.000Z'),
+        new Date('2026-03-01T05:00:00.000Z'),
+        '3',
+        'monthly'
+      );
+
+      const jan = res.find(r => r.label === '2026-01');
+      const feb = res.find(r => r.label === '2026-02');
+      // In EST, Jan 31 21:00 belongs to January
+      expect(jan?.amount).toBe(250);
+      expect(feb?.amount ?? 0).toBe(0);
+    });
   });
 });
+
 
