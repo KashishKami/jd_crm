@@ -449,9 +449,9 @@ describe('Dashboard Component Unit Tests', () => {
       const { container } = render(
         <DashboardPage
           initialMetrics={{
-            netSales: { amount: 12000, count: 147 },
-            refundThisMonth: { amount: 200, count: 1 },
-            chargebackThisMonth: { amount: 400, count: 2 },
+            netSales: { amount: 12000, count: 147, lastAmount: 10000, lastCount: 120, percentageChange: 20 },
+            refundThisMonth: { amount: 200, count: 1, lastAmount: 100, lastCount: 1, percentageChange: 100 },
+            chargebackThisMonth: { amount: 400, count: 2, lastAmount: 200, lastCount: 1, percentageChange: 100 },
           }}
           userPermissions="dashboard:net-sales,dashboard:refund,dashboard:chargeback"
           userName="Admin"
