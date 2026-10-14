@@ -11,6 +11,7 @@ interface MetricCardProps {
   link?: string;
   prefix?: string;
   description?: string;
+  subNote?: string;
   lastAmount?: number;
   lastCount?: number;
   percentageChange?: number;
@@ -86,6 +87,7 @@ export default function MetricCard({
   link,
   prefix = '',
   description,
+  subNote,
   lastAmount,
   lastCount,
   percentageChange,
@@ -322,6 +324,21 @@ export default function MetricCard({
           )}
 
         </div>
+
+        {subNote && (
+          <div
+            className="metric-card-subnote"
+            style={{
+              fontSize: '0.65rem',
+              color: '#64748b',
+              marginTop: '8px',
+              fontStyle: 'italic',
+              lineHeight: '1.3',
+            }}
+          >
+            {subNote}
+          </div>
+        )}
       </div>
 
       <div

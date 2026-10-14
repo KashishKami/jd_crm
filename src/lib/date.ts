@@ -135,6 +135,35 @@ export function convertEstToUtc(dateStr: string, timeStr: string): string {
   return new Date(utcInterpret.getTime() + offset).toISOString();
 }
 
+export function getEstMidnightUtc(year: number, month: number, day: number): Date {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+
+  // America/New_York is either EDT (UTC-4) or EST (UTC-5).
+  // Midnight in NY is therefore either 04:00:00Z (EDT) or 05:00:00Z (EST).
+  // We evaluate 04:00:00Z first:
+  const candidate4 = new Date(Date.UTC(year, month, day, 4, 0, 0));
+  const parts4 = formatter.formatToParts(candidate4);
+  const map4: Record<string, number> = {};
+  for (const p of parts4) {
+    if (p.type !== 'literal') map4[p.type] = parseInt(p.value, 10);
+  }
+  const h4 = map4.hour === 24 ? 0 : map4.hour;
+  if (map4.year === year && map4.month === month + 1 && map4.day === day && h4 === 0 && map4.minute === 0) {
+    return candidate4;
+  }
+  return new Date(Date.UTC(year, month, day, 5, 0, 0));
+}
+
+
 export function getCurrentEstDateTime(): { date: string; time: string } {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-US', {

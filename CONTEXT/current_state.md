@@ -61,6 +61,8 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 43** | Date Filter Boundary Fix, Dynamic Team-to-Agent Dropdown Scoping & "Unassigned" Backend Executive Filter | **[x] COMPLETED** | `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/repository/callDisposition.repository.ts`, `src/components/OrderListContainer.tsx`, `src/types/order.ts`, `src/tests/orders.test.ts`, `src/tests/OrderListContainer.test.tsx`, `src/tests/dashboard.test.ts`, `src/tests/callDispositions.test.ts` |
 | **Phase 44** | Reports Module: Agent Sales Aggregates Matrix, Dynamic Scoped Multi-Select Filters & 2-Tier Styled Excel Exporter | **[x] COMPLETED** | `src/repository/report.repository.ts`, `src/service/report.service.ts`, `src/types/report.ts`, `src/app/api/reports/agent-sales/route.ts`, `src/app/api/reports/agent-sales/export/route.ts`, `src/components/reports/MultiSelectDropdown.tsx`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/AgentSalesReportTable.tsx`, `src/lib/agent-sales-excel-exporter.ts`, `src/app/reports/page.tsx`, `src/components/reports/ReportsContainer.tsx`, `src/components/Navbar.tsx`, `src/components/Sidebar.tsx`, `src/middleware.ts` |
 | **Phase 45** | Reports Enhancements: Team-Scoped Permission (`reports:agent-sales-team`), Yearly Granularity Cleanup, Agent Matrix Sorting & UI Layout Polish | **[x] COMPLETED** | `seed.sql`, `scripts/sql/add-reports-permissions.sql`, `src/types/report.ts`, `src/service/report.service.ts`, `src/app/api/reports/agent-sales/route.ts`, `src/app/api/reports/agent-sales/export/route.ts`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/ReportsContainer.tsx` |
+| **Phase 46** | Reports Filter Bar UX (Synchronized Multi-Select & Active/Inactive Toggles) and Excel Report Visual Discernment Overhaul | **[x] COMPLETED** | `src/components/reports/ReportFilterBar.tsx`, `src/lib/agent-sales-excel-exporter.ts`, `src/tests/ReportFilterBar.test.tsx`, `src/tests/agentSalesExcelExporter.test.ts` |
+| **Phase 47** | Management Realization Dashboard Metrics (Cash-Basis Month Refunds, Chargebacks & Net Sales with EST Boundary Safety) & Follow-Up Card Stacking / Keyboard Tab Progression | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/components/MetricCard.tsx`, `src/components/dashboard/dashboard_client_page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/dashboard.test.ts`, `src/app/components.css` |
 ---
 
 
@@ -11562,3 +11564,165 @@ In exported Excel workbooks (`generateAgentSalesWorkbook`), period boundaries an
      - `src/tests/agentSalesExcelExporter.test.ts`: **8 / 8 tests PASSED GREEN**.
      - Combined Vitest run: **34 / 34 tests PASSED GREEN**.
      - `npm run typecheck`: **0 errors**, full TypeScript compile pass.
+
+---
+
+### Phase 47 — Management Realization Dashboard Metrics (Cash-Basis Month Refunds, Chargebacks & Net Sales) & Follow-Up Card Stacking / Keyboard Tab Progression
+
+#### W-4701 — Dashboard Metric Cards Cash-Basis Realization (Refunds, Chargebacks & Net Sales with Management Note & EST Timezone Boundary Safety)
+
+**Root cause / Goal:**
+1. **Cash Realization vs. Cohort Accounting**: Currently, the dashboard metric cards ("Refunds This Month", "Chargebacks This Month", and "Net Sales This Month") query `crm_orders` filtered by `order_date >= curMonthStart AND order_date < curMonthEnd`. This ties all figures strictly to the sale creation cohort. An order created in September and refunded in October retroactively updates September's metrics while showing `$0` refunds in October. Executive management requires the dashboard scoreboard cards to show **cash realization in the current calendar month**—measuring how much cash actually left the business in refunds and chargebacks during this calendar month, irrespective of when the original sale was made.
+2. **Platform Scope Isolation**: To prevent double-deduction penalties and corrupted math, this cash-basis realization calculation must be **strictly isolated to the Executive Dashboard cards**. It must NOT be applied globally to agent commission reports, pipeline order lists, or historical logs.
+3. **Management Transparency Note**: The UI must display an explicit explanatory sub-note directly under the Net Sales, Refunds, and Chargebacks cards containing the exact text:
+   `"* Based on refunds & chargebacks processed in the current month (this is only for the management)."`
+4. **Timezone Boundary Edge Cases (EST/EDT ↔ UTC)**: Status change events are stored in `crm_sale_status_history.changed_at` (UTC). Because the CRM operates in `America/New_York` (EST/EDT), month-start and month-end boundaries must be computed with exact timezone conversion:
+   - **Month Start Boundary**: An event occurring at `2026-10-01 00:05:00 EDT` (stored as `2026-10-01 04:05:00 UTC`) must be included in October. An event at `2026-09-30 23:55:00 EDT` (stored as `2026-10-01 03:55:00 UTC`) must be excluded from October and attributed to September.
+   - **Month End Boundary**: An event occurring at `2026-10-31 23:55:00 EDT` (stored as `2026-11-01 03:55:00 UTC`) must be included in October. An event at `2026-11-01 00:05:00 EDT` (stored as `2026-11-01 04:05:00 UTC`) must be excluded from October and attributed to November.
+   - Daylight Saving Time (DST) transitions (EDT UTC-4 vs EST UTC-5) must be handled dynamically via Luxon / Intl.
+5. **Multi-Part Deal Safety**: Queries must filter `parent_order_id IS NULL` to ensure multi-part deals never duplicate refund or chargeback sums.
+
+**Fix / Approach:**
+1. **Repository Layer (`src/repository/dashboard.repository.ts`)**:
+   - Implement `getRealizedRefundsBetweenDates(startUtc: Date, endUtc: Date)`:
+     ```sql
+     SELECT
+       SUM(CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2))) AS amount,
+       COUNT(DISTINCT o.crm_order_id) AS count
+     FROM crm_sale_status_history h
+     JOIN crm_orders o ON o.crm_order_id = h.order_id
+     WHERE h.new_value = '2'
+       AND h.changed_at >= ${startUtc}
+       AND h.changed_at < ${endUtc}
+       AND o.parent_order_id IS NULL
+     ```
+   - Implement `getRealizedChargebacksBetweenDates(startUtc: Date, endUtc: Date)`:
+     Query `crm_sale_status_history` where `new_value = '3'` and `changed_at >= startUtc AND changed_at < endUtc` joined with `crm_orders` where `parent_order_id IS NULL`.
+2. **Service Layer (`src/service/dashboard.service.ts`)**:
+   - Compute EST/EDT month boundaries converted to UTC `Date` objects:
+     `curMonthStartUtc` = midnight Eastern Time on 1st of current month converted to UTC.
+     `curMonthEndUtc` = midnight Eastern Time on 1st of next month converted to UTC.
+     `prevMonthStartUtc` and `prevMonthEndUtc` = same for prior month.
+   - Call `getRealizedRefundsBetweenDates` and `getRealizedChargebacksBetweenDates`.
+   - Update `netSales` calculation for the dashboard card:
+     $$\text{Net Sales} = \text{Total Charged This Month} - \text{Realized Refunds This Month} - \text{Realized Chargebacks This Month}$$
+     where `Total Charged This Month` = `getChargedBetweenDates(curMonthStart, curMonthEnd)`.
+   - Calculate percentage change against prior month's realized amounts.
+3. **Frontend Layer (`src/components/MetricCard.tsx` & `src/components/dashboard/dashboard_client_page.tsx`)**:
+   - Add support for an optional `subNote?: string` prop on `MetricCard`.
+   - Pass `subNote="* Based on refunds & chargebacks processed in the current month (this is only for the management)."` to Net Sales, and specific refund/chargeback notes to the Refunds and Chargebacks cards.
+   - Update Scoreboard footnote: `"Net Sales, Refunds This Month, and Chargebacks This Month are based on refunds & chargebacks processed in the current month (this is only for the management)."`
+   - Update drill-down links on Refunds and Chargebacks cards to include `dateType=realized` so orders page filtering matches the realized cash basis.
+4. **Order List Drilldown Integration (`src/repository/order.repository.ts` & `src/app/api/orders/route.ts`)**:
+   - Add `dateType?: 'orderDate' | 'realized'` filter to `getAllOrders`. When `dateType === 'realized'`, filter `saleStatusHistory` (`crm_sale_status_history.changed_at`) between `dateFrom` and `dateTo` instead of `orderDate`.
+5. **Sparkline Realized Aggregation (`src/repository/dashboard.repository.ts`)**:
+   - Support `dateType: 'realized'` in `getSparklineData` for Refunds ('2') and Chargebacks ('3') to aggregate 6-month trendline by `crm_sale_status_history.changed_at`.
+
+---
+
+- [x] **RED — Integration (`src/tests/dashboard.test.ts`):**
+  - [x] Test 1 (Prior-Month Sale Refunded in Current Month): Create an order with `orderDate = 2026-09-15` (September) and record a status change to `'2'` (Refunded) with `changed_at = 2026-10-10` (October) with refund amount `$350.00`. Call `GET /api/dashboard/metrics` for October. Assert `refundThisMonth.amount` includes `$350.00` and `refundThisMonth.count` includes `1`.
+  - [x] Test 2 (Current-Month Sale Refunded in Current Month): Create an order with `orderDate = 2026-10-05` and record status change to `'2'` with `changed_at = 2026-10-12` with refund amount `$200.00`. Assert `refundThisMonth.amount` includes `$200.00`.
+  - [x] Test 3 (Current-Month Sale Refunded in Next Month): Create an order with `orderDate = 2026-10-20` and status change to `'2'` with `changed_at = 2026-11-02` (November). Assert October's `refundThisMonth` does NOT include this refund amount.
+  - [x] Test 4 (Timezone Boundary — Month Start Edge Case):
+    - Create Order A with refund status change at `2026-10-01 00:05:00 EDT` (`2026-10-01 04:05:00 UTC`) for `$100.00`.
+    - Create Order B with refund status change at `2026-09-30 23:55:00 EDT` (`2026-10-01 03:55:00 UTC`) for `$500.00`.
+    - Assert October metrics include Order A (`$100.00`) and strictly exclude Order B (`$500.00`).
+  - [x] Test 5 (Timezone Boundary — Month End Edge Case):
+    - Create Order C with refund status change at `2026-10-31 23:55:00 EDT` (`2026-11-01 03:55:00 UTC`) for `$150.00`.
+    - Create Order D with refund status change at `2026-11-01 00:05:00 EDT` (`2026-11-01 04:05:00 UTC`) for `$600.00`.
+    - Assert October metrics include Order C (`$150.00`) and strictly exclude Order D (`$600.00`).
+  - [x] Test 6 (Chargebacks Realization): Create an order sold in August (`2026-08-10`) with chargeback status change in October (`2026-10-15`) with amount `$400.00`. Assert October `chargebackThisMonth.amount` includes `$400.00`.
+  - [x] Test 7 (Net Sales Realization Formula): Seed `$10,000.00` in gross charged sales in October, `$500.00` in realized October refunds (from September sales), and `$300.00` in realized October chargebacks. Assert October `netSales.amount` equals `$9,200.00` ($10,000 - $500 - $300).
+  - [x] Test 8 (Multi-Part Deduplication): Create a parent order and child part (`parentOrderId = parent.crmOrderId`). Change parent `saleStatus` to `'2'`. Assert refund amount is counted exactly once, not duplicated.
+  - [x] **Run — confirm RED (queries currently filter on `order_date` instead of `changed_at`).**
+
+- [x] **GREEN — Backend (Repository → Service → Controller):**
+  - [x] [Repository] In `src/repository/dashboard.repository.ts`, implement `getRealizedRefundsBetweenDates` and `getRealizedChargebacksBetweenDates` using SQL join between `crm_sale_status_history` and `crm_orders`.
+  - [x] [Service] In `src/service/dashboard.service.ts`:
+    - Implement helper to compute exact UTC start and end `Date` objects for Eastern Time calendar month boundaries.
+    - Wire `refundThisMonth` and `chargebackThisMonth` tasks to call realized repository functions.
+    - Compute `netSales` using cash realization formula: `currentCharged.amount - realizedRefunds.amount - realizedChargebacks.amount`.
+  - [x] [Controller] In `src/app/api/dashboard/metrics/route.ts`, verify metrics response serializes the updated realized values.
+  - [x] Run integration test — **confirm GREEN**.
+
+- [x] **RED — Unit / Component (`src/tests/MetricCard.test.tsx`):**
+  - [x] Test 1: When `managementNote` prop is provided to `MetricCard`, assert the note text is rendered in the document.
+  - [x] Test 2: In dashboard page, assert Net Sales, Refunds This Month, and Chargebacks This Month cards all render text containing `"this is only for the management."`.
+  - [x] Test 3: Other cards (e.g. This Year Sales, Today's Sales) do NOT render the management note.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Frontend (Types → Component):**
+  - [x] [Types] In `src/types/dashboard.ts`, add `managementNote?: string;` to `MetricCardProps`.
+  - [x] [Component] In `src/components/MetricCard.tsx`, render `{managementNote && <p className="metric-card-management-note">{managementNote}</p>}`.
+  - [x] [Component] In `src/components/dashboard/dashboard_client_page.tsx`, pass `managementNote="* Based on refunds & chargebacks processed in the current month (this is only for the management)."` to the Net Sales, Refunds, and Chargebacks cards.
+  - [x] Run unit test — **confirm GREEN**.
+
+- [x] **Verification chain:**
+  - [x] Management user opens Dashboard -> "NET SALES THIS MONTH", "REFUNDS THIS MONTH", and "CHARGEBACKS THIS MONTH" cards display figures based on refunds/chargebacks processed in the current calendar month -> Subtext clearly reads `* Based on refunds & chargebacks processed in the current month (this is only for the management).` -> An old September sale refunded in October appears in October's refunded card -> September's sales commissions and reports remain clean and intact without double deduction -> ✅ Done.
+
+---
+
+#### W-4702 — Follow-Up Detail & Forms Responsive Vertical Card Stacking & Keyboard Tab Progression Alignment
+
+**Root cause / Goal:**
+1. **Desired Responsive Vertical Stacking**: On screens below 1600px width (`@media (max-width: 1599.98px)`), the cards collapse into a single vertical column across all three follow-up pages: Add, Edit, and Details.
+2. **Keyboard Tab Navigation Alignment**: Tab flow matches the vertical card sequence:
+   $$\text{Customer Info} \longrightarrow \text{Vehicle \& Part Specs} \longrightarrow \text{Quoted Pricing} \longrightarrow \text{Classification \& Schedule} \longrightarrow \text{Notes or Remarks}$$
+3. **Margin Preservation**: The existing layout margins (`padding-left: 20% !important; padding-right: 20% !important;` on `.follow-up-details-container` and `.follow-up-form-container`) remain **completely untouched**.
+4. **Detail Page & Form Parity**: In `FollowUpDetailPage` (`src/app/follow-ups/[id]/page.tsx`), sidebar cards reordered so Classification & Schedule is first, followed by Notes or Remarks, matching Add and Edit forms.
+
+**Fix / Approach:**
+1. **CSS Responsive Breakpoint (`src/app/components.css`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, `src/app/follow-ups/[id]/page.tsx`)**:
+   - Added `@media (max-width: 1599.98px)` rules setting `.order-form-layout` to `flex-direction: column !important` and `.order-form-sidebar` to `width: 100% !important; position: static !important;`.
+   - Set `@media (min-width: 1600px)` for the 2-column sidebar width (410px).
+   - Retained `.main-content:has(...) { padding-left: 20% !important; padding-right: 20% !important; }` untouched.
+2. **DOM Tree Alignment (`src/app/follow-ups/[id]/page.tsx`)**:
+   - Swapped sidebar cards in `FollowUpDetailPage` so Classification & Schedule appears before Notes or Remarks.
+
+---
+
+- [x] **Implementation & Alignment:**
+  - [x] [CSS] Added `@media (max-width: 1599.98px)` rule for `.follow-up-form-container` and `.follow-up-details-container` across `components.css`, `new/page.tsx`, `[id]/edit/page.tsx`, and `[id]/page.tsx`.
+  - [x] [Layout] Detail page sidebar reordered: Classification & Schedule first, Notes or Remarks second.
+  - [x] [Margins] 20% left and right padding preserved untouched.
+
+- [x] **Verification chain:**
+  - [x] Screen size below 1600px collapses follow-up Add, Edit, and Details pages into vertical cards -> 20% padding margins preserved -> Dev server compiled cleanly with 200 OK -> ✅ Done.
+
+---
+
+### Session Note — Phase 47: Cash-Basis Realization Dashboard & Follow-Up Forms Responsive Layout (< 1600px)
+
+**Date**: October 14, 2026
+
+#### 1. Executive Dashboard Metric Cards Cash-Basis Realization & Filter Drilldown (W-4701)
+- **Timezone Boundary Helper (`src/lib/date.ts`)**:
+  - Implemented and exported `getEstMidnightUtc(year, month, day)` to deterministically resolve calendar month start (`YYYY-MM-01 00:00:00 EDT/EST`) and end (`YYYY-MM-last 23:59:59.999 EDT/EST`) in UTC, handling Daylight Saving transitions (EDT UTC-4 / EST UTC-5).
+- **Service & Repository Cash-Basis Realization (`src/service/dashboard.service.ts`, `src/repository/dashboard.repository.ts`)**:
+  - Calculated `refundThisMonth`, `chargebackThisMonth`, `netSales` (`curCharged - realizedRefunds - realizedChargebacks`), and 6-month historical sparklines based on cash realization dates (`crm_sale_status_history.changed_at` within the current month) rather than cohort sales `orderDate`.
+- **Order Drilldown & Filtering (`src/repository/order.repository.ts`, `src/app/api/orders/route.ts`, `src/components/OrderListContainer.tsx`)**:
+  - Added support for `dateType=realized` filter on `/api/orders`, allowing management drilldowns to query orders based on `crm_sale_status_history.changed_at`.
+  - Guaranteed baseline non-regression: standard order list queries without `dateType` filter strictly by `orderDate`.
+  - Updated `OrderListContainer.tsx` to forward `dateType` in query parameters, sync with URL state, display filter pills labeled "Realized Date", and update form input labels to "Realized Start/End Date".
+- **Dashboard UI Sub-note (`src/components/dashboard/MetricCard.tsx`, `src/app/dashboard_client_page.tsx`)**:
+  - Rendered management sub-note on Net Sales, Refunds, and Chargebacks cards: `"* Based on refunds/chargebacks processed in the current month (this is only for the management)."`
+- **Test Suite Verification**:
+  - Verified edge cases including month-start (EDT UTC-4) and month-end boundary inclusion/exclusion, baseline non-regression, and UI unit tests (`src/tests/orders.test.ts`, `src/tests/dashboard.test.ts`, `src/tests/Dashboard.test.tsx`, `src/tests/OrderListContainer.test.tsx`).
+
+#### 2. Follow-Up Forms & Details Responsive Vertical Cards Layout (< 1600px) (W-4702)
+- **Responsive Breakpoint (< 1600px)**:
+  - Added `@media (max-width: 1599.98px)` media query across `src/app/components.css`, `src/app/follow-ups/new/page.tsx`, `src/app/follow-ups/[id]/edit/page.tsx`, and `src/app/follow-ups/[id]/page.tsx`.
+  - For viewports below 1600px width, `.order-form-layout` collapses to `flex-direction: column !important` and `.order-form-sidebar` expands to `width: 100% !important; position: static !important;`.
+  - For viewports $\ge 1600\text{px}$, sidebar maintains 410px 2-column layout.
+- **Margin Preservation**:
+  - Preserved `.main-content:has(.follow-up-form-container)` and `.main-content:has(.follow-up-details-container)` with `padding-left: 20% !important; padding-right: 20% !important;` completely untouched.
+- **Card Order & DOM Tab Progression Alignment**:
+  - Reordered sidebar cards in `FollowUpDetailPage` (`src/app/follow-ups/[id]/page.tsx`) so `Classification and Schedule` is placed before `Notes or Remarks`.
+  - Established canonical top-to-bottom card and DOM tab flow across all three pages (Add, Edit, Details):
+    `Customer Information` $\rightarrow$ `Vehicle & Part Specs` $\rightarrow$ `Quoted Pricing Options` $\rightarrow$ `Classification and Schedule` $\rightarrow$ `Notes or Remarks` $\rightarrow$ Action buttons.
+- **Cleanup & Compilation**:
+  - Removed temporary test file referencing real customer data.
+  - Resolved CSS syntax error in `components.css`.
+  - Confirmed dev server compilation and runtime health (HTTP 200 on `/follow-ups` and `/follow-ups/new`).
+

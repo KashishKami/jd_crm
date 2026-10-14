@@ -121,6 +121,51 @@ export async function getRefundThisMonth(start: Date, end: Date) {
   };
 }
 
+export async function getRealizedRefundsBetweenDates(start: Date, end: Date) {
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2))) AS amount,
+      COUNT(DISTINCT o.crm_order_id) AS count
+    FROM crm_orders o
+    JOIN (
+      SELECT DISTINCT order_id
+      FROM crm_sale_status_history
+      WHERE new_value = '2'
+        AND changed_at >= ${start}
+        AND changed_at < ${end}
+    ) h ON o.crm_order_id = h.order_id
+    WHERE o.sale_status = '2'
+      AND o.parent_order_id IS NULL
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
+}
+
+export async function getRealizedChargebacksBetweenDates(start: Date, end: Date) {
+  const rows = await prisma.$queryRaw<{ amount: string | null; count: bigint }[]>`
+    SELECT
+      SUM(CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2))) AS amount,
+      COUNT(DISTINCT o.crm_order_id) AS count
+    FROM crm_orders o
+    JOIN (
+      SELECT DISTINCT order_id
+      FROM crm_sale_status_history
+      WHERE new_value = '3'
+        AND changed_at >= ${start}
+        AND changed_at < ${end}
+    ) h ON o.crm_order_id = h.order_id
+    WHERE o.sale_status = '3'
+      AND o.parent_order_id IS NULL
+  `;
+  return {
+    amount: parseFloat(rows[0]?.amount ?? '0'),
+    count: Number(rows[0]?.count ?? 0),
+  };
+}
+
+
 export async function getNetSales(whereClause?: any) {
   // getNetSales is called without a date range filter to get all-time net sales.
   // When called with a custom whereClause we fall back to JS aggregation for flexibility.
@@ -886,3 +931,33 @@ export async function getSparklineData(
     }));
   }
 }
+
+export async function getRealizedSparklineData(
+  start: Date,
+  end: Date,
+  status: '2' | '3',
+  granularity: 'monthly' = 'monthly'
+): Promise<{ label: string; amount: number }[]> {
+  const rows = await prisma.$queryRaw<{ label: string; amount: string | null }[]>`
+    SELECT
+      DATE_FORMAT(h.changed_at, '%Y-%m') AS label,
+      SUM(CAST(COALESCE(o.order_refund_amount, '0') AS DECIMAL(12,2))) AS amount
+    FROM crm_orders o
+    JOIN (
+      SELECT DISTINCT order_id, changed_at
+      FROM crm_sale_status_history
+      WHERE new_value = ${status}
+        AND changed_at >= ${start}
+        AND changed_at < ${end}
+    ) h ON o.crm_order_id = h.order_id
+    WHERE o.sale_status = ${status}
+      AND o.parent_order_id IS NULL
+    GROUP BY label
+    ORDER BY label ASC
+  `;
+  return rows.map(r => ({
+    label: String(r.label),
+    amount: parseFloat(r.amount ?? '0'),
+  }));
+}
+

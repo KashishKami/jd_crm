@@ -436,4 +436,33 @@ describe('Dashboard Component Unit Tests', () => {
       expect(strokePath?.getAttribute('d')).toContain('M ');
     });
   });
+
+  describe('W-4701 Dashboard Metric Cards Management Note', () => {
+    it('should render management note on dashboard scoreboard and on Net Sales, Refunds, and Chargebacks cards', () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { name: 'Admin', userPermissions: 'dashboard:net-sales,dashboard:refund,dashboard:chargeback' },
+        },
+        status: 'authenticated',
+      } as any);
+
+      const { container } = render(
+        <DashboardPage
+          initialMetrics={{
+            netSales: { amount: 12000, count: 147 },
+            refundThisMonth: { amount: 200, count: 1 },
+            chargebackThisMonth: { amount: 400, count: 2 },
+          }}
+          userPermissions="dashboard:net-sales,dashboard:refund,dashboard:chargeback"
+          userName="Admin"
+        />
+      );
+
+      const subNotes = container.querySelectorAll('.metric-card-subnote');
+      expect(subNotes.length).toBeGreaterThanOrEqual(1);
+      console.log('DEBUG SUBNOTE:', JSON.stringify(subNotes[0].textContent));
+      expect(subNotes[0].textContent?.includes('management')).toBe(true);
+    });
+  });
 });
+

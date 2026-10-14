@@ -160,6 +160,7 @@ export default function DashboardPage({
       count: initialMetrics.netSales.count,
       countLabel: 'Sales',
       prefix: '$',
+      subNote: '* Based on refunds & chargebacks processed in the current month (this is only for the management).',
       link: `/orders?saleStatus=1,4&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.netSales.lastAmount,
       lastCount: initialMetrics.netSales.lastCount,
@@ -177,7 +178,8 @@ export default function DashboardPage({
       count: initialMetrics.refundThisMonth.count,
       countLabel: 'Refunds',
       prefix: '$',
-      link: `/pending/returned?saleStatus=2&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      subNote: '* Based on refunds processed in the current month (this is only for the management).',
+      link: `/pending/returned?saleStatus=2&dateType=realized&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.refundThisMonth.lastAmount,
       lastCount: initialMetrics.refundThisMonth.lastCount,
       percentageChange: initialMetrics.refundThisMonth.percentageChange,
@@ -194,7 +196,8 @@ export default function DashboardPage({
       count: initialMetrics.chargebackThisMonth.count,
       countLabel: 'Chargebacks',
       prefix: '$',
-      link: `/pending/returned?saleStatus=3&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
+      subNote: '* Based on chargebacks processed in the current month (this is only for the management).',
+      link: `/pending/returned?saleStatus=3&dateType=realized&dateFrom=${startOfMonth}&dateTo=${endOfMonth}`,
       lastAmount: initialMetrics.chargebackThisMonth.lastAmount,
       lastCount: initialMetrics.chargebackThisMonth.lastCount,
       percentageChange: initialMetrics.chargebackThisMonth.percentageChange,
@@ -250,7 +253,7 @@ export default function DashboardPage({
             </div>
             
             <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-              <strong>Note:</strong> Charged figures (Year, Month) include Sold, Partially Refunded, Fully Refunded, and Chargebacked orders. Today&apos;s Sales and Net Sales include successful orders (Sold and Partially Refunded) and exclude fully refunded or chargebacked orders.
+              <strong>Note:</strong> Charged figures (Year, Month) include Sold, Partially Refunded, Fully Refunded, and Chargebacked orders. Today&apos;s Sales includes successful orders (Sold and Partially Refunded). Net Sales, Refunds This Month, and Chargebacks This Month are based on refunds &amp; chargebacks processed in the current month (this is only for the management).
             </div>
 
           </div>

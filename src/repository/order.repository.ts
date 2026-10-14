@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
+import { getEstMidnightUtc } from '../lib/date';
 
 function toUtcNoonDate(dateVal: string | Date | null | undefined): Date {
   if (!dateVal) return new Date();
@@ -469,7 +470,33 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     });
   }
 
-  if (filters.dateFrom || filters.dateTo) {
+  if (filters.dateType === 'realized') {
+    if (filters.dateFrom || filters.dateTo) {
+      const historyDateFilter: Prisma.DateTimeFilter = {};
+      if (filters.dateFrom) {
+        const dateFromStr = String(filters.dateFrom).split('T')[0];
+        const [y, m, d] = dateFromStr.split('-').map(Number);
+        historyDateFilter.gte = getEstMidnightUtc(y, m - 1, d);
+      }
+      if (filters.dateTo) {
+        const dateToStr = String(filters.dateTo).split('T')[0];
+        const [y, m, d] = dateToStr.split('-').map(Number);
+        const nextDay = new Date(Date.UTC(y, m - 1, d + 1));
+        const nextDayMidnight = getEstMidnightUtc(nextDay.getUTCFullYear(), nextDay.getUTCMonth(), nextDay.getUTCDate());
+        historyDateFilter.lte = new Date(nextDayMidnight.getTime() - 1);
+      }
+      andConditions.push({
+        saleStatusHistory: {
+          some: {
+            ...(filters.saleStatus
+              ? { newValue: filters.saleStatus.includes(',') ? { in: filters.saleStatus.split(',') } : filters.saleStatus }
+              : {}),
+            changedAt: historyDateFilter,
+          },
+        },
+      });
+    }
+  } else if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
     if (filters.dateFrom) {
       dateFilter.gte = toUtcNoonDate(filters.dateFrom);

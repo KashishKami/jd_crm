@@ -1005,5 +1005,432 @@ describe('Dashboard Integration Tests', () => {
       }
     });
   });
+
+  describe('W-4701 — Dashboard Metric Cards Cash-Basis Realization (Refunds, Chargebacks & Net Sales with EST Timezone Boundaries)', () => {
+    let testAgent: any;
+    let testCustomer: any;
+
+    beforeEach(async () => {
+      vi.useFakeTimers();
+      // Lock system time to Oct 15, 2026, 12:00 EDT (16:00 UTC)
+      vi.setSystemTime(new Date('2026-10-15T16:00:00.000Z'));
+
+      const team = await prisma.crmTeams.findFirst();
+      const role = await prisma.crmRoles.findFirst();
+
+      testAgent = await prisma.users.create({
+        data: {
+          name: 'Realized Metrics Agent',
+          username: 'realized_test_agent',
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+        },
+      });
+
+      testCustomer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'Realized Test Customer',
+          customerEmail: 'realized_cust@example.com',
+        },
+      });
+    });
+
+    afterEach(async () => {
+      vi.useRealTimers();
+      if (testAgent) {
+        await prisma.crmSaleStatusHistory.deleteMany({
+          where: { order: { orderSalesAgentId: testAgent.uid } }
+        });
+        await prisma.crmOrders.deleteMany({ where: { orderSalesAgentId: testAgent.uid, parentOrderId: { not: null } } });
+        await prisma.crmOrders.deleteMany({ where: { orderSalesAgentId: testAgent.uid } });
+        await prisma.users.delete({ where: { uid: testAgent.uid } });
+      }
+      if (testCustomer) {
+        await prisma.crmCustomers.delete({ where: { customerId: testCustomer.customerId } });
+      }
+    });
+
+    it('should include prior-month sale refunded in current month into current month refundThisMonth', async () => {
+      // 1. Order sold in September 2026 (prior month)
+      const septOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2', // Refunded
+          orderAmountCharged: '500',
+          orderRefundAmount: '500.00',
+          orderDate: new Date(Date.UTC(2026, 8, 15, 12, 0)), // Sept 15, 2026
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      // Status change history says it was refunded on October 10, 2026 (current month)
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: septOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-10T14:30:00.000Z'), // in October
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/metrics/route');
+      const req = new Request('http://localhost/api/dashboard/metrics');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.refundThisMonth.amount).toBeGreaterThanOrEqual(500);
+      expect(data.refundThisMonth.count).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should include current-month sale refunded in current month into refundThisMonth', async () => {
+      const octOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '250',
+          orderRefundAmount: '250.00',
+          orderDate: new Date(Date.UTC(2026, 9, 5, 12, 0)), // Oct 5, 2026
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: octOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-12T16:00:00.000Z'),
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/metrics/route');
+      const req = new Request('http://localhost/api/dashboard/metrics');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.refundThisMonth.amount).toBeGreaterThanOrEqual(250);
+    });
+
+    it('should exclude current-month sale refunded in next month from current month refundThisMonth', async () => {
+      const octOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '300',
+          orderRefundAmount: '300.00',
+          orderDate: new Date(Date.UTC(2026, 9, 20, 12, 0)), // Oct 20, 2026
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      // Refunded in November (next month)
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: octOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-11-02T15:00:00.000Z'),
+        },
+      });
+
+      const { getRealizedRefundsBetweenDates } = await import('../repository/dashboard.repository');
+      // October EST is 2026-10-01T04:00:00Z to 2026-11-01T04:00:00Z
+      const res = await getRealizedRefundsBetweenDates(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-11-01T04:00:00.000Z')
+      );
+      // The $300 refund from Nov 2 must NOT be included in October
+      expect(res.amount).toBe(0);
+      expect(res.count).toBe(0);
+    });
+
+    it('should handle month-start timezone boundary correctly (EDT vs UTC)', async () => {
+      // Order A: Refund at Oct 1 00:05 EDT -> 2026-10-01T04:05:00.000Z (INCLUDED in October)
+      const orderA = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '100',
+          orderRefundAmount: '100.00',
+          orderDate: new Date(Date.UTC(2026, 8, 20, 12, 0)), // Sept 20
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderA.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-01T04:05:00.000Z'),
+        },
+      });
+
+      // Order B: Refund at Sept 30 23:55 EDT -> 2026-10-01T03:55:00.000Z (EXCLUDED from October, belongs to September)
+      const orderB = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '500',
+          orderRefundAmount: '500.00',
+          orderDate: new Date(Date.UTC(2026, 8, 20, 12, 0)), // Sept 20
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderB.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-01T03:55:00.000Z'),
+        },
+      });
+
+      const { getRealizedRefundsBetweenDates } = await import('../repository/dashboard.repository');
+      const res = await getRealizedRefundsBetweenDates(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-11-01T04:00:00.000Z')
+      );
+      expect(res.amount).toBe(100);
+      expect(res.count).toBe(1);
+    });
+
+    it('should handle month-end timezone boundary correctly (EDT vs UTC)', async () => {
+      // Order C: Refund at Oct 31 23:55 EDT -> 2026-11-01T03:55:00.000Z (INCLUDED in October)
+      const orderC = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '150',
+          orderRefundAmount: '150.00',
+          orderDate: new Date(Date.UTC(2026, 9, 10, 12, 0)),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderC.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-11-01T03:55:00.000Z'),
+        },
+      });
+
+      // Order D: Refund at Nov 1 00:05 EDT -> 2026-11-01T04:05:00.000Z (EXCLUDED from October, belongs to November)
+      const orderD = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '600',
+          orderRefundAmount: '600.00',
+          orderDate: new Date(Date.UTC(2026, 9, 10, 12, 0)),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderD.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-11-01T04:05:00.000Z'),
+        },
+      });
+
+      const { getRealizedRefundsBetweenDates } = await import('../repository/dashboard.repository');
+      const res = await getRealizedRefundsBetweenDates(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-11-01T04:00:00.000Z')
+      );
+      expect(res.amount).toBe(150);
+      expect(res.count).toBe(1);
+    });
+
+    it('should calculate realized chargebacks in the current month correctly', async () => {
+      const augOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '3', // Chargebacked
+          orderAmountCharged: '400',
+          orderRefundAmount: '400.00',
+          orderDate: new Date(Date.UTC(2026, 7, 10, 12, 0)), // August
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: augOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '3',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-14T18:00:00.000Z'),
+        },
+      });
+
+      const { getRealizedChargebacksBetweenDates } = await import('../repository/dashboard.repository');
+      const res = await getRealizedChargebacksBetweenDates(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-11-01T04:00:00.000Z')
+      );
+      expect(res.amount).toBe(400);
+      expect(res.count).toBe(1);
+    });
+
+    it('should deduct realized refunds and chargebacks from monthly charged sales for Net Sales calculation', async () => {
+      // 1 Sold order in October: $1,000
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '1',
+          orderAmountCharged: '1000',
+          orderRefundAmount: '0',
+          orderDate: new Date(Date.UTC(2026, 9, 10, 12, 0)), // October
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      // 1 September order refunded in October: $150
+      const septRefunded = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '150',
+          orderRefundAmount: '150.00',
+          orderDate: new Date(Date.UTC(2026, 8, 15, 12, 0)), // September
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: septRefunded.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-12T14:00:00.000Z'),
+        },
+      });
+
+      // 1 August order chargebacked in October: $100
+      const augChargeback = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '3',
+          orderAmountCharged: '100',
+          orderRefundAmount: '100.00',
+          orderDate: new Date(Date.UTC(2026, 7, 20, 12, 0)), // August
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: augChargeback.crmOrderId,
+          oldValue: '1',
+          newValue: '3',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-13T15:00:00.000Z'),
+        },
+      });
+
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+      });
+
+      const { GET } = await import('../app/api/dashboard/metrics/route');
+      const req = new Request('http://localhost/api/dashboard/metrics');
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      // Total Charged Sales in October = 1000
+      // Realized refunds in October = 150
+      // Realized chargebacks in October = 100
+      // Net Sales Realization = 1000 - 150 - 100 = 750
+      expect(data.netSales.amount).toBe(750);
+    });
+
+    it('should not duplicate refund amounts for child parts of multi-part deals', async () => {
+      const parentOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          saleStatus: '2',
+          orderAmountCharged: '500',
+          orderRefundAmount: '500.00',
+          orderDate: new Date(Date.UTC(2026, 8, 10, 12, 0)),
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      // Child part has parentOrderId set
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          parentOrderId: parentOrder.crmOrderId,
+          saleStatus: null,
+          orderCurrentStatus: 'Returned Orders',
+          orderAmountCharged: null,
+          orderRefundAmount: '500.00', // Denormalized or legacy child
+          orderDate: null,
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'DASH_REALIZED_TEST',
+        },
+      });
+
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: parentOrder.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-10T12:00:00.000Z'),
+        },
+      });
+
+      const { getRealizedRefundsBetweenDates } = await import('../repository/dashboard.repository');
+      const res = await getRealizedRefundsBetweenDates(
+        new Date('2026-10-01T04:00:00.000Z'),
+        new Date('2026-11-01T04:00:00.000Z')
+      );
+      expect(res.amount).toBe(500);
+      expect(res.count).toBe(1);
+    });
+  });
 });
 

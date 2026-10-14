@@ -48,6 +48,18 @@ export default async function EditFollowUpPage({ params }: { params: Promise<{ i
             padding-right: 20% !important;
           }
         }
+        @media (max-width: 1599.98px) {
+          .follow-up-form-container .order-form-layout {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .follow-up-form-container .order-form-sidebar {
+            width: 100% !important;
+            position: static !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+        }
       `}} />
       <EditFollowUpForm record={record} />
 

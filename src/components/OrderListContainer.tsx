@@ -69,6 +69,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
   const [dateTo, setDateTo] = useState<string>(() =>
     getSafeUrlParam({ searchParams, paramName: 'dateTo', expectedBasePath: '/orders', defaultValue: '' })
   );
+  const [dateType, setDateType] = useState<string>(() =>
+    getSafeUrlParam({ searchParams, paramName: 'dateType', expectedBasePath: '/orders', defaultValue: '' })
+  );
 
   // Pagination states — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
   const [page, setPage] = useState(() => {
@@ -135,6 +138,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     partFoundByFilter,
     dateFrom,
     dateTo,
+    dateType,
   });
 
   const isFirstFilterRunRef = useRef(true);
@@ -153,6 +157,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
         partFoundByFilter,
         dateFrom,
         dateTo,
+        dateType,
       };
       return;
     }
@@ -166,7 +171,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       prevFiltersRef.current.backendExecutiveFilter !== backendExecutiveFilter ||
       prevFiltersRef.current.partFoundByFilter !== partFoundByFilter ||
       prevFiltersRef.current.dateFrom !== dateFrom ||
-      prevFiltersRef.current.dateTo !== dateTo;
+      prevFiltersRef.current.dateTo !== dateTo ||
+      prevFiltersRef.current.dateType !== dateType;
 
     // Update the ref to the current values
     prevFiltersRef.current = {
@@ -178,7 +184,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       partFoundByFilter,
       dateFrom,
       dateTo,
+      dateType,
     };
+
 
     if (!changed) return;
 
@@ -194,10 +202,11 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       if (partFoundByFilter) params.set('partFoundById', partFoundByFilter);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
+      if (dateType) params.set('dateType', dateType);
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', newUrl);
     }
-  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
+  }, [statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, dateType]);
 
   // Save scroll position to sessionStorage on scroll
   useEffect(() => {
@@ -211,7 +220,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [page, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
+  }, [page, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, dateType]);
 
   // Restore scroll position when loading completes ONLY on the FIRST render
   // after returning from a detail page. hasRestoredScrollRef ensures this fires
@@ -314,6 +323,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     const partFoundByParam = searchParams.get('partFoundById');
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
+    const dateTypeParam = searchParams.get('dateType');
     const agentParam = searchParams.get('agentId');
     const teamParam = searchParams.get('teamId');
     const monthParam = searchParams.get('month');
@@ -325,6 +335,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     const nextPartFound = partFoundByParam !== null ? partFoundByParam : partFoundByFilter;
     const nextAgent = agentParam !== null ? agentParam : agentFilter;
     const nextTeam = teamParam !== null ? teamParam : teamFilter;
+    const nextDateType = dateTypeParam !== null ? dateTypeParam : dateType;
 
     let nextFrom = fromParam || '';
     let nextTo = toParam || '';
@@ -347,6 +358,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       partFoundByFilter: nextPartFound,
       dateFrom: nextFrom,
       dateTo: nextTo,
+      dateType: nextDateType,
     };
 
     if (statusParam !== null) setStatusFilter(statusParam);
@@ -355,6 +367,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     if (partFoundByParam !== null) setPartFoundByFilter(partFoundByParam);
     if (agentParam !== null) setAgentFilter(agentParam);
     if (teamParam !== null) setTeamFilter(teamParam);
+    if (dateTypeParam !== null) setDateType(dateTypeParam);
     setDateFrom(nextFrom);
     setDateTo(nextTo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -477,6 +490,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       if (partFoundByFilter) params.append('partFoundById', partFoundByFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
+      if (dateType) params.append('dateType', dateType);
       params.append('page', String(page));
       params.append('limit', String(limit));
 
@@ -527,7 +541,8 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     return () => {
       active = false;
     };
-  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, page]);
+  }, [status, statusFilter, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, dateType, page]);
+
 
   const formatTabLabel = (statusName: string) => {
     const stats = pendingCounts[statusName];
@@ -787,7 +802,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
             </select>
           </div>
           <div className="filter-select-wrapper">
-            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>Start Date</label>
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>{dateType === 'realized' ? 'Realized Start Date' : 'Start Date'}</label>
             <input
               type="date"
               value={dateFrom}
@@ -796,7 +811,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
             />
           </div>
           <div className="filter-select-wrapper">
-            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>End Date</label>
+            <label className="form-label" style={{ marginBottom: '4px', display: 'block', fontSize: '0.78rem' }}>{dateType === 'realized' ? 'Realized End Date' : 'End Date'}</label>
             <input
               type="date"
               value={dateTo}
@@ -804,6 +819,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               className="filter-select-custom"
             />
           </div>
+
         </div>
       </div>
 
@@ -883,9 +899,9 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           )}
           {(dateFrom || dateTo) && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              Date Range: {dateFrom || '*'} to {dateTo || '*'}
+              {dateType === 'realized' ? 'Realized Date' : 'Date Range'}: {dateFrom || '*'} to {dateTo || '*'}
               <button 
-                onClick={() => { setDateFrom(''); setDateTo(''); }} 
+                onClick={() => { setDateFrom(''); setDateTo(''); setDateType(''); }} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
                 title="Clear filter"
               >
@@ -893,6 +909,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
               </button>
             </span>
           )}
+
         </div>
       )}
 

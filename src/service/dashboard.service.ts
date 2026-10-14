@@ -61,6 +61,12 @@ function getEstDateUTC(d: Date = new Date()): Date {
   ));
 }
 
+import { getEstMidnightUtc } from '../lib/date';
+export { getEstMidnightUtc };
+
+
+
+
 function fillSparklineGaps(
   rawRows: { label: string; amount: number }[],
   start: Date,
@@ -118,6 +124,12 @@ export async function getMetricsForUser(session: any) {
   const daysInPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
   const prevMonthDay = Math.min(now.getDate(), daysInPrevMonth);
   const prevMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, prevMonthDay + 1));
+
+  // Realized cash dates (UTC boundaries for Eastern Time America/New_York)
+  const curRealizedMonthStart = getEstMidnightUtc(now.getFullYear(), now.getMonth(), 1);
+  const curRealizedMonthEnd = getEstMidnightUtc(now.getFullYear(), now.getMonth() + 1, 1);
+  const prevRealizedMonthStart = getEstMidnightUtc(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevRealizedMonthEnd = curRealizedMonthStart;
 
   // Day dates (UTC)
   const curDayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
@@ -202,9 +214,9 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'chargebackThisMonth',
       Promise.all([
-        dashboardRepository.getChargebackThisMonth(curMonthStart, curMonthEnd),
-        dashboardRepository.getChargebackThisMonth(prevMonthStart, prevMonthEnd),
-        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['3'], 'monthly'),
+        dashboardRepository.getRealizedChargebacksBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
+        dashboardRepository.getRealizedChargebacksBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
+        dashboardRepository.getRealizedSparklineData(spark6MonthsStart, spark6MonthsEnd, '3', 'monthly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
@@ -220,9 +232,9 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'refundThisMonth',
       Promise.all([
-        dashboardRepository.getRefundThisMonth(curMonthStart, curMonthEnd),
-        dashboardRepository.getRefundThisMonth(prevMonthStart, prevMonthEnd),
-        dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['2'], 'monthly'),
+        dashboardRepository.getRealizedRefundsBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
+        dashboardRepository.getRealizedRefundsBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
+        dashboardRepository.getRealizedSparklineData(spark6MonthsStart, spark6MonthsEnd, '2', 'monthly'),
       ]).then(([current, previous, sparkRaw]) => ({
         amount: current.amount,
         count: current.count,
@@ -238,17 +250,27 @@ export async function getMetricsForUser(session: any) {
     tasks.push([
       'netSales',
       Promise.all([
-        dashboardRepository.getNetSalesBetweenDates(curMonthStart, curMonthEnd),
-        dashboardRepository.getNetSalesBetweenDates(prevMonthStart, prevMonthEnd),
+        dashboardRepository.getChargedBetweenDates(curMonthStart, curMonthEnd),
+        dashboardRepository.getRealizedRefundsBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
+        dashboardRepository.getRealizedChargebacksBetweenDates(curRealizedMonthStart, curRealizedMonthEnd),
+        dashboardRepository.getChargedBetweenDates(prevMonthStart, prevMonthEnd),
+        dashboardRepository.getRealizedRefundsBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
+        dashboardRepository.getRealizedChargebacksBetweenDates(prevRealizedMonthStart, prevRealizedMonthEnd),
         dashboardRepository.getSparklineData(spark6MonthsStart, spark6MonthsEnd, ['1', '4'], 'monthly'),
-      ]).then(([current, previous, sparkRaw]) => ({
-        amount: current.amount,
-        count: current.count,
-        lastAmount: previous.amount,
-        lastCount: previous.count,
-        percentageChange: calcPctChange(current.amount, previous.amount),
-        sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
-      })),
+      ]).then(([curCharged, curRefund, curChargeback, prevCharged, prevRefund, prevChargeback, sparkRaw]) => {
+        const curAmount = parseFloat((curCharged.amount - curRefund.amount - curChargeback.amount).toFixed(2));
+        const prevAmount = parseFloat((prevCharged.amount - prevRefund.amount - prevChargeback.amount).toFixed(2));
+        const curCount = curCharged.count - curRefund.count - curChargeback.count;
+        const prevCount = prevCharged.count - prevRefund.count - prevChargeback.count;
+        return {
+          amount: curAmount,
+          count: curCount,
+          lastAmount: prevAmount,
+          lastCount: prevCount,
+          percentageChange: calcPctChange(curAmount, prevAmount),
+          sparklineData: fillSparklineGaps(sparkRaw, spark6MonthsStart, spark6MonthsEnd, 'monthly'),
+        };
+      }),
     ]);
   }
 

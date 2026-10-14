@@ -111,8 +111,20 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
             padding-right: 20% !important;
           }
         }
-        @media (min-width: 1025px) {
-          .order-form-sidebar {
+        @media (max-width: 1599.98px) {
+          .follow-up-details-container .order-form-layout {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .follow-up-details-container .order-form-sidebar {
+            width: 100% !important;
+            position: static !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+        }
+        @media (min-width: 1600px) {
+          .follow-up-details-container .order-form-sidebar {
             width: 410px !important;
           }
         }
@@ -291,17 +303,7 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
 
         {/* Sidebar Info */}
         <div className="order-form-sidebar order-details-sidebar flex flex-col gap-6">
-          {/* Card 1: Notes / Remarks */}
-          <div className="profile-main" style={{ padding: '20px' }}>
-            <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
-              Notes or Remarks
-            </h3>
-            <div className="bg-slate-50/50 border border-slate-100 rounded-lg text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]" style={{ padding: '16px', backgroundColor: '#f8fafc', borderColor: '#f1f5f9' }}>
-              {record.notes || <span className="text-slate-400 italic">No notes written.</span>}
-            </div>
-          </div>
-
-          {/* Card 2: Classification & Schedule */}
+          {/* Card 1: Classification & Schedule */}
           <div className="profile-main" style={{ padding: '20px' }}>
             <h3 className="form-section-title" style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
               Classification and Schedule
@@ -349,6 +351,16 @@ export default async function FollowUpDetailPage({ params }: { params: Promise<{
                   <span className="info-value font-semibold" style={{ color: 'var(--text-main)' }}>{record.agentName || '—'}</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Card 2: Notes / Remarks */}
+          <div className="profile-main" style={{ padding: '20px' }}>
+            <h3 className="form-section-title" style={{ marginBottom: '12px', fontSize: '0.95rem' }}>
+              Notes or Remarks
+            </h3>
+            <div className="bg-slate-50/50 border border-slate-100 rounded-lg text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]" style={{ padding: '16px', backgroundColor: '#f8fafc', borderColor: '#f1f5f9' }}>
+              {record.notes || <span className="text-slate-400 italic">No notes written.</span>}
             </div>
           </div>
 

@@ -414,5 +414,57 @@ describe('OrderListContainer Unit Tests', () => {
         expect(String(lastOrdersCall[0])).toContain('backendExecutiveId=unassigned');
       });
     });
+
+    it('W-4701: should pass dateType=realized in fetchOrders and display "Realized Date" badge when URL has dateType=realized', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: (key: string) => {
+          if (key === 'dateType') return 'realized';
+          if (key === 'dateFrom') return '2026-10-01';
+          if (key === 'dateTo') return '2026-10-31';
+          if (key === 'saleStatus') return '3';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer initialStatus="Returned Orders" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Realized Date: 2026-10-01 to 2026-10-31/)).toBeDefined();
+        const calls = (global.fetch as any).mock.calls;
+        const ordersCall = calls.find((c: any[]) => String(c[0]).includes('/api/orders?'));
+        expect(ordersCall).toBeDefined();
+        expect(String(ordersCall[0])).toContain('dateType=realized');
+        expect(String(ordersCall[0])).toContain('dateFrom=2026-10-01');
+        expect(String(ordersCall[0])).toContain('dateTo=2026-10-31');
+      });
+    });
+
+    it('W-4701: should clear dateType when clicking clear on Realized Date badge', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: (key: string) => {
+          if (key === 'dateType') return 'realized';
+          if (key === 'dateFrom') return '2026-10-01';
+          if (key === 'dateTo') return '2026-10-31';
+          if (key === 'saleStatus') return '2';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer initialStatus="Returned Orders" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Realized Date: 2026-10-01 to 2026-10-31/)).toBeDefined();
+      });
+
+      const dateBadge = screen.getByText(/Realized Date:/).closest('span');
+      const clearBtn = dateBadge?.querySelector('button');
+      expect(clearBtn).toBeDefined();
+      fireEvent.click(clearBtn!);
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Realized Date:/)).toBeNull();
+      });
+    });
   });
+
 

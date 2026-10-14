@@ -3937,6 +3937,340 @@ describe('Order Management Integration Tests', () => {
         });
       }
     });
+
+    it('W-4701: should support dateType=realized to filter orders by status change history date instead of orderDate', async () => {
+      // Order 1: sold in August, refunded in September
+      const orderAugSoldSeptRefund = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 7, 15, 12, 0, 0)), // August 15, 2026
+          orderTotalPitched: '500.00',
+          orderAmountCharged: '500.00',
+          orderRefundAmount: '500.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2', // Refunded
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderAugSoldSeptRefund.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-09-10T14:00:00.000Z'), // Refunded Sept 10
+        },
+      });
+
+      // Order 2: sold in September, but refunded in October
+      const orderSeptSoldOctRefund = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 20, 12, 0, 0)), // September 20, 2026
+          orderTotalPitched: '600.00',
+          orderAmountCharged: '600.00',
+          orderRefundAmount: '600.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2', // Refunded
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderSeptSoldOctRefund.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-10-05T10:00:00.000Z'), // Refunded Oct 5
+        },
+      });
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        // Query September refunds via realized cash date filter
+        const req = new Request('http://localhost/api/orders?saleStatus=2&dateType=realized&dateFrom=2026-09-01&dateTo=2026-09-30');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        const foundSeptRefund = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderAugSoldSeptRefund.crmOrderId);
+        const foundOctRefund = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderSeptSoldOctRefund.crmOrderId);
+
+        // Order refunded in Sept (even though sold in Aug) MUST be included
+        expect(foundSeptRefund).toBe(true);
+
+        // Order refunded in Oct (even though sold in Sept) MUST be strictly excluded
+        expect(foundOctRefund).toBe(false);
+      } finally {
+        await prisma.crmSaleStatusHistory.deleteMany({
+          where: {
+            orderId: { in: [orderAugSoldSeptRefund.crmOrderId, orderSeptSoldOctRefund.crmOrderId] },
+          },
+        });
+        await prisma.crmOrders.deleteMany({
+          where: {
+            crmOrderId: { in: [orderAugSoldSeptRefund.crmOrderId, orderSeptSoldOctRefund.crmOrderId] },
+          },
+        });
+      }
+    });
+
+    it('W-4701: should support dateType=realized for Chargebacks (saleStatus=3) with prior-month sale', async () => {
+      // Order sold in August, chargebacked in October
+      const orderAugSoldOctChargeback = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 7, 10, 12, 0, 0)), // August 10, 2026
+          orderTotalPitched: '450.00',
+          orderAmountCharged: '450.00',
+          orderRefundAmount: '450.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '3', // Chargebacked
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderAugSoldOctChargeback.crmOrderId,
+          oldValue: '1',
+          newValue: '3',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-10-15T16:00:00.000Z'), // Chargebacked Oct 15
+        },
+      });
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request('http://localhost/api/orders?saleStatus=3&dateType=realized&dateFrom=2026-10-01&dateTo=2026-10-31');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        const foundChargeback = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderAugSoldOctChargeback.crmOrderId);
+        expect(foundChargeback).toBe(true);
+      } finally {
+        await prisma.crmSaleStatusHistory.deleteMany({
+          where: { orderId: orderAugSoldOctChargeback.crmOrderId },
+        });
+        await prisma.crmOrders.deleteMany({
+          where: { crmOrderId: orderAugSoldOctChargeback.crmOrderId },
+        });
+      }
+    });
+
+    it('W-4701: should handle America/New_York timezone boundaries at month start and month end for dateType=realized', async () => {
+      // Month start:
+      // Order A: status changed at 2026-10-01 00:05:00 EDT (04:05:00 UTC) -> INCLUDED in Oct
+      // Order B: status changed at 2026-09-30 23:55:00 EDT (03:55:00 UTC) -> EXCLUDED from Oct
+      // Month end:
+      // Order C: status changed at 2026-10-31 23:55:00 EDT (2026-11-01 03:55:00 UTC) -> INCLUDED in Oct
+      // Order D: status changed at 2026-11-01 00:05:00 EDT (2026-11-01 04:05:00 UTC) -> EXCLUDED from Oct
+
+      const orderA = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 1, 12, 0, 0)),
+          orderTotalPitched: '100.00',
+          orderAmountCharged: '100.00',
+          orderRefundAmount: '100.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderA.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-10-01T04:05:00.000Z'), // 00:05 EDT Oct 1
+        },
+      });
+
+      const orderB = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 1, 12, 0, 0)),
+          orderTotalPitched: '200.00',
+          orderAmountCharged: '200.00',
+          orderRefundAmount: '200.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderB.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-10-01T03:55:00.000Z'), // 23:55 EDT Sept 30
+        },
+      });
+
+      const orderC = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 1, 12, 0, 0)),
+          orderTotalPitched: '300.00',
+          orderAmountCharged: '300.00',
+          orderRefundAmount: '300.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderC.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-11-01T03:55:00.000Z'), // 23:55 EDT Oct 31
+        },
+      });
+
+      const orderD = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 1, 12, 0, 0)),
+          orderTotalPitched: '400.00',
+          orderAmountCharged: '400.00',
+          orderRefundAmount: '400.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderD.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-11-01T04:05:00.000Z'), // 00:05 EDT Nov 1
+        },
+      });
+
+      const allIds = [orderA.crmOrderId, orderB.crmOrderId, orderC.crmOrderId, orderD.crmOrderId];
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request('http://localhost/api/orders?saleStatus=2&dateType=realized&dateFrom=2026-10-01&dateTo=2026-10-31');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        const foundA = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderA.crmOrderId);
+        const foundB = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderB.crmOrderId);
+        const foundC = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderC.crmOrderId);
+        const foundD = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderD.crmOrderId);
+
+        // Order A (00:05 EDT Oct 1) MUST be included
+        expect(foundA).toBe(true);
+        // Order B (23:55 EDT Sept 30) MUST be strictly excluded
+        expect(foundB).toBe(false);
+        // Order C (23:55 EDT Oct 31) MUST be included
+        expect(foundC).toBe(true);
+        // Order D (00:05 EDT Nov 1) MUST be strictly excluded
+        expect(foundD).toBe(false);
+      } finally {
+        await prisma.crmSaleStatusHistory.deleteMany({
+          where: { orderId: { in: allIds } },
+        });
+        await prisma.crmOrders.deleteMany({
+          where: { crmOrderId: { in: allIds } },
+        });
+      }
+    });
+
+    it('W-4701: baseline non-regression - standard queries without dateType filter strictly by orderDate', async () => {
+      // Order sold in September, refunded in October
+      const orderSoldSeptRefundOct = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date(Date.UTC(2026, 8, 15, 12, 0, 0)), // Sept 15
+          orderTotalPitched: '350.00',
+          orderAmountCharged: '350.00',
+          orderRefundAmount: '350.00',
+          orderCurrentStatus: 'Returned Orders',
+          saleStatus: '2',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: orderSoldSeptRefundOct.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testUser.uid,
+          changedByName: testUser.name,
+          changedAt: new Date('2026-10-10T14:00:00.000Z'), // Oct 10
+        },
+      });
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        // Standard query WITHOUT dateType filtering for October orderDate
+        const req = new Request('http://localhost/api/orders?saleStatus=2&dateFrom=2026-10-01&dateTo=2026-10-31');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        // Since orderDate is in September, standard query MUST exclude it
+        const found = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderSoldSeptRefundOct.crmOrderId);
+        expect(found).toBe(false);
+      } finally {
+        await prisma.crmSaleStatusHistory.deleteMany({
+          where: { orderId: orderSoldSeptRefundOct.crmOrderId },
+        });
+        await prisma.crmOrders.deleteMany({
+          where: { crmOrderId: orderSoldSeptRefundOct.crmOrderId },
+        });
+      }
+    });
   });
 });
+
 
