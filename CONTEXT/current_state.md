@@ -64,6 +64,7 @@ The core development checklist items follow the **Test-Driven Development (TDD) 
 | **Phase 46** | Reports Filter Bar UX (Synchronized Multi-Select & Active/Inactive Toggles) and Excel Report Visual Discernment Overhaul | **[x] COMPLETED** | `src/components/reports/ReportFilterBar.tsx`, `src/lib/agent-sales-excel-exporter.ts`, `src/tests/ReportFilterBar.test.tsx`, `src/tests/agentSalesExcelExporter.test.ts` |
 | **Phase 47** | Management Realization Dashboard Metrics (Cash-Basis Month Refunds, Chargebacks & Net Sales with EST Boundary Safety) & Follow-Up Card Stacking / Keyboard Tab Progression | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/components/MetricCard.tsx`, `src/components/dashboard/dashboard_client_page.tsx`, `src/app/follow-ups/[id]/page.tsx`, `src/components/AddFollowUpForm.tsx`, `src/components/EditFollowUpForm.tsx`, `src/tests/dashboard.test.ts`, `src/app/components.css` |
 | **Phase 48** | Sparkline Realization Timezone & Deduplication, Reports Agent Multi-Select Accordions & Scroll Isolation, and Universal Table Drag-to-Scroll Panning | **[x] COMPLETED** | `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/components/reports/ReportFilterBar.tsx`, `src/components/reports/ReportsContainer.tsx`, `src/hooks/useDragScroll.ts`, `src/app/components.css`, `src/components/OrderList.tsx`, `src/components/CallDispositionListContainer.tsx`, `src/components/FollowUpList.tsx`, `src/components/AgentList.tsx`, `src/components/VendorList.tsx` |
+| **Phase 49** | Backend Team Dashboard Drill-Down Filters (Status=Pending, Order Date Alignment) & All-Time Active/Inactive Agent Scoping | **[x] COMPLETED** | `src/types/order.ts`, `src/repository/order.repository.ts`, `src/app/api/orders/route.ts`, `src/components/OrderListContainer.tsx`, `src/repository/dashboard.repository.ts`, `src/service/dashboard.service.ts`, `src/app/api/dashboard/backend-team/route.ts`, `src/components/dashboard/BackendTeamWidget.tsx`, `src/tests/backend-team.test.ts`, `src/tests/BackendTeamWidget.test.tsx`, `src/tests/orders.test.ts`, `src/tests/OrderListContainer.test.tsx` |
 ---
 
 
@@ -11852,6 +11853,157 @@ Create a reusable custom hook `src/hooks/useDragScroll.ts` extracted from `Agent
   - `npm run typecheck` — 0 type errors.
   - `npm test` — All 39 unit/integration tests in `ReportFilterBar.test.tsx` and `useDragScroll.test.ts` passing.
   - `npm run build` — 100% production build successful (45/45 routes compiled).
+
+---
+
+### Phase 49 — Backend Team Dashboard Drill-Down Filters & All-Time Active/Inactive Agent Scoping
+
+#### W-4901 — Backend Status=Pending & DateType=order Filtering in Orders Pipeline
+
+**Goal:**
+Enable `/orders` to filter orders by `status=Pending` (matching all 5 active pending workflow categories: Pending Booking, Pending Shipment, Pending Delivery, Pending Feedback, Pending Resolutions) and `dateType=order` (or `'created'` / `'realized'`). In `OrderListContainer.tsx`, lazily initialize `dateFrom` and `dateTo` when `month` and `year` query parameters are passed so initial mounts do not fetch all-time orders. Active filter badge clearly indicates `Order Date: YYYY-MM-DD to YYYY-MM-DD`.
+
+---
+
+- [x] **RED — Backend & Orders Route Tests (`src/tests/orders.test.ts` & `src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: `findAll` with `status: 'Pending'` filters only parent orders and child parts with `orderCurrentStatus` in `['Pending Booking', 'Pending Shipment', 'Pending Delivery', 'Pending Feedback', 'Pending Resolutions']`.
+  - [x] Test: `findAll` with `dateType: 'created'` and `dateFrom`/`dateTo` filters against `orderCreatedDate` (ignoring `orderDate`).
+  - [x] Test: `OrderListContainer` initial state lazily parses `month` and `year` into `dateFrom` and `dateTo` on mount.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Implementation:**
+  - [x] In `src/types/order.ts`, update `OrderFilters.dateType` to `'orderDate' | 'realized' | 'created' | 'order'`.
+  - [x] In `src/repository/order.repository.ts`, handle `filters.status === 'Pending'` and `filters.dateType === 'created'`.
+  - [x] In `src/app/api/orders/route.ts`, parse `dateType` including `'created'`.
+  - [x] In `src/components/OrderListContainer.tsx`, lazily initialize `dateFrom`/`dateTo` from `month`/`year` search params and handle `statusFilter === 'Pending'`. Updated filter badge to explicitly display `Order Date:` instead of `Date Range:`.
+  - [x] Run tests — **confirm GREEN**.
+
+---
+
+#### W-4902 — Backend Team Widget Drill-Down Links Overhaul
+
+**Goal:**
+Fix drill-down links in `BackendTeamWidget.tsx` so clicking on values navigates to `/orders` with the precise status, executive ID, and order date range (`dateType=order`).
+
+---
+
+- [x] **RED — Component Tests (`src/tests/BackendTeamWidget.test.tsx`):**
+  - [x] Test: In Top Performers and Bottom Performers, clicking Pending cell links to `/orders?backendExecutiveId=${id}&status=Pending&dateType=order&dateFrom=${start}&dateTo=${end}`.
+  - [x] Test: In Top Performers and Bottom Performers, clicking Completed cell links to `/orders?backendExecutiveId=${id}&status=Completed+Orders&dateType=order&dateFrom=${start}&dateTo=${end}`.
+  - [x] Test: In Top Performers and Bottom Performers, clicking Agent name links to `/orders?backendExecutiveId=${id}&dateType=order&dateFrom=${start}&dateTo=${end}`.
+  - [x] Test: In Pending Cases by Category, clicking Total Pending links to `/orders?backendExecutiveId=${id}&status=Pending`.
+  - [x] Test: In Pending Cases by Category, clicking Completed links to `/orders?backendExecutiveId=${id}&status=Completed+Orders`.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Implementation:**
+  - [x] In `src/components/dashboard/BackendTeamWidget.tsx`, update Top/Bottom link builders to include `dateType=order`, `dateFrom`, `dateTo`, and `status=Pending` where appropriate.
+  - [x] In `src/components/dashboard/BackendTeamWidget.tsx`, update Pending Cases by Category Total Pending link to use `status=Pending`.
+  - [x] Run tests — **confirm GREEN**.
+
+---
+
+#### W-4903 — Active / Inactive / All Agent Scoping on Pending Cases by Category
+
+**Goal:**
+Add a filter to "Pending Cases by Category" (across all time) allowing users to view Active Agents, Inactive Agents, or All Agents. Former/inactive agents with unassigned or unresolved pending orders can now be audited.
+
+---
+
+- [x] **RED — Integration & Component Tests (`src/tests/backend-team.test.ts` & `src/tests/BackendTeamWidget.test.tsx`):**
+  - [x] Test: `getBackendPendingCasesAllTime('active')` returns only active backend agents (`status = 1`).
+  - [x] Test: `getBackendPendingCasesAllTime('inactive')` returns only inactive backend agents (`status = 0`).
+  - [x] Test: `getBackendPendingCasesAllTime('all')` returns both active and inactive backend agents.
+  - [x] Test: `BackendTeamWidget` renders Active / Inactive / All filter controls on Pending Cases card and updates table upon selection.
+  - [x] Test: Inactive agents display an `(Inactive)` badge in the table.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Implementation:**
+  - [x] In `src/repository/dashboard.repository.ts`, update `getBackendPendingCasesAllTime` to accept `agentStatus: 'active' | 'inactive' | 'all' = 'active'` and include `u.status AS status` in projection.
+  - [x] In `src/service/dashboard.service.ts`, forward `agentStatus` to repository.
+  - [x] In `src/app/api/dashboard/backend-team/route.ts`, parse `agentStatus` from searchParams.
+  - [x] In `src/components/dashboard/BackendTeamWidget.tsx`, add segmented control filter for `agentStatus` and badge for inactive agents.
+  - [x] Run tests — **confirm GREEN**.
+
+---
+
+- [x] **Verification Chain:**
+  - [x] Clicking Pending on Top Performers opens `/orders` filtered strictly to that agent's pending orders in that month by `order_date`.
+  - [x] Clicking Total Pending on all-time card opens `/orders` filtered strictly to all unresolved pending cases for that agent with `status=Pending`.
+  - [x] Switching between Active, Inactive, and All on the all-time card shows active staff, inactive staff, and full roster.
+  - [x] Full quality check: `npm run lint && npm run typecheck && npm run test` — 100% GREEN.
+
+---
+
+#### W-4904 — Realized Date Filtering in Pending Counts & Summary Banner Restoration for Backend Drill-Downs
+
+**Root cause / Goal:**
+1. When navigating from the dashboard Refunded (`saleStatus=2&dateType=realized`) or Chargeback (`saleStatus=3&dateType=realized`) metric cards, the table renders all orders whose refund/chargeback was realized in the selected month (via `crm_sale_status_history.changed_at`), including orders originally sold in prior months. However, the summary banner (`tab-totals-summary`) fetched `/api/orders/pending-counts` without `dateType`, causing `dashboardRepository.getPendingCounts` to filter strictly on `where.orderDate` (sale date). Prior-month sales were excluded from the summary card, showing only 1 order instead of 3.
+2. In addition, clicking **Pending** from Top/Bottom Performers or **Total Pending** from Pending Cases sets `status=Pending`. The summary card looks up `pendingCounts['Pending']`. Because `getPendingCounts` only populated individual queues (`Pending Booking`, etc.) and omitted a `'Pending'` aggregate key, `stats` was `undefined`, completely hiding the summary card.
+
+**Fix / Approach:**
+1. In `src/components/OrderListContainer.tsx`, append `dateType` in `fetchPendingCounts` and include `dateType` in the `useEffect` dependencies.
+2. In `src/app/api/orders/pending-counts/route.ts`, parse `dateType` from `searchParams` and pass it to `getPendingCounts`.
+3. In `src/repository/dashboard.repository.ts` (`getPendingCounts`):
+   - When `filters.dateType === 'realized'`, filter via `saleStatusHistory` with `getEstMidnightUtc`, exactly mirroring `order.repository.ts`.
+   - When `filters.dateType` is `order` or default, filter strictly via `orderDate` (Sale Date) with `localDateStringToUtcNoon`.
+   - Populate `res['Pending']` by aggregating the 5 pending workflow queues (`Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`).
+4. In `src/components/OrderListContainer.tsx`, support `currentTab === 'Pending'` in the summary card banner with fallback aggregation if needed.
+
+---
+
+- [x] **RED — Integration & UI Tests (`src/tests/dashboard.test.ts` & `src/tests/OrderListContainer.test.tsx`):**
+  - [x] Test: `OrderListContainer` forwards `dateType=realized` to `/api/orders/pending-counts` (RED confirmed).
+  - [x] Test: `OrderListContainer` renders summary banner when `status=Pending` with `"Pending Summary:"` (RED confirmed).
+  - [x] Test: `getPendingCounts` with `dateType=realized` includes orders with prior-month sale dates whose refund/chargeback was realized in the current month.
+  - [x] Test: `getPendingCounts` returns aggregated `'Pending'` key with sum of all 5 pending queues.
+  - [x] **Run — confirm RED.**
+
+- [x] **GREEN — Implementation:**
+  - [x] Update `src/repository/dashboard.repository.ts` (`getPendingCounts`) to handle `dateType=realized` vs standard `orderDate`, and compute `res['Pending']`.
+  - [x] Update `src/app/api/orders/pending-counts/route.ts` to forward `dateType`.
+  - [x] Update `src/components/OrderListContainer.tsx` to forward `dateType` in `fetchPendingCounts` and render `Pending Summary:`.
+  - [x] Run tests — **confirm GREEN**.
+
+---
+
+- [x] **Verification chain:**
+  - [x] Refunded metric card drill-down displays matching counts and amounts between summary card and table rows (including prior-month sales realized this month).
+  - [x] Chargeback metric card drill-down displays matching counts and amounts.
+  - [x] Backend team card Pending / Total Pending drill-down displays the summary card banner with accurate pending count and margin.
+  - [x] Full quality check: `npm run lint` (0 errors), `npm run typecheck` (0 errors), and vitest suites (100% passing).
+
+---
+
+### Session Note — Phase 49 Completion
+
+- **W-4901 — Backend Status=Pending & DateType=order Filtering in Orders Pipeline**:
+  - Extended `src/types/order.ts`, `src/repository/order.repository.ts`, and `src/app/api/orders/route.ts` to support `status=Pending` across all 5 pending workflow queues (`Pending Booking`, `Pending Shipment`, `Pending Delivery`, `Pending Feedback`, `Pending Resolutions`).
+  - Implemented lazy URL parameter initialization in `OrderListContainer.tsx` for `month` and `year` to compute `dateFrom` and `dateTo` on first render, preventing inadvertent all-time queries.
+  - Renamed active filter badge from `Date Range:` to explicitly state `Order Date: YYYY-MM-DD to YYYY-MM-DD` when filtering by sale date.
+
+- **W-4902 — Backend Performance Metric Alignment to Sale Date & Drill-Down Links**:
+  - Standardized `getBackendMonthlyPerformance` in `src/repository/dashboard.repository.ts` to calculate monthly backend metrics strictly using `MONTH(o.order_date)` and `YEAR(o.order_date)` (Sale Date), eliminating created date discrepancies.
+  - Updated drill-down links in `src/components/dashboard/BackendTeamWidget.tsx` to include `backendExecutiveId`, `dateType=order`, date bounds, and `status=Pending`.
+
+- **W-4903 — Active / Inactive / All Agent Scoping on Pending Cases**:
+  - Enhanced `getBackendPendingCasesAllTime` in `src/repository/dashboard.repository.ts` to support `agentStatus: 'active' | 'inactive' | 'all'`.
+  - Added segmented toggle buttons in `BackendTeamWidget.tsx` and displayed an `(Inactive)` badge next to inactive backend agents.
+
+- **W-4904 — Realized Date Filtering in Pending Counts & Summary Banner Restoration**:
+  - Resolved summary banner count mismatch on Refunded and Chargeback drill-downs by forwarding `dateType` from `OrderListContainer.tsx` through `/api/orders/pending-counts` into `getPendingCounts`.
+  - Updated `getPendingCounts` in `src/repository/dashboard.repository.ts` to support `dateType === 'realized'` via `crm_sale_status_history.changed_at` with America/New_York timezone boundaries (`getEstMidnightUtc`), ensuring refunds/chargebacks from prior-month sales are included in the summary card.
+  - Added `'Pending'` aggregate key in `getPendingCounts` summing all 5 workflow queues and added fallback handling in `OrderListContainer.tsx`, restoring the summary banner card (`Pending Summary:`) for all backend pending drill-downs.
+
+- **Quality & Test Verification**:
+  - `npm run lint` — 0 errors, 0 warnings.
+  - `npm run typecheck` — 0 type errors.
+  - Vitest test suites:
+    - `src/tests/OrderListContainer.test.tsx` — 22/22 GREEN.
+    - `src/tests/BackendTeamWidget.test.tsx` — 7/7 GREEN.
+    - `src/tests/backend-team.test.ts` — 4/4 GREEN.
+    - `src/tests/dashboard.test.ts` (W-4904 tests) — GREEN.
+
+
 
 
 

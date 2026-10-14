@@ -39,6 +39,7 @@ export default function BackendTeamWidget({
   const [perfError, setPerfError] = useState<string | null>(null);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState<string | null>(null);
+  const [agentStatus, setAgentStatus] = useState<'active' | 'inactive' | 'all'>('active');
 
   // Refs to track first mount to safely skip initial data fetching when props are present
   const isInitialPerfMount = useRef(true);
@@ -68,11 +69,11 @@ export default function BackendTeamWidget({
   }, []);
 
   // Fetch pending cases data (all time)
-  const fetchPendingData = useCallback(async () => {
+  const fetchPendingData = useCallback(async (status: 'active' | 'inactive' | 'all' = 'active') => {
     setPendingLoading(true);
     setPendingError(null);
     try {
-      const res = await fetch(`/api/dashboard/backend-team`);
+      const res = await fetch(`/api/dashboard/backend-team?agentStatus=${status}`);
       if (!res.ok) {
         throw new Error('Failed to fetch backend pending cases');
       }
@@ -84,6 +85,11 @@ export default function BackendTeamWidget({
       setPendingLoading(false);
     }
   }, []);
+
+  const handleAgentStatusChange = (status: 'active' | 'inactive' | 'all') => {
+    setAgentStatus(status);
+    fetchPendingData(status);
+  };
 
   // Trigger performers fetch when month/year changes
   useEffect(() => {
@@ -104,7 +110,7 @@ export default function BackendTeamWidget({
         setPendingLoading(true);
         setPendingError(null);
         try {
-          const res = await fetch('/api/dashboard/backend-team');
+          const res = await fetch(`/api/dashboard/backend-team?agentStatus=${agentStatus}`);
           if (!res.ok) {
             throw new Error('Failed to fetch backend pending cases');
           }
@@ -127,7 +133,7 @@ export default function BackendTeamWidget({
         isMounted = false;
       };
     }
-  }, [initialData]);
+  }, [initialData, agentStatus]);
 
   const handlePrevPerfMonth = () => {
     if (perfMonth === 1) {
@@ -168,7 +174,7 @@ export default function BackendTeamWidget({
                   Backend Team Performers
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0', fontWeight: 400 }}>
-                  Monthly ranking based on cases completed in the selected month.
+                  Workload completion and open cases for orders sold in the selected month.
                 </p>
               </div>
 
@@ -245,8 +251,14 @@ export default function BackendTeamWidget({
                           </thead>
                           <tbody>
                             {topPerformers.map((row, idx) => {
-                              const nameLink = `/orders?backendExecutiveId=${row.agentId}&month=${perfMonth}&year=${perfYear}`;
-                              const completedLink = `/orders?backendExecutiveId=${row.agentId}&status=Completed+Orders&month=${perfMonth}&year=${perfYear}`;
+                              const pad2 = (n: number) => String(n).padStart(2, '0');
+                              const perfStartStr = `${perfYear}-${pad2(perfMonth)}-01`;
+                              const perfLastDay = new Date(perfYear, perfMonth, 0).getDate();
+                              const perfEndStr = `${perfYear}-${pad2(perfMonth)}-${pad2(perfLastDay)}`;
+
+                              const nameLink = `/orders?backendExecutiveId=${row.agentId}&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
+                              const completedLink = `/orders?backendExecutiveId=${row.agentId}&status=Completed+Orders&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
+                              const pendingLink = `/orders?backendExecutiveId=${row.agentId}&status=Pending&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
                               return (
                                 <tr key={row.agentId}>
                                   <td style={{ fontWeight: 700, color: idx === 0 ? 'var(--accent-color)' : 'var(--text-muted)' }}>
@@ -272,7 +284,7 @@ export default function BackendTeamWidget({
                                   </td>
                                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
                                     {canLinkToOrders ? (
-                                      <a href={nameLink} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                      <a href={pendingLink} style={{ textDecoration: 'none', color: 'inherit' }}>
                                         {row.totalPending}
                                       </a>
                                     ) : (
@@ -314,8 +326,14 @@ export default function BackendTeamWidget({
                           </thead>
                           <tbody>
                             {bottomPerformers.map((row, idx) => {
-                              const nameLink = `/orders?backendExecutiveId=${row.agentId}&month=${perfMonth}&year=${perfYear}`;
-                              const completedLink = `/orders?backendExecutiveId=${row.agentId}&status=Completed+Orders&month=${perfMonth}&year=${perfYear}`;
+                              const pad2 = (n: number) => String(n).padStart(2, '0');
+                              const perfStartStr = `${perfYear}-${pad2(perfMonth)}-01`;
+                              const perfLastDay = new Date(perfYear, perfMonth, 0).getDate();
+                              const perfEndStr = `${perfYear}-${pad2(perfMonth)}-${pad2(perfLastDay)}`;
+
+                              const nameLink = `/orders?backendExecutiveId=${row.agentId}&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
+                              const completedLink = `/orders?backendExecutiveId=${row.agentId}&status=Completed+Orders&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
+                              const pendingLink = `/orders?backendExecutiveId=${row.agentId}&status=Pending&dateType=order&dateFrom=${perfStartStr}&dateTo=${perfEndStr}`;
                               return (
                                 <tr key={row.agentId}>
                                   <td style={{ fontWeight: 700, color: idx === 0 ? '#dc2626' : 'var(--text-muted)' }}>
@@ -332,7 +350,7 @@ export default function BackendTeamWidget({
                                   </td>
                                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
                                     {canLinkToOrders ? (
-                                      <a href={nameLink} style={{ textDecoration: 'none', color: '#dc2626' }}>
+                                      <a href={pendingLink} style={{ textDecoration: 'none', color: '#dc2626' }}>
                                         {row.totalPending}
                                       </a>
                                     ) : (
@@ -374,6 +392,44 @@ export default function BackendTeamWidget({
                   Overall unresolved cases across all time per backend executive.
                 </p>
               </div>
+
+              {/* Agent Status Filter (Active / Inactive / All) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: '#f1f5f9',
+                  padding: '3px',
+                  borderRadius: '8px',
+                  gap: '4px',
+                }}
+              >
+                {(['active', 'inactive', 'all'] as const).map((status) => {
+                  const label = status === 'active' ? 'Active' : status === 'inactive' ? 'Inactive' : 'All';
+                  const isSelected = agentStatus === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => handleAgentStatusChange(status)}
+                      style={{
+                        border: 'none',
+                        background: isSelected ? '#ffffff' : 'transparent',
+                        color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                        fontWeight: isSelected ? 600 : 500,
+                        fontSize: '0.85rem',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {pendingLoading ? (
@@ -408,6 +464,7 @@ export default function BackendTeamWidget({
                       <tbody>
                         {pendingByCategory.map((row) => {
                           const nameLink = `/orders?backendExecutiveId=${row.agentId}`;
+                          const totalPendingLink = `/orders?backendExecutiveId=${row.agentId}&status=Pending`;
                           const buildQueueLink = (status: string) => `/orders?backendExecutiveId=${row.agentId}&status=${encodeURIComponent(status).replace(/%20/g, '+')}`;
 
                           return (
@@ -419,6 +476,21 @@ export default function BackendTeamWidget({
                                   </a>
                                 ) : (
                                   row.agentName
+                                )}
+                                {row.status === 0 && (
+                                  <span
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      color: '#dc2626',
+                                      fontWeight: 600,
+                                      marginLeft: '6px',
+                                      backgroundColor: '#fee2e2',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                    }}
+                                  >
+                                    (Inactive)
+                                  </span>
                                 )}
                               </td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>
@@ -468,7 +540,7 @@ export default function BackendTeamWidget({
                               </td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: row.totalPending > 0 ? '#dc2626' : 'inherit' }}>
                                 {canLinkToOrders ? (
-                                  <a href={nameLink} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                  <a href={totalPendingLink} style={{ textDecoration: 'none', color: 'inherit' }}>
                                     {row.totalPending}
                                   </a>
                                 ) : (

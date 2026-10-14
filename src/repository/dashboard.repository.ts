@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
-import { localDateStringToUtcNoon } from '../lib/date';
+import { localDateStringToUtcNoon, getEstMidnightUtc } from '../lib/date';
 
 export async function getSalesBetweenDates(start: Date, end: Date) {
   // Push SUM and COUNT into SQL instead of fetching all rows into Node.js
@@ -435,6 +435,7 @@ export async function getPendingCounts(filters?: {
   dateFrom?: string;
   dateTo?: string;
   saleStatus?: string;
+  dateType?: string;
 }) {
   const where: Prisma.CrmOrdersWhereInput = {
     parentOrderId: null,
@@ -456,6 +457,10 @@ export async function getPendingCounts(filters?: {
     if (filters.saleStatus) {
       const statuses = filters.saleStatus.includes(',') ? filters.saleStatus.split(',') : [filters.saleStatus];
       where.saleStatus = { in: statuses };
+      delete where.orderCurrentStatus;
+    }
+    if (filters.dateType === 'realized') {
+      delete where.orderCurrentStatus;
     }
     if (filters.agentId) {
       where.orderSalesAgentId = filters.agentId;
@@ -480,7 +485,31 @@ export async function getPendingCounts(filters?: {
         },
       ];
     }
-    if (filters.dateFrom || filters.dateTo) {
+    if (filters.dateType === 'realized') {
+      if (filters.dateFrom || filters.dateTo) {
+        const historyDateFilter: Prisma.DateTimeFilter = {};
+        if (filters.dateFrom) {
+          const dateFromStr = String(filters.dateFrom).split('T')[0];
+          const [y, m, d] = dateFromStr.split('-').map(Number);
+          historyDateFilter.gte = getEstMidnightUtc(y, m - 1, d);
+        }
+        if (filters.dateTo) {
+          const dateToStr = String(filters.dateTo).split('T')[0];
+          const [y, m, d] = dateToStr.split('-').map(Number);
+          const nextDay = new Date(Date.UTC(y, m - 1, d + 1));
+          const nextDayMidnight = getEstMidnightUtc(nextDay.getUTCFullYear(), nextDay.getUTCMonth(), nextDay.getUTCDate());
+          historyDateFilter.lte = new Date(nextDayMidnight.getTime() - 1);
+        }
+        where.saleStatusHistory = {
+          some: {
+            ...(filters.saleStatus
+              ? { newValue: filters.saleStatus.includes(',') ? { in: filters.saleStatus.split(',') } : filters.saleStatus }
+              : {}),
+            changedAt: historyDateFilter,
+          },
+        };
+      }
+    } else if (filters.dateFrom || filters.dateTo) {
       const dateFilter: Prisma.DateTimeNullableFilter = {};
       if (filters.dateFrom) {
         dateFilter.gte = localDateStringToUtcNoon(filters.dateFrom);
@@ -522,6 +551,7 @@ export async function getPendingCounts(filters?: {
 
   const res: Record<string, { amount: number; count: number }> = {
     'All Orders': { amount: 0, count: 0 },
+    'Pending': { amount: 0, count: 0 },
     'Pending Booking': { amount: 0, count: 0 },
     'Pending Shipment': { amount: 0, count: 0 },
     'Pending Delivery': { amount: 0, count: 0 },
@@ -612,6 +642,21 @@ export async function getPendingCounts(filters?: {
       }
     }
   }
+
+  res['Pending'] = {
+    amount:
+      res['Pending Booking'].amount +
+      res['Pending Shipment'].amount +
+      res['Pending Delivery'].amount +
+      res['Pending Feedback'].amount +
+      res['Pending Resolutions'].amount,
+    count:
+      res['Pending Booking'].count +
+      res['Pending Shipment'].count +
+      res['Pending Delivery'].count +
+      res['Pending Feedback'].count +
+      res['Pending Resolutions'].count,
+  };
 
   return res;
 }
@@ -787,8 +832,8 @@ export async function getBackendMonthlyPerformance(month: number, year: number) 
     LEFT JOIN crm_orders o
       ON o.order_backend_executive_id = u.uid
       AND o.parent_order_id IS NULL
-      AND MONTH(o.order_created_date) = ${month}
-      AND YEAR(o.order_created_date) = ${year}
+      AND MONTH(o.order_date) = ${month}
+      AND YEAR(o.order_date) = ${year}
     WHERE u.designation IN ('Backend Specialist', 'Backend Associate')
       AND u.status = 1
     GROUP BY u.uid
@@ -807,11 +852,19 @@ export async function getBackendMonthlyPerformance(month: number, year: number) 
   }));
 }
 
-export async function getBackendPendingCasesAllTime() {
+export async function getBackendPendingCasesAllTime(agentStatus: 'active' | 'inactive' | 'all' = 'active') {
+  const statusCondition =
+    agentStatus === 'active'
+      ? Prisma.raw('AND u.status = 1')
+      : agentStatus === 'inactive'
+      ? Prisma.raw('AND u.status = 0')
+      : Prisma.empty;
+
   const rows = await prisma.$queryRaw<any[]>`
     SELECT
       u.uid AS agentId,
       MAX(COALESCE(u.nickname, u.name)) AS agentName,
+      MAX(u.status) AS status,
       SUM(CASE WHEN o.order_current_status = 'Pending Booking' THEN 1 ELSE 0 END) AS pendingBooking,
       SUM(CASE WHEN o.order_current_status = 'Pending Shipment' THEN 1 ELSE 0 END) AS pendingShipment,
       SUM(CASE WHEN o.order_current_status = 'Pending Delivery' THEN 1 ELSE 0 END) AS pendingDelivery,
@@ -827,13 +880,14 @@ export async function getBackendPendingCasesAllTime() {
       ON o.order_backend_executive_id = u.uid
       AND o.parent_order_id IS NULL
     WHERE u.designation IN ('Backend Specialist', 'Backend Associate')
-      AND u.status = 1
+      ${statusCondition}
     GROUP BY u.uid
   `;
 
   return rows.map(r => ({
     agentId: Number(r.agentId),
     agentName: String(r.agentName || 'Unknown Agent'),
+    status: r.status !== null && r.status !== undefined ? Number(r.status) : 1,
     pendingBooking: Number(r.pendingBooking || 0),
     pendingShipment: Number(r.pendingShipment || 0),
     pendingDelivery: Number(r.pendingDelivery || 0),
@@ -844,11 +898,11 @@ export async function getBackendPendingCasesAllTime() {
   }));
 }
 
-export async function getBackendTeamPerformance(month?: number, year?: number) {
+export async function getBackendTeamPerformance(month?: number, year?: number, agentStatus: 'active' | 'inactive' | 'all' = 'active') {
   if (month && year) {
     return getBackendMonthlyPerformance(month, year);
   }
-  return getBackendPendingCasesAllTime();
+  return getBackendPendingCasesAllTime(agentStatus);
 }
 
 export async function getSparklineData(

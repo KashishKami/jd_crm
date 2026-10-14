@@ -88,6 +88,7 @@ describe('Backend Team Performance Integration Tests', () => {
       data: {
         orderCustomerId: customer.customerId,
         orderCurrentStatus: 'Completed Orders',
+        orderDate: targetDate,
         orderCreatedDate: targetDate,
         orderBackendExecutiveId: backendAgentWithOrders.uid,
         orderBackendExecutiveName: backendAgentWithOrders.name,
@@ -99,6 +100,7 @@ describe('Backend Team Performance Integration Tests', () => {
       data: {
         orderCustomerId: customer.customerId,
         orderCurrentStatus: 'Pending Shipment',
+        orderDate: targetDate,
         orderCreatedDate: targetDate,
         orderBackendExecutiveId: backendAgentWithOrders.uid,
         orderBackendExecutiveName: backendAgentWithOrders.name,
@@ -110,6 +112,7 @@ describe('Backend Team Performance Integration Tests', () => {
       data: {
         orderCustomerId: customer.customerId,
         orderCurrentStatus: 'Pending Booking',
+        orderDate: otherDate,
         orderCreatedDate: otherDate,
         orderBackendExecutiveId: backendAgentWithOrders.uid,
         orderBackendExecutiveName: backendAgentWithOrders.name,
@@ -122,6 +125,7 @@ describe('Backend Team Performance Integration Tests', () => {
       data: {
         orderCustomerId: customer.customerId,
         orderCurrentStatus: 'Completed Orders',
+        orderDate: targetDate,
         orderCreatedDate: targetDate,
         orderBackendExecutiveId: salesAgent.uid,
         orderBackendExecutiveName: salesAgent.name,
@@ -168,6 +172,65 @@ describe('Backend Team Performance Integration Tests', () => {
     await prisma.crmCustomers.delete({ where: { customerId: customer.customerId } });
     await prisma.users.deleteMany({
       where: { uid: { in: [salesAgent.uid, backendAgentWithOrders.uid, backendAgentEmpty.uid] } },
+    });
+  });
+
+  it('W-4903: should correctly scope pending cases by agentStatus (active, inactive, all)', async () => {
+    const role = await prisma.crmRoles.findFirst();
+    const team = await prisma.crmTeams.findFirst();
+
+    const activeAgent = await prisma.users.create({
+      data: {
+        name: 'Active Agent Test',
+        username: 'active_agent_test_4903',
+        teamId: team!.teamId,
+        roleId: role!.roleId,
+        designation: 'Backend Specialist',
+        status: 1,
+      },
+    });
+
+    const inactiveAgent = await prisma.users.create({
+      data: {
+        name: 'Inactive Agent Test',
+        username: 'inactive_agent_test_4903',
+        teamId: team!.teamId,
+        roleId: role!.roleId,
+        designation: 'Backend Associate',
+        status: 0,
+      },
+    });
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: '1', name: 'Super Admin', userPermissions: 'super-admin' },
+    });
+
+    const { GET } = await import('../app/api/dashboard/backend-team/route');
+
+    // 1. active (default)
+    const resActive = await GET(new Request('http://localhost/api/dashboard/backend-team?agentStatus=active'));
+    const dataActive = await resActive.json();
+    const activeNames = dataActive.pendingByCategory.map((x: any) => x.agentId);
+    expect(activeNames).toContain(activeAgent.uid);
+    expect(activeNames).not.toContain(inactiveAgent.uid);
+
+    // 2. inactive
+    const resInactive = await GET(new Request('http://localhost/api/dashboard/backend-team?agentStatus=inactive'));
+    const dataInactive = await resInactive.json();
+    const inactiveNames = dataInactive.pendingByCategory.map((x: any) => x.agentId);
+    expect(inactiveNames).not.toContain(activeAgent.uid);
+    expect(inactiveNames).toContain(inactiveAgent.uid);
+
+    // 3. all
+    const resAll = await GET(new Request('http://localhost/api/dashboard/backend-team?agentStatus=all'));
+    const dataAll = await resAll.json();
+    const allNames = dataAll.pendingByCategory.map((x: any) => x.agentId);
+    expect(allNames).toContain(activeAgent.uid);
+    expect(allNames).toContain(inactiveAgent.uid);
+
+    // Cleanup
+    await prisma.users.deleteMany({
+      where: { uid: { in: [activeAgent.uid, inactiveAgent.uid] } },
     });
   });
 });

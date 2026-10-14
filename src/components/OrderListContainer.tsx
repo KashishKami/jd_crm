@@ -63,12 +63,27 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     getSafeUrlParam({ searchParams, paramName: 'partFoundById', expectedBasePath: '/orders', defaultValue: '' })
   );
   const [pendingCounts, setPendingCounts] = useState<Record<string, { amount: number; count: number }>>({});
-  const [dateFrom, setDateFrom] = useState<string>(() =>
-    getSafeUrlParam({ searchParams, paramName: 'dateFrom', expectedBasePath: '/orders', defaultValue: '' })
-  );
-  const [dateTo, setDateTo] = useState<string>(() =>
-    getSafeUrlParam({ searchParams, paramName: 'dateTo', expectedBasePath: '/orders', defaultValue: '' })
-  );
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const rawFrom = getSafeUrlParam({ searchParams, paramName: 'dateFrom', expectedBasePath: '/orders', defaultValue: '' });
+    if (rawFrom) return rawFrom;
+    const m = getSafeUrlParam({ searchParams, paramName: 'month', expectedBasePath: '/orders', defaultValue: '' });
+    const y = getSafeUrlParam({ searchParams, paramName: 'year', expectedBasePath: '/orders', defaultValue: '' });
+    if (m && y) {
+      return `${y}-${String(m).padStart(2, '0')}-01`;
+    }
+    return '';
+  });
+  const [dateTo, setDateTo] = useState<string>(() => {
+    const rawTo = getSafeUrlParam({ searchParams, paramName: 'dateTo', expectedBasePath: '/orders', defaultValue: '' });
+    if (rawTo) return rawTo;
+    const m = getSafeUrlParam({ searchParams, paramName: 'month', expectedBasePath: '/orders', defaultValue: '' });
+    const y = getSafeUrlParam({ searchParams, paramName: 'year', expectedBasePath: '/orders', defaultValue: '' });
+    if (m && y) {
+      const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+      return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+    return '';
+  });
   const [dateType, setDateType] = useState<string>(() =>
     getSafeUrlParam({ searchParams, paramName: 'dateType', expectedBasePath: '/orders', defaultValue: '' })
   );
@@ -449,6 +464,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
       if (partFoundByFilter) params.append('partFoundById', partFoundByFilter);
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
+      if (dateType) params.append('dateType', dateType);
 
       try {
         const res = await fetch(`/api/orders/pending-counts?${params.toString()}`);
@@ -468,7 +484,7 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
     return () => {
       active = false;
     };
-  }, [status, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo]);
+  }, [status, saleStatusFilter, agentFilter, teamFilter, backendExecutiveFilter, partFoundByFilter, dateFrom, dateTo, dateType]);
 
   // Fetch orders when filters or page changes
   useEffect(() => {
@@ -899,9 +915,21 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           )}
           {(dateFrom || dateTo) && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
-              {dateType === 'realized' ? 'Realized Date' : 'Date Range'}: {dateFrom || '*'} to {dateTo || '*'}
+              {dateType === 'realized' ? 'Realized Date' : dateType === 'created' ? 'Creation Date' : 'Order Date'}: {dateFrom || '*'} to {dateTo || '*'}
               <button 
                 onClick={() => { setDateFrom(''); setDateTo(''); setDateType(''); }} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {statusFilter === 'Pending' && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 500, color: '#334155' }}>
+              Workflow: Pending Queue
+              <button 
+                onClick={() => setStatusFilter('')} 
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0, marginLeft: '4px', color: '#94a3b8' }}
                 title="Clear filter"
               >
@@ -1017,7 +1045,17 @@ function OrderListContainerContent({ initialStatus, initialAgents, initialTeams 
           {/* Stats summary above the table */}
           {(() => {
             const currentTab = statusFilter || 'All Orders';
-            const stats = pendingCounts[currentTab];
+            let stats = pendingCounts[currentTab];
+            if (!stats && currentTab === 'Pending') {
+              const pendingQueues = ['Pending Booking', 'Pending Shipment', 'Pending Delivery', 'Pending Feedback', 'Pending Resolutions'];
+              const hasAny = pendingQueues.some(q => pendingCounts[q]);
+              if (hasAny) {
+                stats = {
+                  count: pendingQueues.reduce((acc, q) => acc + (pendingCounts[q]?.count || 0), 0),
+                  amount: pendingQueues.reduce((acc, q) => acc + (pendingCounts[q]?.amount || 0), 0),
+                };
+              }
+            }
             if (!stats) return null;
             const formattedAmount = stats.amount < 0 
               ? `-$${Math.abs(stats.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 

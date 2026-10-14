@@ -114,12 +114,35 @@ describe('BackendTeamWidget Unit Tests', () => {
     expect(completedLink).toBeDefined();
     expect(completedLink?.textContent).toBe('5');
 
+    // Total Pending cell link in pending cases table should use status=Pending
+    const totalPendingLink = links.find(
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&status=Pending'
+    );
+    expect(totalPendingLink).toBeDefined();
+    expect(totalPendingLink?.textContent).toBe('2');
+
     // Pending Booking cell link in pending cases table for Bob should omit month and year filters
     const bookingLink = links.find(
       l => l.getAttribute('href') === '/orders?backendExecutiveId=13&status=Pending+Booking'
     );
     expect(bookingLink).toBeDefined();
     expect(bookingLink?.textContent).toBe('3');
+
+    // Top performers links should include dateType=order, dateFrom, dateTo, and status=Pending for pending cell
+    const topPerfPendingLink = links.find(
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&status=Pending&dateType=order&dateFrom=2026-06-01&dateTo=2026-06-30'
+    );
+    expect(topPerfPendingLink).toBeDefined();
+
+    const topPerfCompletedLink = links.find(
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&status=Completed+Orders&dateType=order&dateFrom=2026-06-01&dateTo=2026-06-30'
+    );
+    expect(topPerfCompletedLink).toBeDefined();
+
+    const topPerfNameLink = links.find(
+      l => l.getAttribute('href') === '/orders?backendExecutiveId=12&dateType=order&dateFrom=2026-06-01&dateTo=2026-06-30'
+    );
+    expect(topPerfNameLink).toBeDefined();
   });
 
   it('should not render month navigator controls for Pending Cases by Category section', () => {
@@ -135,5 +158,77 @@ describe('BackendTeamWidget Unit Tests', () => {
     expect(screen.getByText('Pending Cases by Category')).toBeDefined();
     // Month navigator text like "June 2026" should not be rendered when only pending cases table is shown
     expect(screen.queryByText('June 2026')).toBeNull();
+  });
+
+  it('W-4903: should render Active, Inactive, and All filter toggles on Pending Cases by Category and refetch when clicked', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ pendingByCategory: [] }),
+    });
+    const originalFetch = global.fetch;
+    global.fetch = fetchSpy;
+
+    try {
+      render(
+        <BackendTeamWidget
+          initialData={mockData}
+          permissions="dashboard:backend-pending-cases"
+          initialMonth={6}
+          initialYear={2026}
+        />
+      );
+
+      // Verify filter toggle buttons exist
+      const activeBtn = screen.getByRole('button', { name: 'Active' });
+      const inactiveBtn = screen.getByRole('button', { name: 'Inactive' });
+      const allBtn = screen.getByRole('button', { name: 'All' });
+
+      expect(activeBtn).toBeDefined();
+      expect(inactiveBtn).toBeDefined();
+      expect(allBtn).toBeDefined();
+
+      // Click Inactive button
+      activeBtn.blur();
+      inactiveBtn.click();
+
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('/api/dashboard/backend-team?agentStatus=inactive'));
+
+      // Click All button
+      allBtn.click();
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('/api/dashboard/backend-team?agentStatus=all'));
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('W-4903: should display (Inactive) badge for inactive backend agents in Pending Cases table', () => {
+    const dataWithInactive = {
+      pendingByCategory: [
+        {
+          agentId: 14,
+          agentName: 'Charlie Inactive',
+          status: 0,
+          pendingBooking: 2,
+          pendingShipment: 1,
+          pendingDelivery: 0,
+          pendingFeedback: 0,
+          pendingResolutions: 1,
+          totalPending: 4,
+          completedCount: 2,
+        },
+      ],
+    };
+
+    render(
+      <BackendTeamWidget
+        initialData={dataWithInactive}
+        permissions="dashboard:backend-pending-cases"
+        initialMonth={6}
+        initialYear={2026}
+      />
+    );
+
+    expect(screen.getByText('Charlie Inactive')).toBeDefined();
+    expect(screen.getByText('(Inactive)')).toBeDefined();
   });
 });

@@ -33,9 +33,12 @@ export async function GET(request: Request) {
 
   const month = searchParams.get('month') ? Number(searchParams.get('month')) : parseInt(estNow.month);
   const year = searchParams.get('year') ? Number(searchParams.get('year')) : parseInt(estNow.year);
+  const agentStatusParam = searchParams.get('agentStatus');
+  const agentStatus: 'active' | 'inactive' | 'all' =
+    agentStatusParam === 'inactive' ? 'inactive' : agentStatusParam === 'all' ? 'all' : 'active';
 
   try {
-    const data = await dashboardService.getBackendTeamDashboard(session, month, year);
+    const data = await dashboardService.getBackendTeamDashboard(session, month, year, agentStatus);
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'private, max-age=60',

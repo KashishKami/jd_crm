@@ -41,6 +41,7 @@ export async function GET(request: Request) {
   const partFoundById = partFoundByIdStr ? Number(partFoundByIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
+  const dateType = searchParams.get('dateType') || undefined;
 
   try {
     const counts = await getPendingCounts({
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
       dateFrom,
       dateTo,
       saleStatus,
+      dateType,
     });
     return NextResponse.json(counts);
   } catch (error: unknown) {

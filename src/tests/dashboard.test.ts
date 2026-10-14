@@ -1563,6 +1563,231 @@ describe('Dashboard Integration Tests', () => {
       expect(feb?.amount ?? 0).toBe(0);
     });
   });
+
+  describe('W-4904 — getPendingCounts realized/created dateType and Pending aggregate', () => {
+    let testAgent: any;
+    let testCustomer: any;
+
+    beforeEach(async () => {
+      const team = await prisma.crmTeams.findFirst();
+      const role = await prisma.crmRoles.findFirst();
+
+      testAgent = await prisma.users.create({
+        data: {
+          name: 'W4904 Test Agent',
+          username: `w4904_agent_${Date.now()}`,
+          teamId: team!.teamId,
+          roleId: role!.roleId,
+          status: 1,
+          designation: 'Sales Associate',
+        },
+      });
+
+      testCustomer = await prisma.crmCustomers.create({
+        data: {
+          customerName: 'W4904 Test Customer',
+          customerEmail: `w4904_${Date.now()}@test.com`,
+          customerPhone: '555-4904',
+        },
+      });
+    });
+
+    afterEach(async () => {
+      await prisma.crmSaleStatusHistory.deleteMany({
+        where: { order: { orderVendorName: 'W4904_TEST_PENDING' } },
+      });
+      await prisma.crmOrders.deleteMany({
+        where: { orderVendorName: 'W4904_TEST_PENDING' },
+      });
+      if (testCustomer) {
+        await prisma.crmCustomers.delete({ where: { customerId: testCustomer.customerId } }).catch(() => {});
+      }
+      if (testAgent) {
+        await prisma.users.delete({ where: { uid: testAgent.uid } }).catch(() => {});
+      }
+    });
+
+    it('[RED] getPendingCounts should support dateType=realized and count prior-month sales with realized refund in October', async () => {
+      // Order 1: Order date Oct 6 (Oct sale), Refunded in Oct ($200)
+      const order1 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-10-06T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '2',
+          orderCurrentStatus: 'Returned Orders',
+          orderAmountCharged: '200.00',
+          orderRefundAmount: '200.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: order1.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-06T16:00:00.000Z'),
+        },
+      });
+
+      // Order 2: Order date Sept 29 (Sept sale!), Refunded in Oct ($200)
+      const order2 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-09-29T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '2',
+          orderCurrentStatus: 'Returned Orders',
+          orderAmountCharged: '200.00',
+          orderRefundAmount: '200.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: order2.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-02T16:00:00.000Z'),
+        },
+      });
+
+      // Order 3: Order date Sept 10 (Sept sale!), Refunded in Oct ($316)
+      const order3 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-09-10T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '2',
+          orderCurrentStatus: 'Returned Orders',
+          orderAmountCharged: '316.00',
+          orderRefundAmount: '316.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: order3.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-10-10T16:00:00.000Z'),
+        },
+      });
+
+      // Order 4: Order date Sept 5 (Sept sale), Refunded in Sept ($150) -> MUST BE EXCLUDED from Oct realized!
+      const order4 = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-09-05T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '2',
+          orderCurrentStatus: 'Returned Orders',
+          orderAmountCharged: '150.00',
+          orderRefundAmount: '150.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+      await prisma.crmSaleStatusHistory.create({
+        data: {
+          orderId: order4.crmOrderId,
+          oldValue: '1',
+          newValue: '2',
+          changedById: testAgent.uid,
+          changedByName: testAgent.name,
+          changedAt: new Date('2026-09-20T16:00:00.000Z'),
+        },
+      });
+
+      const { getPendingCounts } = await import('../repository/dashboard.repository');
+      const counts = await getPendingCounts({
+        saleStatus: '2',
+        dateType: 'realized',
+        dateFrom: '2026-10-01',
+        dateTo: '2026-10-31',
+      });
+
+      // All 3 October-realized refunds must be included ($200 + $200 + $316 = $716)
+      expect(counts['Returned Orders'].count).toBe(3);
+      expect(counts['Returned Orders'].amount).toBe(716);
+
+      // Verify route /api/orders/pending-counts also accepts dateType=realized
+      vi.mocked(getServerSession).mockResolvedValueOnce({
+        user: { id: '1', name: 'Super Admin', userPermissions: 'orders:view' },
+      });
+      const { GET } = await import('../app/api/orders/pending-counts/route');
+      const req = new Request('http://localhost/api/orders/pending-counts?saleStatus=2&dateType=realized&dateFrom=2026-10-01&dateTo=2026-10-31');
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data['Returned Orders'].count).toBe(3);
+      expect(data['Returned Orders'].amount).toBe(716);
+    });
+
+    it('[RED] getPendingCounts should populate Pending aggregate key summing all 5 workflow queues', async () => {
+      // Create 1 booking order and 1 shipment order
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-10-15T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '1',
+          orderCurrentStatus: 'Pending Booking',
+          orderAmountCharged: '500.00',
+          orderRefundAmount: '0.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+
+      await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-10-15T12:00:00.000Z'),
+          orderStatus: '1',
+          saleStatus: '1',
+          orderCurrentStatus: 'Pending Shipment',
+          orderAmountCharged: '300.00',
+          orderRefundAmount: '0.00',
+          orderSalesAgentId: testAgent.uid,
+          orderVendorName: 'W4904_TEST_PENDING',
+        },
+      });
+
+      const { getPendingCounts } = await import('../repository/dashboard.repository');
+      const counts = await getPendingCounts({
+        agentId: testAgent.uid,
+      });
+
+      expect(counts['Pending']).toBeDefined();
+      const expectedCount =
+        counts['Pending Booking'].count +
+        counts['Pending Shipment'].count +
+        counts['Pending Delivery'].count +
+        counts['Pending Feedback'].count +
+        counts['Pending Resolutions'].count;
+      const expectedAmount =
+        counts['Pending Booking'].amount +
+        counts['Pending Shipment'].amount +
+        counts['Pending Delivery'].amount +
+        counts['Pending Feedback'].amount +
+        counts['Pending Resolutions'].amount;
+
+      expect(counts['Pending'].count).toBe(expectedCount);
+      expect(counts['Pending'].amount).toBe(expectedAmount);
+      expect(counts['Pending'].count).toBe(2);
+      expect(counts['Pending'].amount).toBe(800);
+    });
+  });
 });
 
 

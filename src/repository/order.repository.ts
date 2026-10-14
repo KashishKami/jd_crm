@@ -420,6 +420,20 @@ export async function findAll(filters: OrderFilters): Promise<any> {
           { childOrders: { some: { saleStatus: { in: ['2', '3', '5'] } } } }
         ]
       });
+    } else if (filters.status === 'Pending') {
+      const pendingStatuses = [
+        'Pending Booking',
+        'Pending Shipment',
+        'Pending Delivery',
+        'Pending Feedback',
+        'Pending Resolutions',
+      ];
+      andConditions.push({
+        OR: [
+          { orderCurrentStatus: { in: pendingStatuses } },
+          { childOrders: { some: { orderCurrentStatus: { in: pendingStatuses } } } },
+        ],
+      });
     } else {
       andConditions.push({
         OR: [
@@ -496,6 +510,21 @@ export async function findAll(filters: OrderFilters): Promise<any> {
         },
       });
     }
+  } else if (filters.dateType === 'created' && (filters.dateFrom || filters.dateTo)) {
+    const createdFilter: Prisma.DateTimeFilter = {};
+    if (filters.dateFrom) {
+      const dateFromStr = String(filters.dateFrom).split('T')[0];
+      const [y, m, d] = dateFromStr.split('-').map(Number);
+      createdFilter.gte = getEstMidnightUtc(y, m - 1, d);
+    }
+    if (filters.dateTo) {
+      const dateToStr = String(filters.dateTo).split('T')[0];
+      const [y, m, d] = dateToStr.split('-').map(Number);
+      const nextDay = new Date(Date.UTC(y, m - 1, d + 1));
+      const nextDayMidnight = getEstMidnightUtc(nextDay.getUTCFullYear(), nextDay.getUTCMonth(), nextDay.getUTCDate());
+      createdFilter.lte = new Date(nextDayMidnight.getTime() - 1);
+    }
+    andConditions.push({ orderCreatedDate: createdFilter });
   } else if (filters.dateFrom || filters.dateTo) {
     const dateFilter: Prisma.DateTimeNullableFilter = {};
     if (filters.dateFrom) {

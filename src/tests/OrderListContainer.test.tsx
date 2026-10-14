@@ -363,7 +363,7 @@ describe('OrderListContainer Unit Tests', () => {
       render(<OrderListContainer />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Date Range: 2026-09-01 to 2026-09-30/)).toBeDefined();
+        expect(screen.getByText(/Order Date: 2026-09-01 to 2026-09-30/)).toBeDefined();
         const calls = (global.fetch as any).mock.calls;
         const ordersCalls = calls.filter((c: any[]) => String(c[0]).includes('/api/orders?'));
         const lastOrdersCall = ordersCalls[ordersCalls.length - 1];
@@ -465,6 +465,72 @@ describe('OrderListContainer Unit Tests', () => {
         expect(screen.queryByText(/Realized Date:/)).toBeNull();
       });
     });
-  });
+
+    it('W-4901: should initialize dateFrom and dateTo lazily on mount when month and year are passed in searchParams', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: (key: string) => {
+          if (key === 'month') return '6';
+          if (key === 'year') return '2026';
+          if (key === 'backendExecutiveId') return '12';
+          if (key === 'status') return 'Pending';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        const calls = (global.fetch as any).mock.calls;
+        const firstOrdersCall = calls.find((c: any[]) => String(c[0]).includes('/api/orders?'));
+        expect(firstOrdersCall).toBeDefined();
+        // The first orders fetch MUST have dateFrom=2026-06-01 and dateTo=2026-06-30 immediately on mount
+        expect(String(firstOrdersCall[0])).toContain('dateFrom=2026-06-01');
+        expect(String(firstOrdersCall[0])).toContain('dateTo=2026-06-30');
+        expect(String(firstOrdersCall[0])).toContain('status=Pending');
+        expect(String(firstOrdersCall[0])).toContain('backendExecutiveId=12');
+      });
+    });
+
+    it('W-4904: should forward dateType=realized in fetchPendingCounts to /api/orders/pending-counts', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: (key: string) => {
+          if (key === 'dateType') return 'realized';
+          if (key === 'dateFrom') return '2026-10-01';
+          if (key === 'dateTo') return '2026-10-31';
+          if (key === 'saleStatus') return '2';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer initialStatus="Returned Orders" />);
+
+      await waitFor(() => {
+        const calls = (global.fetch as any).mock.calls;
+        const pendingCountsCall = calls.find((c: any[]) => String(c[0]).includes('/api/orders/pending-counts?'));
+        expect(pendingCountsCall).toBeDefined();
+        expect(String(pendingCountsCall[0])).toContain('dateType=realized');
+        expect(String(pendingCountsCall[0])).toContain('dateFrom=2026-10-01');
+        expect(String(pendingCountsCall[0])).toContain('dateTo=2026-10-31');
+      });
+    });
+
+    it('W-4904: should render summary card banner when status=Pending', async () => {
+      vi.mocked(useSearchParams).mockReturnValue({
+        get: (key: string) => {
+          if (key === 'status') return 'Pending';
+          if (key === 'backendExecutiveId') return '12';
+          return null;
+        },
+      } as any);
+
+      render(<OrderListContainer />);
+
+      await waitFor(() => {
+        const summaryCard = screen.getByTestId('tab-totals-summary');
+        expect(summaryCard).toBeDefined();
+        expect(screen.getByText(/Pending Summary:/)).toBeDefined();
+      });
+    });
+});
 
 

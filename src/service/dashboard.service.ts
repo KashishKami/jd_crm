@@ -357,7 +357,12 @@ export async function getChampionsLeague(session: any, month?: number, year?: nu
   return result;
 }
 
-export async function getBackendTeamDashboard(session: any, month: number, year: number) {
+export async function getBackendTeamDashboard(
+  session: any,
+  month: number,
+  year: number,
+  agentStatus: 'active' | 'inactive' | 'all' = 'active'
+) {
   const permissions = session?.user?.userPermissions || '';
   if (
     !hasPermission(permissions, 'dashboard:backend-top-performer') &&
@@ -391,7 +396,7 @@ export async function getBackendTeamDashboard(session: any, month: number, year:
   }
 
   if (hasPermission(permissions, 'dashboard:backend-pending-cases')) {
-    const pendingData = await dashboardRepository.getBackendPendingCasesAllTime();
+    const pendingData = await dashboardRepository.getBackendPendingCasesAllTime(agentStatus);
     result.pendingByCategory = [...pendingData]
       .sort((a, b) => b.totalPending - a.totalPending);
   }

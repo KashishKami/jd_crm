@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   const partFoundById = partFoundByIdStr ? Number(partFoundByIdStr) : undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
-  const dateType = (searchParams.get('dateType') as 'orderDate' | 'realized') || undefined;
+  const dateType = (searchParams.get('dateType') as 'orderDate' | 'realized' | 'created') || undefined;
   const pageStr = searchParams.get('page');
   const limitStr = searchParams.get('limit');
   const page = pageStr !== null ? Number(pageStr) : undefined;

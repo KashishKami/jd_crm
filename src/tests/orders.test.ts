@@ -4271,6 +4271,137 @@ describe('Order Management Integration Tests', () => {
       }
     });
   });
+
+  describe('W-4901 — Backend Status=Pending and DateType=created Filtering in Orders Pipeline', () => {
+    it('[RED] should filter all pending categories when status=Pending is provided', async () => {
+      // Create 5 pending orders across all 5 workflow states + 1 completed order
+      const pendingStatuses = [
+        'Pending Booking',
+        'Pending Shipment',
+        'Pending Delivery',
+        'Pending Feedback',
+        'Pending Resolutions',
+      ];
+
+      const createdOrders = await Promise.all(
+        pendingStatuses.map(status =>
+          prisma.crmOrders.create({
+            data: {
+              orderCustomerId: testCustomer.customerId,
+              orderTotalPitched: '100.00',
+              orderAmountCharged: '100.00',
+              orderCurrentStatus: status,
+              saleStatus: '1',
+            },
+          })
+        )
+      );
+
+      const completedOrder = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderTotalPitched: '200.00',
+          orderAmountCharged: '200.00',
+          orderCurrentStatus: 'Completed Orders',
+          saleStatus: '1',
+        },
+      });
+
+      const allIds = [...createdOrders.map(o => o.crmOrderId), completedOrder.crmOrderId];
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request('http://localhost/api/orders?status=Pending');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        // All 5 pending orders must be returned
+        for (const order of createdOrders) {
+          const found = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === order.crmOrderId);
+          expect(found).toBe(true);
+        }
+
+        // Completed order MUST be excluded
+        const foundCompleted = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === completedOrder.crmOrderId);
+        expect(foundCompleted).toBe(false);
+      } finally {
+        await prisma.crmOrders.deleteMany({
+          where: { crmOrderId: { in: allIds } },
+        });
+      }
+    });
+
+    it('[RED] should filter by orderCreatedDate when dateType=created is provided', async () => {
+      // Order JuneCreatedMaySale: created in June 2026, but sale orderDate is in May 2026
+      const orderJuneCreated = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-05-10T12:00:00.000Z'), // May
+          orderCreatedDate: new Date('2026-06-15T12:00:00.000Z'), // June
+          orderTotalPitched: '300.00',
+          orderAmountCharged: '300.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      // Order MayCreatedJuneSale: created in May 2026, but sale orderDate is in June 2026
+      const orderMayCreated = await prisma.crmOrders.create({
+        data: {
+          orderCustomerId: testCustomer.customerId,
+          orderDate: new Date('2026-06-10T12:00:00.000Z'), // June
+          orderCreatedDate: new Date('2026-05-15T12:00:00.000Z'), // May
+          orderTotalPitched: '400.00',
+          orderAmountCharged: '400.00',
+          orderCurrentStatus: 'Pending Booking',
+          saleStatus: '1',
+        },
+      });
+
+      const allIds = [orderJuneCreated.crmOrderId, orderMayCreated.crmOrderId];
+
+      try {
+        vi.mocked(getServerSession).mockResolvedValueOnce({
+          user: {
+            id: '1',
+            name: 'Authorized User',
+            userPermissions: 'orders:view',
+          },
+        });
+
+        const { GET } = await import('../app/api/orders/route');
+        const req = new Request('http://localhost/api/orders?dateType=created&dateFrom=2026-06-01&dateTo=2026-06-30');
+        const res = await GET(req);
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const ordersList = data.data || data;
+
+        // Order created in June MUST be included (even though orderDate is May)
+        const foundJune = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderJuneCreated.crmOrderId);
+        expect(foundJune).toBe(true);
+
+        // Order created in May MUST be excluded (even though orderDate is June)
+        const foundMay = ordersList.some((o: { crmOrderId: number }) => o.crmOrderId === orderMayCreated.crmOrderId);
+        expect(foundMay).toBe(false);
+      } finally {
+        await prisma.crmOrders.deleteMany({
+          where: { crmOrderId: { in: allIds } },
+        });
+      }
+    });
+  });
 });
 
 

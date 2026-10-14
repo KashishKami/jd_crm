@@ -162,7 +162,7 @@ export interface OrderFilters {
   partFoundById?: number;
   dateFrom?: string;
   dateTo?: string;
-  dateType?: 'orderDate' | 'realized';
+  dateType?: 'orderDate' | 'realized' | 'created';
   page?: number;
   limit?: number;
 }
