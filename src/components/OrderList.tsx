@@ -66,6 +66,10 @@ interface OrderListProps {
     orderBackendExecutiveName?: string | null;
     orderVerifierName?: string | null;
     orderPartFoundByName?: string | null;
+    orderVendorName?: string | null;
+    vendor?: {
+      vendorName: string;
+    } | null;
     childOrders?: Array<{
       crmOrderId: number;
       orderMakeModel: string | null;
@@ -74,6 +78,10 @@ interface OrderListProps {
       orderCurrentStatusUpdateDate?: string | Date | null;
       saleStatus?: string | null;
       orderVendorPrice?: string | null;
+      orderVendorName?: string | null;
+      vendor?: {
+        vendorName: string;
+      } | null;
       orderBackendExecutiveName?: string | null;
       backendExecutive?: {
         name: string;
@@ -408,10 +416,6 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                         <span>{order.backendExecutive?.nickname || order.backendExecutive?.name || order.orderBackendExecutiveName || 'Unassigned'}</span>
                       </div>
                       <div>
-                        <span className="font-semibold text-slate-800">QA Verifier: </span>
-                        <span>{order.verifier?.nickname || order.verifier?.name || order.orderVerifierName || 'Unassigned'}</span>
-                      </div>
-                      <div>
                         <span className="font-semibold text-slate-800">Part Found By: </span>
                         <span>{(() => {
                           const names = new Set<string>();
@@ -424,6 +428,21 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                             }
                           }
                           return names.size > 0 ? Array.from(names).join(', ') : 'Unassigned';
+                        })()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800">Part Supplier: </span>
+                        <span>{(() => {
+                          const suppliers = new Set<string>();
+                          const primarySupplier = order.vendor?.vendorName || order.orderVendorName;
+                          if (primarySupplier) suppliers.add(primarySupplier);
+                          if (order.childOrders) {
+                            for (const child of order.childOrders) {
+                              const childSupplier = child.vendor?.vendorName || child.orderVendorName;
+                              if (childSupplier) suppliers.add(childSupplier);
+                            }
+                          }
+                          return suppliers.size > 0 ? Array.from(suppliers).join(', ') : 'Unassigned';
                         })()}</span>
                       </div>
                     </div>

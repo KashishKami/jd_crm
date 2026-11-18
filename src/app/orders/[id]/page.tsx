@@ -127,6 +127,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canViewLog = hasPermission(permissions, 'orders:view-log');
   const canViewAuditLog = hasPermission(permissions, 'orders:view-audit-log');
 
+  const safeUserSelect = {
+    uid: true,
+    name: true,
+    nickname: true,
+    designation: true,
+  };
+
   const [order, saleHistory, workflowHistory, rawViewLogs, rawAuditLogs] = await Promise.all([
     prisma.crmOrders.findUnique({
       where: { crmOrderId },
@@ -138,16 +145,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         },
         vendor: true,
         gateway: true,
-        salesAgent: true,
-        verifier: true,
-        backendExecutive: true,
-        partFoundBy: true,
+        salesAgent: { select: safeUserSelect },
+        verifier: { select: safeUserSelect },
+        salesVerifier: { select: safeUserSelect },
+        backendExecutive: { select: safeUserSelect },
+        partFoundBy: { select: safeUserSelect },
         childOrders: {
           include: {
             vendor: true,
             gateway: true,
-            backendExecutive: true,
-            partFoundBy: true,
+            backendExecutive: { select: safeUserSelect },
+            partFoundBy: { select: safeUserSelect },
           }
         }
       },

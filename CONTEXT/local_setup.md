@@ -20,7 +20,7 @@ Follow these steps in the exact sequence specified:
 ### Step 1: Install Dependencies
 Run the following command in the project root to install the required packages (including Next.js, Prisma 7, and MariaDB drivers):
 ```bash
-npm install
+npm ci
 ```
 
 ### Step 2: Configure Environment Variables
@@ -62,7 +62,7 @@ docker ps
 ### Step 4: Run Database Migrations
 Generate the database schema and foreign key relations using Prisma:
 ```bash
-npx prisma migrate dev --name init_jd_crm_schema
+npx prisma migrate dev
 ```
 This command reads the configuration in `prisma.config.ts`, formats the database, and creates all tables under InnoDB with correct foreign key constraints.
 

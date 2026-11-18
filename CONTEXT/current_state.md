@@ -12007,3 +12007,38 @@ Add a filter to "Pending Cases by Category" (across all time) allowing users to 
 
 
 
+
+
+---
+
+### Session Note — Phase 50 Completion
+
+- **W-5001 — Part Supplier in Orders & Recent Orders Table (replaces QA Verifier)**:
+  - Updated `src/components/OrderList.tsx` to remove `QA Verifier` from the Agents table column and introduce **Part Supplier** in the 5th position below `Part Found By`.
+  - Standardized the new column layout to:
+    1. `Sales Agent`
+    2. `Sales Verifier`
+    3. `Backend Executive`
+    4. `Part Found By`
+    5. `Part Supplier`
+  - Part Supplier handles single-part orders (`order.vendor?.vendorName || order.orderVendorName || 'Unassigned'`) and multi-part orders (`childOrders`) by aggregating unique vendor names across all parts into a clean comma-separated list.
+  - Updated `src/components/dashboard/RecentOrdersTable.tsx` normalization pipeline to explicitly preserve `orderVendorName` and `vendor`.
+  - Extended TypeScript interface `OrderListProps` with `orderVendorName` and `vendor` on parent and child orders.
+
+- **W-5002 — User Relations Security Sanitization in Order Queries**:
+  - Eliminated data leakage where raw `salesAgent: true`, `verifier: true`, `salesVerifier: true`, and `backendExecutive: true` joins in `src/repository/order.repository.ts`, `src/repository/dashboard.repository.ts`, and `src/app/orders/[id]/page.tsx` exposed confidential user fields (`password` hash, `agentSalary`, `agentTarget`, and `mobile`) in API and page responses.
+  - Implemented `safeUserSelect` projection (`uid`, `name`, `nickname`, `designation`, `status`, `teamId`, `roleId`) across `findAll`, `findById`, and `getRecentOrders`, as well as on child parts in `childOrdersSelect`.
+  - Non-sensitive relational foreign keys (`teamId`, `roleId`) are explicitly included so team/role filters and UI components function properly while confidential fields remain strictly omitted.
+  - Audited `EditOrderPage` (`src/app/orders/[id]/edit/page.tsx`) to confirm it does not expose sensitive user fields.
+
+- **TDD & Test Verification**:
+  - `src/tests/OrderList.test.tsx`:
+    - Updated sequence test: verifies `Sales Agent -> Sales Verifier -> Backend Executive -> Part Found By -> Part Supplier` and asserts that `QA Verifier` is completely absent.
+    - Added edge case tests for single-part orders without vendors (`'Unassigned'`), string snapshot fallbacks (`orderVendorName`), and multi-part aggregation with deduplication.
+    - Updated W-1902 alias display test to verify `partFoundBy` instead of removed `verifier`.
+  - `src/tests/order_security_sanitization.test.ts`:
+    - Added comprehensive integration tests covering `orderRepository.findById`, `orderRepository.findAll`, and `dashboardRepository.getRecentOrders`, verifying that `password`, `agentSalary`, `agentTarget`, and `mobile` are never returned on any user relations.
+  - Full suite verification:
+    - `npm run lint` — 0 errors, 0 warnings.
+    - `npm run typecheck` — 0 type errors.
+    - Test suites: 37/37 passing GREEN.

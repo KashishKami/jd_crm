@@ -37,6 +37,8 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
       orderCurrentStatus: o.orderCurrentStatus || 'Unknown',
       orderCurrentStatusUpdateDate: o.orderCurrentStatusUpdateDate || null,
       saleStatus: o.saleStatus || null,
+      orderVendorName: o.orderVendorName || null,
+      vendor: o.vendor || null,
     };
   });
 

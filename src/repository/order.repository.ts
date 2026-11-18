@@ -13,6 +13,16 @@ function toUtcNoonDate(dateVal: string | Date | null | undefined): Date {
   return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
 }
 
+export const safeUserSelect = {
+  uid: true,
+  name: true,
+  nickname: true,
+  designation: true,
+  status: true,
+  teamId: true,
+  roleId: true,
+};
+
 export const GLOBAL_FIELDS = [
   'orderSalesAgentId',
   'orderSalesAgentName',
@@ -560,19 +570,17 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     orderPartFoundByName: true,
     orderVendorFeedback: true,
     backendExecutive: {
-      select: {
-        uid: true,
-        nickname: true,
-        name: true,
-      }
+      select: safeUserSelect,
     },
     partFoundBy: {
+      select: safeUserSelect,
+    },
+    vendor: {
       select: {
-        uid: true,
-        nickname: true,
-        name: true,
-      }
-    }
+        vendorId: true,
+        vendorName: true,
+      },
+    },
   };
 
   if (filters.page !== undefined && filters.limit !== undefined) {
@@ -585,13 +593,15 @@ export async function findAll(filters: OrderFilters): Promise<any> {
           vendor: true,
           gateway: true,
           salesAgent: {
-            include: {
+            select: {
+              ...safeUserSelect,
               team: true,
             },
           },
-          verifier: true,
-          salesVerifier: true,
-          backendExecutive: true,
+          verifier: { select: safeUserSelect },
+          salesVerifier: { select: safeUserSelect },
+          backendExecutive: { select: safeUserSelect },
+          partFoundBy: { select: safeUserSelect },
           childOrders: {
             select: childOrdersSelect,
           },
@@ -618,13 +628,15 @@ export async function findAll(filters: OrderFilters): Promise<any> {
       vendor: true,
       gateway: true,
       salesAgent: {
-        include: {
+        select: {
+          ...safeUserSelect,
           team: true,
         },
       },
-      verifier: true,
-      salesVerifier: true,
-      backendExecutive: true,
+      verifier: { select: safeUserSelect },
+      salesVerifier: { select: safeUserSelect },
+      backendExecutive: { select: safeUserSelect },
+      partFoundBy: { select: safeUserSelect },
       childOrders: {
         select: childOrdersSelect,
       },
@@ -647,20 +659,15 @@ export async function findById(crmOrderId: number) {
       vendor: true,
       gateway: true,
       salesAgent: {
-        include: {
+        select: {
+          ...safeUserSelect,
           team: true,
         },
       },
-      verifier: true,
-      salesVerifier: true,
-      backendExecutive: true,
-      partFoundBy: {
-        select: {
-          uid: true,
-          nickname: true,
-          name: true,
-        },
-      },
+      verifier: { select: safeUserSelect },
+      salesVerifier: { select: safeUserSelect },
+      backendExecutive: { select: safeUserSelect },
+      partFoundBy: { select: safeUserSelect },
       comments: true,
       childOrders: {
         include: {

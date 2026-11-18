@@ -331,6 +331,16 @@ export async function getBottomPerformers(limit = 5, month?: number, year?: numb
 }
 
 export async function getRecentOrders(limit = 10) {
+  const safeUserSelect = {
+    uid: true,
+    name: true,
+    nickname: true,
+    designation: true,
+    status: true,
+    teamId: true,
+    roleId: true,
+  };
+
   const childOrdersSelect = {
     crmOrderId: true,
     orderMakeModel: true,
@@ -351,19 +361,17 @@ export async function getRecentOrders(limit = 10) {
     orderPartFoundByName: true,
     orderVendorFeedback: true,
     backendExecutive: {
-      select: {
-        uid: true,
-        nickname: true,
-        name: true,
-      }
+      select: safeUserSelect,
     },
     partFoundBy: {
+      select: safeUserSelect,
+    },
+    vendor: {
       select: {
-        uid: true,
-        nickname: true,
-        name: true,
-      }
-    }
+        vendorId: true,
+        vendorName: true,
+      },
+    },
   };
 
   return await prisma.crmOrders.findMany({
@@ -380,13 +388,15 @@ export async function getRecentOrders(limit = 10) {
       vendor: true,
       gateway: true,
       salesAgent: {
-        include: {
+        select: {
+          ...safeUserSelect,
           team: true,
         },
       },
-      verifier: true,
-      salesVerifier: true,
-      backendExecutive: true,
+      verifier: { select: safeUserSelect },
+      salesVerifier: { select: safeUserSelect },
+      backendExecutive: { select: safeUserSelect },
+      partFoundBy: { select: safeUserSelect },
       childOrders: {
         select: childOrdersSelect,
       },

@@ -22,8 +22,8 @@ afterEach(() => {
   cleanup();
 });
 
-describe('OrderList W-1601 Unit Tests', () => {
-  it('should render all four roles in sequence: Sales Rep/Agent -> Sales Verifier -> Backend Executive -> QA Verifier', () => {
+describe('OrderList W-1601 & W-5001 Unit Tests', () => {
+  it('should render all five fields in sequence: Sales Agent -> Sales Verifier -> Backend Executive -> Part Found By -> Part Supplier', () => {
     const mockOrders = [
       {
         crmOrderId: 45,
@@ -54,6 +54,13 @@ describe('OrderList W-1601 Unit Tests', () => {
           name: 'Carol Executive',
           nickname: 'Carol',
         },
+        partFoundBy: {
+          name: 'David Finder',
+          nickname: 'David',
+        },
+        vendor: {
+          vendorName: 'LKQ Auto Parts',
+        },
         verifier: {
           name: 'Dave QA',
           nickname: 'Dave',
@@ -66,19 +73,88 @@ describe('OrderList W-1601 Unit Tests', () => {
     const row = screen.getByRole('row', { name: /#45/i });
     const text = row.textContent || '';
 
+    // QA Verifier must NOT appear
+    expect(text.includes('QA Verifier')).toBe(false);
+    expect(text.includes('Dave')).toBe(false);
+
+    // Verify all 5 labels exist
+    expect(text).toContain('Sales Agent:');
+    expect(text).toContain('Sales Verifier:');
+    expect(text).toContain('Backend Executive:');
+    expect(text).toContain('Part Found By:');
+    expect(text).toContain('Part Supplier:');
+
+    // Verify sequence of values
     const aliceIndex = text.indexOf('Alice');
     const bobIndex = text.indexOf('Bob');
     const carolIndex = text.indexOf('Carol');
-    const daveIndex = text.indexOf('Dave');
+    const davidIndex = text.indexOf('David');
+    const lkqIndex = text.indexOf('LKQ Auto Parts');
 
     expect(aliceIndex).not.toBe(-1);
     expect(bobIndex).not.toBe(-1);
     expect(carolIndex).not.toBe(-1);
-    expect(daveIndex).not.toBe(-1);
+    expect(davidIndex).not.toBe(-1);
+    expect(lkqIndex).not.toBe(-1);
 
     expect(aliceIndex).toBeLessThan(bobIndex);
     expect(bobIndex).toBeLessThan(carolIndex);
-    expect(carolIndex).toBeLessThan(daveIndex);
+    expect(carolIndex).toBeLessThan(davidIndex);
+    expect(davidIndex).toBeLessThan(lkqIndex);
+  });
+
+  describe('W-5001: Part Supplier in Agents column edge cases', () => {
+    it('should display Part Supplier as Unassigned when neither vendor nor orderVendorName exists', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 46,
+          customer: { customerName: 'Jane Doe' },
+          salesAgent: { name: 'Alice' },
+          orderVendorName: null,
+          vendor: null,
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+      const row = screen.getByRole('row', { name: /#46/i });
+      expect(row.textContent).toContain('Part Supplier: Unassigned');
+    });
+
+    it('should display Part Supplier using orderVendorName snapshot when vendor relation is null', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 47,
+          customer: { customerName: 'Jane Doe' },
+          salesAgent: { name: 'Alice' },
+          orderVendorName: 'Keystone Automotive',
+          vendor: null,
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+      const row = screen.getByRole('row', { name: /#47/i });
+      expect(row.textContent).toContain('Part Supplier: Keystone Automotive');
+    });
+
+    it('should aggregate and deduplicate Part Supplier across primary part and childOrders in multi-part orders', () => {
+      const mockOrders = [
+        {
+          crmOrderId: 48,
+          customer: { customerName: 'Jane Doe' },
+          salesAgent: { name: 'Alice' },
+          vendor: { vendorName: 'Vendor Alpha' },
+          childOrders: [
+            { crmOrderId: 101, vendor: { vendorName: 'Vendor Beta' } },
+            { crmOrderId: 102, orderVendorName: 'Vendor Alpha' },
+            { crmOrderId: 103, vendor: { vendorName: 'Vendor Gamma' } },
+          ],
+        },
+      ];
+
+      render(<OrderList orders={mockOrders as any} />);
+      const row = screen.getByRole('row', { name: /#48/i });
+      expect(row.textContent).toContain('Part Supplier: Vendor Alpha, Vendor Beta, Vendor Gamma');
+    });
   });
 
   it('[RED] should display finalMargin instead of raw orderMarkup when orderRefundAmount is set', () => {
@@ -199,9 +275,9 @@ describe('OrderList W-1601 Unit Tests', () => {
             name: 'Carol RealExecutive',
             nickname: 'ExecutiveAlias',
           },
-          verifier: {
-            name: 'Dave RealQA',
-            nickname: 'QAAlias',
+          partFoundBy: {
+            name: 'Dave RealFinder',
+            nickname: 'FinderAlias',
           },
         },
       ];
@@ -215,13 +291,13 @@ describe('OrderList W-1601 Unit Tests', () => {
       expect(text).toContain('AgentAlias');
       expect(text).toContain('VerifierAlias');
       expect(text).toContain('ExecutiveAlias');
-      expect(text).toContain('QAAlias');
+      expect(text).toContain('FinderAlias');
 
       // Verify that real names are NOT present in the row
       expect(text).not.toContain('John RealAgent');
       expect(text).not.toContain('Bob RealVerifier');
       expect(text).not.toContain('Carol RealExecutive');
-      expect(text).not.toContain('Dave RealQA');
+      expect(text).not.toContain('Dave RealFinder');
     });
   });
 
