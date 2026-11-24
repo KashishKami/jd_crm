@@ -299,5 +299,25 @@ describe('VendorList Component Unit Tests', () => {
 
     window.location = originalLocation as any;
   });
+
+  it('sends the search box text to the server after a short pause and resets to page 1', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { name: 'Admin User', userPermissions: 'vendors:view' } },
+      status: 'authenticated',
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    render(<VendorList />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+
+    const input = screen.getByRole('searchbox', { name: 'Search vendors' });
+    fireEvent.change(input, { target: { value: '  max ' } });
+
+    await waitFor(() => {
+      const urls = vi.mocked(global.fetch).mock.calls.map(c => String(c[0]));
+      expect(urls.some(u => u.includes('search=max') && u.includes('page=1') && u.includes('status=1'))).toBe(true);
+    });
+    expect(window.location.search).toContain('search=max');
+  });
 });
 

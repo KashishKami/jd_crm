@@ -9,6 +9,7 @@ import { gsap } from 'gsap';
 import { formatDateDDMMYYYY, getEstCalendarDaysDiff } from '../lib/date';
 import OrderCommentsPopup from './OrderCommentsPopup';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { formatSupplierWithContact } from '../lib/vendorContacts';
 
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '—';
@@ -67,6 +68,7 @@ interface OrderListProps {
     orderVerifierName?: string | null;
     orderPartFoundByName?: string | null;
     orderVendorName?: string | null;
+    orderVendorContactName?: string | null;
     vendor?: {
       vendorName: string;
     } | null;
@@ -79,6 +81,7 @@ interface OrderListProps {
       saleStatus?: string | null;
       orderVendorPrice?: string | null;
       orderVendorName?: string | null;
+      orderVendorContactName?: string | null;
       vendor?: {
         vendorName: string;
       } | null;
@@ -433,13 +436,14 @@ export default function OrderList({ orders, hideWrapper, skipAnimation }: OrderL
                       <div>
                         <span className="font-semibold text-slate-800">Part Supplier: </span>
                         <span>{(() => {
+                          // "XYZ Automotive (Max)" when the supplier contact is recorded
                           const suppliers = new Set<string>();
                           const primarySupplier = order.vendor?.vendorName || order.orderVendorName;
-                          if (primarySupplier) suppliers.add(primarySupplier);
+                          if (primarySupplier) suppliers.add(formatSupplierWithContact(primarySupplier, order.orderVendorContactName));
                           if (order.childOrders) {
                             for (const child of order.childOrders) {
                               const childSupplier = child.vendor?.vendorName || child.orderVendorName;
-                              if (childSupplier) suppliers.add(childSupplier);
+                              if (childSupplier) suppliers.add(formatSupplierWithContact(childSupplier, child.orderVendorContactName));
                             }
                           }
                           return suppliers.size > 0 ? Array.from(suppliers).join(', ') : 'Unassigned';

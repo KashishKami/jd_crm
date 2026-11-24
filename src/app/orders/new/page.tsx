@@ -1,6 +1,7 @@
 import React from 'react';
 import { prisma } from '../../../lib/db';
 import AddOrderForm from '../../../components/AddOrderForm';
+import { sortVendorsByName } from '../../../lib/vendorSort';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +13,9 @@ export const metadata = {
 export default async function NewOrderPage() {
   // Fetch active vendors, gateways, and users/agents
   const [vendors, gateways, agents] = await Promise.all([
-    prisma.crmVendors.findMany({
-      select: { vendorId: true, vendorName: true, vendorStatus: true },
-      orderBy: { vendorName: 'asc' },
-    }),
+    prisma.crmVendors
+      .findMany({ select: { vendorId: true, vendorName: true, vendorStatus: true } })
+      .then(sortVendorsByName),
     prisma.crmGateway.findMany({
       where: { gatewayStatus: 1 },
       select: { gatewayId: true, gatewayName: true },

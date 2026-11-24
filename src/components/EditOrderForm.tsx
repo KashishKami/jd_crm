@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { fadeInPage } from '../lib/animations';
 import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 import DealSummarySidebar from './DealSummarySidebar';
+import SupplierContactPicker from './SupplierContactPicker';
 
 interface EditOrderFormProps {
   order: any;
@@ -285,6 +286,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderVendorPrice: toCad(order.orderVendorPrice, rate) || '',
           orderAmountCharged: toCad(order.orderAmountCharged, rate) || '',
           orderVendorId: order.orderVendorId ? String(order.orderVendorId) : '',
+          orderVendorContactId: order.orderVendorContactId ? String(order.orderVendorContactId) : '',
+          orderVendorContactName: order.orderVendorContactName || '',
           orderPaymentGatewayId: order.orderPaymentGatewayId ? String(order.orderPaymentGatewayId) : '',
           orderSalesAgentId: order.orderSalesAgentId ? String(order.orderSalesAgentId) : '',
           orderSalesVerifierId: order.orderSalesVerifierId ? String(order.orderSalesVerifierId) : '',
@@ -316,6 +319,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderVendorPrice: toCad(c.orderVendorPrice, rate) || '',
           orderAmountCharged: toCad(c.orderAmountCharged, rate) || '',
           orderVendorId: c.orderVendorId ? String(c.orderVendorId) : '',
+          orderVendorContactId: c.orderVendorContactId ? String(c.orderVendorContactId) : '',
+          orderVendorContactName: c.orderVendorContactName || '',
           orderPaymentGatewayId: c.orderPaymentGatewayId ? String(c.orderPaymentGatewayId) : '',
           orderSalesAgentId: c.orderSalesAgentId ? String(c.orderSalesAgentId) : '',
           orderSalesVerifierId: c.orderSalesVerifierId ? String(c.orderSalesVerifierId) : '',
@@ -374,6 +379,8 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
         orderVendorPrice: '',
         orderAmountCharged: '',
         orderVendorId: '',
+        orderVendorContactId: '',
+        orderVendorContactName: '',
         orderPaymentGatewayId: parentPart.orderPaymentGatewayId || '',
         orderSalesAgentId: parentPart.orderSalesAgentId || '',
         orderSalesVerifierId: parentPart.orderSalesVerifierId || '',
@@ -459,6 +466,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderVendorPrice: newPart.orderVendorPrice || null,
           orderAmountCharged: newPart.orderAmountCharged || null,
           orderVendorId: newPart.orderVendorId ? Number(newPart.orderVendorId) : null,
+          orderVendorContactId: newPart.orderVendorId && newPart.orderVendorContactId ? Number(newPart.orderVendorContactId) : null,
           orderPaymentGatewayId: newPart.orderPaymentGatewayId ? Number(newPart.orderPaymentGatewayId) : null,
           orderSalesAgentId: newPart.orderSalesAgentId ? Number(newPart.orderSalesAgentId) : null,
           orderBackendExecutiveId: null,
@@ -498,6 +506,7 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
           orderDeliveryStatus: p.orderDeliveryStatus || '',
           orderVendorPrice: p.orderVendorPrice || null,
           orderVendorId: p.orderVendorId ? Number(p.orderVendorId) : null,
+          orderVendorContactId: p.orderVendorId && p.orderVendorContactId ? Number(p.orderVendorContactId) : null,
           orderBackendExecutiveId: p.crmOrderId === order.crmOrderId ? (orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null) : null,
           orderPartFoundById: p.orderPartFoundById ? Number(p.orderPartFoundById) : null,
           saleStatus: p.crmOrderId === order.crmOrderId ? saleStatus : null,
@@ -1192,6 +1201,9 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                                 const val = e.target.value;
                                 const newParts = [...parts];
                                 newParts[index].orderVendorId = val;
+                                // A contact belongs to one supplier, so changing supplier clears it
+                                newParts[index].orderVendorContactId = '';
+                                newParts[index].orderVendorContactName = '';
                                 setParts(newParts);
                               }}
                               className="form-select"
@@ -1208,6 +1220,20 @@ export default function EditOrderForm({ order, vendors, gateways, agents, canVie
                                 </option>
                               ))}
                             </select>
+                            <label htmlFor={`orderVendorContactId-${index}`} className="form-label" style={{ marginTop: '10px' }}>
+                              Supplier Contact <span className="text-slate-400 font-normal">(optional)</span>
+                            </label>
+                            <SupplierContactPicker
+                              id={`orderVendorContactId-${index}`}
+                              vendorId={part.orderVendorId}
+                              value={part.orderVendorContactId}
+                              currentName={part.orderVendorContactName}
+                              onChange={(contactId) => {
+                                const newParts = [...parts];
+                                newParts[index].orderVendorContactId = contactId;
+                                setParts(newParts);
+                              }}
+                            />
                           </div>
 
                           <div className="form-group" style={{ minWidth: 0 }}>

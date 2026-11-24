@@ -59,6 +59,7 @@ export interface OrderCreateInput extends DealGlobalFields {
   orderVendorMilesAndWarranty?: string;
   orderVendorPrice?: string;
   orderVendorId?: number | null;
+  orderVendorContactId?: number | null;
   orderSalesAgentId?: number | null;
   orderVerifierId?: number | null;
   orderSalesVerifierId?: number | null;
@@ -88,6 +89,8 @@ export interface OrderUpdateInput {
   orderVendorPrice?: string;
   orderVendorId?: number | null;
   orderVendorName?: string | null;
+  orderVendorContactId?: number | null;
+  orderVendorContactName?: string | null;
   orderShippingType?: string;
   orderPaymentGatewayId?: number | null;
   orderSalesAgentId?: number | null;
@@ -175,6 +178,8 @@ export interface OrderPartInput {
   orderVendorPrice?: string;
   orderVendorId?: number | null;
   orderVendorName?: string | null;
+  orderVendorContactId?: number | null;
+  orderVendorContactName?: string | null;
   orderBackendExecutiveId?: number | null;
   orderPartFoundById?: number | null;
   orderCurrentStatus?: string | null;
@@ -194,6 +199,8 @@ export interface ChildPartSummary {
   orderLiftgateNeeded: string | null;
   orderVendorId?: number | null;
   orderVendorName?: string | null;
+  orderVendorContactId?: number | null;
+  orderVendorContactName?: string | null;
   orderVendorPrice?: string | null;
   orderBackendExecutiveId?: number | null;
   orderPartFoundById?: number | null;
@@ -216,6 +223,8 @@ export interface ChildPartDetail {
   orderVendorPrice: string | null;
   orderVendorId: number | null;
   orderVendorName: string | null;
+  orderVendorContactId: number | null;
+  orderVendorContactName: string | null;
   orderShippingType: string | null;
   orderAmountCharged: string | null;
   orderRefundAmount: string | null;

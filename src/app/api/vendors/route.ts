@@ -29,7 +29,8 @@ export async function GET(request?: Request) {
   const limit = limitStr !== null ? Number(limitStr) : undefined;
 
   try {
-    const result = await vendorService.getAllVendors(status, page, limit);
+    const search = searchParams.get('search') ?? undefined;
+    const result = await vendorService.getAllVendors(status, page, limit, search);
     return NextResponse.json(result);
   } catch (error: unknown) {
     const err = error as Error;

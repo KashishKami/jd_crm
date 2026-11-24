@@ -32,6 +32,16 @@ function VendorListContent() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const isCachedRef = useRef(false);
 
+  // Search box: `searchInput` follows every keystroke; `search` is the debounced value sent to the API
+  const [searchInput, setSearchInput] = useState<string>(
+    () => getSafeUrlParam({ searchParams, paramName: 'search', expectedBasePath: '/vendors', defaultValue: '' }) || ''
+  );
+  const [search, setSearch] = useState<string>(() => searchInput.trim());
+  useEffect(() => {
+    const t = setTimeout(() => setSearch((searchInput || '').trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // Pagination states — lazy-initialized using getSafeUrlParam for route isolation & back-nav preservation
   const [page, setPage] = useState(() => {
     const rawPage = getSafeUrlParam({ searchParams, paramName: 'page', expectedBasePath: '/vendors', defaultValue: '1' });
@@ -85,6 +95,11 @@ function VendorListContent() {
         const parsedPage = parseInt(pageParam, 10);
         if (!isNaN(parsedPage) && parsedPage > 0) setPage(parsedPage);
       }
+      const searchParam = params.get('search');
+      if (searchParam !== null) {
+        setSearchInput(searchParam);
+        setSearch(searchParam.trim());
+      }
 
       // Load cache
       const cacheKey = `cached_vendors_${window.location.pathname}${queryStr}`;
@@ -134,18 +149,20 @@ function VendorListContent() {
 
   const prevFiltersRef = useRef({
     statusFilter,
+    search,
   });
 
   // Sync all active filters + page into the URL whenever they change
   useEffect(() => {
     if (isRestoringRef.current) return;
 
-    // Check if statusFilter actually changed
-    const changed = prevFiltersRef.current.statusFilter !== statusFilter;
+    // Check if a filter actually changed
+    const changed = prevFiltersRef.current.statusFilter !== statusFilter || prevFiltersRef.current.search !== search;
 
     // Update the ref
     prevFiltersRef.current = {
       statusFilter,
+      search,
     };
 
     if (!changed) return;
@@ -155,10 +172,11 @@ function VendorListContent() {
       const params = new URLSearchParams();
       params.set('page', '1');
       params.set('status', String(statusFilter));
+      if (search) params.set('search', search);
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', newUrl);
     }
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
   // Save scroll position to sessionStorage on scroll
   useEffect(() => {
@@ -221,7 +239,9 @@ function VendorListContent() {
       }
       setError(null);
       try {
-        const res = await fetch(`/api/vendors?status=${statusFilter}&page=${page}&limit=${limit}`);
+        const qs = new URLSearchParams({ status: String(statusFilter), page: String(page), limit: String(limit) });
+        if (search) qs.set('search', search);
+        const res = await fetch(`/api/vendors?${qs.toString()}`);
         if (!res.ok) {
           throw new Error(`Failed to fetch vendors: ${res.statusText}`);
         }
@@ -267,7 +287,7 @@ function VendorListContent() {
     return () => {
       active = false;
     };
-  }, [statusFilter, refetchTrigger, page]);
+  }, [statusFilter, refetchTrigger, page, search]);
 
   // Page entrance animation
   useEffect(() => {
@@ -340,6 +360,20 @@ function VendorListContent() {
             Blacklisted Suppliers
           </button>
         </div>
+
+        <div className="search-input-wrapper vendor-search">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search name, contact, phone or email..."
+            aria-label="Search vendors"
+            className="filter-search-input"
+          />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true" style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '11px', color: '#64748b' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.603 10.603z" />
+          </svg>
+        </div>
       </div>
 
       {loading ? (
@@ -358,7 +392,7 @@ function VendorListContent() {
         </div>
       ) : vendors.length === 0 ? (
         <div className="empty-box">
-          <p>No vendors found matching this criteria.</p>
+          <p>{search ? `No vendors match "${search}".` : 'No vendors found matching this criteria.'}</p>
         </div>
       ) : (
         <>

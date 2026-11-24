@@ -79,6 +79,7 @@ export async function teardown() {
     'crm_orders',
     'crm_customer_cards',
     'crm_customers',
+    'crm_vendor_contacts',
     'crm_vendors',
     'crm_gateway',
     'crm_attendance',

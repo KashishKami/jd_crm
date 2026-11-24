@@ -354,6 +354,8 @@ export async function getRecentOrders(limit = 10) {
     orderLiftgateNeeded: true,
     orderVendorId: true,
     orderVendorName: true,
+    orderVendorContactId: true,
+    orderVendorContactName: true,
     orderVendorPrice: true,
     orderBackendExecutiveId: true,
     orderBackendExecutiveName: true,

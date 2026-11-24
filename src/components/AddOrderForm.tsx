@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { fadeInPage } from '../lib/animations';
 import { getCurrentEstDateTime, convertEstToUtc } from '../lib/date';
 import DealSummarySidebar from './DealSummarySidebar';
+import SupplierContactPicker from './SupplierContactPicker';
 
 interface AddOrderFormProps {
   vendors: Array<{ vendorId: number; vendorName: string; vendorStatus?: number }>;
@@ -28,6 +29,8 @@ interface PartFormState {
   orderVendorPrice: string;
   orderAmountCharged?: string;
   orderVendorId: string;
+  /** Person at the supplier who supplied this part ('' = not recorded) */
+  orderVendorContactId: string;
   orderPaymentGatewayId?: string;
   orderSalesAgentId?: string;
   orderSalesVerifierId?: string;
@@ -156,6 +159,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
       orderVendorMilesAndWarranty: '',
       orderVendorPrice: '',
       orderVendorId: '',
+      orderVendorContactId: '',
       orderBackendExecutiveId: '',
       orderPartFoundById: '',
       saleStatus: '1',
@@ -240,6 +244,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
         orderVendorMilesAndWarranty: '',
         orderVendorPrice: '',
         orderVendorId: '',
+        orderVendorContactId: '',
         orderBackendExecutiveId: '',
         orderPartFoundById: '',
         saleStatus: '1',
@@ -323,10 +328,13 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
 
       // Re-map mirrored vendors based on parts[0]
       const resolvedParts = orderedParts.map((p) => {
-        const orderVendorId = p.vendorSourcingType === 'mirror' ? orderedParts[0].orderVendorId : p.orderVendorId;
+        const isMirror = p.vendorSourcingType === 'mirror';
+        const orderVendorId = isMirror ? orderedParts[0].orderVendorId : p.orderVendorId;
+        const orderVendorContactId = isMirror ? orderedParts[0].orderVendorContactId : p.orderVendorContactId;
         return {
           ...p,
           orderVendorId,
+          orderVendorContactId,
         };
       });
 
@@ -397,6 +405,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               orderVendorMilesAndWarranty: p.orderVendorMilesAndWarranty || null,
               orderVendorPrice: p.orderVendorPrice || null,
               orderVendorId: p.orderVendorId ? Number(p.orderVendorId) : null,
+              orderVendorContactId: p.orderVendorId && p.orderVendorContactId ? Number(p.orderVendorContactId) : null,
               orderBackendExecutiveId: orderBackendExecutiveId ? Number(orderBackendExecutiveId) : null,
               orderPartFoundById: p.orderPartFoundById ? Number(p.orderPartFoundById) : null,
               saleStatus: saleStatus,
@@ -411,6 +420,7 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
               orderVendorMilesAndWarranty: p.orderVendorMilesAndWarranty || null,
               orderVendorPrice: p.orderVendorPrice || null,
               orderVendorId: p.orderVendorId ? Number(p.orderVendorId) : null,
+              orderVendorContactId: p.orderVendorId && p.orderVendorContactId ? Number(p.orderVendorContactId) : null,
               orderBackendExecutiveId: null,
               orderPartFoundById: p.orderPartFoundById ? Number(p.orderPartFoundById) : null,
               saleStatus: null,
@@ -1056,6 +1066,8 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                                 const val = e.target.value;
                                 const newParts = [...parts];
                                 newParts[index].orderVendorId = val;
+                                // A contact belongs to one supplier, so changing supplier clears it
+                                newParts[index].orderVendorContactId = '';
                                 setParts(newParts);
                               }}
                               className="form-select"
@@ -1072,6 +1084,19 @@ export default function AddOrderForm({ vendors, gateways, agents }: AddOrderForm
                                 </option>
                               ))}
                             </select>
+                            <label htmlFor={`orderVendorContactId-${index}`} className="form-label" style={{ marginTop: '10px' }}>
+                              Supplier Contact <span className="text-slate-400 font-normal">(optional)</span>
+                            </label>
+                            <SupplierContactPicker
+                              id={`orderVendorContactId-${index}`}
+                              vendorId={part.orderVendorId}
+                              value={part.orderVendorContactId}
+                              onChange={(contactId) => {
+                                const newParts = [...parts];
+                                newParts[index].orderVendorContactId = contactId;
+                                setParts(newParts);
+                              }}
+                            />
                           </div>
 
                           <div className="form-group" style={{ minWidth: 0 }}>

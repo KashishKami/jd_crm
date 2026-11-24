@@ -144,6 +144,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           },
         },
         vendor: true,
+        vendorContact: { select: { contactName: true, contactPhone: true, contactEmail: true } },
         gateway: true,
         salesAgent: { select: safeUserSelect },
         verifier: { select: safeUserSelect },
@@ -153,6 +154,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         childOrders: {
           include: {
             vendor: true,
+            vendorContact: { select: { contactName: true, contactPhone: true, contactEmail: true } },
             gateway: true,
             backendExecutive: { select: safeUserSelect },
             partFoundBy: { select: safeUserSelect },
@@ -308,11 +310,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     const vendorName = part.vendor?.vendorName || part.orderVendorName || 'Unassigned';
     const partName = part.orderPart || `Part #${idx + 1}`;
     const feedback = part.orderVendorFeedback || 'Positive';
+    const contactName = part.orderVendorContactName || null;
+    const contactPhone = part.vendorContact?.contactPhone || null;
     return {
       vendor,
       vendorName,
       partName,
       feedback,
+      contactName,
+      contactPhone,
     };
   });
 
@@ -702,6 +708,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                 {order.vendor.vendorName}
                               </div>
                               <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {order.orderVendorContactName && (
+                                  <div><strong>Contact:</strong> {order.orderVendorContactName}{order.vendorContact?.contactPhone ? ` · ${order.vendorContact.contactPhone}` : ''}</div>
+                                )}
                                 <div><strong>Email:</strong> {order.vendor.vendorEmail || '—'}</div>
                                 <div><strong>Phone:</strong> {order.vendor.vendorPhone || '—'}</div>
                                 <div><strong>State:</strong> {order.vendor.vendorState || '—'}</div>
@@ -717,6 +726,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                           </span>
                         ) : (
                           order.orderVendorName || 'Unassigned'
+                        )}
+                      </span>
+                    </div>
+                    <div className="info-group" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', alignItems: 'flex-start' }}>
+                      <span className="form-label" style={{ flexShrink: 0, marginRight: '16px' }}>Supplier Contact</span>
+                      <span className="info-value" style={{ fontWeight: '600', fontSize: '0.85rem', textAlign: 'right' }}>
+                        {order.orderVendorContactName ? (
+                          <>
+                            {order.orderVendorContactName}
+                            {(order.vendorContact?.contactPhone || order.vendorContact?.contactEmail) && (
+                              <span style={{ display: 'block', fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                {[order.vendorContact?.contactPhone, order.vendorContact?.contactEmail].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Not recorded</span>
                         )}
                       </span>
                     </div>
@@ -809,6 +835,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                         {row.vendor.vendorName}
                                       </div>
                                       <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {row.contactName && (
+                                          <div><strong>Contact:</strong> {row.contactName}{row.contactPhone ? ` · ${row.contactPhone}` : ''}</div>
+                                        )}
                                         <div><strong>Email:</strong> {row.vendor.vendorEmail || '—'}</div>
                                         <div><strong>Phone:</strong> {row.vendor.vendorPhone || '—'}</div>
                                         <div><strong>State:</strong> {row.vendor.vendorState || '—'}</div>
@@ -824,6 +853,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                   </span>
                                 ) : (
                                   row.vendorName
+                                )}
+                                {row.contactName && (
+                                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Contact: {row.contactName}</span>
                                 )}
                               </span>
                               <span>{row.partName}</span>

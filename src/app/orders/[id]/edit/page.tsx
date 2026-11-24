@@ -5,6 +5,7 @@ import { authOptions } from '../../../api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../../service/permission.service';
 import { prisma } from '../../../../lib/db';
 import EditOrderForm from '../../../../components/EditOrderForm';
+import { sortVendorsByName } from '../../../../lib/vendorSort';
 
 export const metadata = {
   title: 'Edit Order - JD CRM',
@@ -76,10 +77,9 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
         },
       },
     }),
-    prisma.crmVendors.findMany({
-      select: { vendorId: true, vendorName: true, vendorStatus: true },
-      orderBy: { vendorName: 'asc' },
-    }),
+    prisma.crmVendors
+      .findMany({ select: { vendorId: true, vendorName: true, vendorStatus: true } })
+      .then(sortVendorsByName),
     prisma.crmGateway.findMany({
       where: { gatewayStatus: 1 },
       select: { gatewayId: true, gatewayName: true },

@@ -31,6 +31,7 @@ const fieldLabels: Record<string, string> = {
   orderVendorPrice: 'Vendor Price',
   orderVendorId: 'Vendor ID',
   orderVendorName: 'Vendor Name',
+  orderVendorContactName: 'Supplier Contact',
   orderShippingType: 'Shipping Type',
   orderAmountCharged: 'Amount Charged',
   orderPaymentGatewayId: 'Payment Gateway',

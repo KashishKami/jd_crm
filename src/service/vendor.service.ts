@@ -1,5 +1,8 @@
 import * as vendorRepository from '../repository/vendor.repository';
 import { VendorWithMetrics, VendorCreateInput, VendorUpdateInput } from '../types/vendor';
+import * as vendorContactRepository from '../repository/vendorContact.repository';
+import { Prisma } from '@prisma/client';
+import { cleanVendorName, normalizeVendorSearch, sortVendorsByName } from '../lib/vendorSort';
 
 const PHONE_REGEX = /^\+?[0-9\s\-()]{7,20}$/;
 
@@ -9,86 +12,74 @@ function validatePhone(phone: string) {
   }
 }
 
-export async function getAllVendors(status?: number, page?: number, limit?: number): Promise<any> {
-  const where = status !== undefined ? { vendorStatus: status } : undefined;
+// Void ('5') counts — the vendor was booked and the charge captured (same-day reversal).
+// Cancel Order ('6') is excluded — no charge was processed, so the vendor was never involved.
+const COUNTED_SALE_STATUSES = new Set(['1', '2', '3', '4', '5']);
 
-  if (page !== undefined && limit !== undefined) {
-    const skip = (page - 1) * limit;
-    const { prisma } = await import('../lib/db');
-    const [vendors, total] = await Promise.all([
-      prisma.crmVendors.findMany({
-        where,
-        include: {
-          orders: {
-            select: {
-              crmOrderId: true,
-              saleStatus: true,
-              orderVendorFeedback: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take: limit,
-      }),
-      prisma.crmVendors.count({ where })
-    ]);
+/**
+ * Vendor directory, sorted A–Z by name (ignoring stray spaces and case).
+ * `search` matches the supplier name, phone, email, the "Contact Person" field,
+ * or any of the supplier's contacts. With `page` + `limit` returns a paginated envelope.
+ */
+export async function getAllVendors(status?: number, page?: number, limit?: number, search?: string): Promise<any> {
+  const { prisma } = await import('../lib/db');
+  const q = normalizeVendorSearch(search);
 
-    const mappedData = vendors.map((vendor) => {
-      const validOrders = vendor.orders.filter(
-        // Void ('5') counted — vendor was booked; Cancel Order ('6') excluded — never charged.
-        (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5'
-      );
-      const totalOrders = validOrders.length;
-      const negativeOrders = validOrders.filter(
-        (order) => order.orderVendorFeedback === 'Negative'
-      ).length;
-      const positiveOrders = totalOrders - negativeOrders;
-      const { orders: _orders, ...vendorData } = vendor;
-      return {
-        ...vendorData,
-        totalOrders,
-        positiveOrders,
-        negativeOrders,
-      };
-    });
+  const where: Prisma.CrmVendorsWhereInput = {
+    ...(status !== undefined ? { vendorStatus: status } : {}),
+    ...(q
+      ? {
+          OR: [
+            { vendorName: { contains: q } },
+            { vendorContactPerson: { contains: q } },
+            { vendorPhone: { contains: q } },
+            { vendorAlternatePhone1: { contains: q } },
+            { vendorAlternatePhone2: { contains: q } },
+            { vendorEmail: { contains: q } },
+            { contacts: { some: { contactName: { contains: q } } } },
+          ],
+        }
+      : {}),
+  };
 
-    return {
-      data: mappedData,
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit),
-    };
-  }
+  // The directory is small (tens to low hundreds of suppliers), so sort and
+  // paginate in memory — the database can't sort names that start with spaces.
+  const vendors = await prisma.crmVendors.findMany({
+    where,
+    include: {
+      orders: {
+        select: { crmOrderId: true, saleStatus: true, orderVendorFeedback: true },
+      },
+    },
+  });
 
-  const vendors = await vendorRepository.findAll(status);
-  
-  return vendors.map((vendor) => {
-    // Void ('5') included — vendor was booked and charge captured (same-day reversal).
-    // Cancel Order ('6') excluded — no charge processed, vendor was not involved.
-    const validOrders = vendor.orders.filter(
-      (order) => order.saleStatus === '1' || order.saleStatus === '2' || order.saleStatus === '3' || order.saleStatus === '4' || order.saleStatus === '5'
-    );
+  const withMetrics = sortVendorsByName(vendors).map((vendor) => {
+    const validOrders = vendor.orders.filter((order) => COUNTED_SALE_STATUSES.has(order.saleStatus ?? ''));
     const totalOrders = validOrders.length;
-    
-    const negativeOrders = validOrders.filter(
-      (order) => order.orderVendorFeedback === 'Negative'
-    ).length;
-    
-    const positiveOrders = totalOrders - negativeOrders;
-
+    const negativeOrders = validOrders.filter((order) => order.orderVendorFeedback === 'Negative').length;
     const { orders: _orders, ...vendorData } = vendor;
-
     return {
       ...vendorData,
       totalOrders,
-      positiveOrders,
+      positiveOrders: totalOrders - negativeOrders,
       negativeOrders,
     };
   });
+
+  if (page !== undefined && limit !== undefined) {
+    const safeLimit = Math.max(1, Math.min(limit, 200));
+    const safePage = Math.max(1, page);
+    const total = withMetrics.length;
+    return {
+      data: withMetrics.slice((safePage - 1) * safeLimit, safePage * safeLimit),
+      total,
+      page: safePage,
+      limit: safeLimit,
+      pages: Math.ceil(total / safeLimit),
+    };
+  }
+
+  return withMetrics;
 }
 
 export async function getVendorById(vendorId: number) {
@@ -99,14 +90,24 @@ export async function createVendor(data: VendorCreateInput) {
   if (data.vendorPhone) {
     validatePhone(data.vendorPhone);
   }
-  return vendorRepository.create(data);
+  if (data.vendorName !== undefined) data = { ...data, vendorName: cleanVendorName(data.vendorName) };
+  const vendor = await vendorRepository.create(data);
+  // Keep the supplier's contact list in step with the "Contact Person" field
+  await vendorContactRepository.ensureContactsFromLegacyField(vendor.vendorId, vendor.vendorContactPerson);
+  return vendor;
 }
 
 export async function updateVendor(vendorId: number, data: VendorUpdateInput) {
   if (data.vendorPhone) {
     validatePhone(data.vendorPhone);
   }
-  return vendorRepository.update(vendorId, data);
+  if (data.vendorName !== undefined) data = { ...data, vendorName: cleanVendorName(data.vendorName) };
+  const vendor = await vendorRepository.update(vendorId, data);
+  if (data.vendorContactPerson !== undefined) {
+    // Adds any newly typed names; never removes existing contacts
+    await vendorContactRepository.ensureContactsFromLegacyField(vendorId, vendor.vendorContactPerson);
+  }
+  return vendor;
 }
 
 export async function toggleVendorStatus(vendorId: number, status: number) {

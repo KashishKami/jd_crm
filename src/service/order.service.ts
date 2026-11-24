@@ -2,6 +2,7 @@ import * as orderRepository from '../repository/order.repository';
 import { prisma } from '../lib/db';
 import { OrderCreateInput, OrderUpdateInput, OrderFilters } from '../types/order';
 import { hasPermission } from './permission.service';
+import { resolveContactForOrder } from './vendorContact.service';
 
 export async function createOrder(
   data: OrderCreateInput,
@@ -390,6 +391,23 @@ export async function updateOrder(
     }
   }
 
+  // 6. Supplier contact: must belong to the part's supplier. Changing the supplier
+  //    without choosing a new contact clears the old one (it belongs to the old supplier).
+  const effectiveVendorId = data.orderVendorId !== undefined ? data.orderVendorId : existingOrder.orderVendorId;
+  const vendorChanged = data.orderVendorId !== undefined && (data.orderVendorId ?? null) !== (existingOrder.orderVendorId ?? null);
+  if (data.orderVendorContactId !== undefined || vendorChanged) {
+    const requestedContactId = data.orderVendorContactId !== undefined
+      ? data.orderVendorContactId
+      : (vendorChanged ? null : existingOrder.orderVendorContactId);
+    const contact = await resolveContactForOrder(requestedContactId, effectiveVendorId);
+    updatedData.orderVendorContactId = contact ? contact.contactId : null;
+    updatedData.orderVendorContactName = contact
+      ? (contact.contactId === existingOrder.orderVendorContactId && existingOrder.orderVendorContactName
+          ? existingOrder.orderVendorContactName // keep the saved name for an unchanged contact
+          : contact.contactName)
+      : null;
+  }
+
   // ─── Diff and write change audit log entries ──────────────────────────────────
   const auditEntries: { fieldName: string; oldValue: string | null; newValue: string | null }[] = [];
 
@@ -424,7 +442,7 @@ export async function updateOrder(
 
   const orderKeysToAudit = [
     'orderMakeModel', 'orderPart', 'orderPartSize', 'orderQuotedMilesAndWarranty', 'orderVendorMilesAndWarranty',
-    'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName',
+    'orderVin', 'orderTotalPitched', 'orderVendorPrice', 'orderVendorName', 'orderVendorContactName',
     'orderShippingType', 'orderRefundAmount',
     'orderSalesAgentName', 'orderVerifierName',
     'orderSalesVerifierName', 'orderBackendExecutiveName',

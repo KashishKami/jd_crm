@@ -60,6 +60,7 @@ export async function createWithCustomerAndCard(
         orderTotalPitched: data.orderTotalPitched,
         orderVendorPrice: data.orderVendorPrice,
         orderVendorId: data.orderVendorId,
+        orderVendorContactId: data.orderVendorContactId,
         orderShippingType: data.orderShippingType,
         orderPaymentGatewayId: data.orderPaymentGatewayId,
         orderSalesAgentId: data.orderSalesAgentId,
@@ -111,6 +112,26 @@ export async function createWithCustomerAndCard(
 
   const userMap = new Map(usersList.map((u) => [u.uid, u.nickname || u.name]));
   const vendorMap = new Map(vendorsList.map((v) => [v.vendorId, v.vendorName]));
+
+  // Supplier contacts: each must belong to the part's selected supplier
+  const contactIds = partsToCreate.map((p) => Number(p.orderVendorContactId)).filter((id) => Number.isInteger(id) && id > 0);
+  const contactsList = contactIds.length > 0
+    ? await prisma.crmVendorContacts.findMany({ where: { contactId: { in: contactIds } } })
+    : [];
+  const contactMap = new Map(contactsList.map((c) => [c.contactId, c]));
+  const resolvePartContact = (part: any): { orderVendorContactId: number | null; orderVendorContactName: string | null } => {
+    const id = Number(part.orderVendorContactId);
+    if (!part.orderVendorId || !Number.isInteger(id) || id <= 0) {
+      return { orderVendorContactId: null, orderVendorContactName: null };
+    }
+    const contact = contactMap.get(id);
+    if (!contact) throw new Error('Supplier contact not found');
+    if (contact.vendorId !== Number(part.orderVendorId)) {
+      throw new Error(`${contact.contactName} is not a contact at the selected supplier`);
+    }
+    return { orderVendorContactId: contact.contactId, orderVendorContactName: contact.contactName };
+  };
+  const partContacts = partsToCreate.map(resolvePartContact);
 
   // Perform database inserts in an atomic transaction
   return await prisma.$transaction(async (tx) => {
@@ -216,6 +237,7 @@ export async function createWithCustomerAndCard(
         orderVendorPrice: parentPart.orderVendorPrice || null,
         orderVendorId: parentPart.orderVendorId || null,
         orderVendorName: parentVendorName,
+        ...partContacts[0],
         orderShippingType: orderShippingType,
         orderAmountCharged: orderAmountCharged,
         orderPaymentGatewayId: orderPaymentGatewayId,
@@ -277,6 +299,7 @@ export async function createWithCustomerAndCard(
             orderVendorPrice: childPart.orderVendorPrice || null,
             orderVendorId: childPart.orderVendorId || null,
             orderVendorName: childVendorName,
+            ...partContacts[i],
             orderBackendExecutiveId: childPart.orderBackendExecutiveId || null,
             orderBackendExecutiveName: childBackendExecutiveName,
             orderPartFoundById: childPart.orderPartFoundById || null,
@@ -563,6 +586,8 @@ export async function findAll(filters: OrderFilters): Promise<any> {
     orderLiftgateNeeded: true,
     orderVendorId: true,
     orderVendorName: true,
+    orderVendorContactId: true,
+    orderVendorContactName: true,
     orderVendorPrice: true,
     orderBackendExecutiveId: true,
     orderBackendExecutiveName: true,
@@ -917,6 +942,20 @@ export async function addPartToExistingOrder(parentOrderId: number, data: any) {
   const partFoundByName = partFoundByRecord ? (partFoundByRecord.nickname || partFoundByRecord.name) : null;
   const vendorName = vendorRecord ? vendorRecord.vendorName : null;
 
+  // Optional supplier contact — must belong to this part's supplier
+  let contactFields: { orderVendorContactId: number | null; orderVendorContactName: string | null } = {
+    orderVendorContactId: null,
+    orderVendorContactName: null,
+  };
+  if (childData.orderVendorId && childData.orderVendorContactId) {
+    const contact = await prisma.crmVendorContacts.findUnique({ where: { contactId: Number(childData.orderVendorContactId) } });
+    if (!contact) throw new Error('Supplier contact not found');
+    if (contact.vendorId !== Number(childData.orderVendorId)) {
+      throw new Error(`${contact.contactName} is not a contact at the selected supplier`);
+    }
+    contactFields = { orderVendorContactId: contact.contactId, orderVendorContactName: contact.contactName };
+  }
+
   return await prisma.crmOrders.create({
     data: {
       orderCustomerId: parent.orderCustomerId,
@@ -927,6 +966,7 @@ export async function addPartToExistingOrder(parentOrderId: number, data: any) {
       orderVendorPrice: childData.orderVendorPrice || null,
       orderVendorId: childData.orderVendorId || null,
       orderVendorName: vendorName,
+      ...contactFields,
       orderBackendExecutiveId: childData.orderBackendExecutiveId || null,
       orderBackendExecutiveName: backendExecutiveName,
       orderPartFoundById: childData.orderPartFoundById || null,

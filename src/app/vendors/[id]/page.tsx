@@ -10,6 +10,7 @@ import { fadeInPage, staggerEntrance } from '../../../lib/animations';
 import VendorStatusBadge from '../../../components/VendorStatusBadge';
 import { formatDateDDMMYYYY } from '../../../lib/date';
 import { useDragScroll } from '../../../hooks/useDragScroll';
+import VendorContactsCard from '../../../components/VendorContactsCard';
 
 interface LinkedOrder {
   crmOrderId: number;
@@ -22,6 +23,7 @@ interface LinkedOrder {
   };
   orderAmountCharged: string;
   orderSalesAgentName: string;
+  orderVendorContactName?: string | null;
   saleStatus: string;
   orderVendorFeedback: string;
 }
@@ -439,6 +441,12 @@ export default function VendorDetailPage() {
 
         {/* Orders History Tab/Table */}
         <div className="profile-main">
+          <VendorContactsCard
+            vendorId={vendor.vendorId}
+            canAdd={hasPermission(permissions, 'vendors:edit') || hasPermission(permissions, 'vendors:create') || hasPermission(permissions, 'orders:create') || hasPermission(permissions, 'orders:edit')}
+            canManage={canEdit}
+          />
+
           {/* Performance History Chart Card */}
           <div className="form-card" style={{ padding: '24px', marginBottom: '20px', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px', color: '#1e293b' }}>
@@ -602,6 +610,7 @@ export default function VendorDetailPage() {
                       <th>Phone Number</th>
                       <th>Amt. Charged</th>
                       <th>Agent</th>
+                      <th>Contact</th>
                       <th>Sale Status</th>
                       <th>Feedback</th>
                     </tr>
@@ -627,6 +636,7 @@ export default function VendorDetailPage() {
                           ${order.orderAmountCharged}
                         </td>
                         <td>{order.orderSalesAgentName}</td>
+                        <td>{order.orderVendorContactName || <span style={{ color: '#94a3b8' }}>—</span>}</td>
                         <td>
                           <span className={`status-dot-badge ${order.saleStatus === '1' ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 8px' }}>
                             {getSaleStatusLabel(order.saleStatus)}
@@ -712,6 +722,7 @@ export default function VendorDetailPage() {
                       <th>Phone Number</th>
                       <th>Amt. Charged</th>
                       <th>Agent</th>
+                      <th>Contact</th>
                       <th>Sale Status</th>
                       <th>Feedback</th>
                     </tr>
@@ -719,7 +730,7 @@ export default function VendorDetailPage() {
                   <tbody>
                     {filteredOrdersForDrilldown.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
                           No orders found matching this filter.
                         </td>
                       </tr>
@@ -736,6 +747,7 @@ export default function VendorDetailPage() {
                           <td className="font-mono text-slate-400">{order.customer?.customerPhone || '—'}</td>
                           <td className="font-semibold text-slate-200 font-mono">${order.orderAmountCharged}</td>
                           <td>{order.orderSalesAgentName}</td>
+                          <td>{order.orderVendorContactName || <span style={{ color: '#94a3b8' }}>—</span>}</td>
                           <td>
                             <span className={`status-dot-badge ${order.saleStatus === '1' ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 8px' }}>
                               {getSaleStatusLabel(order.saleStatus)}
