@@ -1,7 +1,7 @@
 # ────────────────────────────────────────────────
 # Stage 1: Install dependencies
 # ────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 # Copy package files first (better Docker caching)
@@ -11,7 +11,7 @@ RUN npm ci
 # ────────────────────────────────────────────────
 # Stage 2: Build the Next.js application
 # ────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -51,7 +51,7 @@ RUN npx esbuild src/scripts/run-backup.ts \
 # ────────────────────────────────────────────────
 # Stage 3: Production runtime (smallest possible image)
 # ────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 # Install mysql-client and mariadb-connector-c to run mysqldump inside the container

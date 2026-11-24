@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Copy test environment file
@@ -161,7 +161,9 @@ jobs:
             # Idempotent — checks _prisma_migrations table and only runs new ones.
             # If there are no new migrations this finishes in under a second.
             sleep 5
-            docker exec jd_crm_app npx prisma migrate deploy
+            # Pin the CLI to the project's Prisma version — the image doesn't ship the
+            # CLI, and a bare `npx prisma` would download whatever npm tags "latest".
+            docker exec jd_crm_app npx --yes prisma@7.8.0 migrate deploy
 
             # Clean up unused Docker images to save disk space
             docker image prune -f
